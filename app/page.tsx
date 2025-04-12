@@ -1,22 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import Header from "./Header";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
-import useRol from "@/lib/useRol";
-import Header from "./Header";
-import Link from "next/link";
+import { useRol } from "@/lib/useRol";
 
 export default function Home() {
   const [user, loadingUser] = useAuthState(auth);
   const rol = useRol();
-
-  if (loadingUser || !rol) {
-    return (
-      <main className="h-screen flex items-center justify-center bg-gray-900 text-white">
-        <h1 className="text-xl animate-pulse">Cargando rol...</h1>
-      </main>
-    );
-  }
 
   const botonesEmpleado = [
     { label: "Ingreso de trabajo", href: "/ingreso" },
