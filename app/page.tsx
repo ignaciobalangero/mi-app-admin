@@ -1,13 +1,22 @@
 "use client";
-import Link from "next/link";
-import Header from "./Header";
+
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
-import { useRol } from "@/lib/useRol";
+import useRol from "@/lib/useRol";
+import Header from "./Header";
+import Link from "next/link";
 
 export default function Home() {
   const [user, loadingUser] = useAuthState(auth);
   const rol = useRol();
+
+  if (loadingUser || !rol) {
+    return (
+      <main className="h-screen flex items-center justify-center bg-gray-900 text-white">
+        <h1 className="text-xl animate-pulse">Cargando rol...</h1>
+      </main>
+    );
+  }
 
   const botonesEmpleado = [
     { label: "Ingreso de trabajo", href: "/ingreso" },
@@ -19,7 +28,7 @@ export default function Home() {
     ...botonesEmpleado,
     { label: "Resumen de clientes", href: "/resumen" },
     { label: "Cuenta corriente", href: "/cuenta" },
-    { label: "Pago de clientes", href: "/pagos" },
+    { label: "Pago de Clientes", href: "/pagos" },
   ];
 
   const botones = rol === "admin" ? botonesAdmin : botonesEmpleado;
@@ -27,24 +36,19 @@ export default function Home() {
   return (
     <>
       <Header />
-      <main className="pt-20 min-h-screen flex flex-col items-center justify-center bg-gray-900 p-8 text-white">
-        <h1 className="text-3xl font-bold mb-10 text-center">
-          Director del panel
-        </h1>
-
-        {loadingUser || !rol ? (
-          <p className="text-gray-400 text-lg mt-10">Cargando rol...</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-xl">
-            {botones.map(({ label, href }) => (
-              <Link key={href} href={href}>
-                <div className="bg-blue-600 text-white rounded-2xl shadow-md p-6 text-center text-xl font-medium hover:bg-blue-700 transition cursor-pointer">
-                  {label}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+      <main className="pt-20 min-h-screen flex flex-col items-center justify-center bg-gray-100 p-8 text-black">
+        <h1 className="text-3xl font-bold mb-6">Director del panel</h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {botones.map((boton, i) => (
+            <Link
+              key={i}
+              href={boton.href}
+              className="bg-white shadow-lg rounded-xl p-6 text-center hover:bg-gray-200 transition"
+            >
+              {boton.label}
+            </Link>
+          ))}
+        </div>
       </main>
     </>
   );
