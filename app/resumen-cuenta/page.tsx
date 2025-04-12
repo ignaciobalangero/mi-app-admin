@@ -3,31 +3,12 @@
 import { useEffect, useState } from "react";
 import Header from "../Header";
 import { useRol } from "../../lib/useRol";
-import Link from "next/link";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
-const botonesAdmin = [
-  { label: "Ingreso de trabajo", href: "/ingreso" },
-  { label: "Trabajos pendientes", href: "/pendientes" },
-  { label: "Trabajos entregados", href: "/entregados" },
-  { label: "Resumen de clientes", href: "/resumen" },
-  { label: "Cuenta corriente", href: "/cuenta" },
-  { label: "Pago de clientes", href: "/pagos" },
-  { label: "Resumen de cuenta", href: "/resumen-cuenta" }
-];
-
-const botonesEmpleado = [
-  { label: "Ingreso de trabajo", href: "/ingreso" },
-  { label: "Trabajos pendientes", href: "/pendientes" },
-  { label: "Trabajos entregados", href: "/entregados" }
-];
-
-export default function Home() {
+export default function ResumenCuenta() {
   const rol = useRol();
-  const botones = rol === "admin" ? botonesAdmin : botonesEmpleado;
-
   const [gananciasPorMes, setGananciasPorMes] = useState([]);
 
   useEffect(() => {
@@ -58,18 +39,7 @@ export default function Home() {
     <>
       <Header />
       <main className="pt-20 min-h-screen flex flex-col items-center justify-center bg-gray-100 p-8 text-black">
-        <h1 className="text-3xl font-bold mb-6">Director del panel</h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-          {botones.map((boton, i) => (
-            <Link
-              key={i}
-              href={boton.href}
-              className="bg-white shadow-lg rounded-xl p-6 text-center hover:bg-gray-200 transition"
-            >
-              {boton.label}
-            </Link>
-          ))}
-        </div>
+        <h1 className="text-3xl font-bold mb-6">Resumen de Cuenta</h1>
 
         {rol === "admin" && gananciasPorMes.length > 0 && (
           <div className="w-full max-w-4xl bg-white p-6 rounded-xl shadow-lg">
