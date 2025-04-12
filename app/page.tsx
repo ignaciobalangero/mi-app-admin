@@ -1,29 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import Header from "./Header";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/auth";
-import { useRol } from "@/lib/useRol";
+import { useRol } from "../lib/useRol";
+import Link from "next/link";
+
+const botonesAdmin = [
+  { label: "Ingreso de trabajo", href: "/ingreso" },
+  { label: "Trabajos pendientes", href: "/pendientes" },
+  { label: "Trabajos entregados", href: "/entregados" },
+  { label: "Resumen de clientes", href: "/resumen" },
+  { label: "Cuenta corriente", href: "/cuenta" },
+  { label: "Pago de clientes", href: "/pagos" },
+  { label: "Resumen de cuenta", href: "/resumen-cuenta" }
+];
+
+const botonesEmpleado = [
+  { label: "Ingreso de trabajo", href: "/ingreso" },
+  { label: "Trabajos pendientes", href: "/pendientes" },
+  { label: "Trabajos entregados", href: "/entregados" }
+];
 
 export default function Home() {
-  const [user, loadingUser] = useAuthState(auth);
   const rol = useRol();
-
-  const botonesEmpleado = [
-    { label: "Ingreso de trabajo", href: "/ingreso" },
-    { label: "Trabajos pendientes", href: "/pendientes" },
-    { label: "Trabajos entregados", href: "/entregados" },
-  ];
-
-  const botonesAdmin = [
-    ...botonesEmpleado,
-    { label: "Resumen de clientes", href: "/resumen" },
-    { label: "Cuenta corriente", href: "/cuenta" },
-    { label: "Pago de Clientes", href: "/pagos" },
-  ];
-
   const botones = rol === "admin" ? botonesAdmin : botonesEmpleado;
 
   return (
