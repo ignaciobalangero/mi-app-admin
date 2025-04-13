@@ -1,17 +1,17 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import { db } from "../../lib/firebase";
+import Header from "../Header";
+import { useRol } from "@/lib/useRol";
+import { db } from "@/lib/firebase";
 import {
   collection,
   getDocs,
   query,
   where
 } from "firebase/firestore";
-import Header from "../Header";
-import { useRol } from "../../lib/useRol";
 import { signOut } from "firebase/auth";
-import { auth } from "../../lib/auth";
+import { auth } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 interface Trabajo {
   fecha: string;
@@ -26,10 +26,17 @@ interface Trabajo {
 
 export default function Cliente() {
   const { rol, cliente } = useRol();
+  const router = useRouter();
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
+
+  const cerrarSesion = async () => {
+    await signOut(auth);
+    router.push("/login");
+  };
 
   const cargarTrabajos = async () => {
     if (!cliente) return;
+
     const q = query(collection(db, "trabajos"), where("cliente", "==", cliente.toLowerCase()));
     const querySnapshot = await getDocs(q);
     const datos: Trabajo[] = [];
@@ -43,32 +50,33 @@ export default function Cliente() {
   };
 
   useEffect(() => {
-    cargarTrabajos();
-  }, [cliente]);
+    if (rol === "cliente") cargarTrabajos();
+  }, [rol, cliente]);
 
   if (rol !== "cliente") return null;
 
-  const pendientes = trabajos.filter((t) => t.estado === "PENDIENTE");
-  const entregados = trabajos.filter((t) => t.estado === "ENTREGADO");
-  const totalAdeudado = pendientes.reduce((acc, t) => acc + (t.precio || 0), 0);
+  const trabajosPendientes = trabajos.filter((t) => t.estado === "PENDIENTE");
+  const trabajosEntregados = trabajos.filter((t) => t.estado === "ENTREGADO");
+
+  const totalAdeudado = trabajosPendientes.reduce((sum, t) => sum + t.precio, 0);
 
   return (
-    <div className="min-h-screen bg-gray-100 text-black p-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold mb-4">Bienvenido,</h1>
+    <div className="pt-20 min-h-screen bg-gray-100 text-black p-8">
+      <div className="flex justify-between items-center max-w-5xl mx-auto">
+        <h1 className="text-3xl font-bold">Bienvenido,</h1>
         <button
-          onClick={() => signOut(auth)}
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
+          onClick={cerrarSesion}
+          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
         >
           Cerrar sesión
         </button>
       </div>
 
-      <h2 className="text-xl font-semibold mb-2">💰 Total adeudado: ${totalAdeudado}</h2>
+      <h2 className="text-xl mt-2 mb-6 max-w-5xl mx-auto">💰 Total adeudado: ${totalAdeudado}</h2>
 
-      <section className="mt-8">
+      <div className="max-w-5xl mx-auto">
         <h3 className="text-lg font-bold mb-2">Trabajos pendientes</h3>
-        <table className="w-full table-auto border-collapse">
+        <table className="w-full table-auto border-collapse mb-10">
           <thead>
             <tr className="bg-gray-300 text-left">
               <th className="p-2">Fecha</th>
@@ -79,7 +87,7 @@ export default function Cliente() {
             </tr>
           </thead>
           <tbody>
-            {pendientes.map((t) => (
+            {trabajosPendientes.map((t) => (
               <tr key={t.firebaseId} className="border-t border-gray-400">
                 <td className="p-2">{t.fecha}</td>
                 <td className="p-2">{t.modelo}</td>
@@ -88,18 +96,16 @@ export default function Cliente() {
                 <td className="p-2">{t.estado}</td>
               </tr>
             ))}
-            {pendientes.length === 0 && (
+            {trabajosPendientes.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-2 text-center text-gray-500">
+                <td colSpan={5} className="text-center py-4 text-gray-600">
                   No hay trabajos pendientes.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </section>
 
-      <section className="mt-8">
         <h3 className="text-lg font-bold mb-2">Trabajos entregados</h3>
         <table className="w-full table-auto border-collapse">
           <thead>
@@ -113,7 +119,7 @@ export default function Cliente() {
             </tr>
           </thead>
           <tbody>
-            {entregados.map((t) => (
+            {trabajosEntregados.map((t) => (
               <tr key={t.firebaseId} className="border-t border-gray-400">
                 <td className="p-2">{t.fecha}</td>
                 <td className="p-2">{t.modelo}</td>
@@ -123,16 +129,16 @@ export default function Cliente() {
                 <td className="p-2">{t.fechaEntrega || "-"}</td>
               </tr>
             ))}
-            {entregados.length === 0 && (
+            {trabajosEntregados.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-2 text-center text-gray-500">
+                <td colSpan={6} className="text-center py-4 text-gray-600">
                   No hay trabajos entregados aún.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </section>
+      </div>
     </div>
   );
 }
