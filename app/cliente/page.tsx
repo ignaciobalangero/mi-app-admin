@@ -23,16 +23,22 @@ export default function Cliente() {
 
   const cargarTrabajos = async () => {
     if (!cliente) return;
-    const q = query(collection(db, "resumen-clientes"), where("cliente", "==", cliente.toLowerCase()));
+
+    const nombreCliente = cliente.toLowerCase();
+    console.log("Buscando trabajos para cliente:", nombreCliente);
+
+    const q = query(collection(db, "resumen-clientes"), where("cliente", "==", nombreCliente));
     const querySnapshot = await getDocs(q);
+
+    console.log("Documentos obtenidos:", querySnapshot.size);
     const datos: TrabajoCliente[] = [];
 
     querySnapshot.forEach((docSnap) => {
+      console.log("Doc:", docSnap.id, docSnap.data());
       const data = docSnap.data() as Omit<TrabajoCliente, "firebaseId">;
       datos.push({ ...data, firebaseId: docSnap.id });
     });
 
-    // Ordenar por fecha descendente
     datos.sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
     setTrabajos(datos);
   };
