@@ -42,6 +42,9 @@ export default function Cliente() {
       const data = docSnap.data() as Omit<Trabajo, "firebaseId">;
       datos.push({ ...data, firebaseId: docSnap.id });
     });
+
+    // Ordenar por fecha descendente
+    datos.sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
     setTrabajos(datos);
   };
 
@@ -54,6 +57,9 @@ export default function Cliente() {
       const data = docSnap.data() as Omit<Pago, "firebaseId">;
       datos.push({ ...data, firebaseId: docSnap.id });
     });
+
+    // Ordenar por fecha descendente
+    datos.sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
     setPagos(datos);
   };
 
@@ -72,7 +78,11 @@ export default function Cliente() {
     <RequireAuth>
       <Header />
       <main className="pt-20 min-h-screen bg-gray-100 text-black p-8">
-        <h1 className="text-3xl font-bold text-center mb-6">Resumen de tu cuenta</h1>
+        <h1 className="text-3xl font-bold text-center mb-6">Bienvenido, {cliente}</h1>
+
+        <div className="text-center text-2xl font-semibold mb-6">
+          <p>💰 Saldo pendiente: ${saldo}</p>
+        </div>
 
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-2">Tus trabajos</h2>
@@ -138,10 +148,6 @@ export default function Cliente() {
               </tbody>
             </table>
           </div>
-        </div>
-
-        <div className="text-center text-xl font-semibold">
-          <p>Total adeudado: ${saldo}</p>
         </div>
       </main>
     </RequireAuth>
