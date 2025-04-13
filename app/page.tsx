@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Header from "./Header";
 import { useRol } from "../lib/useRol";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const botonesAdmin = [
   { label: "Ingreso de trabajo", href: "/ingreso" },
@@ -22,9 +23,16 @@ const botonesEmpleado = [
 ];
 
 export default function Home() {
-  const { rol, cliente } = useRol(); // 👈 destructuramos bien
+  const { rol, cliente } = useRol();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (rol === "cliente") {
+      router.push("/cliente"); // 🔁 Redirige a la vista del cliente
+    }
+  }, [rol]);
+
   const botones = rol === "admin" ? botonesAdmin : botonesEmpleado;
-  
 
   return (
     <>
