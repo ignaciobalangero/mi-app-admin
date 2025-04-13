@@ -2,138 +2,137 @@
 
 import { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import RequireAuth from "../../lib/requireAuth";
+import {
+  collection,
+  getDocs,
+  query,
+  where
+} from "firebase/firestore";
+import Header from "../Header";
 import { useRol } from "../../lib/useRol";
+import { signOut } from "firebase/auth";
+import { auth } from "../../lib/auth";
 
-interface TrabajoCliente {
-  cliente: string;
+interface Trabajo {
+  fecha: string;
+  fechaEntrega?: string;
   modelo: string;
   trabajo: string;
   precio: number;
   estado: string;
-  fecha: string;
-  fechaEntrega?: string;
+  cliente: string;
   firebaseId: string;
 }
 
 export default function Cliente() {
   const { rol, cliente } = useRol();
-  const [trabajos, setTrabajos] = useState<TrabajoCliente[]>([]);
+  const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
 
   const cargarTrabajos = async () => {
     if (!cliente) return;
-
-    const nombreCliente = cliente.toLowerCase();
-    console.log("Buscando trabajos para cliente:", nombreCliente);
-
-    const q = query(collection(db, "resumen-clientes"), where("cliente", "==", nombreCliente));
+    const q = query(collection(db, "trabajos"), where("cliente", "==", cliente.toLowerCase()));
     const querySnapshot = await getDocs(q);
-
-    console.log("Documentos obtenidos:", querySnapshot.size);
-    const datos: TrabajoCliente[] = [];
+    const datos: Trabajo[] = [];
 
     querySnapshot.forEach((docSnap) => {
-      console.log("Doc:", docSnap.id, docSnap.data());
-      const data = docSnap.data() as Omit<TrabajoCliente, "firebaseId">;
+      const data = docSnap.data() as Omit<Trabajo, "firebaseId">;
       datos.push({ ...data, firebaseId: docSnap.id });
     });
 
-    datos.sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
     setTrabajos(datos);
   };
 
   useEffect(() => {
-    if (rol === "cliente") {
-      cargarTrabajos();
-    }
-  }, [rol, cliente]);
+    cargarTrabajos();
+  }, [cliente]);
 
-  const totalPrecio = trabajos.reduce((acc, t) => acc + (t.precio || 0), 0);
-  const entregado = trabajos.filter((t) => t.estado === "ENTREGADO");
-  const pendiente = trabajos.filter((t) => t.estado === "PENDIENTE");
+  if (rol !== "cliente") return null;
+
+  const pendientes = trabajos.filter((t) => t.estado === "PENDIENTE");
+  const entregados = trabajos.filter((t) => t.estado === "ENTREGADO");
+  const totalAdeudado = pendientes.reduce((acc, t) => acc + (t.precio || 0), 0);
 
   return (
-    <RequireAuth>
-      <main className="pt-20 min-h-screen bg-gray-100 text-black p-8">
-        <h1 className="text-3xl font-bold text-center mb-6">Bienvenido, {cliente}</h1>
+    <div className="min-h-screen bg-gray-100 text-black p-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold mb-4">Bienvenido,</h1>
+        <button
+          onClick={() => signOut(auth)}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
+        >
+          Cerrar sesión
+        </button>
+      </div>
 
-        <div className="text-center text-2xl font-semibold mb-6">
-          <p>💰 Total adeudado: ${totalPrecio}</p>
-        </div>
+      <h2 className="text-xl font-semibold mb-2">💰 Total adeudado: ${totalAdeudado}</h2>
 
-        <div className="mb-10">
-          <h2 className="text-xl font-semibold mb-2">Trabajos pendientes</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full table-auto border-collapse">
-              <thead>
-                <tr className="bg-gray-300">
-                  <th className="p-3">Fecha</th>
-                  <th className="p-3">Modelo</th>
-                  <th className="p-3">Trabajo</th>
-                  <th className="p-3">Precio</th>
-                  <th className="p-3">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendiente.map((t) => (
-                  <tr key={t.firebaseId} className="border-t border-gray-400">
-                    <td className="p-3">{t.fecha}</td>
-                    <td className="p-3">{t.modelo}</td>
-                    <td className="p-3">{t.trabajo}</td>
-                    <td className="p-3">${t.precio}</td>
-                    <td className="p-3">{t.estado}</td>
-                  </tr>
-                ))}
-                {pendiente.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="text-center py-4 text-gray-500">
-                      No hay trabajos pendientes.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <section className="mt-8">
+        <h3 className="text-lg font-bold mb-2">Trabajos pendientes</h3>
+        <table className="w-full table-auto border-collapse">
+          <thead>
+            <tr className="bg-gray-300 text-left">
+              <th className="p-2">Fecha</th>
+              <th className="p-2">Modelo</th>
+              <th className="p-2">Trabajo</th>
+              <th className="p-2">Precio</th>
+              <th className="p-2">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pendientes.map((t) => (
+              <tr key={t.firebaseId} className="border-t border-gray-400">
+                <td className="p-2">{t.fecha}</td>
+                <td className="p-2">{t.modelo}</td>
+                <td className="p-2">{t.trabajo}</td>
+                <td className="p-2">${t.precio}</td>
+                <td className="p-2">{t.estado}</td>
+              </tr>
+            ))}
+            {pendientes.length === 0 && (
+              <tr>
+                <td colSpan={5} className="p-2 text-center text-gray-500">
+                  No hay trabajos pendientes.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
 
-        <div className="mb-10">
-          <h2 className="text-xl font-semibold mb-2">Trabajos entregados</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full table-auto border-collapse">
-              <thead>
-                <tr className="bg-gray-300">
-                  <th className="p-3">Fecha ingreso</th>
-                  <th className="p-3">Modelo</th>
-                  <th className="p-3">Trabajo</th>
-                  <th className="p-3">Precio</th>
-                  <th className="p-3">Estado</th>
-                  <th className="p-3">Fecha entrega</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entregado.map((t) => (
-                  <tr key={t.firebaseId} className="border-t border-gray-400">
-                    <td className="p-3">{t.fecha}</td>
-                    <td className="p-3">{t.modelo}</td>
-                    <td className="p-3">{t.trabajo}</td>
-                    <td className="p-3">${t.precio}</td>
-                    <td className="p-3">{t.estado}</td>
-                    <td className="p-3">{t.fechaEntrega || "-"}</td>
-                  </tr>
-                ))}
-                {entregado.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center py-4 text-gray-500">
-                      No hay trabajos entregados aún.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </main>
-    </RequireAuth>
+      <section className="mt-8">
+        <h3 className="text-lg font-bold mb-2">Trabajos entregados</h3>
+        <table className="w-full table-auto border-collapse">
+          <thead>
+            <tr className="bg-gray-300 text-left">
+              <th className="p-2">Fecha ingreso</th>
+              <th className="p-2">Modelo</th>
+              <th className="p-2">Trabajo</th>
+              <th className="p-2">Precio</th>
+              <th className="p-2">Estado</th>
+              <th className="p-2">Fecha entrega</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entregados.map((t) => (
+              <tr key={t.firebaseId} className="border-t border-gray-400">
+                <td className="p-2">{t.fecha}</td>
+                <td className="p-2">{t.modelo}</td>
+                <td className="p-2">{t.trabajo}</td>
+                <td className="p-2">${t.precio}</td>
+                <td className="p-2">{t.estado}</td>
+                <td className="p-2">{t.fechaEntrega || "-"}</td>
+              </tr>
+            ))}
+            {entregados.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-2 text-center text-gray-500">
+                  No hay trabajos entregados aún.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+    </div>
   );
 }
