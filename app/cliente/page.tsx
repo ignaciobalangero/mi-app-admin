@@ -22,7 +22,8 @@ export default function Cliente() {
   const [trabajos, setTrabajos] = useState<TrabajoCliente[]>([]);
 
   const cargarTrabajos = async () => {
-    const q = query(collection(db, "resumen-clientes"), where("cliente", "==", cliente));
+    if (!cliente) return;
+    const q = query(collection(db, "resumen-clientes"), where("cliente", "==", cliente.toLowerCase()));
     const querySnapshot = await getDocs(q);
     const datos: TrabajoCliente[] = [];
 

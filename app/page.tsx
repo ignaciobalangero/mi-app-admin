@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Header from "./Header";
 import { useRol } from "../lib/useRol";
 import Link from "next/link";
@@ -23,14 +23,22 @@ const botonesEmpleado = [
 ];
 
 export default function Home() {
-  const { rol, cliente } = useRol();
+  const { rol } = useRol();
   const router = useRouter();
 
   useEffect(() => {
     if (rol === "cliente") {
-      router.push("/cliente"); // 🔁 Redirige a la vista del cliente
+      router.push("/cliente");
     }
   }, [rol]);
+
+  if (rol === null) {
+    return <p className="text-center text-black mt-10">Cargando panel...</p>;
+  }
+
+  if (rol !== "admin" && rol !== "empleado") {
+    return null;
+  }
 
   const botones = rol === "admin" ? botonesAdmin : botonesEmpleado;
 
