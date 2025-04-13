@@ -7,7 +7,7 @@ import { useRol } from "./useRol";
 
 export default function RequireAdmin({ children }: { children: React.ReactNode }) {
   const [user, loadingUser] = useAuthState(auth);
-  const rol = useRol();
+  const { rol } = useRol(); // ✅ hacemos destructuring
   const router = useRouter();
 
   useEffect(() => {
