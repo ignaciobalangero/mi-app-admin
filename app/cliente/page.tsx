@@ -34,30 +34,36 @@ export default function Cliente() {
     router.push("/login");
   };
 
-  const cargarTrabajos = async () => {
-    if (!cliente) return;
-
-    const q = query(collection(db, "trabajos"), where("cliente", "==", cliente.toLowerCase()));
-    const querySnapshot = await getDocs(q);
-    const datos: Trabajo[] = [];
-
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data() as Omit<Trabajo, "firebaseId">;
-      datos.push({ ...data, firebaseId: docSnap.id });
-    });
-
-    setTrabajos(datos);
-  };
-
   useEffect(() => {
-    if (rol === "cliente") cargarTrabajos();
-  }, [rol, cliente]);
+    const cargarTrabajos = async () => {
+      if (!cliente || rol !== "cliente") {
+        console.log("⏳ Esperando cliente o rol...");
+        return;
+      }
+
+      console.log("✅ Cliente detectado:", cliente);
+      const q = query(collection(db, "trabajos"), where("cliente", "==", cliente.toLowerCase()));
+      const querySnapshot = await getDocs(q);
+
+      console.log("📦 Documentos encontrados:", querySnapshot.size);
+      const datos: Trabajo[] = [];
+
+      querySnapshot.forEach((docSnap) => {
+        console.log("📄 Documento:", docSnap.id, docSnap.data());
+        const data = docSnap.data() as Omit<Trabajo, "firebaseId">;
+        datos.push({ ...data, firebaseId: docSnap.id });
+      });
+
+      setTrabajos(datos);
+    };
+
+    cargarTrabajos();
+  }, [cliente, rol]);
 
   if (rol !== "cliente") return null;
 
   const trabajosPendientes = trabajos.filter((t) => t.estado === "PENDIENTE");
   const trabajosEntregados = trabajos.filter((t) => t.estado === "ENTREGADO");
-
   const totalAdeudado = trabajosPendientes.reduce((sum, t) => sum + t.precio, 0);
 
   return (
