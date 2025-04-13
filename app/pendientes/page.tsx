@@ -42,7 +42,11 @@ export default function Pendientes() {
 
   const marcarComoEntregado = async (firebaseId: string) => {
     const docRef = doc(db, "trabajos", firebaseId);
-    await updateDoc(docRef, { estado: "ENTREGADO" });
+    const fechaEntrega = new Date().toLocaleDateString("es-AR");
+    await updateDoc(docRef, {
+      estado: "ENTREGADO",
+      fechaEntrega: fechaEntrega
+    });
     await cargarTrabajos();
   };
 

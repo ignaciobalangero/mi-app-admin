@@ -8,7 +8,8 @@ const db = getFirestore(app);
 
 export function useRol() {
   const [user] = useAuthState(auth);
-  const [rol, setRol] = useState<"admin" | "empleado" | null>(null);
+  const [rol, setRol] = useState<"admin" | "empleado" | "cliente" | null>(null);
+  const [cliente, setCliente] = useState<string>("");
 
   useEffect(() => {
     const obtenerRol = async () => {
@@ -16,12 +17,14 @@ export function useRol() {
         const ref = doc(db, "usuarios", user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          setRol(snap.data().rol);
+          const data = snap.data();
+          setRol(data.rol);
+          setCliente(data.nombre || ""); // 👈 Esto es lo que agregamos
         }
       }
     };
     obtenerRol();
   }, [user]);
 
-  return rol;
+  return { rol, cliente };
 }

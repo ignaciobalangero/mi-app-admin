@@ -22,8 +22,9 @@ const botonesEmpleado = [
 ];
 
 export default function Home() {
-  const rol = useRol();
+  const { rol, cliente } = useRol(); // 👈 destructuramos bien
   const botones = rol === "admin" ? botonesAdmin : botonesEmpleado;
+  
 
   return (
     <>

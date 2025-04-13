@@ -32,7 +32,7 @@ export default function ResumenCuenta() {
       setGananciasPorMes(resultado);
     };
 
-    if (rol === "admin") fetchGanancias();
+    if (rol.rol === "admin") fetchGanancias();
   }, [rol]);
 
   return (
@@ -41,7 +41,7 @@ export default function ResumenCuenta() {
       <main className="pt-20 min-h-screen flex flex-col items-center justify-center bg-gray-100 p-8 text-black">
         <h1 className="text-3xl font-bold mb-6">Resumen de Cuenta</h1>
 
-        {rol === "admin" && gananciasPorMes.length > 0 && (
+        {rol.rol === "admin" && gananciasPorMes.length > 0 && (
           <div className="w-full max-w-4xl bg-white p-6 rounded-xl shadow-lg">
             <h2 className="text-xl font-semibold mb-4 text-center">Ganancias por mes</h2>
             <ResponsiveContainer width="100%" height={300}>

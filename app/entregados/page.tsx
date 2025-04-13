@@ -19,6 +19,7 @@ interface Trabajo {
   observaciones: string;
   estado: string;
   fecha: string;
+  fechaEntrega?: string;
   firebaseId: string;
 }
 
@@ -54,12 +55,13 @@ export default function Entregados() {
           <table className="w-full table-auto border-collapse">
             <thead>
               <tr className="bg-gray-800 text-left">
-                <th className="p-3">Fecha</th>
+                <th className="p-3">Fecha ingreso</th>
                 <th className="p-3">Cliente</th>
                 <th className="p-3">Modelo</th>
                 <th className="p-3">Trabajo</th>
                 <th className="p-3">Clave</th>
                 <th className="p-3">Observaciones</th>
+                <th className="p-3">Fecha entrega</th>
               </tr>
             </thead>
             <tbody>
@@ -71,11 +73,12 @@ export default function Entregados() {
                   <td className="p-3">{t.trabajo}</td>
                   <td className="p-3">{t.clave}</td>
                   <td className="p-3">{t.observaciones}</td>
+                  <td className="p-3">{t.fechaEntrega || "-"}</td>
                 </tr>
               ))}
               {trabajos.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-6 text-gray-400">
+                  <td colSpan={7} className="text-center py-6 text-gray-400">
                     No hay trabajos entregados aún.
                   </td>
                 </tr>
