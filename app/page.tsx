@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "../lib/auth";
 import Header from "./Header";
 import { useRol } from "../lib/useRol";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 const botonesAdmin = [
   { label: "Ingreso de trabajo", href: "/ingreso" },
@@ -13,16 +15,16 @@ const botonesAdmin = [
   { label: "Resumen de clientes", href: "/resumen" },
   { label: "Cuenta corriente", href: "/cuenta" },
   { label: "Pago de clientes", href: "/pagos" },
-  { label: "Resumen de cuenta", href: "/resumen-cuenta" }
+  { label: "Resumen de cuenta", href: "/resumen-cuenta" },
 ];
 
 const botonesEmpleado = [
   { label: "Ingreso de trabajo", href: "/ingreso" },
   { label: "Trabajos pendientes", href: "/pendientes" },
-  { label: "Trabajos entregados", href: "/entregados" }
+  { label: "Trabajos entregados", href: "/entregados" },
 ];
 
-export default function Home() {
+function Home() {
   const { rol } = useRol();
   const router = useRouter();
 
@@ -61,4 +63,20 @@ export default function Home() {
       </main>
     </>
   );
+}
+
+// 👇 Este es el wrapper que se encarga de redirigir al login si no hay sesión
+export default function HomeWrapper() {
+  const [user, loading] = useAuthState(auth);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [user, loading]);
+
+  if (loading || !user) return null;
+
+  return <Home />;
 }
