@@ -64,7 +64,21 @@ export default function Ingreso() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
           <input type="text" value={fecha} readOnly className="p-3 rounded-xl bg-gray-800 border border-gray-600" placeholder="Fecha" />
           <input type="text" value={id} readOnly className="p-3 rounded-xl bg-gray-800 border border-gray-600" placeholder="ID" />
-          <input type="text" value={cliente} onChange={(e) => setCliente(e.target.value)} className="p-3 rounded-xl bg-gray-800 border border-gray-600" placeholder="Cliente" />
+          
+          {/* 👇 CAMPO CLIENTE corregido 👇 */}
+          <input
+            type="text"
+            name="nombreCliente"
+            id="nombreCliente"
+            value={cliente}
+            onChange={(e) => setCliente(e.target.value)}
+            className="p-3 rounded-xl bg-gray-800 border border-gray-600"
+            placeholder="Cliente"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+
           <input type="text" value={modelo} onChange={(e) => setModelo(e.target.value)} className="p-3 rounded-xl bg-gray-800 border border-gray-600" placeholder="Modelo" />
           <input type="text" value={trabajo} onChange={(e) => setTrabajo(e.target.value)} className="p-3 rounded-xl bg-gray-800 border border-gray-600" placeholder="Trabajo" />
           <input type="text" value={clave} onChange={(e) => setClave(e.target.value)} className="p-3 rounded-xl bg-gray-800 border border-gray-600" placeholder="Clave" />

@@ -4,6 +4,7 @@ import { useRol } from "../../lib/useRol";
 import { auth } from "../../lib/auth";
 import { signOut } from "firebase/auth";
 import { db } from "../../lib/firebase";
+import { useRouter } from "next/navigation";
 import {
   collection,
   getDocs,
@@ -32,6 +33,7 @@ export default function Cliente() {
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [verPagos, setVerPagos] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (!cliente) return;
@@ -64,13 +66,19 @@ export default function Cliente() {
 
   const trabajosPendientes = trabajos.filter(t => t.estado === "PENDIENTE");
   const trabajosEntregados = trabajos.filter(t => t.estado === "ENTREGADO");
+
   const totalAdeudado =
     trabajosPendientes.reduce((acc, t) => acc + (t.precio || 0), 0) +
     trabajosEntregados.reduce((acc, t) => acc + (t.precio || 0), 0) -
     pagos.reduce((acc, p) => acc + (p.monto || 0), 0);
 
-  const cerrarSesion = () => {
-    signOut(auth).catch((error) => console.error("Error al cerrar sesión", error));
+  const cerrarSesion = async () => {
+    try {
+      await signOut(auth);
+      router.push("/login");
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
   };
 
   return (

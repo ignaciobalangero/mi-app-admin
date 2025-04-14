@@ -84,9 +84,15 @@ export default function Pagos() {
 
         <div className="flex gap-2 mb-4">
           <input
+            type="text"
+            name="nombreCliente"
+            id="nombreCliente"
             value={cliente}
             onChange={(e) => setCliente(e.target.value)}
             placeholder="Cliente"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             className="border-2 border-gray-400 text-black placeholder:text-gray-600 p-2 rounded w-1/4"
           />
           <input
