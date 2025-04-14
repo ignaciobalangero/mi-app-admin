@@ -15,12 +15,14 @@ export default function Header() {
   };
 
   return (
-    <div className="w-full p-4 bg-gray-800 text-white shadow-md fixed top-0 left-0 z-50 flex justify-between items-center">
+    <div className="w-full p-4 bg-gray-800 text-white shadow-md fixed top-0 left-0 z-50 flex justify-between items-center px-6">
       <Link href="/">
         <span className="text-lg font-bold hover:underline cursor-pointer">
           ← INICIO
         </span>
       </Link>
+
+      <img src="/logo.png" alt="Logo" className="w-70 h-auto object-contain absolute left-1/2 transform -translate-x-1/2" />
 
       {!loading && user && (
         <button
