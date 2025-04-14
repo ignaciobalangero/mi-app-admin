@@ -23,6 +23,8 @@ interface Trabajo {
 interface Pago {
   fecha: string;
   monto: number;
+  forma?: string;
+  destino?: string;
 }
 
 export default function Cliente() {
@@ -65,14 +67,18 @@ export default function Cliente() {
   const totalAdeudado =
     trabajosPendientes.reduce((acc, t) => acc + (t.precio || 0), 0) +
     trabajosEntregados.reduce((acc, t) => acc + (t.precio || 0), 0) -
-    pagos.reduce((acc, p) => acc + p.monto, 0);
+    pagos.reduce((acc, p) => acc + (p.monto || 0), 0);
+
+  const cerrarSesion = () => {
+    signOut(auth).catch((error) => console.error("Error al cerrar sesión", error));
+  };
 
   return (
     <div className="bg-gray-900 text-white min-h-screen py-10 px-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Bienvenido,</h1>
         <button
-          onClick={() => signOut(auth)}
+          onClick={cerrarSesion}
           className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded"
         >
           Cerrar sesión
@@ -97,7 +103,7 @@ export default function Cliente() {
             <ul className="list-disc list-inside text-sm">
               {pagos.map((p, i) => (
                 <li key={i}>
-                  {p.fecha}: ${p.monto}
+                  {p.fecha}: ${p.monto} {p.forma ? `(${p.forma})` : ""} {p.destino ? `→ ${p.destino}` : ""}
                 </li>
               ))}
             </ul>
@@ -113,7 +119,7 @@ export default function Cliente() {
               <th className="p-2">Fecha</th>
               <th className="p-2">Modelo</th>
               <th className="p-2">Trabajo</th>
-              <th className="p-2">Precio</th>
+              <th className="p-2 w-28">Precio</th>
               <th className="p-2">Estado</th>
             </tr>
           </thead>
@@ -147,7 +153,7 @@ export default function Cliente() {
               <th className="p-2">Fecha ingreso</th>
               <th className="p-2">Modelo</th>
               <th className="p-2">Trabajo</th>
-              <th className="p-2">Precio</th>
+              <th className="p-2 w-28">Precio</th>
               <th className="p-2">Estado</th>
               <th className="p-2">Fecha entrega</th>
             </tr>
