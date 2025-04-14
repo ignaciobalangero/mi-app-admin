@@ -61,7 +61,6 @@ export default function Cliente() {
       setTrabajos(trabajosData);
       setPagos(pagosData);
 
-      // NUEVO cálculo confiable del total adeudado
       const preciosTrabajos = trabajosData.map(t => {
         const valor = typeof t.precio === "string"
           ? parseInt(t.precio.replace(/\$/g, "").replace(/\./g, "").trim()) || 0
@@ -91,7 +90,7 @@ export default function Cliente() {
   return (
     <div className="bg-gray-900 text-white min-h-screen py-10 px-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Bienvenido,</h1>
+        <img src="/logo.png" alt="Logo" className="mx-auto w-120" />
         <button
           onClick={cerrarSesion}
           className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded"
@@ -103,7 +102,13 @@ export default function Cliente() {
       <div className="flex justify-end mb-4">
         <div className="bg-gray-800 px-4 py-2 rounded-xl text-right">
           <h2 className="text-lg font-semibold text-green-400">💰 Total adeudado</h2>
-          <p className="text-xl font-bold text-white">${totalAdeudado.toLocaleString("es-AR")}</p>
+          {pagos.length > 0 || trabajos.length > 0 ? (
+            <p className="text-xl font-bold text-white">
+              ${Number(totalAdeudado).toLocaleString("es-AR")}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-400">Calculando...</p>
+          )}
         </div>
       </div>
 
