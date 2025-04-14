@@ -16,7 +16,7 @@ interface Trabajo {
   fecha: string;
   modelo: string;
   trabajo: string;
-  precio: number;
+  precio?: any;
   estado: string;
   fechaEntrega?: string;
 }
@@ -33,6 +33,7 @@ export default function Cliente() {
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [verPagos, setVerPagos] = useState(false);
+  const [totalAdeudado, setTotalAdeudado] = useState<number>(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -59,6 +60,17 @@ export default function Cliente() {
 
       setTrabajos(trabajosData);
       setPagos(pagosData);
+
+      // NUEVO cálculo confiable del total adeudado
+      const preciosTrabajos = trabajosData.map(t => {
+        const valor = typeof t.precio === "string"
+          ? parseInt(t.precio.replace(/\$/g, "").replace(/\./g, "").trim()) || 0
+          : t.precio || 0;
+        return valor;
+      });
+      const sumaPrecios = preciosTrabajos.reduce((acc, n) => acc + n, 0);
+      const sumaPagos = pagosData.reduce((acc, p) => acc + (p.monto || 0), 0);
+      setTotalAdeudado(sumaPrecios - sumaPagos);
     };
 
     cargarDatos();
@@ -66,11 +78,6 @@ export default function Cliente() {
 
   const trabajosPendientes = trabajos.filter(t => t.estado === "PENDIENTE");
   const trabajosEntregados = trabajos.filter(t => t.estado === "ENTREGADO");
-
-  const totalAdeudado =
-    trabajosPendientes.reduce((acc, t) => acc + (t.precio || 0), 0) +
-    trabajosEntregados.reduce((acc, t) => acc + (t.precio || 0), 0) -
-    pagos.reduce((acc, p) => acc + (p.monto || 0), 0);
 
   const cerrarSesion = async () => {
     try {
@@ -93,7 +100,12 @@ export default function Cliente() {
         </button>
       </div>
 
-      <h2 className="text-xl mb-4">💰 Total adeudado: ${totalAdeudado}</h2>
+      <div className="flex justify-end mb-4">
+        <div className="bg-gray-800 px-4 py-2 rounded-xl text-right">
+          <h2 className="text-lg font-semibold text-green-400">💰 Total adeudado</h2>
+          <p className="text-xl font-bold text-white">${totalAdeudado.toLocaleString("es-AR")}</p>
+        </div>
+      </div>
 
       <button
         onClick={() => setVerPagos(!verPagos)}
