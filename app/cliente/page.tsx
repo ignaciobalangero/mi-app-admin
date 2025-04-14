@@ -1,143 +1,132 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import Header from "../Header";
-import { useRol } from "@/lib/useRol";
-import { collection, getDocs, getFirestore, query, where } from "firebase/firestore";
-import { app } from "@/lib/firebase";
+import { useRol } from "../../lib/useRol";
+import { auth } from "../../lib/auth";
 import { signOut } from "firebase/auth";
-import { auth } from "@/lib/auth";
-import { useRouter } from "next/navigation";
-
-const db = getFirestore(app);
+import { db } from "../../lib/firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 
 interface Trabajo {
   fecha: string;
-  fechaEntrega?: string;
   modelo: string;
   trabajo: string;
   precio: number;
   estado: string;
+  fechaEntrega?: string;
 }
 
 interface Pago {
   fecha: string;
   monto: number;
-  forma: string;
-  destino: string;
 }
 
 export default function Cliente() {
   const { rol, cliente } = useRol();
-  const router = useRouter();
-  const [trabajosPendientes, setTrabajosPendientes] = useState<Trabajo[]>([]);
-  const [trabajosEntregados, setTrabajosEntregados] = useState<Trabajo[]>([]);
+  const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
-  const [mostrarPagos, setMostrarPagos] = useState(false);
-
-  const cargarTrabajos = async () => {
-    if (!cliente) return;
-
-    const qPendientes = query(collection(db, "trabajos"), where("cliente", "==", cliente), where("estado", "==", "PENDIENTE"));
-    const qEntregados = query(collection(db, "trabajos"), where("cliente", "==", cliente), where("estado", "==", "ENTREGADO"));
-    const qPagos = query(collection(db, "pagos"), where("cliente", "==", cliente));
-
-    const [snapshotPendientes, snapshotEntregados, snapshotPagos] = await Promise.all([
-      getDocs(qPendientes),
-      getDocs(qEntregados),
-      getDocs(qPagos),
-    ]);
-
-    const pendientes: Trabajo[] = [];
-    snapshotPendientes.forEach(doc => pendientes.push(doc.data() as Trabajo));
-
-    const entregados: Trabajo[] = [];
-    snapshotEntregados.forEach(doc => entregados.push(doc.data() as Trabajo));
-
-    const listaPagos: Pago[] = [];
-    snapshotPagos.forEach(doc => listaPagos.push(doc.data() as Pago));
-
-    setTrabajosPendientes(pendientes);
-    setTrabajosEntregados(entregados);
-    setPagos(listaPagos);
-  };
+  const [verPagos, setVerPagos] = useState(false);
 
   useEffect(() => {
-    cargarTrabajos();
+    if (!cliente) return;
+
+    const cargarDatos = async () => {
+      const trabajosQuery = query(collection(db, "trabajos"), where("cliente", "==", cliente));
+      const pagosQuery = query(collection(db, "pagos"), where("cliente", "==", cliente));
+
+      const [trabajosSnap, pagosSnap] = await Promise.all([
+        getDocs(trabajosQuery),
+        getDocs(pagosQuery),
+      ]);
+
+      const trabajosData: Trabajo[] = [];
+      trabajosSnap.forEach(doc => {
+        trabajosData.push(doc.data() as Trabajo);
+      });
+
+      const pagosData: Pago[] = [];
+      pagosSnap.forEach(doc => {
+        pagosData.push(doc.data() as Pago);
+      });
+
+      setTrabajos(trabajosData);
+      setPagos(pagosData);
+    };
+
+    cargarDatos();
   }, [cliente]);
 
-  const totalPendientes = trabajosPendientes.reduce((acc, t) => acc + (Number(t.precio) || 0), 0);
-  const totalEntregados = trabajosEntregados.reduce((acc, t) => acc + (Number(t.precio) || 0), 0);
-  const totalAdeudado = totalPendientes + totalEntregados;
-
-  const cerrarSesion = async () => {
-    await signOut(auth);
-    router.push("/login");
-  };
-
-  if (rol !== "cliente") return null;
+  const trabajosPendientes = trabajos.filter(t => t.estado === "PENDIENTE");
+  const trabajosEntregados = trabajos.filter(t => t.estado === "ENTREGADO");
+  const totalAdeudado =
+    trabajosPendientes.reduce((acc, t) => acc + (t.precio || 0), 0) +
+    trabajosEntregados.reduce((acc, t) => acc + (t.precio || 0), 0) -
+    pagos.reduce((acc, p) => acc + p.monto, 0);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="flex justify-between items-center">
+    <div className="bg-gray-900 text-white min-h-screen py-10 px-6">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Bienvenido,</h1>
-        <button onClick={cerrarSesion} className="bg-red-600 text-white px-4 py-2 rounded">Cerrar sesión</button>
+        <button
+          onClick={() => signOut(auth)}
+          className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded"
+        >
+          Cerrar sesión
+        </button>
       </div>
-      <p className="text-xl mt-2 mb-6">💰 Total adeudado: ${totalAdeudado}</p>
+
+      <h2 className="text-xl mb-4">💰 Total adeudado: ${totalAdeudado}</h2>
 
       <button
-        onClick={() => setMostrarPagos(!mostrarPagos)}
-        className="bg-blue-600 text-white px-4 py-2 rounded mb-6"
+        onClick={() => setVerPagos(!verPagos)}
+        className="mb-6 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
       >
-        {mostrarPagos ? "Ocultar pagos realizados" : "Mostrar pagos realizados"}
+        {verPagos ? "Ocultar pagos realizados" : "Mostrar pagos realizados"}
       </button>
 
-      {mostrarPagos && (
-        <div className="mb-10">
-          <h2 className="text-xl font-semibold mb-2">Historial de pagos</h2>
-          <table className="w-full table-auto">
-            <thead className="bg-gray-300">
-              <tr>
-                <th className="p-2 text-left">Fecha</th>
-                <th className="p-2 text-left">Monto</th>
-                <th className="p-2 text-left">Forma de pago</th>
-                <th className="p-2 text-left">Destino</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagos.length > 0 ? (
-                pagos.map((p, i) => (
-                  <tr key={i} className="border-b">
-                    <td className="p-2">{p.fecha}</td>
-                    <td className="p-2">${p.monto}</td>
-                    <td className="p-2">{p.forma}</td>
-                    <td className="p-2">{p.destino}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan={4} className="p-4 text-center text-gray-500">No hay pagos registrados.</td></tr>
-              )}
-            </tbody>
-          </table>
+      {verPagos && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Pagos realizados</h3>
+          {pagos.length === 0 ? (
+            <p className="text-gray-400">No hay pagos registrados aún.</p>
+          ) : (
+            <ul className="list-disc list-inside text-sm">
+              {pagos.map((p, i) => (
+                <li key={i}>
+                  {p.fecha}: ${p.monto}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
-      <div className="mb-10">
+      <div className="mb-8">
         <h2 className="text-xl font-semibold mb-2">Trabajos pendientes</h2>
-        <table className="w-full table-auto">
-          <thead className="bg-gray-300">
+        <table className="w-full text-left bg-gray-800 rounded overflow-hidden">
+          <thead className="bg-gray-700 text-sm">
             <tr>
-              <th className="p-2 text-left">Fecha</th>
-              <th className="p-2 text-left">Modelo</th>
-              <th className="p-2 text-left">Trabajo</th>
-              <th className="p-2 text-left">Precio</th>
-              <th className="p-2 text-left">Estado</th>
+              <th className="p-2">Fecha</th>
+              <th className="p-2">Modelo</th>
+              <th className="p-2">Trabajo</th>
+              <th className="p-2">Precio</th>
+              <th className="p-2">Estado</th>
             </tr>
           </thead>
           <tbody>
-            {trabajosPendientes.length > 0 ? (
+            {trabajosPendientes.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="text-center py-4 text-gray-400">
+                  No hay trabajos pendientes.
+                </td>
+              </tr>
+            ) : (
               trabajosPendientes.map((t, i) => (
-                <tr key={i} className="border-b">
+                <tr key={i} className="border-t border-gray-600">
                   <td className="p-2">{t.fecha}</td>
                   <td className="p-2">{t.modelo}</td>
                   <td className="p-2">{t.trabajo}</td>
@@ -145,8 +134,6 @@ export default function Cliente() {
                   <td className="p-2">{t.estado}</td>
                 </tr>
               ))
-            ) : (
-              <tr><td colSpan={5} className="p-4 text-center text-gray-500">No hay trabajos pendientes.</td></tr>
             )}
           </tbody>
         </table>
@@ -154,21 +141,27 @@ export default function Cliente() {
 
       <div>
         <h2 className="text-xl font-semibold mb-2">Trabajos entregados</h2>
-        <table className="w-full table-auto">
-          <thead className="bg-gray-300">
+        <table className="w-full text-left bg-gray-800 rounded overflow-hidden">
+          <thead className="bg-gray-700 text-sm">
             <tr>
-              <th className="p-2 text-left">Fecha ingreso</th>
-              <th className="p-2 text-left">Modelo</th>
-              <th className="p-2 text-left">Trabajo</th>
-              <th className="p-2 text-left">Precio</th>
-              <th className="p-2 text-left">Estado</th>
-              <th className="p-2 text-left">Fecha entrega</th>
+              <th className="p-2">Fecha ingreso</th>
+              <th className="p-2">Modelo</th>
+              <th className="p-2">Trabajo</th>
+              <th className="p-2">Precio</th>
+              <th className="p-2">Estado</th>
+              <th className="p-2">Fecha entrega</th>
             </tr>
           </thead>
           <tbody>
-            {trabajosEntregados.length > 0 ? (
+            {trabajosEntregados.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-4 text-gray-400">
+                  No hay trabajos entregados aún.
+                </td>
+              </tr>
+            ) : (
               trabajosEntregados.map((t, i) => (
-                <tr key={i} className="border-b">
+                <tr key={i} className="border-t border-gray-600">
                   <td className="p-2">{t.fecha}</td>
                   <td className="p-2">{t.modelo}</td>
                   <td className="p-2">{t.trabajo}</td>
@@ -177,8 +170,6 @@ export default function Cliente() {
                   <td className="p-2">{t.fechaEntrega || "-"}</td>
                 </tr>
               ))
-            ) : (
-              <tr><td colSpan={6} className="p-4 text-center text-gray-500">No hay trabajos entregados aún.</td></tr>
             )}
           </tbody>
         </table>
