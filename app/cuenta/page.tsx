@@ -4,18 +4,6 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
-import { Bar } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 interface Trabajo {
   cliente: string;
@@ -81,7 +69,9 @@ export default function CuentaCorrientePage() {
         };
       });
 
-      setCuentas(resumen.filter((c) => c.saldoPendiente > 0));
+      setCuentas(
+        resumen.filter((c) => c.saldoPendiente !== 0) // solo mostrar deudores o con saldo a favor
+      );
     };
 
     cargarDatos();
@@ -112,17 +102,6 @@ export default function CuentaCorrientePage() {
   );
 
   const saldoTotal = cuentas.reduce((sum, c) => sum + c.saldoPendiente, 0);
-
-  const chartData = {
-    labels: cuentas.map((c) => c.cliente),
-    datasets: [
-      {
-        label: "Saldo pendiente",
-        data: cuentas.map((c) => c.saldoPendiente),
-        backgroundColor: "#f87171",
-      },
-    ],
-  };
 
   return (
     <RequireAdmin>
@@ -155,28 +134,33 @@ export default function CuentaCorrientePage() {
           <table className="w-full table-auto border-collapse">
             <thead className="bg-gray-300">
               <tr>
-                <th className="p-3 text-left">Cliente</th>
-                <th className="p-3 text-left">Total Adeudado</th>
-                <th className="p-3 text-left">Entregas</th>
-                <th className="p-3 text-left">Saldo pendiente</th>
+                <th className="p-3 border border-gray-400 text-left">Cliente</th>
+                <th className="p-3 border border-gray-400 text-left">Total Adeudado</th>
+                <th className="p-3 border border-gray-400 text-left">Entregas</th>
+                <th className="p-3 border border-gray-400 text-left">Saldo pendiente</th>
               </tr>
             </thead>
             <tbody>
               {cuentasFiltradas.map((c) => (
-                <tr key={c.cliente} className="border-t bg-red-200">
-                  <td className="p-2">{c.cliente}</td>
-                  <td className="p-2">{formatNumero(c.totalAdeudado)}</td>
-                  <td className="p-2">{formatNumero(c.entregas)}</td>
-                  <td className="p-2 font-semibold">{formatNumero(c.saldoPendiente)}</td>
+                <tr
+                  key={c.cliente}
+                  className={`border-t ${
+                    c.saldoPendiente < 0
+                      ? "bg-green-200"
+                      : "bg-red-200"
+                  }`}
+                >
+                  <td className="p-2 border border-gray-300">{c.cliente}</td>
+                  <td className="p-2 border border-gray-300">{formatNumero(c.totalAdeudado)}</td>
+                  <td className="p-2 border border-gray-300">{formatNumero(c.entregas)}</td>
+                  <td className="p-2 border border-gray-300 font-semibold">
+                    {formatNumero(c.saldoPendiente)}{" "}
+                    {c.saldoPendiente < 0 && <span className="text-sm text-green-700">(Saldo a favor)</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-
-        <div className="mt-10">
-          <h2 className="text-2xl font-semibold mb-4">Visualización por cliente</h2>
-          <Bar data={chartData} />
         </div>
       </main>
     </RequireAdmin>

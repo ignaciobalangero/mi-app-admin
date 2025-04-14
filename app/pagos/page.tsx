@@ -32,7 +32,7 @@ export default function Pagos() {
   }, []);
 
   const guardarPago = async () => {
-    if (!cliente || monto <= 0 || !forma || !destino) return;
+    if (!cliente || monto <= 0 || !forma) return;
 
     const nuevoPago = {
       fecha: format(new Date(), "yyyy-MM-dd"),
@@ -72,7 +72,7 @@ export default function Pagos() {
     setCliente(pago.cliente);
     setMonto(pago.monto);
     setForma(pago.forma);
-    setDestino(pago.destino);
+    setDestino(pago.destino || "");
     setEditandoId(pago.id);
   };
 
@@ -85,34 +85,29 @@ export default function Pagos() {
         <div className="flex gap-2 mb-4">
           <input
             type="text"
-            name="nombreCliente"
-            id="nombreCliente"
             value={cliente}
             onChange={(e) => setCliente(e.target.value)}
             placeholder="Cliente"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            className="border-2 border-gray-400 text-black placeholder:text-gray-600 p-2 rounded w-1/4"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/4"
           />
           <input
             type="number"
             value={monto}
             onChange={(e) => setMonto(Number(e.target.value))}
             placeholder="Monto"
-            className="border-2 border-gray-400 text-black placeholder:text-gray-600 p-2 rounded w-1/4"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/4"
           />
           <input
             value={forma}
             onChange={(e) => setForma(e.target.value)}
             placeholder="Forma de pago"
-            className="border-2 border-gray-400 text-black placeholder:text-gray-600 p-2 rounded w-1/4"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/4"
           />
           <input
             value={destino}
             onChange={(e) => setDestino(e.target.value)}
             placeholder="Destino"
-            className="border-2 border-gray-400 text-black placeholder:text-gray-600 p-2 rounded w-1/4"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/4"
           />
         </div>
 
@@ -129,34 +124,40 @@ export default function Pagos() {
           </Link>
         </div>
 
-        <table className="w-full bg-white text-black">
+        <table className="w-full bg-white text-black border border-gray-300">
           <thead className="bg-gray-300">
             <tr>
-              <th className="p-2">Fecha</th>
-              <th>Cliente</th>
-              <th>Monto</th>
-              <th>Forma</th>
-              <th>Destino</th>
-              <th>Acciones</th>
+              <th className="p-2 border border-gray-400">Fecha</th>
+              <th className="p-2 border border-gray-400">Cliente</th>
+              <th className="p-2 border border-gray-400">Monto</th>
+              <th className="p-2 border border-gray-400">Forma</th>
+              <th className="p-2 border border-gray-400">Destino</th>
+              <th className="p-2 border border-gray-400">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {pagos.map((pago) => (
-              <tr key={pago.id} className="text-center border-b">
-                <td className="p-2">
+              <tr key={pago.id} className="text-center border-t">
+                <td className="p-2 border border-gray-300">
                   {pago.fecha?.seconds
                     ? new Date(pago.fecha.seconds * 1000).toLocaleDateString("es-AR")
                     : pago.fecha}
                 </td>
-                <td>{pago.cliente}</td>
-                <td>${pago.monto.toLocaleString("es-AR")}</td>
-                <td>{pago.forma}</td>
-                <td>{pago.destino}</td>
-                <td>
-                  <button onClick={() => editarPago(pago)} className="text-yellow-600 hover:underline mr-2">
+                <td className="border border-gray-300">{pago.cliente}</td>
+                <td className="border border-gray-300">${pago.monto.toLocaleString("es-AR")}</td>
+                <td className="border border-gray-300">{pago.forma}</td>
+                <td className="border border-gray-300">{pago.destino}</td>
+                <td className="border border-gray-300">
+                  <button
+                    onClick={() => editarPago(pago)}
+                    className="text-yellow-600 hover:underline mr-2"
+                  >
                     Editar
                   </button>
-                  <button onClick={() => eliminarPago(pago.id)} className="text-red-600 hover:underline">
+                  <button
+                    onClick={() => eliminarPago(pago.id)}
+                    className="text-red-600 hover:underline"
+                  >
                     Eliminar
                   </button>
                 </td>

@@ -78,6 +78,7 @@ export default function ResumenPage() {
       "Modelo",
       "Trabajo",
       "Clave",
+      "Observaciones",
       "Estado",
       "Precio",
       "Costo",
@@ -89,6 +90,7 @@ export default function ResumenPage() {
       t.modelo,
       t.trabajo,
       t.clave,
+      t.observaciones,
       t.estado,
       t.precio ?? "",
       t.costo ?? "",
@@ -142,18 +144,19 @@ export default function ResumenPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full table-auto border-collapse">
+          <table className="w-full table-auto border-collapse border border-gray-300 bg-white">
             <thead>
-              <tr className="bg-gray-300">
-                <th className="p-3 text-left">Fecha</th>
-                <th className="p-3 text-left">Cliente</th>
-                <th className="p-3 text-left">Modelo</th>
-                <th className="p-3 text-left">Trabajo</th>
-                <th className="p-3 text-left">Clave</th>
-                <th className="p-3 text-left">Estado</th>
-                <th className="p-3 text-left">Precio</th>
-                <th className="p-3 text-left">Costo</th>
-                <th className="p-3 text-left">Ganancia</th>
+              <tr className="bg-gray-300 border border-gray-300">
+                <th className="p-3 border-r border-gray-400 text-left">Fecha</th>
+                <th className="p-3 border-r border-gray-400 text-left">Cliente</th>
+                <th className="p-3 border-r border-gray-400 text-left">Modelo</th>
+                <th className="p-3 border-r border-gray-400 text-left">Trabajo</th>
+                <th className="p-3 border-r border-gray-400 text-left">Clave</th>
+                <th className="p-3 border-r border-gray-400 text-left">Observaciones</th>
+                <th className="p-3 border-r border-gray-400 text-left">Estado</th>
+                <th className="p-3 border-r border-gray-400 text-left">Precio</th>
+                <th className="p-3 border-r border-gray-400 text-left">Costo</th>
+                <th className="p-3 border-r border-gray-400 text-left">Ganancia</th>
                 <th className="p-3 text-left">Acciones</th>
               </tr>
             </thead>
@@ -167,19 +170,18 @@ export default function ResumenPage() {
                 return (
                   <tr
                     key={t.firebaseId}
-                    className={`border-t transition ${
-                      t.estado === "PENDIENTE"
-                        ? "bg-red-200"
-                        : "bg-green-200"
+                    className={`border-t border-gray-300 transition ${
+                      t.estado === "PENDIENTE" ? "bg-red-100" : "bg-green-100"
                     }`}
                   >
-                    <td className="p-2">{t.fecha}</td>
-                    <td className="p-2">{t.cliente}</td>
-                    <td className="p-2">{t.modelo}</td>
-                    <td className="p-2">{t.trabajo}</td>
-                    <td className="p-2">{t.clave}</td>
-                    <td className="p-2">{t.estado}</td>
-                    <td className="p-2">
+                    <td className="p-2 border-r border-gray-300">{t.fecha}</td>
+                    <td className="p-2 border-r border-gray-300">{t.cliente}</td>
+                    <td className="p-2 border-r border-gray-300">{t.modelo}</td>
+                    <td className="p-2 border-r border-gray-300">{t.trabajo}</td>
+                    <td className="p-2 border-r border-gray-300">{t.clave}</td>
+                    <td className="p-2 border-r border-gray-300">{t.observaciones}</td>
+                    <td className="p-2 border-r border-gray-300">{t.estado}</td>
+                    <td className="p-2 border-r border-gray-300">
                       <input
                         type="number"
                         defaultValue={t.precio ?? ""}
@@ -193,7 +195,7 @@ export default function ResumenPage() {
                         className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
                       />
                     </td>
-                    <td className="p-2">
+                    <td className="p-2 border-r border-gray-300">
                       <input
                         type="number"
                         defaultValue={t.costo ?? ""}
@@ -207,7 +209,7 @@ export default function ResumenPage() {
                         className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
                       />
                     </td>
-                    <td className="p-2">
+                    <td className="p-2 border-r border-gray-300">
                       {typeof ganancia === "number" ? `$${ganancia}` : "—"}
                     </td>
                     <td className="p-2">
