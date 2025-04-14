@@ -20,9 +20,19 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
-      <div className="bg-gray-800 p-8 rounded-xl shadow-md w-full max-w-md">
-        <h2 className="text-3xl font-bold mb-6 text-center">Iniciar sesión</h2>
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-start pt-12 px-4">
+      
+    {/* LOGO CENTRADO ARRIBA */}
+    <img
+      src="/logo.png"
+      alt="Logo"
+      className="w-72 h-auto object-contain mb-8"
+    />
+
+    {/* FORMULARIO CENTRADO MÁS ABAJO */}
+    <div className="bg-gray-800 p-8 rounded-xl shadow-md w-full max-w-md mt-4">
+      <h2 className="text-3xl font-bold mb-6 text-center">Iniciar sesión</h2>
+
 
         <input
           type="email"
