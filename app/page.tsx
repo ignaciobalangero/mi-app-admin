@@ -16,6 +16,7 @@ const botonesAdmin = [
   { label: "Cuenta corriente", href: "/cuenta" },
   { label: "Pago de clientes", href: "/pagos" },
   { label: "Resumen de cuenta", href: "/resumen-cuenta" },
+  { label: "Ventas", href: "/ventas" },
 ];
 
 const botonesEmpleado = [

@@ -67,16 +67,16 @@ export default function Ingreso() {
           
           {/* 👇 CAMPO CLIENTE corregido 👇 */}
           <input
-            type="text"
-            name="nombreCliente"
-            id="nombreCliente"
-            value={cliente}
-            onChange={(e) => setCliente(e.target.value)}
-            className="p-3 rounded-xl bg-gray-800 border border-gray-600"
-            placeholder="Cliente"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
+             type="text"
+             name="nombreCliente"
+             id="nombreCliente"
+             value={cliente}
+             onChange={(e) => setCliente(e.target.value)}
+             className="p-3 rounded-xl bg-gray-800 border border-gray-600"
+             placeholder="Cliente"
+             autoComplete="off"
+             autoCorrect="off"
+             spellCheck={false}
           />
 
           <input type="text" value={modelo} onChange={(e) => setModelo(e.target.value)} className="p-3 rounded-xl bg-gray-800 border border-gray-600" placeholder="Modelo" />

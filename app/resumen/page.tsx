@@ -47,7 +47,18 @@ export default function ResumenPage() {
           costo: data.costo,
         });
       });
-      setTrabajos(lista);
+
+      // Orden: pendientes primero, y dentro de cada grupo por fecha descendente
+      const ordenados = lista.sort((a, b) => {
+        if (a.estado !== b.estado) {
+          return a.estado === "PENDIENTE" ? -1 : 1;
+        }
+        const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
+        const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
+        return fechaB - fechaA;
+      });
+
+      setTrabajos(ordenados);
     });
 
     return () => unsubscribe();
@@ -59,9 +70,7 @@ export default function ResumenPage() {
     valor: number
   ) => {
     const ref = doc(db, "trabajos", id);
-    await updateDoc(ref, {
-      [campo]: valor,
-    });
+    await updateDoc(ref, { [campo]: valor });
   };
 
   const eliminarTrabajo = async (id: string) => {
@@ -73,28 +82,13 @@ export default function ResumenPage() {
 
   const exportarCSV = () => {
     const encabezado = [
-      "Fecha",
-      "Cliente",
-      "Modelo",
-      "Trabajo",
-      "Clave",
-      "Observaciones",
-      "Estado",
-      "Precio",
-      "Costo",
-      "Ganancia",
+      "Fecha", "Cliente", "Modelo", "Trabajo", "Clave", "Observaciones",
+      "Estado", "Precio", "Costo", "Ganancia"
     ];
     const filas = trabajosFiltrados.map((t) => [
-      t.fecha,
-      t.cliente,
-      t.modelo,
-      t.trabajo,
-      t.clave,
-      t.observaciones,
-      t.estado,
-      t.precio ?? "",
-      t.costo ?? "",
-      t.precio && t.costo ? t.precio - t.costo : "",
+      t.fecha, t.cliente, t.modelo, t.trabajo, t.clave, t.observaciones,
+      t.estado, t.precio ?? "", t.costo ?? "",
+      t.precio && t.costo ? t.precio - t.costo : ""
     ]);
     const csvContent =
       "data:text/csv;charset=utf-8," +
@@ -162,10 +156,9 @@ export default function ResumenPage() {
             </thead>
             <tbody>
               {trabajosFiltrados.map((t) => {
-                const ganancia =
-                  typeof t.precio === "number" && typeof t.costo === "number"
-                    ? t.precio - t.costo
-                    : "";
+                const ganancia = typeof t.precio === "number" && typeof t.costo === "number"
+                  ? t.precio - t.costo
+                  : "";
 
                 return (
                   <tr
@@ -186,11 +179,7 @@ export default function ResumenPage() {
                         type="number"
                         defaultValue={t.precio ?? ""}
                         onBlur={(e) =>
-                          actualizarCampo(
-                            t.firebaseId,
-                            "precio",
-                            Number(e.target.value)
-                          )
+                          actualizarCampo(t.firebaseId, "precio", Number(e.target.value))
                         }
                         className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
                       />
@@ -200,11 +189,7 @@ export default function ResumenPage() {
                         type="number"
                         defaultValue={t.costo ?? ""}
                         onBlur={(e) =>
-                          actualizarCampo(
-                            t.firebaseId,
-                            "costo",
-                            Number(e.target.value)
-                          )
+                          actualizarCampo(t.firebaseId, "costo", Number(e.target.value))
                         }
                         className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
                       />
