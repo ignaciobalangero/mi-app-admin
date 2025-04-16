@@ -122,7 +122,7 @@ export default function Configuraciones() {
           {rol === "admin" && (
             <div className="text-center mb-6">
               <button
-                onClick={() => router.push("/configuracion/crear-usuario")}
+                onClick={() => router.push("/configuraciones/crear-usuario")}
                 className="bg-blue-800 hover:bg-blue-900 text-white px-6 py-2 rounded font-semibold"
               >
                 Crear usuario
