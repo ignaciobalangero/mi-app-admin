@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 
 export default function Configuraciones() {
   const [user] = useAuthState(auth);
+  const [rol, setRol] = useState(""); // Para verificar rol admin
   const [textoGarantia, setTextoGarantia] = useState("");
   const [imprimirEtiqueta, setImprimirEtiqueta] = useState(false);
   const [imprimirTicket, setImprimirTicket] = useState(false);
@@ -40,6 +41,12 @@ export default function Configuraciones() {
           setImprimirEtiqueta(data.imprimirEtiqueta || false);
           setImprimirTicket(data.imprimirTicket || false);
           setLogoUrl(data.logoUrl || "");
+        }
+
+        // Traer rol desde Firestore
+        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+        if (userDoc.exists()) {
+          setRol(userDoc.data().rol || "");
         }
       };
       cargarConfiguracion();
@@ -87,10 +94,41 @@ export default function Configuraciones() {
   return (
     <>
       <Header />
-      <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
+      <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black relative">
+
+        {/* Botones solo para el super admin */}
+        {user?.uid === SUPER_ADMIN_UID && (
+          <div className="absolute top-28 left-4 flex flex-col gap-2">
+            <button
+              onClick={() => router.push("/admin/super")}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm"
+            >
+              Crear nuevo negocio
+            </button>
+            <button
+              onClick={() => router.push("/admin/clientes")}
+              className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded text-sm"
+            >
+              NEGOCIOS
+            </button>
+          </div>
+        )}
+
         <h1 className="text-3xl font-bold mb-6 text-center">Configuraciones</h1>
 
         <div className="max-w-2xl mx-auto bg-white p-6 rounded shadow space-y-6">
+
+          {/* Botón visible para todos los administradores */}
+          {rol === "admin" && (
+            <div className="text-center mb-6">
+              <button
+                onClick={() => router.push("/configuracion/crear-usuario")}
+                className="bg-blue-800 hover:bg-blue-900 text-white px-6 py-2 rounded font-semibold"
+              >
+                Crear usuario
+              </button>
+            </div>
+          )}
 
           <div>
             <label className="block font-semibold mb-2">Texto fijo para garantía:</label>
@@ -137,18 +175,6 @@ export default function Configuraciones() {
           >
             {guardando ? "Guardando..." : "Guardar configuración"}
           </button>
-
-          {/* Botón para super admin */}
-          {user?.uid === SUPER_ADMIN_UID && (
-            <div className="text-center mt-8">
-              <button
-                onClick={() => router.push("/admin/super")}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-semibold"
-              >
-                Crear nuevo negocio
-              </button>
-            </div>
-          )}
         </div>
       </main>
     </>

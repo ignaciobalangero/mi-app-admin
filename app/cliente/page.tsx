@@ -36,6 +36,21 @@ export default function Cliente() {
   const [totalAdeudado, setTotalAdeudado] = useState<number>(0);
   const router = useRouter();
 
+  // Evitar acceso si no es cliente
+  useEffect(() => {
+    if (rol && rol !== "cliente") {
+      router.push("/");
+    }
+  }, [rol, router]);
+
+  if (rol && rol !== "cliente") {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white bg-gray-900">
+        <p className="text-lg">Acceso denegado. Redirigiendo...</p>
+      </div>
+    );
+  }
+
   useEffect(() => {
     if (!cliente) return;
 
