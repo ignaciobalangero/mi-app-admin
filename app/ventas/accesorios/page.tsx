@@ -10,8 +10,12 @@ import {
   deleteDoc,
   doc,
   updateDoc,
+  query,
+  where,
 } from "firebase/firestore";
 import axios from "axios";
+import { auth } from "@/lib/auth";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function VentaAccesorios() {
   const [fecha, setFecha] = useState("");
@@ -23,14 +27,34 @@ export default function VentaAccesorios() {
   const [cotizacion, setCotizacion] = useState(0);
   const [ventas, setVentas] = useState<any[]>([]);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState<string>("");
 
   useEffect(() => {
     const hoy = new Date();
     const fechaFormateada = hoy.toLocaleDateString("es-AR");
     setFecha(fechaFormateada);
-    obtenerVentas();
     obtenerCotizacion();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      const fetchNegocioID = async () => {
+        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
+        snap.forEach((docu) => {
+          const data = docu.data();
+          if (data.negocioID) {
+            setNegocioID(data.negocioID);
+          }
+        });
+      };
+      fetchNegocioID();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (negocioID) obtenerVentas();
+  }, [negocioID]);
 
   const obtenerCotizacion = async () => {
     try {
@@ -42,7 +66,7 @@ export default function VentaAccesorios() {
   };
 
   const obtenerVentas = async () => {
-    const querySnapshot = await getDocs(collection(db, "ventaAccesorios"));
+    const querySnapshot = await getDocs(collection(db, `negocios/${negocioID}/ventaAccesorios`));
     const datos = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -65,10 +89,10 @@ export default function VentaAccesorios() {
 
     try {
       if (editandoId) {
-        await updateDoc(doc(db, "ventaAccesorios", editandoId), nuevaVenta);
+        await updateDoc(doc(db, `negocios/${negocioID}/ventaAccesorios`, editandoId), nuevaVenta);
         setEditandoId(null);
       } else {
-        await addDoc(collection(db, "ventaAccesorios"), nuevaVenta);
+        await addDoc(collection(db, `negocios/${negocioID}/ventaAccesorios`), nuevaVenta);
       }
 
       setCliente("");
@@ -83,7 +107,7 @@ export default function VentaAccesorios() {
   };
 
   const eliminarVenta = async (id: string) => {
-    await deleteDoc(doc(db, "ventaAccesorios", id));
+    await deleteDoc(doc(db, `negocios/${negocioID}/ventaAccesorios`, id));
     obtenerVentas();
   };
 
@@ -112,7 +136,6 @@ export default function VentaAccesorios() {
             className="p-2 border border-gray-400 rounded w-32 bg-gray-200"
           />
 
-          {/* campo invisible para evitar autofill */}
           <input
             type="text"
             name="fake-autofill"
