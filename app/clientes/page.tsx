@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { auth } from "@/lib/auth";
+import { useAuthState } from "react-firebase-hooks/auth";
 import Link from "next/link";
 
 interface Cliente {
@@ -17,10 +19,29 @@ interface Cliente {
 export default function ListaClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [filtro, setFiltro] = useState("");
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState("");
+
+  useEffect(() => {
+    const obtenerNegocio = async () => {
+      if (user) {
+        const snap = await getDoc(doc(db, "usuarios", user.uid));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.negocioID) {
+            setNegocioID(data.negocioID);
+          }
+        }
+      }
+    };
+    obtenerNegocio();
+  }, [user]);
 
   useEffect(() => {
     const cargarClientes = async () => {
-      const snapshot = await getDocs(collection(db, "clientes"));
+      if (!negocioID) return;
+
+      const snapshot = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
       const lista: Cliente[] = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -29,7 +50,7 @@ export default function ListaClientes() {
     };
 
     cargarClientes();
-  }, []);
+  }, [negocioID]);
 
   const clientesFiltrados = clientes.filter((c) =>
     c.nombre.toLowerCase().includes(filtro.toLowerCase())
