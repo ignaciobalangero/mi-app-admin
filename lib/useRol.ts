@@ -18,7 +18,6 @@ export function useRol() {
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const data = snap.data();
-          console.log("ROL cargado:", data.rol, "CLIENTE cargado:", data.nombre);
           setRol(data.rol);
           setCliente(data.nombre || ""); // 👈 Esto es lo que agregamos
         }
