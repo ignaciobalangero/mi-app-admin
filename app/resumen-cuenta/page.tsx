@@ -3,20 +3,41 @@
 import { useEffect, useState } from "react";
 import Header from "../Header";
 import { useRol } from "../../lib/useRol";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/auth";
 
 export default function ResumenCuenta() {
   const rol = useRol();
   const [gananciasPorMes, setGananciasPorMes] = useState([]);
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      const fetchNegocioID = async () => {
+        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
+        snap.forEach((docu) => {
+          const data = docu.data();
+          if (data.negocioID) {
+            setNegocioID(data.negocioID);
+          }
+        });
+      };
+      fetchNegocioID();
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetchGanancias = async () => {
-      const querySnapshot = await getDocs(collection(db, "trabajos"));
+      if (!negocioID || rol.rol !== "admin") return;
+
+      const querySnapshot = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
       const resumen: Record<string, number> = {};
 
-      querySnapshot.forEach(doc => {
+      querySnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.estado === "ENTREGADO" && data.precio && data.costo && data.fecha) {
           const [dia, mes, anio] = data.fecha.split("/");
@@ -32,8 +53,8 @@ export default function ResumenCuenta() {
       setGananciasPorMes(resultado);
     };
 
-    if (rol.rol === "admin") fetchGanancias();
-  }, [rol]);
+    fetchGanancias();
+  }, [negocioID, rol]);
 
   return (
     <>

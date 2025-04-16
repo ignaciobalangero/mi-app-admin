@@ -2,10 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Header from "../Header";
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
 import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function Pagos() {
   const [cliente, setCliente] = useState("");
@@ -14,10 +23,28 @@ export default function Pagos() {
   const [destino, setDestino] = useState("");
   const [pagos, setPagos] = useState<any[]>([]);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      const fetchNegocioID = async () => {
+        const snap = await getDocs(collection(db, "usuarios"));
+        snap.forEach((docu) => {
+          const data = docu.data();
+          if (data.email === user.email && data.negocioID) {
+            setNegocioID(data.negocioID);
+          }
+        });
+      };
+      fetchNegocioID();
+    }
+  }, [user]);
 
   const obtenerPagos = async () => {
-    const querySnapshot = await getDocs(collection(db, "pagos"));
-    const datos = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+    if (!negocioID) return;
+    const querySnapshot = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
+    const datos = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[];
     setPagos(
       datos.sort((a, b) => {
         const fechaA = a.fecha?.seconds ? new Date(a.fecha.seconds * 1000) : new Date(a.fecha);
@@ -28,8 +55,8 @@ export default function Pagos() {
   };
 
   useEffect(() => {
-    obtenerPagos();
-  }, []);
+    if (negocioID) obtenerPagos();
+  }, [negocioID]);
 
   const guardarPago = async () => {
     if (!cliente || monto <= 0 || !forma) return;
@@ -44,10 +71,10 @@ export default function Pagos() {
 
     try {
       if (editandoId) {
-        await updateDoc(doc(db, "pagos", editandoId), nuevoPago);
+        await updateDoc(doc(db, `negocios/${negocioID}/pagos`, editandoId), nuevoPago);
         setEditandoId(null);
       } else {
-        await addDoc(collection(db, "pagos"), nuevoPago);
+        await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
       }
       setCliente("");
       setMonto(0);
@@ -61,7 +88,7 @@ export default function Pagos() {
 
   const eliminarPago = async (id: string) => {
     try {
-      await deleteDoc(doc(db, "pagos", id));
+      await deleteDoc(doc(db, `negocios/${negocioID}/pagos`, id));
       obtenerPagos();
     } catch (error) {
       console.error("Error al eliminar el pago:", error);
@@ -144,7 +171,9 @@ export default function Pagos() {
                     : pago.fecha}
                 </td>
                 <td className="border border-gray-300">{pago.cliente}</td>
-                <td className="border border-gray-300">${pago.monto.toLocaleString("es-AR")}</td>
+                <td className="border border-gray-300">
+                  ${pago.monto.toLocaleString("es-AR")}
+                </td>
                 <td className="border border-gray-300">{pago.forma}</td>
                 <td className="border border-gray-300">{pago.destino}</td>
                 <td className="border border-gray-300">

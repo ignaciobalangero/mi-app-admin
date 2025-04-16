@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { auth } from "@/lib/auth";
+import { useAuthState } from "react-firebase-hooks/auth";
 import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 
@@ -27,6 +29,8 @@ interface CuentaCorriente {
 export default function CuentaCorrientePage() {
   const [cuentas, setCuentas] = useState<CuentaCorriente[]>([]);
   const [filtroCliente, setFiltroCliente] = useState("");
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState<string>("");
 
   const formatNumero = (num: number) =>
     new Intl.NumberFormat("es-AR", {
@@ -36,9 +40,26 @@ export default function CuentaCorrientePage() {
     }).format(num);
 
   useEffect(() => {
+    if (user) {
+      const fetchNegocioID = async () => {
+        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
+        snap.forEach((docu) => {
+          const data = docu.data();
+          if (data.negocioID) {
+            setNegocioID(data.negocioID);
+          }
+        });
+      };
+      fetchNegocioID();
+    }
+  }, [user]);
+
+  useEffect(() => {
     const cargarDatos = async () => {
-      const trabajosSnap = await getDocs(collection(db, "trabajos"));
-      const pagosSnap = await getDocs(collection(db, "pagos"));
+      if (!negocioID) return;
+
+      const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
+      const pagosSnap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
 
       const trabajos: Trabajo[] = [];
       trabajosSnap.forEach((doc) => trabajos.push(doc.data() as Trabajo));
@@ -70,12 +91,12 @@ export default function CuentaCorrientePage() {
       });
 
       setCuentas(
-        resumen.filter((c) => c.saldoPendiente !== 0) // solo mostrar deudores o con saldo a favor
+        resumen.filter((c) => c.saldoPendiente !== 0)
       );
     };
 
     cargarDatos();
-  }, []);
+  }, [negocioID]);
 
   const exportarCSV = () => {
     const encabezado = ["Cliente", "Adeudado", "Entregas", "Saldo pendiente"];

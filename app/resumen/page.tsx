@@ -6,8 +6,13 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  query,
+  where,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { auth } from "@/lib/auth";
+import { useAuthState } from "react-firebase-hooks/auth";
 import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 
@@ -28,9 +33,27 @@ export default function ResumenPage() {
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [filtroCliente, setFiltroCliente] = useState("");
   const [filtroFecha, setFiltroFecha] = useState("");
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState<string>("");
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "trabajos"), (snapshot) => {
+    if (user) {
+      const fetchNegocioID = async () => {
+        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
+        snap.forEach((docu) => {
+          const data = docu.data();
+          if (data.negocioID) {
+            setNegocioID(data.negocioID);
+          }
+        });
+      };
+      fetchNegocioID();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!negocioID) return;
+    const unsubscribe = onSnapshot(collection(db, `negocios/${negocioID}/trabajos`), (snapshot) => {
       const lista: Trabajo[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -48,7 +71,6 @@ export default function ResumenPage() {
         });
       });
 
-      // Orden: pendientes primero, y dentro de cada grupo por fecha descendente
       const ordenados = lista.sort((a, b) => {
         if (a.estado !== b.estado) {
           return a.estado === "PENDIENTE" ? -1 : 1;
@@ -62,21 +84,21 @@ export default function ResumenPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [negocioID]);
 
   const actualizarCampo = async (
     id: string,
     campo: "precio" | "costo",
     valor: number
   ) => {
-    const ref = doc(db, "trabajos", id);
+    const ref = doc(db, `negocios/${negocioID}/trabajos`, id);
     await updateDoc(ref, { [campo]: valor });
   };
 
   const eliminarTrabajo = async (id: string) => {
     const confirmar = confirm("¿Estás seguro de que querés eliminar este trabajo?");
     if (confirmar) {
-      await deleteDoc(doc(db, "trabajos", id));
+      await deleteDoc(doc(db, `negocios/${negocioID}/trabajos`, id));
     }
   };
 
