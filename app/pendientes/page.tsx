@@ -1,6 +1,8 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
+import { auth } from "@/lib/auth";
 import {
   collection,
   getDocs,
@@ -12,6 +14,7 @@ import {
 } from "firebase/firestore";
 import Header from "../Header";
 import RequireAuth from "../../lib/requireAuth";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 interface Trabajo {
   id: string;
@@ -30,9 +33,27 @@ export default function Pendientes() {
   const [filtro, setFiltro] = useState("");
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Trabajo>>({});
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      const fetchNegocioID = async () => {
+        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
+        snap.forEach((docu) => {
+          const data = docu.data();
+          if (data.negocioID) {
+            setNegocioID(data.negocioID);
+          }
+        });
+      };
+      fetchNegocioID();
+    }
+  }, [user]);
 
   const cargarTrabajos = async () => {
-    const q = query(collection(db, "trabajos"), where("estado", "==", "PENDIENTE"));
+    if (!negocioID) return;
+    const q = query(collection(db, `negocios/${negocioID}/trabajos`), where("estado", "==", "PENDIENTE"));
     const querySnapshot = await getDocs(q);
     const datos: Trabajo[] = [];
 
@@ -48,20 +69,20 @@ export default function Pendientes() {
   };
 
   const marcarComoEntregado = async (firebaseId: string) => {
-    const docRef = doc(db, "trabajos", firebaseId);
+    const docRef = doc(db, `negocios/${negocioID}/trabajos`, firebaseId);
     const fechaEntrega = new Date().toLocaleDateString("es-AR");
     await updateDoc(docRef, { estado: "ENTREGADO", fechaEntrega });
     await cargarTrabajos();
   };
 
   const eliminarTrabajo = async (id: string) => {
-    await deleteDoc(doc(db, "trabajos", id));
+    await deleteDoc(doc(db, `negocios/${negocioID}/trabajos`, id));
     await cargarTrabajos();
   };
 
   const guardarEdicion = async () => {
     if (!editandoId) return;
-    await updateDoc(doc(db, "trabajos", editandoId), formData);
+    await updateDoc(doc(db, `negocios/${negocioID}/trabajos`, editandoId), formData);
     setEditandoId(null);
     setFormData({});
     await cargarTrabajos();
@@ -74,8 +95,8 @@ export default function Pendientes() {
   );
 
   useEffect(() => {
-    cargarTrabajos();
-  }, []);
+    if (negocioID) cargarTrabajos();
+  }, [negocioID]);
 
   return (
     <RequireAuth>

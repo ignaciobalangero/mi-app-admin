@@ -3,9 +3,18 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "../../lib/firebase";
-import { collection, addDoc, serverTimestamp, getDocs } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  getDocs,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import Header from "../Header";
 import RequireAuth from "../../lib/requireAuth";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/auth";
 
 interface Cliente {
   nombre: string;
@@ -17,6 +26,8 @@ interface Cliente {
 
 export default function Ingreso() {
   const router = useRouter();
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState("");
   const [fecha, setFecha] = useState("");
   const [fechaManual, setFechaManual] = useState(false);
   const [id, setId] = useState("");
@@ -40,16 +51,27 @@ export default function Ingreso() {
   });
 
   useEffect(() => {
+    if (!user) return;
+    const obtenerNegocioID = async () => {
+      const ref = doc(db, "usuarios", user.uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const id = snap.data().negocioID || "";
+        setNegocioID(id);
+        cargarClientes(id);
+      }
+    };
+    obtenerNegocioID();
+
     const hoy = new Date();
     const fechaFormateada = hoy.toLocaleDateString("es-AR");
     setFecha(fechaFormateada);
     const generado = "EQ-" + hoy.getTime().toString().slice(-5);
     setId(generado);
-    cargarClientes();
-  }, []);
+  }, [user]);
 
-  const cargarClientes = async () => {
-    const snapshot = await getDocs(collection(db, "clientes"));
+  const cargarClientes = async (negocio: string) => {
+    const snapshot = await getDocs(collection(db, `negocios/${negocio}/clientes`));
     const lista: Cliente[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
@@ -65,6 +87,11 @@ export default function Ingreso() {
   };
 
   const handleGuardar = async () => {
+    if (!negocioID) {
+      alert("No se encontró un negocio asociado a este usuario");
+      return;
+    }
+
     const datos = {
       fecha,
       id,
@@ -80,8 +107,8 @@ export default function Ingreso() {
     };
 
     try {
-      await addDoc(collection(db, "trabajos"), datos);
-      alert("✅ Trabajo guardado en la nube correctamente");
+      await addDoc(collection(db, `negocios/${negocioID}/trabajos`), datos);
+      alert("✅ Trabajo guardado correctamente");
 
       const filaCSV = `ID,Cliente,Modelo,Trabajo,Clave,Observaciones\n${id},${cliente},${modelo},${trabajo},${clave},${observaciones}`;
       const blob = new Blob([filaCSV], { type: "text/csv;charset=utf-8;" });

@@ -1,6 +1,8 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
+import { auth } from "@/lib/auth";
 import {
   collection,
   getDocs,
@@ -12,6 +14,7 @@ import {
 } from "firebase/firestore";
 import Header from "../Header";
 import RequireAuth from "../../lib/requireAuth";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 interface Trabajo {
   id: string;
@@ -30,9 +33,27 @@ export default function Entregados() {
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [filtro, setFiltro] = useState("");
   const [editando, setEditando] = useState<Trabajo | null>(null);
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      const fetchNegocioID = async () => {
+        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
+        snap.forEach((docu) => {
+          const data = docu.data();
+          if (data.negocioID) {
+            setNegocioID(data.negocioID);
+          }
+        });
+      };
+      fetchNegocioID();
+    }
+  }, [user]);
 
   const cargarTrabajos = async () => {
-    const q = query(collection(db, "trabajos"), where("estado", "==", "ENTREGADO"));
+    if (!negocioID) return;
+    const q = query(collection(db, `negocios/${negocioID}/trabajos`), where("estado", "==", "ENTREGADO"));
     const querySnapshot = await getDocs(q);
     const datos: Trabajo[] = [];
 
@@ -47,22 +68,21 @@ export default function Entregados() {
 
   const guardarCambios = async () => {
     if (!editando) return;
-
     const { firebaseId, ...resto } = editando;
-    const docRef = doc(db, "trabajos", firebaseId);
+    const docRef = doc(db, `negocios/${negocioID}/trabajos`, firebaseId);
     await updateDoc(docRef, resto);
     setEditando(null);
     await cargarTrabajos();
   };
 
   const eliminarTrabajo = async (id: string) => {
-    await deleteDoc(doc(db, "trabajos", id));
+    await deleteDoc(doc(db, `negocios/${negocioID}/trabajos`, id));
     await cargarTrabajos();
   };
 
   useEffect(() => {
-    cargarTrabajos();
-  }, []);
+    if (negocioID) cargarTrabajos();
+  }, [negocioID]);
 
   const trabajosFiltrados = trabajos.filter(
     (t) =>
