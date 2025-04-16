@@ -17,6 +17,7 @@ const botonesAdmin = [
   { label: "Pago de clientes", href: "/pagos" },
   { label: "Resumen de cuenta", href: "/resumen-cuenta" },
   { label: "Ventas", href: "/ventas" },
+  { label: "Clientes", href: "/clientes" }, // 👈 BOTÓN NUEVO
 ];
 
 const botonesEmpleado = [
@@ -49,7 +50,19 @@ function Home() {
     <>
       <Header />
       <main className="pt-20 min-h-screen flex flex-col items-center justify-start bg-gray-100 p-8 text-black">
+        {rol === "admin" && (
+          <div className="self-start mb-6">
+            <Link
+              href="/configuraciones"
+              className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-900"
+            >
+              ⚙️ Configuraciones
+            </Link>
+          </div>
+        )}
+
         <h1 className="text-3xl font-bold mb-6">Director del panel</h1>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {botones.map((boton, i) => (
             <Link
