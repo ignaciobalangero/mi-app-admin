@@ -1,9 +1,5 @@
-import dynamic from "next/dynamic";
+import ClientWrapper from "./ClientWrapper";
 
-const ClienteDetalle = dynamic(() => import("./ClienteDetalle"), {
-  ssr: false,
-});
-
-export default function DetalleWrapper() {
-  return <ClienteDetalle />;
+export default function Page() {
+  return <ClientWrapper />;
 }
