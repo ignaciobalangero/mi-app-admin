@@ -15,6 +15,7 @@ import {
 } from "firebase/storage";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 export default function Configuraciones() {
   const [user] = useAuthState(auth);
@@ -24,6 +25,9 @@ export default function Configuraciones() {
   const [logoUrl, setLogoUrl] = useState("");
   const [nuevoLogo, setNuevoLogo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
+
+  const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
+  const router = useRouter();
 
   useEffect(() => {
     if (user) {
@@ -133,6 +137,18 @@ export default function Configuraciones() {
           >
             {guardando ? "Guardando..." : "Guardar configuración"}
           </button>
+
+          {/* Botón para super admin */}
+          {user?.uid === SUPER_ADMIN_UID && (
+            <div className="text-center mt-8">
+              <button
+                onClick={() => router.push("/admin/super")}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-semibold"
+              >
+                Crear nuevo negocio
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </>
