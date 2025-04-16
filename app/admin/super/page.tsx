@@ -59,8 +59,22 @@ export default function SuperAdminPage() {
     }
   };
 
-  if (currentUID === null) return <p className="p-6">Verificando acceso...</p>;
-  if (currentUID !== SUPER_ADMIN_UID) return <p className="p-6 text-red-600">Acceso denegado</p>;
+  if (currentUID && currentUID !== SUPER_ADMIN_UID) {
+    router.push("/");
+    return (
+      <div className="min-h-screen flex items-center justify-center text-red-600">
+        <p className="text-lg">Acceso denegado. Redirigiendo...</p>
+      </div>
+    );
+  }
+
+  if (!currentUID) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-600">
+        <p className="text-lg">Verificando acceso...</p>
+      </div>
+    );
+  }
 
   return (
     <main className="p-6 max-w-xl mx-auto">
@@ -109,5 +123,3 @@ export default function SuperAdminPage() {
     </main>
   );
 }
-
-
