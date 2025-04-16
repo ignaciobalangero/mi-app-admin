@@ -7,24 +7,42 @@ import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { useParams } from "next/navigation";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/auth";
 
 export default function ClienteDetalle() {
   const params = useParams();
   const nombreCliente = decodeURIComponent(params?.nombreCliente as string || "");
 
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState("");
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
 
   useEffect(() => {
+    const obtenerNegocioID = async () => {
+      if (!user) return;
+      const snap = await getDocs(collection(db, "usuarios"));
+      snap.forEach((docu) => {
+        const data = docu.data();
+        if (data.email === user.email && data.negocioID) {
+          setNegocioID(data.negocioID);
+        }
+      });
+    };
+    obtenerNegocioID();
+  }, [user]);
+
+  useEffect(() => {
     const fetchData = async () => {
-      if (!nombreCliente) return;
+      if (!nombreCliente || !negocioID) return;
 
       const trabajosQuery = query(
-        collection(db, "trabajos"),
+        collection(db, `negocios/${negocioID}/trabajos`),
         where("cliente", "==", nombreCliente)
       );
       const pagosQuery = query(
-        collection(db, "pagos"),
+        collection(db, `negocios/${negocioID}/pagos`),
         where("cliente", "==", nombreCliente)
       );
 
@@ -38,7 +56,7 @@ export default function ClienteDetalle() {
     };
 
     fetchData();
-  }, [nombreCliente]);
+  }, [nombreCliente, negocioID]);
 
   const totalTrabajos = trabajos.reduce((sum, t) => sum + (t.precio || 0), 0);
   const totalPagos = pagos.reduce((sum, p) => sum + (p.monto || 0), 0);
