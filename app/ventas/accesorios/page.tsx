@@ -16,6 +16,7 @@ import {
 import axios from "axios";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
+import Link from "next/link";
 
 export default function VentaAccesorios() {
   const [fecha, setFecha] = useState("");
@@ -126,6 +127,15 @@ export default function VentaAccesorios() {
     <>
       <Header />
       <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
+        <div className="mb-4">
+          <Link
+            href="/ventas"
+            className="text-blue-600 hover:underline text-sm"
+          >
+            ← Atrás
+          </Link>
+        </div>
+
         <h1 className="text-3xl font-bold mb-6 text-center">Venta de Accesorios</h1>
 
         <div className="flex flex-wrap gap-3 justify-center mb-6">
