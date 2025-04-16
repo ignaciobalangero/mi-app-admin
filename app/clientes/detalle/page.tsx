@@ -3,14 +3,14 @@
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import { useParams } from "next/navigation";
 
 export default function ClienteDetalle() {
-  const searchParams = useSearchParams();
-  const nombreCliente = searchParams.get("nombre") || "";
+  const params = useParams();
+  const nombreCliente = decodeURIComponent(params?.nombreCliente as string || "");
 
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
@@ -54,9 +54,11 @@ export default function ClienteDetalle() {
 
       doc.addImage(imgData, "PNG", 10, 10, 40, 20);
       doc.setFontSize(16);
-      doc.text(`Resumen de cuenta: ${nombreCliente}`, 10, 40);
+      doc.text(`Resumen de cuenta: ${nombreCliente}`, 60, 20);
 
-      const trabajosAdeudados = trabajos.filter((t) => t.precio && (t.estado === "PENDIENTE" || t.estado === "ENTREGADO"));
+      const trabajosAdeudados = trabajos.filter(
+        (t) => t.precio && (t.estado === "PENDIENTE" || t.estado === "ENTREGADO")
+      );
 
       const filas = trabajosAdeudados.map((t) => [
         t.fecha,
@@ -68,7 +70,7 @@ export default function ClienteDetalle() {
 
       // @ts-ignore
       doc.autoTable({
-        startY: 50,
+        startY: 35,
         head: [["Fecha", "Modelo", "Trabajo", "Estado", "Precio"]],
         body: filas,
       });
