@@ -1,7 +1,8 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDoc, doc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, addDoc, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -25,18 +26,19 @@ export default function AgregarClientePage() {
 
   useEffect(() => {
     const obtenerNegocioYCliente = async () => {
-      if (usuario) {
-        const snap = await getDoc(doc(db, "usuarios", usuario.uid));
-        if (snap.exists()) {
-          const data = snap.data();
-          setNegocioID(data.negocioID);
+      if (!usuario) return;
 
-          if (clienteId) {
-            const clienteRef = doc(db, `negocios/${data.negocioID}/clientes`, clienteId);
-            const clienteSnap = await getDoc(clienteRef);
-            if (clienteSnap.exists()) {
-              setCliente(clienteSnap.data() as any);
-            }
+      const usuarioSnap = await getDoc(doc(db, "usuarios", usuario.uid));
+      if (usuarioSnap.exists()) {
+        const data = usuarioSnap.data();
+        const idNegocio = data.negocioID;
+        setNegocioID(idNegocio);
+
+        if (clienteId) {
+          const clienteRef = doc(db, `negocios/${idNegocio}/clientes`, clienteId);
+          const clienteSnap = await getDoc(clienteRef);
+          if (clienteSnap.exists()) {
+            setCliente(clienteSnap.data() as any);
           }
         }
       }
@@ -63,7 +65,7 @@ export default function AgregarClientePage() {
       router.push("/clientes");
     } catch (error) {
       console.error("Error al guardar cliente:", error);
-      alert("❌ Ocurrió un error");
+      alert("❌ Ocurrió un error al guardar el cliente.");
     }
   };
 
