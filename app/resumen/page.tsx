@@ -1,3 +1,5 @@
+// Archivo: /resumen/page.tsx
+
 "use client";
 import { useEffect, useState } from "react";
 import {
@@ -33,6 +35,10 @@ export default function ResumenPage() {
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [filtroCliente, setFiltroCliente] = useState("");
   const [filtroFecha, setFiltroFecha] = useState("");
+  const [filtroModelo, setFiltroModelo] = useState("");
+  const [paginaActual, setPaginaActual] = useState(1);
+  const ITEMS_POR_PAGINA = 40;
+
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
 
@@ -86,11 +92,7 @@ export default function ResumenPage() {
     return () => unsubscribe();
   }, [negocioID]);
 
-  const actualizarCampo = async (
-    id: string,
-    campo: "precio" | "costo",
-    valor: number
-  ) => {
+  const actualizarCampo = async (id: string, campo: "precio" | "costo", valor: number) => {
     const ref = doc(db, `negocios/${negocioID}/trabajos`, id);
     await updateDoc(ref, { [campo]: valor });
   };
@@ -103,18 +105,20 @@ export default function ResumenPage() {
   };
 
   const exportarCSV = () => {
-    const encabezado = [
-      "Fecha", "Cliente", "Modelo", "Trabajo", "Clave", "Observaciones",
-      "Estado", "Precio", "Costo", "Ganancia"
-    ];
+    const encabezado = ["Fecha", "Cliente", "Modelo", "Trabajo", "Clave", "Observaciones", "Estado", "Precio", "Costo", "Ganancia"];
     const filas = trabajosFiltrados.map((t) => [
-      t.fecha, t.cliente, t.modelo, t.trabajo, t.clave, t.observaciones,
-      t.estado, t.precio ?? "", t.costo ?? "",
+      t.fecha,
+      t.cliente,
+      t.modelo,
+      t.trabajo,
+      t.clave,
+      t.observaciones,
+      t.estado,
+      t.precio ?? "",
+      t.costo ?? "",
       t.precio && t.costo ? t.precio - t.costo : ""
     ]);
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [encabezado, ...filas].map((e) => e.join(",")).join("\n");
+    const csvContent = "data:text/csv;charset=utf-8," + [encabezado, ...filas].map((e) => e.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -127,7 +131,14 @@ export default function ResumenPage() {
   const trabajosFiltrados = trabajos.filter(
     (t) =>
       t.cliente.toLowerCase().includes(filtroCliente.toLowerCase()) &&
-      t.fecha.includes(filtroFecha)
+      t.fecha.includes(filtroFecha) &&
+      t.modelo.toLowerCase().includes(filtroModelo.toLowerCase())
+  );
+
+  const totalPaginas = Math.ceil(trabajosFiltrados.length / ITEMS_POR_PAGINA);
+  const trabajosPaginados = trabajosFiltrados.slice(
+    (paginaActual - 1) * ITEMS_POR_PAGINA,
+    paginaActual * ITEMS_POR_PAGINA
   );
 
   return (
@@ -149,6 +160,13 @@ export default function ResumenPage() {
             placeholder="Filtrar por fecha (dd/mm/aaaa)"
             value={filtroFecha}
             onChange={(e) => setFiltroFecha(e.target.value)}
+            className="bg-white border border-gray-400 p-2 rounded text-black"
+          />
+          <input
+            type="text"
+            placeholder="Filtrar por modelo"
+            value={filtroModelo}
+            onChange={(e) => setFiltroModelo(e.target.value)}
             className="bg-white border border-gray-400 p-2 rounded text-black"
           />
           <button
@@ -177,7 +195,7 @@ export default function ResumenPage() {
               </tr>
             </thead>
             <tbody>
-              {trabajosFiltrados.map((t) => {
+              {trabajosPaginados.map((t) => {
                 const ganancia = typeof t.precio === "number" && typeof t.costo === "number"
                   ? t.precio - t.costo
                   : "";
@@ -200,9 +218,7 @@ export default function ResumenPage() {
                       <input
                         type="number"
                         defaultValue={t.precio ?? ""}
-                        onBlur={(e) =>
-                          actualizarCampo(t.firebaseId, "precio", Number(e.target.value))
-                        }
+                        onBlur={(e) => actualizarCampo(t.firebaseId, "precio", Number(e.target.value))}
                         className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
                       />
                     </td>
@@ -210,9 +226,7 @@ export default function ResumenPage() {
                       <input
                         type="number"
                         defaultValue={t.costo ?? ""}
-                        onBlur={(e) =>
-                          actualizarCampo(t.firebaseId, "costo", Number(e.target.value))
-                        }
+                        onBlur={(e) => actualizarCampo(t.firebaseId, "costo", Number(e.target.value))}
                         className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
                       />
                     </td>
@@ -233,6 +247,26 @@ export default function ResumenPage() {
             </tbody>
           </table>
         </div>
+
+        {totalPaginas > 1 && (
+          <div className="mt-6 flex justify-center gap-4">
+            <button
+              disabled={paginaActual === 1}
+              onClick={() => setPaginaActual((prev) => Math.max(prev - 1, 1))}
+              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded disabled:opacity-50"
+            >
+              Anterior
+            </button>
+            <span className="px-4 py-2">Página {paginaActual} de {totalPaginas}</span>
+            <button
+              disabled={paginaActual === totalPaginas}
+              onClick={() => setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))}
+              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+          </div>
+        )}
       </main>
     </RequireAdmin>
   );
