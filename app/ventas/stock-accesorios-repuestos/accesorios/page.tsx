@@ -136,8 +136,19 @@ export default function StockProductosPage() {
     setMostrarFormulario(true);
   };
 
-  const totalPesos = productos.reduce((acc, p) => acc + (p.moneda === "USD" ? p.precioVenta * p.cotizacion : p.precioVenta) * p.cantidad, 0);
-  const totalUSD = totalPesos / cotizacion;
+// Capital en USD = (costos en USD * cantidad) + (costos en PESOS * cantidad / cotización)
+const totalUSD = productos.reduce((acc, p) => {
+    const costoUSD =
+      p.moneda === "USD"
+        ? p.precioCosto * p.cantidad
+        : (p.precioCosto * p.cantidad) / cotizacion;
+    return acc + costoUSD;
+  }, 0);
+  
+  // Capital en pesos = totalUSD * cotización actual
+  const totalPesos = totalUSD * cotizacion;
+  
+  
   const productosAPedir = productos.filter(p => p.cantidad < p.stockIdeal);
 
   const exportarExcel = () => {
