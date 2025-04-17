@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic"; // 👈🏽 esto es clave para evitar el error de build
+export const dynamic = "force-dynamic"; // <- Esta línea es suficiente y recomendada
 
 import AgregarClienteForm from "./AgregarClienteForm";
 
