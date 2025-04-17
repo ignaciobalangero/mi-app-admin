@@ -1,5 +1,3 @@
-// Creamos un archivo inicial para la carpeta "ventas" en pages/ventas/index.tsx
-
 "use client";
 
 import Link from "next/link";
@@ -32,10 +30,10 @@ export default function VentasHome() {
             Stock de Teléfonos
           </Link>
           <Link
-            href="/ventas/stock-productos"
+            href="/ventas/stock-accesorios-repuestos"
             className="bg-white p-6 rounded-xl shadow hover:bg-gray-200 text-center font-semibold"
           >
-            Stock de Accesorios
+            Stock Accesorios y Repuestos
           </Link>
         </div>
       </main>

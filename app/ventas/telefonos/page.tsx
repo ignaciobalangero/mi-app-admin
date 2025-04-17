@@ -21,6 +21,7 @@ export default function VentaTelefonos() {
   const [cliente, setCliente] = useState("");
   const [modelo, setModelo] = useState("");
   const [color, setColor] = useState("");
+  const [bateria, setBateria] = useState("");
   const [gb, setGb] = useState("");
   const [imei, setImei] = useState("");
   const [serie, setSerie] = useState("");
@@ -76,6 +77,7 @@ export default function VentaTelefonos() {
       cliente,
       modelo,
       color,
+      bateria,
       gb,
       imei,
       serie,
@@ -96,6 +98,7 @@ export default function VentaTelefonos() {
       setCliente("");
       setModelo("");
       setColor("");
+      setBateria("");
       setGb("");
       setImei("");
       setSerie("");
@@ -118,6 +121,7 @@ export default function VentaTelefonos() {
     setCliente(venta.cliente);
     setModelo(venta.modelo);
     setColor(venta.color);
+    setBateria(venta.bateria);
     setGb(venta.gb);
     setImei(venta.imei);
     setSerie(venta.serie);
@@ -139,16 +143,19 @@ export default function VentaTelefonos() {
         <h1 className="text-3xl font-bold mb-6 text-center">Venta de Teléfonos</h1>
 
         <div className="flex flex-wrap gap-3 justify-center mb-6">
-          <input type="text" value={fecha} readOnly className="p-2 border border-gray-400 rounded w-32 bg-gray-200" />
-          <input type="text" value={proveedor} onChange={(e) => setProveedor(e.target.value)} placeholder="Proveedor" className="p-2 border border-gray-400 rounded w-40" />
-          <input type="text" value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Cliente" className="p-2 border border-gray-400 rounded w-40" />
-          <input type="text" value={modelo} onChange={(e) => setModelo(e.target.value)} placeholder="Modelo" className="p-2 border border-gray-400 rounded w-40" />
-          <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="Color" className="p-2 border border-gray-400 rounded w-32" />
-          <input type="text" value={gb} onChange={(e) => setGb(e.target.value)} placeholder="GB" className="p-2 border border-gray-400 rounded w-20" />
-          <input type="text" value={imei} onChange={(e) => setImei(e.target.value)} placeholder="IMEI" className="p-2 border border-gray-400 rounded w-40" />
-          <input type="text" value={serie} onChange={(e) => setSerie(e.target.value)} placeholder="N° de serie" className="p-2 border border-gray-400 rounded w-40" />
-          <input type="number" value={precioCosto} onChange={(e) => setPrecioCosto(Number(e.target.value))} placeholder="Precio de costo" className="p-2 border border-gray-400 rounded w-32" />
-          <input type="number" value={precioVenta} onChange={(e) => setPrecioVenta(Number(e.target.value))} placeholder="Precio de venta" className="p-2 border border-gray-400 rounded w-32" />
+          <input type="text" name="fake-autofill" autoComplete="off" style={{ display: "none" }} />
+
+          <input type="text" value={fecha} onChange={(e) => setFecha(e.target.value)} className="p-2 border border-gray-400 rounded w-28 bg-gray-100" />
+          <input type="text" value={proveedor} onChange={(e) => setProveedor(e.target.value)} placeholder="Proveedor" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-40" />
+          <input type="text" value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Cliente" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-40" />
+          <input type="text" value={modelo} onChange={(e) => setModelo(e.target.value)} placeholder="Modelo" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-40" />
+          <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="Color" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-32" />
+          <input type="text" value={bateria} onChange={(e) => setBateria(e.target.value)} placeholder="Bateria" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-20" />
+          <input type="text" value={gb} onChange={(e) => setGb(e.target.value)} placeholder="GB" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-20" />
+          <input type="text" value={imei} onChange={(e) => setImei(e.target.value)} placeholder="IMEI" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-40" />
+          <input type="text" value={serie} onChange={(e) => setSerie(e.target.value)} placeholder="N° de serie" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-40" />
+          <input type="number" value={precioCosto} onChange={(e) => setPrecioCosto(Number(e.target.value))} placeholder="Costo" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-28" />
+          <input type="number" value={precioVenta} onChange={(e) => setPrecioVenta(Number(e.target.value))} placeholder="Precio" autoComplete="off" autoCorrect="off" spellCheck={false} name="no-autofill" className="p-2 border border-gray-400 rounded w-28" />
           <button onClick={guardarVenta} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
             {editandoId ? "Actualizar" : "Guardar"}
           </button>
@@ -162,6 +169,7 @@ export default function VentaTelefonos() {
               <th className="p-2 border border-gray-400">Cliente</th>
               <th className="p-2 border border-gray-400">Modelo</th>
               <th className="p-2 border border-gray-400">Color</th>
+              <th className="p-2 border border-gray-400">Bateria</th>
               <th className="p-2 border border-gray-400">GB</th>
               <th className="p-2 border border-gray-400">IMEI</th>
               <th className="p-2 border border-gray-400">Serie</th>
@@ -179,6 +187,7 @@ export default function VentaTelefonos() {
                 <td className="p-2 border border-gray-300">{v.cliente}</td>
                 <td className="p-2 border border-gray-300">{v.modelo}</td>
                 <td className="p-2 border border-gray-300">{v.color}</td>
+                <td className="p-2 border border-gray-300">{v.bateria}</td>
                 <td className="p-2 border border-gray-300">{v.gb}</td>
                 <td className="p-2 border border-gray-300">{v.imei}</td>
                 <td className="p-2 border border-gray-300">{v.serie}</td>
