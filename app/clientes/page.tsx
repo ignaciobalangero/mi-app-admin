@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, deleteDoc } from "firebase/firestore";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import Link from "next/link";
@@ -87,6 +87,7 @@ export default function ListaClientes() {
                 <th className="p-2 border">DNI</th>
                 <th className="p-2 border">Dirección</th>
                 <th className="p-2 border">Email</th>
+                <th className="p-2 border text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -102,11 +103,32 @@ export default function ListaClientes() {
                     <td className="p-2 border">{cliente.dni}</td>
                     <td className="p-2 border">{cliente.direccion}</td>
                     <td className="p-2 border">{cliente.email}</td>
+                    <td className="p-2 border text-right">
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/clientes/agregar?id=${cliente.id}`}
+                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs"
+                        >
+                          Editar
+                        </Link>
+                        <button
+                          onClick={async () => {
+                            if (confirm(`¿Eliminar a ${cliente.nombre}?`)) {
+                              await deleteDoc(doc(db, `negocios/${negocioID}/clientes`, cliente.id));
+                              setClientes((prev) => prev.filter((c) => c.id !== cliente.id));
+                            }
+                          }}
+                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="p-4 text-center text-gray-500">
+                  <td colSpan={6} className="p-4 text-center text-gray-500">
                     No se encontraron clientes.
                   </td>
                 </tr>
