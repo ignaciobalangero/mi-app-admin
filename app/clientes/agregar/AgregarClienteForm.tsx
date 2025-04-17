@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import Header from "@/app/Header";
 
-export default function AgregarClientePage() {
+export default function AgregarClienteForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clienteId = searchParams.get("id");

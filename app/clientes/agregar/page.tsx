@@ -1,5 +1,5 @@
-import AgregarCliente from "./AgregarClienteForm";
+import AgregarClienteForm from "./AgregarClienteForm";
 
 export default function Page() {
-  return <AgregarCliente />;
+  return <AgregarClienteForm />;
 }
