@@ -49,12 +49,13 @@ export default function ClienteDetalle() {
 
     const trabajosQuery = query(
       collection(db, `negocios/${negocioID}/trabajos`),
-      where("cliente", "==", nombreCliente)
+      where("cliente", "==", nombreCliente.toLowerCase().trim())
+
     );
 
     const pagosQuery = query(
       collection(db, `negocios/${negocioID}/pagos`),
-      where("cliente", "==", nombreCliente)
+      where("cliente", "==", nombreCliente.toLowerCase().trim())
     );
 
     const unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
