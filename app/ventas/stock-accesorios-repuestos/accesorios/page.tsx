@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Header from "@/app/Header";
+import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -17,6 +18,7 @@ import FormularioProducto from "./components/FormularioProducto";
 import TablaProductos from "./components/TablaProductos";
 
 export default function StockProductosPage() {
+  const router = useRouter();
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
   const [codigo, setCodigo] = useState(uuidv4().slice(0, 8));
@@ -29,7 +31,7 @@ export default function StockProductosPage() {
   const [precioVenta, setPrecioVenta] = useState(0);
   const [precioVentaPesos, setPrecioVentaPesos] = useState(0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
-  const [cotizacion, setCotizacion] = useState(1000);
+  const [cotizacion, setCotizacion] = useState<number | null>(null);
   const [cantidad, setCantidad] = useState(1);
   const [stockIdeal, setStockIdeal] = useState(5);
   const [stockBajo, setStockBajo] = useState(3);
@@ -58,12 +60,23 @@ export default function StockProductosPage() {
   }, [negocioID]);
 
   useEffect(() => {
-    if (moneda === "USD") {
+    if (moneda === "USD" && cotizacion !== null) {
       setPrecioVentaPesos(precioVenta * cotizacion);
     } else {
       setPrecioVentaPesos(precioVenta);
     }
   }, [precioVenta, cotizacion, moneda]);
+
+  useEffect(() => {
+    fetch("https://dolarapi.com/v1/dolares/blue")
+      .then((res) => res.json())
+      .then((data) => {
+        setCotizacion(data.venta);
+      })
+      .catch((err) => {
+        console.error("Error al obtener cotización:", err);
+      });
+  }, []);
 
   const cargarProductos = async () => {
     const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
@@ -83,12 +96,12 @@ export default function StockProductosPage() {
       color,
       precioCosto,
       precioVenta,
-      precioVentaPesos: moneda === "USD" ? precioVenta * cotizacion : precioVenta,
+      precioVentaPesos: moneda === "USD" && cotizacion !== null ? precioVenta * cotizacion : precioVenta,
       moneda,
       cotizacion,
       cantidad,
       stockIdeal,
-      stockBajo
+      stockBajo,
     };
 
     if (editandoId) {
@@ -136,27 +149,25 @@ export default function StockProductosPage() {
     setMostrarFormulario(true);
   };
 
-// Capital en USD = (costos en USD * cantidad) + (costos en PESOS * cantidad / cotización)
-const totalUSD = productos.reduce((acc, p) => {
+  const totalUSD = productos.reduce((acc, p) => {
+    if (cotizacion === null) return acc;
     const costoUSD =
       p.moneda === "USD"
         ? p.precioCosto * p.cantidad
         : (p.precioCosto * p.cantidad) / cotizacion;
     return acc + costoUSD;
   }, 0);
-  
-  // Capital en pesos = totalUSD * cotización actual
-  const totalPesos = totalUSD * cotizacion;
-  
-  
-  const productosAPedir = productos.filter(p => p.cantidad < p.stockIdeal);
+
+  const totalPesos = cotizacion !== null ? totalUSD * cotizacion : 0;
+
+  const productosAPedir = productos.filter((p) => p.cantidad < p.stockIdeal);
 
   const exportarExcel = () => {
-    const data = productosAPedir.map(p => ({
+    const data = productosAPedir.map((p) => ({
       Producto: p.producto,
       Faltan: p.stockIdeal - p.cantidad,
       "Stock ideal": p.stockIdeal,
-      Actual: p.cantidad
+      Actual: p.cantidad,
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -169,7 +180,16 @@ const totalUSD = productos.reduce((acc, p) => {
     <>
       <Header />
       <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
-        <h1 className="text-2xl font-bold mb-6 text-center">Stock de Accesorios</h1>
+        <h1 className="text-2xl font-bold mb-4 text-center">Stock de Accesorios</h1>
+
+        <div className="mb-6 text-center">
+          <button
+            onClick={() => router.push("/ventas")}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
+          >
+            ← Atrás
+          </button>
+        </div>
 
         <ResumenCapital totalUSD={totalUSD} totalPesos={totalPesos} />
 
@@ -181,43 +201,40 @@ const totalUSD = productos.reduce((acc, p) => {
           setMostrarFormulario={setMostrarFormulario}
         />
 
-        {mostrarSugerencias && (
-          <PedidosSugeridos productosAPedir={productosAPedir} />
-        )}
+        {mostrarSugerencias && <PedidosSugeridos productosAPedir={productosAPedir} />}
 
         {mostrarFormulario && (
-        <FormularioProducto
-        codigo={codigo}
-        setCodigo={setCodigo}
-        proveedor={proveedor}
-        setProveedor={setProveedor}
-        producto={producto}
-        setProducto={setProducto}
-        categoria={categoria}
-        setCategoria={setCategoria}
-        marca={marca}
-        setMarca={setMarca}
-        color={color}
-        setColor={setColor}
-        precioCosto={precioCosto}
-        setPrecioCosto={setPrecioCosto}
-        precioVenta={precioVenta}
-        setPrecioVenta={setPrecioVenta}
-        moneda={moneda}
-        setMoneda={setMoneda}
-        cotizacion={cotizacion}
-        setCotizacion={setCotizacion}
-        precioVentaPesos={precioVentaPesos}
-        cantidad={cantidad}
-        setCantidad={setCantidad}
-        stockIdeal={stockIdeal}
-        setStockIdeal={setStockIdeal}
-        stockBajo={stockBajo}                  // ✅ nueva prop
-        setStockBajo={setStockBajo}            // ✅ nueva prop
-        guardarProducto={guardarProducto}
-        editandoId={editandoId}
-      />
-      
+          <FormularioProducto
+            codigo={codigo}
+            setCodigo={setCodigo}
+            proveedor={proveedor}
+            setProveedor={setProveedor}
+            producto={producto}
+            setProducto={setProducto}
+            categoria={categoria}
+            setCategoria={setCategoria}
+            marca={marca}
+            setMarca={setMarca}
+            color={color}
+            setColor={setColor}
+            precioCosto={precioCosto}
+            setPrecioCosto={setPrecioCosto}
+            precioVenta={precioVenta}
+            setPrecioVenta={setPrecioVenta}
+            moneda={moneda}
+            setMoneda={setMoneda}
+            cotizacion={cotizacion}
+            setCotizacion={setCotizacion}
+            precioVentaPesos={precioVentaPesos}
+            cantidad={cantidad}
+            setCantidad={setCantidad}
+            stockIdeal={stockIdeal}
+            setStockIdeal={setStockIdeal}
+            stockBajo={stockBajo}
+            setStockBajo={setStockBajo}
+            guardarProducto={guardarProducto}
+            editandoId={editandoId}
+          />
         )}
 
         <TablaProductos

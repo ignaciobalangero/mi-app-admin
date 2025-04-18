@@ -1,10 +1,13 @@
 "use client";
 
+// 📦 Tabla de productos – Sección REPUESTOS
+
 interface Producto {
   id: string;
   codigo: string;
   producto: string;
   categoria: string;
+  calidad: string; // ✅ NUEVO
   marca: string;
   color: string;
   precioCosto: number;
@@ -26,9 +29,10 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
     <table className="w-full bg-white rounded shadow overflow-hidden">
       <thead className="bg-gray-300 text-left">
         <tr>
-          <th className="p-2 border border-gray-400 w-[5px]">Código</th>
+          <th className="p-2 border border-gray-400 w-[20px]">Código</th>
           <th className="p-2 border border-gray-400">Producto</th>
           <th className="p-2 border border-gray-400">Categoría</th>
+          <th className="p-2 border border-gray-400">Calidad</th> {/* ✅ NUEVO */}
           <th className="p-2 border border-gray-400">Marca</th>
           <th className="p-2 border border-gray-400">Color</th>
           <th className="p-2 border border-gray-400">Costo</th>
@@ -43,16 +47,17 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
           <tr
             key={p.id}
             className={`border-t border-gray-300 ${
-                p.cantidad === 0
-                  ? "bg-red-100"
-                  : p.cantidad <= (p.stockBajo ?? 3)
-                  ? "bg-yellow-100"
-                  : "bg-green-100"
-              }`}              
+              p.cantidad === 0
+                ? "bg-red-100"
+                : p.cantidad <= (p.stockBajo ?? 3)
+                ? "bg-yellow-100"
+                : "bg-green-100"
+            }`}
           >
             <td className="p-2 border border-gray-300">{p.codigo}</td>
             <td className="p-2 border border-gray-300">{p.producto}</td>
             <td className="p-2 border border-gray-300">{p.categoria}</td>
+            <td className="p-2 border border-gray-300">{p.calidad}</td> {/* ✅ NUEVO */}
             <td className="p-2 border border-gray-300">{p.marca}</td>
             <td className="p-2 border border-gray-300">{p.color}</td>
             <td className="p-2 border border-gray-300">{p.moneda} ${p.precioCosto}</td>
