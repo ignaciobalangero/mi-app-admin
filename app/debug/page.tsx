@@ -1,26 +1,25 @@
 "use client";
 
 import { useEffect } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth } from "@/lib/auth";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function DebugPage() {
-  const nombreCliente = "rodrigo godoy (gremio)"; // ← Reemplazá esto por un nombre real
-  const negocioID = "wHxaseUYO7H9SKWjCAGc";         // ← Reemplazá esto por tu negocioID real
+  const [user, loading, error] = useAuthState(auth);
 
   useEffect(() => {
-    const buscarTrabajos = async () => {
-      const q = query(
-        collection(db, `negocios/${negocioID}/trabajos`),
-        where("cliente", "==", nombreCliente)
-      );
-      const snapshot = await getDocs(q);
-      const datos = snapshot.docs.map((doc) => doc.data());
-      console.log("🔍 Trabajos encontrados:", datos);
-    };
+    console.log("🧪 Debug de Firebase Auth:");
+    console.log("👤 Usuario:", user);
+    console.log("⌛ Loading:", loading);
+    console.log("❌ Error:", error);
+  }, [user, loading, error]);
 
-    buscarTrabajos();
-  }, []);
-
-  return <div className="p-4">Verificando datos en Firestore...</div>;
+  return (
+    <main className="min-h-screen bg-black text-white p-6">
+      <h1 className="text-2xl font-bold mb-4">🧪 Debug de Autenticación</h1>
+      <p><strong>Usuario:</strong> {user?.email ?? "No logueado"}</p>
+      <p><strong>Loading:</strong> {loading ? "Cargando..." : "Listo"}</p>
+      <p><strong>Error:</strong> {error ? error.message : "Sin errores"}</p>
+    </main>
+  );
 }
