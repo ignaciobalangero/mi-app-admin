@@ -45,13 +45,20 @@ export default function ClienteDetalle() {
       where("cliente", "==", nombreCliente)
     );
 
-    const unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
-      setTrabajos(trabajosSnap.docs.map((doc) => doc.data()));
-    });
+    let unsubscribeTrabajos: () => void = () => {};
+    let unsubscribePagos: () => void = () => {};
 
-    const unsubscribePagos = onSnapshot(pagosQuery, (pagosSnap) => {
-      setPagos(pagosSnap.docs.map((doc) => doc.data()));
-    });
+    const obtenerDatos = () => {
+      unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
+        setTrabajos(trabajosSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      });
+
+      unsubscribePagos = onSnapshot(pagosQuery, (pagosSnap) => {
+        setPagos(pagosSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      });
+    };
+
+    obtenerDatos();
 
     return () => {
       unsubscribeTrabajos();
