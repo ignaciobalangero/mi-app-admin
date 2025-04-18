@@ -13,56 +13,59 @@ import { auth } from "@/lib/auth";
 export default function ClienteDetalle() {
   const params = useParams();
   const nombreCliente = decodeURIComponent(params?.nombreCliente as string || "").trim();
-  const clienteNormalizado = nombreCliente.toLowerCase();
-
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
 
   useEffect(() => {
+    console.log("🟡 user:", user);
     const obtenerNegocioID = async () => {
-      if (!user) return;
+      if (!user) {
+        console.warn("⛔ No hay usuario autenticado");
+        return;
+      }
+
       const snap = await getDocs(collection(db, "usuarios"));
       snap.forEach((docu) => {
         const data = docu.data();
         if (data.email === user.email && data.negocioID) {
+          console.log("✅ negocioID encontrado:", data.negocioID);
           setNegocioID(data.negocioID);
         }
       });
     };
+
     obtenerNegocioID();
   }, [user]);
 
   useEffect(() => {
     if (!nombreCliente || !negocioID) {
-      console.log("Faltan datos:", { nombreCliente, negocioID });
+      console.warn("⚠️ Faltan datos para buscar:", { nombreCliente, negocioID });
       return;
     }
 
-    console.log("Consultando con:", { nombreCliente, negocioID });
+    console.log("🔍 Buscando datos de:", nombreCliente);
 
     const trabajosQuery = query(
       collection(db, `negocios/${negocioID}/trabajos`),
       where("cliente", "==", nombreCliente)
     );
+
     const pagosQuery = query(
       collection(db, `negocios/${negocioID}/pagos`),
       where("cliente", "==", nombreCliente)
     );
 
-    let unsubscribeTrabajos: () => void = () => {};
-    let unsubscribePagos: () => void = () => {};
-
-    unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
+    const unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
       const datos = trabajosSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      console.log("Datos de trabajos:", datos);
+      console.log("📋 Trabajos:", datos);
       setTrabajos(datos);
     });
 
-    unsubscribePagos = onSnapshot(pagosQuery, (pagosSnap) => {
+    const unsubscribePagos = onSnapshot(pagosQuery, (pagosSnap) => {
       const datos = pagosSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      console.log("Datos de pagos:", datos);
+      console.log("💰 Pagos:", datos);
       setPagos(datos);
     });
 
@@ -78,38 +81,28 @@ export default function ClienteDetalle() {
 
   const exportarPDF = async () => {
     const doc = new jsPDF();
-
     const logo = await fetch("/logo.png").then((res) => res.blob());
     const reader = new FileReader();
     reader.onloadend = () => {
       const imgData = reader.result as string;
-
       doc.addImage(imgData, "PNG", 10, 10, 40, 20);
       doc.setFontSize(16);
       doc.text(`Resumen de cuenta: ${nombreCliente}`, 60, 20);
-
-      const trabajosAdeudados = trabajos.filter(
-        (t) => t.precio && (t.estado === "PENDIENTE" || t.estado === "ENTREGADO")
-      );
-
-      const filas = trabajosAdeudados.map((t) => [
+      const filas = trabajos.map((t) => [
         t.fecha,
         t.modelo,
         t.trabajo,
         t.estado,
         `$${t.precio.toLocaleString("es-AR")}`,
       ]);
-
       // @ts-ignore
       doc.autoTable({
         startY: 35,
         head: [["Fecha", "Modelo", "Trabajo", "Estado", "Precio"]],
         body: filas,
       });
-
       // @ts-ignore
       doc.text(`Total Adeudado: $${saldo.toLocaleString("es-AR")}`, 10, doc.lastAutoTable.finalY + 10);
-
       doc.save(`Resumen-${nombreCliente}.pdf`);
     };
     reader.readAsDataURL(logo);
