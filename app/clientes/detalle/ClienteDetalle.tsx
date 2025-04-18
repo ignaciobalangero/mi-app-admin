@@ -5,7 +5,7 @@ import "jspdf-autotable";
 import { useEffect, useState } from "react";
 import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { useParams } from "next/navigation";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
@@ -34,28 +34,29 @@ export default function ClienteDetalle() {
   }, [user]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!nombreCliente || !negocioID) return;
+    if (!nombreCliente || !negocioID) return;
 
-      const trabajosQuery = query(
-        collection(db, `negocios/${negocioID}/trabajos`),
-        where("cliente", "==", nombreCliente)
-      );
-      const pagosQuery = query(
-        collection(db, `negocios/${negocioID}/pagos`),
-        where("cliente", "==", nombreCliente)
-      );
+    const trabajosQuery = query(
+      collection(db, `negocios/${negocioID}/trabajos`),
+      where("cliente", "==", nombreCliente)
+    );
+    const pagosQuery = query(
+      collection(db, `negocios/${negocioID}/pagos`),
+      where("cliente", "==", nombreCliente)
+    );
 
-      const [trabajosSnap, pagosSnap] = await Promise.all([
-        getDocs(trabajosQuery),
-        getDocs(pagosQuery),
-      ]);
-
+    const unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
       setTrabajos(trabajosSnap.docs.map((doc) => doc.data()));
-      setPagos(pagosSnap.docs.map((doc) => doc.data()));
-    };
+    });
 
-    fetchData();
+    const unsubscribePagos = onSnapshot(pagosQuery, (pagosSnap) => {
+      setPagos(pagosSnap.docs.map((doc) => doc.data()));
+    });
+
+    return () => {
+      unsubscribeTrabajos();
+      unsubscribePagos();
+    };
   }, [nombreCliente, negocioID]);
 
   const totalTrabajos = trabajos.reduce((sum, t) => sum + (t.precio || 0), 0);
