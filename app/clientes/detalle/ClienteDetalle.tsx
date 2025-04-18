@@ -12,7 +12,8 @@ import { auth } from "@/lib/auth";
 
 export default function ClienteDetalle() {
   const params = useParams();
-  const nombreCliente = decodeURIComponent(params?.nombreCliente as string || "");
+  const nombreCliente = decodeURIComponent(params?.nombreCliente as string || "").trim();
+  const clienteNormalizado = nombreCliente.toLowerCase();
 
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
@@ -34,7 +35,12 @@ export default function ClienteDetalle() {
   }, [user]);
 
   useEffect(() => {
-    if (!nombreCliente || !negocioID) return;
+    if (!nombreCliente || !negocioID) {
+      console.log("Faltan datos:", { nombreCliente, negocioID });
+      return;
+    }
+
+    console.log("Consultando con:", { nombreCliente, negocioID });
 
     const trabajosQuery = query(
       collection(db, `negocios/${negocioID}/trabajos`),
@@ -48,17 +54,17 @@ export default function ClienteDetalle() {
     let unsubscribeTrabajos: () => void = () => {};
     let unsubscribePagos: () => void = () => {};
 
-    const obtenerDatos = () => {
-      unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
-        setTrabajos(trabajosSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      });
+    unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
+      const datos = trabajosSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      console.log("Datos de trabajos:", datos);
+      setTrabajos(datos);
+    });
 
-      unsubscribePagos = onSnapshot(pagosQuery, (pagosSnap) => {
-        setPagos(pagosSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      });
-    };
-
-    obtenerDatos();
+    unsubscribePagos = onSnapshot(pagosQuery, (pagosSnap) => {
+      const datos = pagosSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      console.log("Datos de pagos:", datos);
+      setPagos(datos);
+    });
 
     return () => {
       unsubscribeTrabajos();
