@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -9,8 +9,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function ClienteDetalle() {
-  const searchParams = useSearchParams();
-  const nombreCliente = searchParams.get("nombre") || "";
+  const params = useParams();
+  const nombreCliente = decodeURIComponent((params?.nombreCliente || "").toString());
+  console.log("🟡 nombreCliente desde URL:", nombreCliente);
 
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
