@@ -1,4 +1,4 @@
-// Página de Pagos con soporte para Pesos y Dólares
+// Página de Pagos con soporte para Pesos y Dólares y autocompletado de clientes
 "use client";
 
 import { useEffect, useState } from "react";
@@ -19,6 +19,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function Pagos() {
   const [cliente, setCliente] = useState("");
+  const [clientes, setClientes] = useState<string[]>([]);
   const [monto, setMonto] = useState(0);
   const [forma, setForma] = useState("");
   const [destino, setDestino] = useState("");
@@ -43,6 +44,28 @@ export default function Pagos() {
       fetchNegocioID();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!negocioID) return;
+    const fetchClientes = async () => {
+      const clientesSnap = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
+      const listaClientes = clientesSnap.docs.map((doc) => doc.data().nombre);
+      setClientes(listaClientes);
+    };
+
+    const fetchCotizacion = async () => {
+      try {
+        const res = await fetch("https://dolarapi.com/v1/dolares/blue");
+        const data = await res.json();
+        if (data && data.venta) setCotizacion(Number(data.venta));
+      } catch (error) {
+        console.error("Error al obtener cotización del dólar:", error);
+      }
+    };
+
+    fetchClientes();
+    fetchCotizacion();
+  }, [negocioID]);
 
   const obtenerPagos = async () => {
     if (!negocioID) return;
@@ -123,9 +146,16 @@ export default function Pagos() {
             type="text"
             value={cliente}
             onChange={(e) => setCliente(e.target.value)}
+            list="lista-clientes"
             placeholder="Cliente"
             className="border-2 border-gray-400 text-black p-2 rounded w-1/5"
           />
+          <datalist id="lista-clientes">
+            {clientes.map((nombre, index) => (
+              <option key={index} value={nombre} />
+            ))}
+          </datalist>
+
           <input
             type="number"
             value={monto}
