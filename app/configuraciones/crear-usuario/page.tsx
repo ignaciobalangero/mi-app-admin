@@ -14,6 +14,7 @@ export default function CrearUsuarioPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState("empleado");
+  const [nombre, setNombre] = useState("");
   const [mensaje, setMensaje] = useState("");
   const router = useRouter();
 
@@ -22,7 +23,8 @@ export default function CrearUsuarioPage() {
       if (user) {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
         if (snap.exists()) {
-          setNegocioID(snap.data().negocioID);
+          const negocio = snap.data().negocioID;
+          if (negocio) setNegocioID(negocio);
         }
       }
     };
@@ -30,25 +32,32 @@ export default function CrearUsuarioPage() {
   }, [user]);
 
   const crearUsuario = async () => {
-    if (!email || !password || !rol) {
+    if (!email || !password || !rol || !nombre) {
       setMensaje("Completá todos los campos.");
       return;
     }
+    if (!negocioID) {
+      setMensaje("No se encontró un negocioID válido. Iniciá sesión nuevamente.");
+      return;
+    }
+
     try {
       const authAdmin = getAuth();
       const userCredential = await createUserWithEmailAndPassword(authAdmin, email, password);
       const nuevoUID = userCredential.user.uid;
 
       await setDoc(doc(db, "usuarios", nuevoUID), {
-        email,
+        email: email.toLowerCase(),
         negocioID,
         rol,
+        nombre: nombre.trim().toLowerCase(),
       });
 
       setMensaje("✅ Usuario creado correctamente.");
       setEmail("");
       setPassword("");
       setRol("empleado");
+      setNombre("");
     } catch (error: any) {
       console.error("Error al crear usuario:", error);
       setMensaje("❌ " + error.message);
@@ -60,6 +69,13 @@ export default function CrearUsuarioPage() {
       <h1 className="text-2xl font-bold mb-6 text-center">Crear usuario</h1>
 
       <div className="max-w-md mx-auto bg-white p-6 rounded shadow space-y-4">
+        <input
+          type="text"
+          placeholder="Nombre del cliente (exacto)"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          className="w-full border p-2 rounded placeholder-gray-700"
+        />
         <input
           type="email"
           placeholder="Email del nuevo usuario"
