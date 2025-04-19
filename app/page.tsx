@@ -80,7 +80,7 @@ function Home() {
 }
 
 export default function HomeWrapper() {
-  const [user, loading] = useAuthState(auth);
+  const [user, loading, error] = useAuthState(auth);
   const router = useRouter();
 
   useEffect(() => {
@@ -89,7 +89,13 @@ export default function HomeWrapper() {
     }
   }, [user, loading]);
 
-  if (loading || !user) return null;
+  if (loading) {
+    return <p className="text-center text-black mt-10">Cargando usuario...</p>;
+  }
+
+  if (!user) {
+    return <p className="text-center text-red-600 mt-10">No se detectó ningún usuario autenticado.</p>;
+  }
 
   return <Home />;
 }

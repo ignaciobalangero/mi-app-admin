@@ -1,3 +1,4 @@
+// Página de Pagos con soporte para Pesos y Dólares
 "use client";
 
 import { useEffect, useState } from "react";
@@ -21,6 +22,8 @@ export default function Pagos() {
   const [monto, setMonto] = useState(0);
   const [forma, setForma] = useState("");
   const [destino, setDestino] = useState("");
+  const [moneda, setMoneda] = useState("ARS");
+  const [cotizacion, setCotizacion] = useState(1000);
   const [pagos, setPagos] = useState<any[]>([]);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [user] = useAuthState(auth);
@@ -64,9 +67,12 @@ export default function Pagos() {
     const nuevoPago = {
       fecha: format(new Date(), "yyyy-MM-dd"),
       cliente,
-      monto,
+      monto: moneda === "USD" ? monto * cotizacion : monto,
       forma,
       destino,
+      moneda,
+      cotizacion,
+      montoUSD: moneda === "USD" ? monto : null,
     };
 
     try {
@@ -80,6 +86,7 @@ export default function Pagos() {
       setMonto(0);
       setForma("");
       setDestino("");
+      setMoneda("ARS");
       obtenerPagos();
     } catch (error) {
       console.error("Error al guardar el pago:", error);
@@ -97,9 +104,11 @@ export default function Pagos() {
 
   const editarPago = (pago: any) => {
     setCliente(pago.cliente);
-    setMonto(pago.monto);
+    setMonto(pago.moneda === "USD" ? pago.montoUSD : pago.monto);
     setForma(pago.forma);
     setDestino(pago.destino || "");
+    setMoneda(pago.moneda || "ARS");
+    setCotizacion(pago.cotizacion || 1000);
     setEditandoId(pago.id);
   };
 
@@ -115,26 +124,41 @@ export default function Pagos() {
             value={cliente}
             onChange={(e) => setCliente(e.target.value)}
             placeholder="Cliente"
-            className="border-2 border-gray-400 text-black p-2 rounded w-1/4"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/5"
           />
           <input
             type="number"
             value={monto}
             onChange={(e) => setMonto(Number(e.target.value))}
             placeholder="Monto"
-            className="border-2 border-gray-400 text-black p-2 rounded w-1/4"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/5"
+          />
+          <select
+            value={moneda}
+            onChange={(e) => setMoneda(e.target.value)}
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/6"
+          >
+            <option value="ARS">Pesos</option>
+            <option value="USD">Dólares</option>
+          </select>
+          <input
+            type="number"
+            value={cotizacion}
+            onChange={(e) => setCotizacion(Number(e.target.value))}
+            placeholder="Cotización"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/6"
           />
           <input
             value={forma}
             onChange={(e) => setForma(e.target.value)}
             placeholder="Forma de pago"
-            className="border-2 border-gray-400 text-black p-2 rounded w-1/4"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/5"
           />
           <input
             value={destino}
             onChange={(e) => setDestino(e.target.value)}
             placeholder="Destino"
-            className="border-2 border-gray-400 text-black p-2 rounded w-1/4"
+            className="border-2 border-gray-400 text-black p-2 rounded w-1/5"
           />
         </div>
 
@@ -157,6 +181,7 @@ export default function Pagos() {
               <th className="p-2 border border-gray-400">Fecha</th>
               <th className="p-2 border border-gray-400">Cliente</th>
               <th className="p-2 border border-gray-400">Monto</th>
+              <th className="p-2 border border-gray-400">Moneda</th>
               <th className="p-2 border border-gray-400">Forma</th>
               <th className="p-2 border border-gray-400">Destino</th>
               <th className="p-2 border border-gray-400">Acciones</th>
@@ -173,7 +198,13 @@ export default function Pagos() {
                 <td className="border border-gray-300">{pago.cliente}</td>
                 <td className="border border-gray-300">
                   ${pago.monto.toLocaleString("es-AR")}
+                  {pago.moneda === "USD" && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      (USD {pago.montoUSD})
+                    </span>
+                  )}
                 </td>
+                <td className="border border-gray-300">{pago.moneda}</td>
                 <td className="border border-gray-300">{pago.forma}</td>
                 <td className="border border-gray-300">{pago.destino}</td>
                 <td className="border border-gray-300">
