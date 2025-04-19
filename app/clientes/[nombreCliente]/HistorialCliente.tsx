@@ -15,11 +15,15 @@ export default function ClienteDetalle() {
 
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
-
   useEffect(() => {
     const fetchData = async () => {
-      if (!nombreCliente) return;
-
+      if (!nombreCliente) {
+        console.warn("⛔ nombreCliente vacío");
+        return;
+      }
+  
+      console.log("🔎 Buscando trabajos y pagos de:", nombreCliente);
+  
       const trabajosQuery = query(
         collection(db, "trabajos"),
         where("cliente", "==", nombreCliente)
@@ -28,18 +32,25 @@ export default function ClienteDetalle() {
         collection(db, "pagos"),
         where("cliente", "==", nombreCliente)
       );
-
+  
       const [trabajosSnap, pagosSnap] = await Promise.all([
         getDocs(trabajosQuery),
         getDocs(pagosQuery),
       ]);
-
-      setTrabajos(trabajosSnap.docs.map((doc) => doc.data()));
-      setPagos(pagosSnap.docs.map((doc) => doc.data()));
+  
+      const trabajosData = trabajosSnap.docs.map((doc) => doc.data());
+      const pagosData = pagosSnap.docs.map((doc) => doc.data());
+  
+      console.log("📋 Trabajos:", trabajosData);
+      console.log("💰 Pagos:", pagosData);
+  
+      setTrabajos(trabajosData);
+      setPagos(pagosData);
     };
-
+  
     fetchData();
   }, [nombreCliente]);
+  
 
   const totalTrabajos = trabajos.reduce((sum, t) => sum + (t.precio || 0), 0);
   const totalPagos = pagos.reduce((sum, p) => sum + (p.monto || 0), 0);

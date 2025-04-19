@@ -95,7 +95,7 @@ export default function ListaClientes() {
                 clientesFiltrados.map((cliente) => (
                   <tr key={cliente.id} className="border-t hover:bg-gray-100 transition">
                     <td className="p-2 border text-blue-600 underline cursor-pointer">
-                      <Link href={`/clientes/historial?nombre=${encodeURIComponent(cliente.nombre)}`}>
+                    <Link href={`/clientes/${encodeURIComponent(cliente.nombre)}`}>
                         {cliente.nombre}
                       </Link>
                     </td>
