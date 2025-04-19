@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
+} from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
@@ -16,6 +20,8 @@ export default function CrearUsuarioPage() {
   const [rol, setRol] = useState("empleado");
   const [nombre, setNombre] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [cargando, setCargando] = useState(false);
+  const [resumenCreado, setResumenCreado] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -32,17 +38,28 @@ export default function CrearUsuarioPage() {
   }, [user]);
 
   const crearUsuario = async () => {
-    if (!email || !password || !rol || !nombre) {
-      setMensaje("Completá todos los campos.");
-      return;
-    }
-    if (!negocioID) {
-      setMensaje("No se encontró un negocioID válido. Iniciá sesión nuevamente.");
-      return;
-    }
+    if (!nombre.trim()) return setMensaje("⚠️ Ingresá el nombre del cliente.");
+    if (!email.trim()) return setMensaje("⚠️ Ingresá un email válido.");
+    if (!password || password.length < 6)
+      return setMensaje("⚠️ La contraseña debe tener al menos 6 caracteres.");
+    if (!rol) return setMensaje("⚠️ Seleccioná un rol válido.");
+    if (!negocioID)
+      return setMensaje("❌ No se encontró un negocioID válido. Iniciá sesión nuevamente.");
+
+    setCargando(true);
+    setMensaje("");
+    setResumenCreado(null);
 
     try {
       const authAdmin = getAuth();
+
+      const metodos = await fetchSignInMethodsForEmail(authAdmin, email);
+      if (metodos.length > 0) {
+        setMensaje("❌ Ya existe un usuario con este email.");
+        setCargando(false);
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(authAdmin, email, password);
       const nuevoUID = userCredential.user.uid;
 
@@ -54,6 +71,7 @@ export default function CrearUsuarioPage() {
       });
 
       setMensaje("✅ Usuario creado correctamente.");
+      setResumenCreado({ email, rol, negocioID });
       setEmail("");
       setPassword("");
       setRol("empleado");
@@ -62,6 +80,8 @@ export default function CrearUsuarioPage() {
       console.error("Error al crear usuario:", error);
       setMensaje("❌ " + error.message);
     }
+
+    setCargando(false);
   };
 
   return (
@@ -101,12 +121,22 @@ export default function CrearUsuarioPage() {
 
         <button
           onClick={crearUsuario}
-          className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+          disabled={cargando}
+          className={`w-full py-2 px-4 rounded text-white ${cargando ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}`}
         >
-          Crear usuario
+          {cargando ? "Creando..." : "Crear usuario"}
         </button>
 
         {mensaje && <p className="text-sm mt-2 text-center">{mensaje}</p>}
+
+        {resumenCreado && (
+          <div className="mt-4 text-sm text-green-700 text-center">
+            <p>
+              Usuario creado: <strong>{resumenCreado.email}</strong> ({resumenCreado.rol})<br />
+              Asociado a: <strong>{resumenCreado.negocioID}</strong>
+            </p>
+          </div>
+        )}
       </div>
     </main>
   );

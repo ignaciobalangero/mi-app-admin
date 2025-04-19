@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRol } from "../../lib/useRol";
-import { auth } from "../../lib/auth";
+import { auth } from "@/lib/auth";
 import { signOut } from "firebase/auth";
-import { db } from "../../lib/firebase";
+import { db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import {
   collection,
+  getDoc,
+  doc,
   getDocs,
   query,
   where,
@@ -29,66 +30,52 @@ interface Pago {
 }
 
 export default function Cliente() {
-  const { rol, cliente } = useRol();
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [verPagos, setVerPagos] = useState(false);
   const [totalAdeudado, setTotalAdeudado] = useState<number>(0);
   const router = useRouter();
 
-  // Evitar acceso si no es cliente
   useEffect(() => {
-    if (rol && rol !== "cliente") {
-      router.push("/");
-    }
-  }, [rol, router]);
-
-  if (rol && rol !== "cliente") {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-white bg-gray-900">
-        <p className="text-lg">Acceso denegado. Redirigiendo...</p>
-      </div>
-    );
-  }
-
-  useEffect(() => {
-    if (!cliente) return;
-
     const cargarDatos = async () => {
-      const trabajosQuery = query(collection(db, "trabajos"), where("cliente", "==", cliente));
-      const pagosQuery = query(collection(db, "pagos"), where("cliente", "==", cliente));
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const docSnap = await getDoc(doc(db, "usuarios", currentUser.uid));
+      if (!docSnap.exists()) return;
+
+      const { negocioID, nombre } = docSnap.data();
+      if (!negocioID || !nombre) return;
+
+      console.log("📦 Cargando trabajos y pagos de:", nombre, " | Negocio:", negocioID);
+
+      const trabajosQuery = query(
+        collection(db, `negocios/${negocioID}/trabajos`),
+        where("cliente", "==", nombre)
+      );
+      const pagosQuery = query(
+        collection(db, `negocios/${negocioID}/pagos`),
+        where("cliente", "==", nombre)
+      );
 
       const [trabajosSnap, pagosSnap] = await Promise.all([
         getDocs(trabajosQuery),
         getDocs(pagosQuery),
       ]);
 
-      const trabajosData: Trabajo[] = [];
-      trabajosSnap.forEach(doc => {
-        trabajosData.push(doc.data() as Trabajo);
-      });
-
-      const pagosData: Pago[] = [];
-      pagosSnap.forEach(doc => {
-        pagosData.push(doc.data() as Pago);
-      });
+      const trabajosData = trabajosSnap.docs.map(doc => doc.data() as Trabajo);
+      const pagosData = pagosSnap.docs.map(doc => doc.data() as Pago);
 
       setTrabajos(trabajosData);
       setPagos(pagosData);
 
-      const preciosTrabajos = trabajosData.map(t => {
-        const valor = typeof t.precio === "string"
-          ? parseInt(t.precio.replace(/\$/g, "").replace(/\./g, "").trim()) || 0
-          : t.precio || 0;
-        return valor;
-      });
-      const sumaPrecios = preciosTrabajos.reduce((acc, n) => acc + n, 0);
-      const sumaPagos = pagosData.reduce((acc, p) => acc + (p.monto || 0), 0);
-      setTotalAdeudado(sumaPrecios - sumaPagos);
+      const totalTrabajos = trabajosData.reduce((acc, t) => acc + (parseFloat(t.precio) || 0), 0);
+      const totalPagos = pagosData.reduce((acc, p) => acc + (p.monto || 0), 0);
+      setTotalAdeudado(totalTrabajos - totalPagos);
     };
 
     cargarDatos();
-  }, [cliente]);
+  }, []);
 
   const trabajosPendientes = trabajos.filter(t => t.estado === "PENDIENTE");
   const trabajosEntregados = trabajos.filter(t => t.estado === "ENTREGADO");
