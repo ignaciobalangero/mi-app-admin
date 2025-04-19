@@ -5,39 +5,19 @@ import "jspdf-autotable";
 import { useEffect, useState } from "react";
 import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useParams } from "next/navigation";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
+import { useNegocioID } from "@/lib/useNegocioID";
 
 export default function ClienteDetalle() {
   const params = useParams();
   const nombreCliente = decodeURIComponent(params?.nombreCliente as string || "").trim();
   const [user] = useAuthState(auth);
-  const [negocioID, setNegocioID] = useState("");
+  const negocioID = useNegocioID();
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
-
-  useEffect(() => {
-    console.log("🟡 user:", user);
-    const obtenerNegocioID = async () => {
-      if (!user) {
-        console.warn("⛔ No hay usuario autenticado");
-        return;
-      }
-
-      const snap = await getDocs(collection(db, "usuarios"));
-      snap.forEach((docu) => {
-        const data = docu.data();
-        if (data.email === user.email && data.negocioID) {
-          console.log("✅ negocioID encontrado:", data.negocioID);
-          setNegocioID(data.negocioID);
-        }
-      });
-    };
-
-    obtenerNegocioID();
-  }, [user]);
 
   useEffect(() => {
     if (!nombreCliente || !negocioID) {
@@ -49,13 +29,12 @@ export default function ClienteDetalle() {
 
     const trabajosQuery = query(
       collection(db, `negocios/${negocioID}/trabajos`),
-      where("cliente", "==", nombreCliente.toLowerCase().trim())
-
+      where("cliente", "==", nombreCliente)
     );
 
     const pagosQuery = query(
       collection(db, `negocios/${negocioID}/pagos`),
-      where("cliente", "==", nombreCliente.toLowerCase().trim())
+      where("cliente", "==", nombreCliente)
     );
 
     const unsubscribeTrabajos = onSnapshot(trabajosQuery, (trabajosSnap) => {
