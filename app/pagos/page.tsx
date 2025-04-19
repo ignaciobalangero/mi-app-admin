@@ -90,12 +90,12 @@ export default function Pagos() {
     const nuevoPago = {
       fecha: format(new Date(), "yyyy-MM-dd"),
       cliente,
-      monto: moneda === "USD" ? monto * cotizacion : monto,
+      monto: moneda === "USD" ? null : monto,
+      montoUSD: moneda === "USD" ? monto : null,
       forma,
       destino,
       moneda,
       cotizacion,
-      montoUSD: moneda === "USD" ? monto : null,
     };
 
     try {
@@ -227,12 +227,9 @@ export default function Pagos() {
                 </td>
                 <td className="border border-gray-300">{pago.cliente}</td>
                 <td className="border border-gray-300">
-                  ${pago.monto.toLocaleString("es-AR")}
-                  {pago.moneda === "USD" && (
-                    <span className="text-xs text-gray-500 ml-2">
-                      (USD {pago.montoUSD})
-                    </span>
-                  )}
+                  {pago.moneda === "USD"
+                    ? `USD ${pago.montoUSD}`
+                    : `$${pago.monto}`}
                 </td>
                 <td className="border border-gray-300">{pago.moneda}</td>
                 <td className="border border-gray-300">{pago.forma}</td>

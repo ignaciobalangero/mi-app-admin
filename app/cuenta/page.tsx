@@ -1,4 +1,6 @@
+// Página de Cuenta Corriente unificada con Pesos y Dólares
 "use client";
+
 import { useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -6,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
+import Link from "next/link";
 
 interface Trabajo {
   cliente: string;
@@ -15,15 +18,20 @@ interface Trabajo {
 
 interface Pago {
   cliente: string;
-  monto: number;
+  monto: number | null;
+  montoUSD?: number | null;
+  moneda: "ARS" | "USD";
   fecha: string;
 }
 
 interface CuentaCorriente {
   cliente: string;
-  totalAdeudado: number;
-  entregas: number;
-  saldoPendiente: number;
+  adeudadoPesos: number;
+  pagosPesos: number;
+  saldoPesos: number;
+  adeudadoUSD: number;
+  pagosUSD: number;
+  saldoUSD: number;
 }
 
 export default function CuentaCorrientePage() {
@@ -32,12 +40,17 @@ export default function CuentaCorrientePage() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
 
-  const formatNumero = (num: number) =>
+  const formatPesos = (num: number) =>
     new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
       minimumFractionDigits: 0,
     }).format(num);
+
+  const formatUSD = (num: number) =>
+    `USD ${new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 0,
+    }).format(num)}`;
 
   useEffect(() => {
     if (user) {
@@ -67,62 +80,44 @@ export default function CuentaCorrientePage() {
       const pagos: Pago[] = [];
       pagosSnap.forEach((doc) => pagos.push(doc.data() as Pago));
 
-      const clientes = Array.from(new Set(trabajos.map((t) => t.cliente)));
+      const clientes = Array.from(new Set([...trabajos.map(t => t.cliente), ...pagos.map(p => p.cliente)]));
 
       const resumen: CuentaCorriente[] = clientes.map((cliente) => {
-        const adeudado = trabajos
-          .filter(
-            (t) =>
-              t.cliente === cliente &&
-              (t.estado === "PENDIENTE" || t.estado === "ENTREGADO")
-          )
-          .reduce((sum, t) => sum + (t.precio || 0), 0);
+        const trabajosCliente = trabajos.filter(
+          (t) => t.cliente === cliente && (t.estado === "PENDIENTE" || t.estado === "ENTREGADO")
+        );
 
-        const entregas = pagos
-          .filter((p) => p.cliente === cliente)
-          .reduce((sum, p) => sum + p.monto, 0);
+        const pagosCliente = pagos.filter((p) => p.cliente === cliente);
+
+        const adeudadoPesos = trabajosCliente.reduce((sum, t) => sum + (t.precio || 0), 0);
+        const pagosPesos = pagosCliente
+          .filter((p) => p.moneda === "ARS")
+          .reduce((sum, p) => sum + (p.monto || 0), 0);
+
+        const pagosUSD = pagosCliente
+          .filter((p) => p.moneda === "USD")
+          .reduce((sum, p) => sum + (p.montoUSD || 0), 0);
 
         return {
           cliente,
-          totalAdeudado: adeudado,
-          entregas,
-          saldoPendiente: adeudado - entregas,
+          adeudadoPesos,
+          pagosPesos,
+          saldoPesos: adeudadoPesos - pagosPesos,
+          adeudadoUSD: 0, // por ahora no se cargan ventas en USD
+          pagosUSD,
+          saldoUSD: -pagosUSD, // deuda negativa si ya pagó
         };
-      });
+      }).filter((c) => c.saldoPesos !== 0 || c.saldoUSD !== 0);
 
-      setCuentas(
-        resumen.filter((c) => c.saldoPendiente !== 0)
-      );
+      setCuentas(resumen);
     };
 
     cargarDatos();
   }, [negocioID]);
 
-  const exportarCSV = () => {
-    const encabezado = ["Cliente", "Adeudado", "Entregas", "Saldo pendiente"];
-    const filas = cuentasFiltradas.map((c) => [
-      c.cliente,
-      c.totalAdeudado,
-      c.entregas,
-      c.saldoPendiente,
-    ]);
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [encabezado, ...filas].map((e) => e.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "cuenta_corriente.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const cuentasFiltradas = cuentas.filter((c) =>
     c.cliente.toLowerCase().includes(filtroCliente.toLowerCase())
   );
-
-  const saldoTotal = cuentas.reduce((sum, c) => sum + c.saldoPendiente, 0);
 
   return (
     <RequireAdmin>
@@ -138,17 +133,12 @@ export default function CuentaCorrientePage() {
             onChange={(e) => setFiltroCliente(e.target.value)}
             className="bg-white border border-gray-400 p-2 rounded text-black"
           />
-          <div className="flex items-center gap-4">
-            <button
-              onClick={exportarCSV}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
-            >
-              Exportar CSV
-            </button>
-            <span className="text-lg font-semibold">
-              Saldo Total: {formatNumero(saldoTotal)}
-            </span>
-          </div>
+          <Link
+            href="/pagos"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Ir a Pagos
+          </Link>
         </div>
 
         <div className="overflow-x-auto">
@@ -156,28 +146,25 @@ export default function CuentaCorrientePage() {
             <thead className="bg-gray-300">
               <tr>
                 <th className="p-3 border border-gray-400 text-left">Cliente</th>
-                <th className="p-3 border border-gray-400 text-left">Total Adeudado</th>
-                <th className="p-3 border border-gray-400 text-left">Entregas</th>
-                <th className="p-3 border border-gray-400 text-left">Saldo pendiente</th>
+                <th className="p-3 border border-gray-400 text-left">Adeudado ($)</th>
+                <th className="p-3 border border-gray-400 text-left">Pagos ($)</th>
+                <th className="p-3 border border-gray-400 text-left">Saldo ($)</th>
+                <th className="p-3 border border-gray-400 text-left">Pagos (USD)</th>
+                <th className="p-3 border border-gray-400 text-left">Saldo (USD)</th>
               </tr>
             </thead>
             <tbody>
               {cuentasFiltradas.map((c) => (
                 <tr
                   key={c.cliente}
-                  className={`border-t ${
-                    c.saldoPendiente < 0
-                      ? "bg-green-200"
-                      : "bg-red-200"
-                  }`}
+                  className={`border-t ${c.saldoPesos > 0 ? "bg-red-200" : "bg-green-200"}`}
                 >
                   <td className="p-2 border border-gray-300">{c.cliente}</td>
-                  <td className="p-2 border border-gray-300">{formatNumero(c.totalAdeudado)}</td>
-                  <td className="p-2 border border-gray-300">{formatNumero(c.entregas)}</td>
-                  <td className="p-2 border border-gray-300 font-semibold">
-                    {formatNumero(c.saldoPendiente)}{" "}
-                    {c.saldoPendiente < 0 && <span className="text-sm text-green-700">(Saldo a favor)</span>}
-                  </td>
+                  <td className="p-2 border border-gray-300">{formatPesos(c.adeudadoPesos)}</td>
+                  <td className="p-2 border border-gray-300">{formatPesos(c.pagosPesos)}</td>
+                  <td className="p-2 border border-gray-300">{formatPesos(c.saldoPesos)}</td>
+                  <td className="p-2 border border-gray-300">{formatUSD(c.pagosUSD)}</td>
+                  <td className="p-2 border border-gray-300">{formatUSD(c.saldoUSD)}</td>
                 </tr>
               ))}
             </tbody>
