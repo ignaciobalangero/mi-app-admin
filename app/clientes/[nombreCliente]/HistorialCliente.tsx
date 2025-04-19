@@ -7,50 +7,73 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/auth";
 
 export default function ClienteDetalle() {
   const params = useParams();
   const nombreCliente = decodeURIComponent((params?.nombreCliente || "").toString());
   console.log("🟡 nombreCliente desde URL:", nombreCliente);
 
+  const [user] = useAuthState(auth);
+  const [negocioID, setNegocioID] = useState<string>("");
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      const fetchNegocioID = async () => {
+        const snap = await getDocs(
+          query(collection(db, "usuarios"), where("email", "==", user.email))
+        );
+        snap.forEach((docu) => {
+          const data = docu.data();
+          if (data.negocioID) {
+            console.log("✅ negocioID encontrado:", data.negocioID);
+            setNegocioID(data.negocioID);
+          }
+        });
+      };
+      fetchNegocioID();
+    }
+  }, [user]);
+
   useEffect(() => {
     const fetchData = async () => {
-      if (!nombreCliente) {
-        console.warn("⛔ nombreCliente vacío");
+      if (!nombreCliente || !negocioID) {
+        console.warn("⛔ nombreCliente o negocioID vacíos");
         return;
       }
-  
-      console.log("🔎 Buscando trabajos y pagos de:", nombreCliente);
-  
+
+      console.log("🔎 Buscando trabajos y pagos de:", nombreCliente, "en negocio:", negocioID);
+
       const trabajosQuery = query(
-        collection(db, "trabajos"),
+        collection(db, `negocios/${negocioID}/trabajos`),
         where("cliente", "==", nombreCliente)
       );
       const pagosQuery = query(
-        collection(db, "pagos"),
+        collection(db, `negocios/${negocioID}/pagos`),
         where("cliente", "==", nombreCliente)
       );
-  
+
       const [trabajosSnap, pagosSnap] = await Promise.all([
         getDocs(trabajosQuery),
         getDocs(pagosQuery),
       ]);
-  
+
       const trabajosData = trabajosSnap.docs.map((doc) => doc.data());
       const pagosData = pagosSnap.docs.map((doc) => doc.data());
-  
+
       console.log("📋 Trabajos:", trabajosData);
       console.log("💰 Pagos:", pagosData);
-  
+
       setTrabajos(trabajosData);
       setPagos(pagosData);
     };
-  
+
     fetchData();
-  }, [nombreCliente]);
-  
+  }, [nombreCliente, negocioID]);
+
 
   const totalTrabajos = trabajos.reduce((sum, t) => sum + (t.precio || 0), 0);
   const totalPagos = pagos.reduce((sum, p) => sum + (p.monto || 0), 0);
