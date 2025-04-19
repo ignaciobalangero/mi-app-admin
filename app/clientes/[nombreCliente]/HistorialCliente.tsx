@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -12,6 +12,7 @@ import { auth } from "@/lib/auth";
 
 export default function ClienteDetalle() {
   const params = useParams();
+  const router = useRouter();
   const nombreCliente = decodeURIComponent((params?.nombreCliente || "").toString());
   console.log("🟡 nombreCliente desde URL:", nombreCliente);
 
@@ -19,6 +20,7 @@ export default function ClienteDetalle() {
   const [negocioID, setNegocioID] = useState<string>("");
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
+  const [mostrarPagos, setMostrarPagos] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -74,16 +76,14 @@ export default function ClienteDetalle() {
     fetchData();
   }, [nombreCliente, negocioID]);
 
-
   const totalTrabajos = trabajos.reduce((sum, t) => sum + (t.precio || 0), 0);
   const totalPagos = pagos.reduce((sum, p) => sum + (p.monto || 0), 0);
   const saldo = totalTrabajos - totalPagos;
 
   const generarPDF = () => {
     const doc = new jsPDF();
-    const colorEncabezado = "#60a5fa"; // azul más oscuro
+    const colorEncabezado = "#60a5fa";
 
-    // Encabezado
     doc.setFillColor(colorEncabezado);
     doc.rect(0, 0, 210, 40, "F");
 
@@ -91,7 +91,6 @@ export default function ClienteDetalle() {
     img.src = "/logo.png";
 
     img.onload = () => {
-      // Logo más centrado y con margen izquierdo mayor
       doc.addImage(img, "PNG", 15, 8, 65, 25);
 
       doc.setFontSize(16);
@@ -134,12 +133,20 @@ export default function ClienteDetalle() {
       <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Historial de {nombreCliente}</h1>
-          <button
-            onClick={generarPDF}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-          >
-            Generar PDF
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => router.push("/clientes")}
+              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+            >
+              ← Atrás
+            </button>
+            <button
+              onClick={generarPDF}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+            >
+              Generar PDF
+            </button>
+          </div>
         </div>
 
         <div className="mb-6">
@@ -150,8 +157,43 @@ export default function ClienteDetalle() {
           </p>
         </div>
 
+        <button
+          onClick={() => setMostrarPagos(!mostrarPagos)}
+          className="mb-4 text-blue-700 hover:underline"
+        >
+          {mostrarPagos ? "Ocultar pagos realizados" : "Mostrar pagos realizados"}
+        </button>
+
+        {mostrarPagos && (
+          <>
+            <h2 className="text-xl font-semibold mb-2">Pagos realizados</h2>
+            <table className="w-full bg-white text-sm mb-8">
+              <thead className="bg-gray-300">
+                <tr>
+                  <th className="p-2 border">Fecha</th>
+                  <th className="p-2 border">Monto</th>
+                  <th className="p-2 border">Moneda</th>
+                  <th className="p-2 border">Forma</th>
+                  <th className="p-2 border">Destino</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagos.map((p, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="p-2 border">{p.fecha}</td>
+                    <td className="p-2 border">${p.monto}</td>
+                    <td className="p-2 border">{p.moneda || "ARS"}</td>
+                    <td className="p-2 border">{p.forma}</td>
+                    <td className="p-2 border">{p.destino}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
         <h2 className="text-xl font-semibold mb-2">Trabajos</h2>
-        <table className="w-full bg-white text-sm mb-8">
+        <table className="w-full bg-white text-sm">
           <thead className="bg-gray-300">
             <tr>
               <th className="p-2 border">Fecha</th>
@@ -169,28 +211,6 @@ export default function ClienteDetalle() {
                 <td className="p-2 border">{t.trabajo}</td>
                 <td className="p-2 border">{t.estado}</td>
                 <td className="p-2 border">${t.precio}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <h2 className="text-xl font-semibold mb-2">Pagos realizados</h2>
-        <table className="w-full bg-white text-sm">
-          <thead className="bg-gray-300">
-            <tr>
-              <th className="p-2 border">Fecha</th>
-              <th className="p-2 border">Monto</th>
-              <th className="p-2 border">Forma</th>
-              <th className="p-2 border">Destino</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagos.map((p, i) => (
-              <tr key={i} className="border-t">
-                <td className="p-2 border">{p.fecha}</td>
-                <td className="p-2 border">${p.monto}</td>
-                <td className="p-2 border">{p.forma}</td>
-                <td className="p-2 border">{p.destino}</td>
               </tr>
             ))}
           </tbody>
