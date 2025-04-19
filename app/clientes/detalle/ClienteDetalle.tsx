@@ -20,10 +20,18 @@ export default function ClienteDetalle() {
   const [pagos, setPagos] = useState<any[]>([]);
 
   useEffect(() => {
+    console.log("🟨 nombreCliente:", nombreCliente);
+    console.log("🟨 negocioID:", negocioID);
+  
     if (!nombreCliente || !negocioID) {
       console.warn("⚠️ Faltan datos para buscar:", { nombreCliente, negocioID });
       return;
     }
+  
+    console.log("🔍 Ejecutando consultas...");
+  
+    // ... lo demás queda igual
+  
 
     console.log("🔍 Buscando datos de:", nombreCliente);
 
