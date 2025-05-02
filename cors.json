@@ -1,0 +1,12 @@
+[
+    {
+      "origin": [
+        "https://iphonetec.vercel.app",
+        "https://iphonetec.com.ar"
+      ],
+      "method": ["GET", "POST", "PUT"],
+      "maxAgeSeconds": 3600,
+      "responseHeader": ["Content-Type", "Authorization", "x-goog-resumable"]
+    }
+  ]
+  
