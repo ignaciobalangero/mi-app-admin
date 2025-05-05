@@ -5,6 +5,7 @@ import { DollarSign } from "lucide-react";
 import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore"; // ✅ Importamos updateDoc y doc
 import { db } from "@/lib/firebase"; // ✅ Importamos db
+import { useEffect } from "react";
 
 interface Trabajo {
   firebaseId: string;
@@ -77,6 +78,15 @@ export default function TablaTrabajos({
   const itemsPorPagina = 40;
   const trabajosPaginados = trabajos.slice((pagina - 1) * itemsPorPagina, pagina * itemsPorPagina);
   const totalPaginas = Math.ceil(trabajos.length / itemsPorPagina);
+
+  useEffect(() => {
+    const listener = () => {
+      recargarTrabajos();
+    };
+    window.addEventListener("trabajosActualizados", listener);
+    return () => window.removeEventListener("trabajosActualizados", listener);
+  }, []);
+
 
   return (
     <div className="overflow-x-auto">

@@ -28,39 +28,61 @@ export default function SuperAdminPage() {
 
   const crearNegocio = async () => {
     if (!email || !password || !negocioID) {
-      setMensaje("Completá todos los campos");
+      setMensaje("⚠️ Completá todos los campos");
       return;
     }
-
+  
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailValido) {
+      setMensaje("❌ El email ingresado no es válido");
+      return;
+    }
+  
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // ✅ Crear app secundaria
+      const { initializeApp } = await import("firebase/app");
+      const { getAuth, createUserWithEmailAndPassword, signOut } = await import("firebase/auth");
+  
+      const secondaryApp = initializeApp(auth.app.options, "Secondary");
+      const secondaryAuth = getAuth(secondaryApp);
+  
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const nuevoUID = userCredential.user.uid;
-
-      // Guardamos info del usuario
+  
+      // ✅ Desloguear cuenta creada (de la app secundaria)
+      await signOut(secondaryAuth);
+  
+      // Guardar datos del nuevo usuario
       await setDoc(doc(db, "usuarios", nuevoUID), {
         email,
         negocioID,
         rol: "admin",
       });
-
-      // Creamos estructura inicial del negocio
-      await setDoc(doc(db, "negocios", negocioID, "configuracion", "global"), {
+  
+      // Crear estructura inicial del negocio
+      await setDoc(doc(db, `negocios/${negocioID}/configuracion/global`), {
         logoURL: "",
         condicionesGarantia: "",
       });
-
-      setMensaje(`✅ Negocio creado correctamente con UID: ${nuevoUID}`);
+  
+      setMensaje("✅ Cuenta creada con éxito");
       setEmail("");
       setPassword("");
       setNegocioID("");
     } catch (error: any) {
-      console.error("Error al crear usuario:", error);
+      console.error("Error al crear negocio:", error);
       setMensaje(`❌ Error: ${error.message}`);
     }
   };
-
+  
+  
+  useEffect(() => {
+    if (currentUID && currentUID !== SUPER_ADMIN_UID) {
+      router.push("/");
+    }
+  }, [currentUID, router]);
+  
   if (currentUID && currentUID !== SUPER_ADMIN_UID) {
-    router.push("/");
     return (
       <div className="min-h-screen flex items-center justify-center text-red-600">
         <p className="text-lg">Acceso denegado. Redirigiendo...</p>
@@ -77,43 +99,43 @@ export default function SuperAdminPage() {
   }
 
   return (
-    <main className="p-6 max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Panel de Super Admin</h1>
-
-     
-
-      <div className="space-y-4 bg-white p-4 rounded shadow">
-        <input
-          type="text"
-          placeholder="Nombre del negocio (ID)"
-          value={negocioID}
-          onChange={(e) => setNegocioID(e.target.value)}
-          className="w-full border p-2 rounded placeholder-gray-700"
-        />
-        <input
-          type="email"
-          placeholder="Email del administrador"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full border p-2 rounded placeholder-gray-700"
-        />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full border p-2 rounded placeholder-gray-700"
-        />
-
-        <button
-          onClick={crearNegocio}
-          className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
-        >
-          Crear negocio
-        </button>
-
-        {mensaje && <p className="text-sm mt-2">{mensaje}</p>}
+    <main className="min-h-screen bg-white flex items-center justify-center px-4">
+      <div className="bg-gray-100 p-6 rounded-xl shadow-md w-full max-w-xl">
+        <h1 className="text-2xl text-black font-bold mb-4">Panel de Super Admin</h1>
+  
+        <div className="space-y-4 bg-white p-4 rounded shadow">
+          <input
+            type="text"
+            placeholder="Nombre del negocio (ID)"
+            value={negocioID}
+            onChange={(e) => setNegocioID(e.target.value)}
+            className="w-full text-black border p-2 rounded placeholder-gray-700"
+          />
+          <input
+            type="email"
+            placeholder="Email del administrador"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full text-black border p-2 rounded placeholder-gray-700"
+          />
+          <input
+            type="password"
+            placeholder="Contraseña"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full text-black border p-2 rounded placeholder-gray-700"
+          />
+  
+          <button
+            onClick={crearNegocio}
+            className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+          >
+            Crear negocio
+          </button>
+  
+          {mensaje && <p className="text-sm mt-2">{mensaje}</p>}
+        </div>
       </div>
     </main>
-  );
+  );  
 }

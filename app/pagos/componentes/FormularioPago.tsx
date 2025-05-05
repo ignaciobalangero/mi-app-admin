@@ -13,7 +13,9 @@ import {
   deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
+import { query, where } from "firebase/firestore";
 import { format } from "date-fns";
+import { recalcularCuentaCliente } from "@/lib/cuentas/recalcularCuentaCliente";
 
 interface Props {
   negocioID: string;
@@ -91,12 +93,9 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
 
   const guardarPago = async () => {
     if (!cliente || monto <= 0 || !forma) return;
-
-
-
-    const nuevoPago = {    
-
-      fecha: serverTimestamp(), // ✅ se guarda como Timestamp (como antes)
+  
+    const nuevoPago = {
+      fecha: serverTimestamp(),
       cliente,
       monto: moneda === "USD" ? null : monto,
       montoUSD: moneda === "USD" ? monto : null,
@@ -105,7 +104,7 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
       moneda,
       cotizacion,
     };
-
+  
     try {
       if (editandoId) {
         await updateDoc(doc(db, `negocios/${negocioID}/pagos`, editandoId), nuevoPago);
@@ -115,39 +114,79 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
         await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
         setMensaje("✅ Pago guardado con éxito");
       }
-
+  
+      // Limpiar formulario
       setCliente("");
       setMonto(0);
       setForma("");
       setDestino("");
       setMoneda("ARS");
-
+  
       await obtenerTodosLosPagos();
+  
+      // Buscar ID real del cliente por su nombre antes de recalcular
+      const clientesSnap = await getDocs(
+        query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
+      );
+      const clienteDoc = clientesSnap.docs[0];
+  
+      if (!clienteDoc) {
+        console.error("❌ No se encontró el cliente en la base de datos.");
+        return;
+      }
+  
+      const clienteID = clienteDoc.id;
+      await recalcularCuentaCliente({ clienteID, negocioID });
+      window.dispatchEvent(new Event("trabajosActualizados"));
+  
       setTimeout(() => setMensaje(""), 2000);
     } catch (error) {
       console.error("Error al guardar el pago:", error);
     }
   };
+  
 
   const eliminarPago = async (id: string, cliente: string) => {
     const confirmado = window.confirm(`¿Eliminar el pago de ${cliente}?`);
     if (!confirmado) return;
-
+  
+    let eliminado = false;
+  
     try {
       await deleteDoc(doc(db, `negocios/${negocioID}/pagos`, id));
-      setMensaje("✅ Pago eliminado");
+      eliminado = true;
     } catch {
       try {
         await deleteDoc(doc(db, `negocios/${negocioID}/pagoClientes`, id));
-        setMensaje("✅ Pago eliminado");
+        eliminado = true;
       } catch (error) {
         console.error("Error eliminando el pago de ambas colecciones:", error);
         setMensaje("❌ Error al eliminar el pago");
       }
     }
+  
     await obtenerTodosLosPagos();
+  
+    if (eliminado) {
+      setMensaje("✅ Pago eliminado");
+  
+      // Obtener ID real del cliente por nombre
+      const clientesSnap = await getDocs(
+        query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
+      );
+      const clienteDoc = clientesSnap.docs[0];
+  
+      if (clienteDoc) {
+        const clienteID = clienteDoc.id;
+        await recalcularCuentaCliente({ clienteID, negocioID });
+      } else {
+        console.warn("⚠️ No se pudo recalcular cuenta: cliente no encontrado");
+      }
+    }
+  
     setTimeout(() => setMensaje(""), 2000);
   };
+  
 
   return (
     <div className="mb-6">

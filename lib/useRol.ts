@@ -13,16 +13,41 @@ export function useRol() {
 
   useEffect(() => {
     const obtenerRol = async () => {
-      if (user) {
+      if (!user) {
+        console.log("❌ No hay usuario autenticado");
+        setRol(null);
+        setCliente("");
+        return;
+      }
+
+      console.log("🔑 UID del usuario:", user.uid);
+
+      try {
         const ref = doc(db, "usuarios", user.uid);
+        console.log("📄 Intentando obtener documento:", ref.path);
+
         const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          setRol(data.rol);
-          setCliente(data.nombre || ""); // 👈 Esto es lo que agregamos
+
+        if (!snap.exists()) {
+          console.log("❌ Documento de usuario no encontrado");
+          setRol(null);
+          setCliente("");
+          return;
         }
+
+        const data = snap.data();
+        console.log("✅ Datos del usuario:", data);
+
+        setRol(data.rol);
+        setCliente(data.nombre || "");
+
+      } catch (error) {
+        console.error("❌ Error al obtener rol:", error);
+        setRol(null);
+        setCliente("");
       }
     };
+
     obtenerRol();
   }, [user]);
 

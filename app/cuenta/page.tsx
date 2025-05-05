@@ -115,7 +115,7 @@ export default function CuentaCorrientePage() {
             t.cliente === cliente &&
             (
               ["ENTREGADO"].includes(t.estado?.toUpperCase()) ||
-              (t.estado?.toUpperCase() === "ENTREGADO" && (t as any).estadoCuentaCorriente === "PAGADOS")
+              (t.estado?.toUpperCase() === "ENTREGADO" && (t as any).estadoCuentaCorriente === "PAGADO")
             )
         );
         

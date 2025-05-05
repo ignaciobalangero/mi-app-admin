@@ -1,4 +1,6 @@
 import { db } from "@/lib/firebase";
+
+
 import {
   collection,
   getDocs,
@@ -7,6 +9,7 @@ import {
   updateDoc,
   doc,
 } from "firebase/firestore";
+
 
 export async function recalcularCuentaCliente({
   clienteID,
@@ -18,20 +21,20 @@ export async function recalcularCuentaCliente({
   let deudaTotal = 0;
   let totalPagado = 0;
 
-  // 🔴 OMITIMOS trabajos para probar si el error viene de ahí
-  // const trabajosSnap = await getDocs(
-  //   query(
-  //     collection(db, `negocios/${negocioID}/trabajos`),
-  //     where("cliente", "==", clienteID),
-  //     where("estado", "==", "ENTREGADO")
-  //   )
-  // );
-  // const trabajos = trabajosSnap.docs.map((d) => ({
-  //   id: d.id,
-  //   ...d.data(),
-  // })) as any[];
+  // 1. Traer trabajos ENTREGADOS del cliente
+  const trabajosSnap = await getDocs(
+    query(
+      collection(db, `negocios/${negocioID}/trabajos`),
+      where("cliente", "==", clienteID),
+      where("estado", "==", "ENTREGADO")
+    )
+  );
+  const trabajos = trabajosSnap.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+  })) as any[];
 
-  // 1. Ventas de teléfonos
+  // 2. Ventas de teléfonos
   const ventasTelSnap = await getDocs(
     query(
       collection(db, `negocios/${negocioID}/ventasTelefonos`),
@@ -40,7 +43,7 @@ export async function recalcularCuentaCliente({
   );
   const ventasTel = ventasTelSnap.docs.map((d) => d.data()) as any[];
 
-  // 2. Ventas de accesorios
+  // 3. Ventas de accesorios
   const ventasAccSnap = await getDocs(
     query(
       collection(db, `negocios/${negocioID}/ventasAccesorios`),
@@ -49,7 +52,7 @@ export async function recalcularCuentaCliente({
   );
   const ventasAcc = ventasAccSnap.docs.map((d) => d.data()) as any[];
 
-  // 3. Pagos
+  // 4. Pagos realizados
   const pagosSnap = await getDocs(
     query(
       collection(db, `negocios/${negocioID}/pagos`),
@@ -64,10 +67,10 @@ export async function recalcularCuentaCliente({
     totalPagado += montoARS + montoUSD * cotizacion;
   });
 
-  // 4. Sumar deuda (solo de ventas)
-  // trabajos.forEach((t) => {
-  //   deudaTotal += Number(t.precio) || 0;
-  // });
+  // 5. Calcular deuda total (trabajos + ventas)
+  trabajos.forEach((t) => {
+    deudaTotal += Number(t.precio) || 0;
+  });
   ventasTel.forEach((v) => {
     deudaTotal += Number(v.total) || 0;
   });
@@ -76,29 +79,62 @@ export async function recalcularCuentaCliente({
   });
 
   const saldo = Math.round((totalPagado - deudaTotal) * 100) / 100;
-
-  // 5. Guardar el saldo actualizado
   const clienteRef = doc(db, `negocios/${negocioID}/clientes/${clienteID}`);
+
+  // 6. Guardar saldo y saldo a favor
   await updateDoc(clienteRef, {
     "cuenta.saldo": saldo,
+    "cuenta.saldoAFavor": saldo > 0 ? saldo : 0,
   });
 
-  // 6. Omitimos marcar trabajos como PAGADOS
-  // let saldoRestante = totalPagado;
-  // for (const t of trabajos) {
-  //   const precio = Number(t.precio) || 0;
-  //   if (saldoRestante >= precio) {
-  //     saldoRestante -= precio;
-  //     try {
-  //       await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${t.id}`), {
-  //         estadoCuentaCorriente: "pagado",
-  //         estado: "PAGADO",
-  //       });
-  //     } catch (e) {
-  //       console.warn("⚠️ No se pudo actualizar el trabajo:", t.id, e);
-  //     }
-  //   }
-  // }
+  // 7. Marcar trabajos como PAGADO si alcanza el total
+  let saldoRestante = totalPagado;
+  for (const t of trabajos) {
+    const precio = Number(t.precio) || 0;
+    console.log("⏳ Evaluando trabajo:", t.id, {
+      precio,
+      saldoRestante,
+      estadoActual: t.estado,
+      estadoCuentaCorriente: t.estadoCuentaCorriente,
+    });
+    
+    if (saldoRestante >= precio) {
+      saldoRestante -= precio;
+      try {
+        await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${t.id}`), {
+          estadoCuentaCorriente: "pagado",
+          estado: "PAGADO",
+        });
+      } catch (e) {
+        console.warn("⚠️ No se pudo actualizar el trabajo:", t.id, e);
+      }
+    }
+  }
+
+  // 8. Si el saldo es cero exacto, limpiar historial y marcar como pagado
+  if (saldo === 0) {
+    await updateDoc(clienteRef, {
+      "cuenta.saldo": 0,
+      "cuenta.saldoAFavor": 0,
+      "cuenta.historial": [],
+    });
+
+    const trabajosPendientes = trabajos.filter((t) => t.estadoCuentaCorriente !== "pagado");
+    for (const t of trabajosPendientes) {
+      try {
+        await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${t.id}`), {
+          estadoCuentaCorriente: "pagado",
+        });
+      } catch (e) {
+        console.warn("⚠️ No se pudo actualizar estadoCuentaCorriente:", t.id, e);
+      }
+    }
+  }
+
+  // 9. Emitir evento para actualizar interfaz
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("trabajosActualizados"));
+  }
 
   return saldo;
 }

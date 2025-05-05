@@ -19,6 +19,8 @@ import {
 import TablaTrabajos from "./componentes/TablaTrabajos";
 import FiltroTrabajos from "./componentes/FiltroTrabajos";
 import ModalPago from "./componentes/ModalPago";
+import { recalcularCuentaCliente } from "@/lib/cuentas/recalcularCuentaCliente";
+
 
 interface Trabajo {
   firebaseId: string;
@@ -37,7 +39,7 @@ export default function GestionTrabajosPage() {
   const [negocioID, setNegocioID] = useState("");
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [filtroTexto, setFiltroTexto] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADOS">("TODOS");
+  const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADO">("TODOS");
   const [modalPagoVisible, setModalPagoVisible] = useState(false);
   const [pagoData, setPagoData] = useState({
     cliente: "",
@@ -89,6 +91,13 @@ export default function GestionTrabajosPage() {
     };
     obtenerNegocio();
   }, [user]);
+
+  useEffect(() => {
+    const listener = () => cargarTrabajos();
+    window.addEventListener("trabajosActualizados", listener);
+    return () => window.removeEventListener("trabajosActualizados", listener);
+  }, []);
+  
 
   useEffect(() => {
     if (!negocioID) return;
@@ -159,7 +168,28 @@ export default function GestionTrabajosPage() {
 
     try {
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pago);
-      alert("✅ Pago registrado correctamente");
+
+// 🟢 Recalcular cuenta
+
+// Buscar clienteID por nombre
+const clientesSnap = await getDocs(
+  query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", pago.cliente))
+);
+const clienteDoc = clientesSnap.docs[0];
+
+if (clienteDoc) {
+  const clienteID = clienteDoc.id;
+  await recalcularCuentaCliente({ clienteID, negocioID });
+} else {
+  console.warn("⚠️ Cliente no encontrado al recalcular.");
+}
+
+
+alert("✅ Pago registrado correctamente");
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("trabajosActualizados"));
+      }
       setModalPagoVisible(false);
       setPagoData({ cliente: "", monto: "", moneda: "ARS", formaPago: "", destino: "Pago cliente desde gestión de trabajos", observaciones: "" });
     } catch (error) {
@@ -181,7 +211,7 @@ export default function GestionTrabajosPage() {
         if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE" && (t.estadoCuentaCorriente !== "pagado");
         if (filtroEstado === "ENTREGADO") return t.estado === "ENTREGADO" && (t.estadoCuentaCorriente !== "pagado");
         if (filtroEstado === "REPARADO") return t.estado === "REPARADO" && (t.estadoCuentaCorriente !== "pagado");
-        if (filtroEstado === "PAGADOS") return t.estadoCuentaCorriente === "pagado";
+        if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "pagado";
         return true;
       })
       
@@ -197,7 +227,7 @@ export default function GestionTrabajosPage() {
         <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
           <FiltroTrabajos filtro={filtroTexto} setFiltro={setFiltroTexto} />
           <div className="flex gap-2">
-            {["TODOS", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADOS"].map((estado) => (
+            {["TODOS", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADO"].map((estado) => (
               <button
                 key={estado}
                 onClick={() => setFiltroEstado(estado as any)}
