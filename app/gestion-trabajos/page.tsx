@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import Header from "../Header";
+import { useRol } from "@/lib/useRol";
 import {
   collection,
   getDocs,
@@ -63,7 +64,7 @@ export default function GestionTrabajosPage() {
     const fecha = parsearFecha(fechaStr);
     return fecha.toLocaleDateString("es-AR");
   };
-
+  const { rol } = useRol();
   // 🔥 NUEVO: función cargarTrabajos afuera
   const cargarTrabajos = async () => {
     if (!negocioID) return;
@@ -81,16 +82,10 @@ export default function GestionTrabajosPage() {
   };
 
   useEffect(() => {
-    if (!user) return;
-    const obtenerNegocio = async () => {
-      const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
-      snap.forEach((docu) => {
-        const data = docu.data();
-        if (data.negocioID) setNegocioID(data.negocioID);
-      });
-    };
-    obtenerNegocio();
-  }, [user]);
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
+    }
+  }, [rol]);  
 
   useEffect(() => {
     const listener = () => cargarTrabajos();

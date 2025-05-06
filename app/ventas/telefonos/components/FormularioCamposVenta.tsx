@@ -7,7 +7,7 @@ interface Props {
   setStock: React.Dispatch<React.SetStateAction<any[]>>;
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onAgregarCliente: () => void;
-  rol: string;
+  rol: { tipo: string } | null;
 }
 
 export default function FormularioCamposVenta({
@@ -121,7 +121,7 @@ export default function FormularioCamposVenta({
         placeholder="Serie"
         className="p-2 border rounded w-full"
       />
-      {rol === "admin" && (
+      {rol?.tipo === "admin" && (
   <input
     type="number"
     name="precioCosto"
@@ -139,7 +139,7 @@ export default function FormularioCamposVenta({
         placeholder="Precio Venta"
         className="p-2 border rounded w-full"
       />
-      {rol === "admin" && (
+      {rol?.tipo === "admin" && (
   <p className="text-green-600 font-semibold">
     Ganancia: ${form.precioVenta - form.precioCosto}
   </p>

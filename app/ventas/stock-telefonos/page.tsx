@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRol } from "@/lib/useRol";
 
 const FormularioStock = dynamic(() => import("./components/FormularioStock"), { ssr: false });
 const TablaStockTelefonos = dynamic(() => import("./components/TablaStockTelefonos"), { ssr: false });
@@ -18,19 +19,14 @@ export default function StockTelefonosPage() {
   const [telefonos, setTelefonos] = useState<any[]>([]);
   const [telefonoAEditar, setTelefonoAEditar] = useState<any | null>(null);
   const [resumen, setResumen] = useState({ usd: 0, ars: 0 });
+  const { rol } = useRol();
 
   useEffect(() => {
-    const obtenerNegocio = async () => {
-      if (!user) return;
-      const q = query(collection(db, "usuarios"), where("email", "==", user.email));
-      const snap = await getDocs(q);
-      snap.forEach((docu) => {
-        const data = docu.data();
-        if (data.negocioID) setNegocioID(data.negocioID);
-      });
-    };
-    obtenerNegocio();
-  }, [user]);
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
+    }
+  }, [rol]);
+  
 
   useEffect(() => {
     const cargarStock = async () => {

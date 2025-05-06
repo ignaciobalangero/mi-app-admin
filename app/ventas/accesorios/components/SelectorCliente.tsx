@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import { useRol } from "@/lib/useRol";
 
 interface Props {
   cliente: string;
@@ -17,22 +18,14 @@ export default function SelectorCliente({ cliente, setCliente }: Props) {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
   const router = useRouter();
+  const { rol } = useRol();
 
   useEffect(() => {
-    const obtenerNegocio = async () => {
-      if (!user) return;
-      const snap = await getDocs(
-        query(collection(db, "usuarios"), where("email", "==", user.email))
-      );
-      snap.forEach((docu) => {
-        const data = docu.data();
-        if (data.negocioID) {
-          setNegocioID(data.negocioID);
-        }
-      });
-    };
-    obtenerNegocio();
-  }, [user]);
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
+    }
+  }, [rol]);
+  
 
   useEffect(() => {
     const cargarClientes = async () => {

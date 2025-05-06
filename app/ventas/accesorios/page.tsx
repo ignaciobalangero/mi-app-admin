@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import axios from "axios";
 import { auth } from "@/lib/auth";
+import { useRol } from "@/lib/useRol";
 import { useAuthState } from "react-firebase-hooks/auth";
 import Link from "next/link";
 import FormularioVentaAccesorios from "./components/FormularioVentaAccesorios";
@@ -39,6 +40,7 @@ export default function VentaAccesorios() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
   const [total, setTotal] = useState(0);
+  const { rol } = useRol();
 
   useEffect(() => {
     const hoy = new Date();
@@ -56,21 +58,10 @@ export default function VentaAccesorios() {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      const fetchNegocioID = async () => {
-        const snap = await getDocs(
-          query(collection(db, "usuarios"), where("email", "==", user.email))
-        );
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.negocioID) {
-            setNegocioID(data.negocioID);
-          }
-        });
-      };
-      fetchNegocioID();
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
     }
-  }, [user]);
+  }, [rol]);  
 
   useEffect(() => {
     if (negocioID) obtenerVentas();

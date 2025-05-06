@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import VerificaNegocioID from "@/lib/VerificarNegocioID";
-import SidebarWrapper from "./components/SidebarWrapper";
-import { LogoProvider } from "./components/LogoProvider"; // ✅ Importamos el LogoProvider
+import { LogoProvider } from "./components/LogoProvider";
+import AppLayoutWrapper from "./components/AppLayoutWrapper"; // ✅ nuevo wrapper
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,17 +27,13 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
-        {/* Script de QZ Tray */}
         <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.1.0/qz-tray.js"></script>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* ✅ Envolvemos todo con el proveedor del logo */}
         <LogoProvider>
-          <SidebarWrapper>
-            {children}
-          </SidebarWrapper>
+          <AppLayoutWrapper>{children}</AppLayoutWrapper>
         </LogoProvider>
       </body>
     </html>

@@ -18,7 +18,7 @@ interface ResumenMensual {
 }
 
 export default function ResumenCuenta() {
-  const rol = useRol();
+  const { rol } = useRol();
   const [resumenMensual, setResumenMensual] = useState<ResumenMensual[]>([]);
   const [mesSeleccionado, setMesSeleccionado] = useState<string>("");
   const [user] = useAuthState(auth);
@@ -54,21 +54,14 @@ export default function ResumenCuenta() {
   };
 
   useEffect(() => {
-    if (user) {
-      const fetchNegocioID = async () => {
-        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.negocioID) setNegocioID(data.negocioID);
-        });
-      };
-      fetchNegocioID();
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
     }
-  }, [user]);
+  }, [rol]);  
 
   useEffect(() => {
     const fetchDatos = async () => {
-      if (!negocioID || rol.rol !== "admin") return;
+      if (!negocioID || rol?.tipo !== "admin") return;
 
       const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
       const accesoriosSnap = await getDocs(collection(db, `negocios/${negocioID}/ventaAccesorios`));
@@ -138,7 +131,7 @@ export default function ResumenCuenta() {
       <main className="pt-20 min-h-screen flex flex-col items-center justify-center bg-gray-100 p-8 text-black">
         <h1 className="text-3xl font-bold mb-6">Resumen de Cuenta</h1>
 
-        {rol.rol === "admin" && resumenMensual.length > 0 && (
+        {rol?.tipo === "admin" && resumenMensual.length > 0 && (
           <div className="w-full max-w-3xl bg-white p-4 rounded-xl shadow-lg">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Ganancias por mes</h2>

@@ -1,55 +1,51 @@
+// archivo: lib/useRol.ts
 import { useEffect, useState } from "react";
 import { auth } from "./auth";
-import { doc, getDoc, getFirestore } from "firebase/firestore";
+import { db } from "./firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { app } from "./firebase";
 
-const db = getFirestore(app);
+interface RolInfo {
+  tipo: string;
+  negocioID: string;
+}
 
 export function useRol() {
-  const [user] = useAuthState(auth);
-  const [rol, setRol] = useState<"admin" | "empleado" | "cliente" | null>(null);
-  const [cliente, setCliente] = useState<string>("");
+  const [user, loading] = useAuthState(auth);
+  const [rol, setRol] = useState<RolInfo | null>(null);
 
   useEffect(() => {
     const obtenerRol = async () => {
-      if (!user) {
-        console.log("❌ No hay usuario autenticado");
-        setRol(null);
-        setCliente("");
-        return;
-      }
+      if (loading || !user) return;
+      console.log("🔍 Buscando usuario con UID:", user.uid);
 
-      console.log("🔑 UID del usuario:", user.uid);
 
-      try {
-        const ref = doc(db, "usuarios", user.uid);
-        console.log("📄 Intentando obtener documento:", ref.path);
+      // 💡 Obtenemos primero el negocioID desde el usuario actual
+      const negocioRef = doc(db, `usuarios/${user.uid}`);
+      const negocioSnap = await getDoc(negocioRef);
 
-        const snap = await getDoc(ref);
+      if (negocioSnap.exists()) {
+        const negocioID = negocioSnap.data().negocioID;
+        const userRef = doc(db, `negocios/${negocioID}/usuarios/${user.uid}`);
+        const userSnap = await getDoc(userRef);
 
-        if (!snap.exists()) {
-          console.log("❌ Documento de usuario no encontrado");
-          setRol(null);
-          setCliente("");
-          return;
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          setRol({
+            tipo: data.rol || "sin rol",
+            negocioID,
+          });
+          console.log("✅ Rol obtenido:", data.rol, "| Negocio:", negocioID);
+        } else {
+          console.warn("⛔ Usuario no encontrado en su negocio.");
         }
-
-        const data = snap.data();
-        console.log("✅ Datos del usuario:", data);
-
-        setRol(data.rol);
-        setCliente(data.nombre || "");
-
-      } catch (error) {
-        console.error("❌ Error al obtener rol:", error);
-        setRol(null);
-        setCliente("");
+      } else {
+        console.warn("⛔ No se encontró el negocio del usuario.");
       }
     };
 
     obtenerRol();
-  }, [user]);
+  }, [user, loading]);
 
-  return { rol, cliente };
+  return { rol };
 }

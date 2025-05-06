@@ -11,7 +11,7 @@ interface SidebarProps {
 export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
   const { rol } = useRol();
 
-  if (rol === "cliente") return null;
+  if (rol?.tipo === "cliente") return null;
 
   const botonesAdmin = [
     { label: "Inicio", icono: "🏠", href: "/" },
@@ -41,7 +41,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Clientes", icono: "👥", href: "/clientes" },
   ];
 
-  const botones = rol === "admin" ? botonesAdmin : botonesEmpleado;
+  const botones = rol?.tipo === "admin" ? botonesAdmin : botonesEmpleado;
 
   if (!rol) return null;
 

@@ -75,7 +75,7 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
                   <p className="font-medium text-black">{`${t.modelo} | ${t.color} | IMEI: ${t.imei || "N/D"}`}</p>
                   <p className="text-xs text-gray-800">
                      {`Almacenamiento: ${t.almacenamiento || "-"} GB | Estado: ${t.estado || "-"} | Serie: ${t.serial || "-"} | Batería: ${t.estado?.toLowerCase() === "usado" ? `${t.bateria || "-"}%` : "-"}`}
-                      {rol === "admin" && (
+                      {rol?.tipo === "admin" && (
                           <> | Compra: ${t.precioCompra || "-"} | Venta: ${t.precioVenta || "-"}</>
              )}
                   </p>

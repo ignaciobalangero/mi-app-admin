@@ -8,6 +8,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 import Link from "next/link";
+import { useRol } from "@/lib/useRol";
 
 interface Trabajo {
   cliente: string;
@@ -38,6 +39,7 @@ export default function CuentaCorrientePage() {
   const [cuentas, setCuentas] = useState<CuentaCorriente[]>([]);
   const [filtroCliente, setFiltroCliente] = useState("");
   const [user] = useAuthState(auth);
+  const { rol } = useRol();
   const [negocioID, setNegocioID] = useState<string>("");
 
   const formatPesos = (num: number) =>
@@ -54,20 +56,11 @@ export default function CuentaCorrientePage() {
       minimumFractionDigits: 0,
     }).format(num);
 
-  useEffect(() => {
-    if (user) {
-      const fetchNegocioID = async () => {
-        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.negocioID) {
-            setNegocioID(data.negocioID);
-          }
-        });
-      };
-      fetchNegocioID();
-    }
-  }, [user]);
+    useEffect(() => {
+      if (rol?.negocioID) {
+        setNegocioID(rol.negocioID);
+      }
+    }, [rol]);    
 
   useEffect(() => {
     const cargarDatos = async () => {

@@ -3,22 +3,19 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "./firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "./auth";
+import { useRol } from "@/lib/useRol";
 
 export function useNegocioID() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
+  const { rol } = useRol();
 
   useEffect(() => {
-    const obtenerNegocioID = async () => {
-      if (!user) return;
-      const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
-      snap.forEach((docu) => {
-        const data = docu.data();
-        if (data.negocioID) setNegocioID(data.negocioID);
-      });
-    };
-    obtenerNegocioID();
-  }, [user]);
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
+    }
+  }, [rol]);
+  
 
   return negocioID;
 }

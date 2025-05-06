@@ -1,3 +1,4 @@
+// LogoProvider.tsx
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
@@ -5,6 +6,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { useRol } from "@/lib/useRol"; // ✅ Usamos el hook central
 
 interface LogoContextProps {
   logoUrl: string | null;
@@ -19,54 +21,26 @@ const LogoContext = createContext<LogoContextProps>({
 export function LogoProvider({ children }: { children: React.ReactNode }) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [cargandoLogo, setCargandoLogo] = useState(true);
-  const [user, loading] = useAuthState(auth); // ✅ Agregado `loading`
+  const [user, loading] = useAuthState(auth);
+  const { rol } = useRol();
+  const negocioID = rol?.negocioID || "";
 
   useEffect(() => {
     const cargarLogo = async () => {
-      console.log("🌀 Buscando logo...");
-
-      if (loading) return; // ✅ Esperamos a que se cargue Firebase Auth
-
-      if (!user) {
-        console.log("⛔ No hay usuario, usando logo por defecto");
-        setLogoUrl("/logo.png");
-        setCargandoLogo(false);
-        return;
-      }
+      if (loading || !user || !negocioID) return;
 
       try {
-        const docSnap = await getDoc(doc(db, "usuarios", user.uid));
-        if (!docSnap.exists()) {
-          console.log("⛔ Usuario no encontrado");
+        const ref = doc(db, `negocios/${negocioID}/configuracion/datos`);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+          console.warn("⛔ No se encontró la configuración del negocio");
           setLogoUrl("/logo.png");
-          return;
-        }
-
-        const { negocioID } = docSnap.data();
-        if (!negocioID) {
-          console.log("⛔ Sin negocioID");
-          setLogoUrl("/logo.png");
-          return;
-        }
-
-        const configSnap = await getDoc(doc(db, "configuracion", negocioID));
-        if (!configSnap.exists()) {
-          console.log("⛔ Configuración no encontrada");
-          setLogoUrl("/logo.png");
-          return;
-        }
-
-        const data = configSnap.data();
-        console.log("✅ Datos config:", data);
-
-        const logo = data.logoUrl || data.logo;
-
-        if (logo) {
-          console.log("🎯 Logo encontrado:", logo);
+        } else {
+          const data = snap.data();
+          const logo = data.logoUrl || data.logo || "/logo.png";
           setLogoUrl(logo);
           localStorage.setItem("logoUrl", logo);
-        } else {
-          setLogoUrl("/logo.png"); // fallback
         }
       } catch (error) {
         console.error("❌ Error al cargar el logo:", error);
@@ -77,7 +51,7 @@ export function LogoProvider({ children }: { children: React.ReactNode }) {
     };
 
     cargarLogo();
-  }, [user, loading]);
+  }, [user, loading, negocioID]);
 
   return (
     <LogoContext.Provider value={{ logoUrl, cargandoLogo }}>

@@ -152,7 +152,7 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
               <th className="p-2 border border-gray-400">Color</th>
               <th className="p-2 border border-gray-400">IMEI</th>
               <th className="p-2 border border-gray-400">Serial</th>
-              {rol === "admin" && (
+              {rol?.tipo === "admin" && (
               <th className="p-2 border border-gray-400">Compra</th>
                )}
               <th className="p-2 border border-gray-400">Venta</th>
@@ -177,7 +177,7 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
                 <td className="p-2 border border-gray-300">{t.color}</td>
                 <td className="p-2 border border-gray-300">{t.imei}</td>
                 <td className="p-2 border border-gray-300">{t.serial}</td>
-                {rol === "admin" && (
+                {rol?.tipo === "admin" && (
                 <td className="p-2 border border-gray-300">
                     ${Number(t.precioCompra).toLocaleString("es-AR")}
                 </td>

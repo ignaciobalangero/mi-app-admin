@@ -22,22 +22,14 @@ function Home() {
   const [sidebarAbierto, setSidebarAbierto] = useState(true); // ✅
 
   useEffect(() => {
-    if (user) {
-      const fetchNegocioID = async () => {
-        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.negocioID) {
-            setNegocioID(data.negocioID);
-          }
-        });
-      };
-      fetchNegocioID();
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
     }
-  }, [user]);
+  }, [rol]);
+  
 
   useEffect(() => {
-    if (rol === "cliente") {
+    if (rol?.tipo === "cliente") {
       router.push("/cliente");
     }
   }, [rol]);
@@ -80,16 +72,17 @@ function Home() {
       }
     };
 
-    if ((rol === "admin" || rol === "empleado") && negocioID) {
+    if ((rol?.tipo === "admin" || rol?.tipo === "empleado") && negocioID) {
       cargarDatos();
     }
   }, [rol, negocioID]);
 
-  if (rol === null) {
+  // ✅ Cambio solo esta parte:
+  if (!rol || !rol.tipo) {
     return <p className="text-center text-black mt-10">Cargando panel...</p>;
   }
 
-  if (rol !== "admin" && rol !== "empleado") {
+  if (rol.tipo !== "admin" && rol.tipo !== "empleado") {
     return null;
   }
 

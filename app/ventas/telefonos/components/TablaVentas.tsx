@@ -102,13 +102,13 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
             <th className="p-2 border border-gray-400">GB</th>
             <th className="p-2 border border-gray-400">IMEI</th>
             <th className="p-2 border border-gray-400">Serie</th>
-             {rol === "admin" && (
+             {rol?.tipo === "admin" && (
             <th className="p-2 border border-gray-400">Costo</th>
             )} 
             <th className="p-2 border border-gray-400">Venta</th>
             <th className="p-2 border border-gray-400">Monto Entregado</th>
             <th className="p-2 border border-gray-400">Moneda</th>
-             {rol === "admin" && (
+             {rol?.tipo === "admin" && (
             <th className="p-2 border border-gray-400">Ganancia</th>
            )}
             <th className="p-2 border border-gray-400">Acciones</th>

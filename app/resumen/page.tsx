@@ -17,6 +17,7 @@ import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
+import { useRol } from "@/lib/useRol";
 
 interface Trabajo {
   firebaseId: string;
@@ -41,21 +42,15 @@ export default function ResumenPage() {
 
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
+  const { rol } = useRol();
+
 
   useEffect(() => {
-    if (user) {
-      const fetchNegocioID = async () => {
-        const snap = await getDocs(query(collection(db, "usuarios"), where("email", "==", user.email)));
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.negocioID) {
-            setNegocioID(data.negocioID);
-          }
-        });
-      };
-      fetchNegocioID();
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
     }
-  }, [user]);
+  }, [rol]);
+  
 
   useEffect(() => {
     if (!negocioID) return;

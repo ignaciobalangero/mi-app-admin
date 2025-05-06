@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useRol } from "@/lib/useRol";
 import {
   doc,
   getDoc,
@@ -34,6 +35,7 @@ export default function FormularioEdicion() {
 
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
+  const { rol } = useRol();
   const [formulario, setFormulario] = useState<Trabajo>({
     fecha: "",
     cliente: "",
@@ -49,20 +51,9 @@ export default function FormularioEdicion() {
     const cargarDatos = async () => {
       if (!user || !id) return;
 
-      const snapUsuario = await getDocs(
-        query(collection(db, "usuarios"), where("email", "==", user.email))
-      );
+      if (!rol?.negocioID) return;    
 
-      let idNegocio = "";
-      snapUsuario.forEach((docu) => {
-        const data = docu.data();
-        if (data.negocioID) idNegocio = data.negocioID;
-      });
-
-      if (!idNegocio) return;
-      setNegocioID(idNegocio);
-
-      const snap = await getDoc(doc(db, `negocios/${idNegocio}/trabajos/${id}`));
+      const snap = await getDoc(doc(db, `negocios/${rol.negocioID}/trabajos/${id}`));
       if (snap.exists()) {
         const data = snap.data();
         let fechaFormateada = "";

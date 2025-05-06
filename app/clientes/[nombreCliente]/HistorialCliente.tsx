@@ -9,6 +9,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
+import { useRol } from "@/lib/useRol";
 
 export default function ClienteDetalle() {
   const params = useParams();
@@ -18,27 +19,16 @@ export default function ClienteDetalle() {
 
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
+  const { rol } = useRol();
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
   const [mostrarPagos, setMostrarPagos] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      const fetchNegocioID = async () => {
-        const snap = await getDocs(
-          query(collection(db, "usuarios"), where("email", "==", user.email))
-        );
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.negocioID) {
-            console.log("✅ negocioID encontrado:", data.negocioID);
-            setNegocioID(data.negocioID);
-          }
-        });
-      };
-      fetchNegocioID();
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
     }
-  }, [user]);
+  }, [rol]);  
 
   useEffect(() => {
     const fetchData = async () => {

@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRol } from "@/lib/useRol";
 
 const FormularioDatosVenta = dynamic(() => import("./components/FormularioDatosVenta"), { ssr: false });
 const TablaVentas = dynamic(() => import("./components/TablaVentas"), { ssr: false });
@@ -17,19 +18,14 @@ export default function VentaTelefonosPage() {
   const [negocioID, setNegocioID] = useState("");
   const [ventas, setVentas] = useState<any[]>([]);
   const [stock, setStock] = useState<any[]>([]); // ✅ Paso 1
+  const { rol } = useRol();
 
   useEffect(() => {
-    const obtenerNegocio = async () => {
-      if (!user) return;
-      const q = query(collection(db, "usuarios"), where("email", "==", user.email));
-      const snap = await getDocs(q);
-      snap.forEach((docu) => {
-        const data = docu.data();
-        if (data.negocioID) setNegocioID(data.negocioID);
-      });
-    };
-    obtenerNegocio();
-  }, [user]);
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
+    }
+  }, [rol]);
+  
 
   useEffect(() => {
     const cargarVentas = async () => {

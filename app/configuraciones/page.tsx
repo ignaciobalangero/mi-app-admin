@@ -21,7 +21,11 @@ import { useRouter } from "next/navigation";
 
 export default function Configuraciones() {
   const [user] = useAuthState(auth);
-  const [rol, setRol] = useState("");
+  interface RolInfo {
+    tipo: string;
+    negocioID: string;
+  }  
+  const [rol, setRol] = useState<RolInfo | null>(null); // ✅ ahora sí va a funcionar bien
   const [textoGarantia, setTextoGarantia] = useState("");
   const [imprimirEtiqueta, setImprimirEtiqueta] = useState(false);
   const [imprimirTicket, setImprimirTicket] = useState(false);
@@ -47,8 +51,12 @@ export default function Configuraciones() {
 
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
         if (userDoc.exists()) {
-          setRol(userDoc.data().rol || "");
-        }
+          const data = userDoc.data();
+          setRol({
+            tipo: data.rol || "sin rol",
+            negocioID: data.negocioID || "",
+          });
+        }        
       };
       cargarConfiguracion();
     }
@@ -84,7 +92,7 @@ export default function Configuraciones() {
         console.log("✅ URL de logo obtenida:", finalLogoUrl);
       }
   
-      const refDoc = doc(db, "configuracion", negocioID);
+      const refDoc = doc(db, `negocios/${negocioID}/configuracion`, "datos");
       console.log("💾 Guardando configuración en Firestore...");
       await setDoc(
         refDoc,
@@ -138,7 +146,7 @@ export default function Configuraciones() {
 
         <div className="max-w-2xl mx-auto bg-white p-6 rounded-xl shadow space-y-6">
 
-          {rol === "admin" && (
+          {rol?.tipo === "admin" && (
             <div className="text-center mb-6 space-y-3">
               <button
                 onClick={() => router.push("/configuraciones/crear-usuario")}

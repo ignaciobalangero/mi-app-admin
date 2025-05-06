@@ -5,6 +5,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { useRol } from "@/lib/useRol";
 
 interface Props {
   producto: string;
@@ -44,22 +45,14 @@ export default function SelectorProducto({
   const [productos, setProductos] = useState<ProductoStock[]>([]);
   const [mostrarOpciones, setMostrarOpciones] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const { rol } = useRol();
 
   useEffect(() => {
-    const obtenerNegocio = async () => {
-      if (!user) return;
-      const snap = await getDocs(
-        query(collection(db, "usuarios"), where("email", "==", user.email))
-      );
-      snap.forEach((docu) => {
-        const data = docu.data();
-        if (data.negocioID) {
-          setNegocioID(data.negocioID);
-        }
-      });
-    };
-    obtenerNegocio();
-  }, [user]);
+    if (rol?.negocioID) {
+      setNegocioID(rol.negocioID);
+    }
+  }, [rol]);
+  
 
   useEffect(() => {
     const cargarProductos = async () => {
