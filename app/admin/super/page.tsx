@@ -58,6 +58,12 @@ export default function SuperAdminPage() {
         negocioID,
         rol: "admin",
       });
+
+      await setDoc(doc(db, `negocios/${negocioID}`), {
+        creadoPor: currentUID,
+        nombre: negocioID,
+        creadoEn: new Date(),
+      });
   
       // Crear estructura inicial del negocio
       await setDoc(doc(db, `negocios/${negocioID}/configuracion/global`), {

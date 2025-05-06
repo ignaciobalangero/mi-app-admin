@@ -31,19 +31,22 @@ export default function PagosPage() {
 
   useEffect(() => {
     if (user) {
-      const fetchNegocioID = async () => {
-        const snap = await getDocs(collection(db, "usuarios"));
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.email === user.email && data.negocioID) {
-            setNegocioID(data.negocioID);
+      const buscarNegocio = async () => {
+        const negociosSnap = await getDocs(collection(db, "negocios"));
+        for (const negocioDoc of negociosSnap.docs) {
+          const negocioID = negocioDoc.id;
+          const usuarioSnap = await getDocs(collection(db, `negocios/${negocioID}/usuarios`));
+          const usuarioDoc = usuarioSnap.docs.find(docu => docu.id === user.uid);
+          if (usuarioDoc) {
+            setNegocioID(negocioID);
+            break;
           }
-        });
+        }
       };
-      fetchNegocioID();
+      buscarNegocio();
     }
   }, [user]);
-
+  
   return (
     <>
       <Header />
