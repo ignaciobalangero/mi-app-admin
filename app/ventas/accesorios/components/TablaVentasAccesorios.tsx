@@ -47,9 +47,13 @@ export default function TablaVentasAccesorios({ ventas, onEditar, onEliminar }: 
               <td className="p-2 border border-gray-300">{v.producto}</td>
               <td className="p-2 border border-gray-300">{v.cantidad}</td>
               <td className="p-2 border border-gray-300">
-                {v.moneda === "USD"
-                  ? `USD ${v.precioUnitario}`
-                  : `$${v.precioUnitario.toLocaleString("es-AR")}`}
+            
+                  {v.moneda === "USD"
+                    ? `USD ${v.precioUnitario ?? "-"}`
+                    : v.precioUnitario !== undefined
+                      ? `$${v.precioUnitario.toLocaleString("es-AR")}`
+                      : "-"}
+                  
               </td>
               <td className="p-2 border border-gray-300">{v.moneda}</td>
               <td className="p-2 border border-gray-300">

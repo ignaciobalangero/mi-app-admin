@@ -8,6 +8,8 @@ import { auth } from "@/lib/auth";
 import {
   collection,
   getDocs,
+  doc,
+  getDoc,
 } from "firebase/firestore";
 import Link from "next/link";
 
@@ -17,21 +19,22 @@ export default function StockAccesoriosRepuestos() {
   const [accesorios, setAccesorios] = useState<any[]>([]);
   const [repuestos, setRepuestos] = useState<any[]>([]);
 
+  // ✅ Obtener negocio sin leer toda la colección de usuarios
   useEffect(() => {
     const obtenerNegocio = async () => {
       if (user) {
-        const snap = await getDocs(collection(db, "usuarios"));
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.email === user.email && data.negocioID) {
-            setNegocioID(data.negocioID);
-          }
-        });
+        const ref = doc(db, `usuarios/${user.uid}`);
+        const docu = await getDoc(ref);
+        const data = docu.data();
+        if (data?.negocioID) {
+          setNegocioID(data.negocioID);
+        }
       }
     };
     obtenerNegocio();
   }, [user]);
 
+  // ✅ Cargar datos solo cuando hay negocioID
   useEffect(() => {
     if (!negocioID) return;
     const obtenerDatos = async () => {

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, getDoc, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 import * as XLSX from "xlsx";
 
@@ -43,17 +43,17 @@ export default function StockProductosPage() {
   useEffect(() => {
     if (user) {
       const obtenerNegocio = async () => {
-        const snap = await getDocs(collection(db, "usuarios"));
-        snap.forEach((docu) => {
-          const data = docu.data();
-          if (data.email === user.email && data.negocioID) {
-            setNegocioID(data.negocioID);
-          }
-        });
+        const ref = doc(db, `usuarios/${user.uid}`);
+        const docu = await getDoc(ref);
+        const data = docu.data();
+        if (data?.negocioID) {
+          setNegocioID(data.negocioID);
+        }
       };
       obtenerNegocio();
     }
   }, [user]);
+  
 
   useEffect(() => {
     if (negocioID) cargarProductos();

@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth";
 
 const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
 
@@ -31,46 +30,51 @@ export default function SuperAdminPage() {
       setMensaje("⚠️ Completá todos los campos");
       return;
     }
-  
+
     const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!emailValido) {
       setMensaje("❌ El email ingresado no es válido");
       return;
     }
-  
+
     try {
-      // ✅ Crear app secundaria
       const { initializeApp } = await import("firebase/app");
       const { getAuth, createUserWithEmailAndPassword, signOut } = await import("firebase/auth");
-  
+
+      // ✅ Crear usuario en app secundaria
       const secondaryApp = initializeApp(auth.app.options, "Secondary");
       const secondaryAuth = getAuth(secondaryApp);
-  
+
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const nuevoUID = userCredential.user.uid;
-  
-      // ✅ Desloguear cuenta creada (de la app secundaria)
+
+      // 🔐 Desloguear cuenta secundaria antes de usar Firestore
       await signOut(secondaryAuth);
-  
-      // Guardar datos del nuevo usuario
+
+      // ✅ Ahora sí, escribir datos desde sesión principal
       await setDoc(doc(db, "usuarios", nuevoUID), {
         email,
         negocioID,
         rol: "admin",
       });
 
+      // ✅ AGREGADO: Crear también el documento en /negocios/{negocioID}/usuarios/{uid}
+await setDoc(doc(db, `negocios/${negocioID}/usuarios/${nuevoUID}`), {
+  email,
+  rol: "admin",
+});
+
       await setDoc(doc(db, `negocios/${negocioID}`), {
         creadoPor: currentUID,
         nombre: negocioID,
         creadoEn: new Date(),
       });
-  
-      // Crear estructura inicial del negocio
+
       await setDoc(doc(db, `negocios/${negocioID}/configuracion/datos`), {
         logoURL: "",
         condicionesGarantia: "",
       });
-  
+
       setMensaje("✅ Cuenta creada con éxito");
       setEmail("");
       setPassword("");
@@ -80,14 +84,13 @@ export default function SuperAdminPage() {
       setMensaje(`❌ Error: ${error.message}`);
     }
   };
-  
-  
+
   useEffect(() => {
     if (currentUID && currentUID !== SUPER_ADMIN_UID) {
       router.push("/");
     }
   }, [currentUID, router]);
-  
+
   if (currentUID && currentUID !== SUPER_ADMIN_UID) {
     return (
       <div className="min-h-screen flex items-center justify-center text-red-600">
@@ -108,7 +111,7 @@ export default function SuperAdminPage() {
     <main className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="bg-gray-100 p-6 rounded-xl shadow-md w-full max-w-xl">
         <h1 className="text-2xl text-black font-bold mb-4">Panel de Super Admin</h1>
-  
+
         <div className="space-y-4 bg-white p-4 rounded shadow">
           <input
             type="text"
@@ -131,17 +134,17 @@ export default function SuperAdminPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full text-black border p-2 rounded placeholder-gray-700"
           />
-  
+
           <button
             onClick={crearNegocio}
             className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
           >
             Crear negocio
           </button>
-  
+
           {mensaje && <p className="text-sm mt-2">{mensaje}</p>}
         </div>
       </div>
     </main>
-  );  
+  );
 }

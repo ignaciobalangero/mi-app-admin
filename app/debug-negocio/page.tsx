@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 
 export default function DebugNegocio() {
   const [user] = useAuthState(auth);
@@ -13,20 +13,16 @@ export default function DebugNegocio() {
   useEffect(() => {
     const fetchNegocio = async () => {
       if (!user) return;
-      console.log("🔍 Buscando usuario:", user.email);
   
-      const snap = await getDocs(collection(db, "usuarios"));
-      snap.forEach((docu) => {
-        const data = docu.data();
-        console.log("🧾 Documento encontrado:", data);
-        if (data.email === user.email) {
-          console.log("✅ Match encontrado:", data.negocioID);
-          setNegocioID(data.negocioID || "No encontrado");
-        }
-      });
+      const ref = doc(db, `usuarios/${user.uid}`);
+      const docu = await getDoc(ref);
+      const data = docu.data();
+      setNegocioID(data?.negocioID || "No encontrado");
     };
+  
     fetchNegocio();
   }, [user]);
+  
   
 
   return (
