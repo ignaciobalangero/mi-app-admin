@@ -1,4 +1,4 @@
-// archivo: lib/useRol.ts
+// lib/useRol.ts
 import { useEffect, useState } from "react";
 import { auth } from "./auth";
 import { db } from "./firebase";
@@ -19,28 +19,42 @@ export function useRol() {
       if (loading || !user) return;
       console.log("🔍 Buscando usuario con UID:", user.uid);
 
+      try {
+        // ✅ Leer primero desde la colección global "usuarios" para obtener el negocioID
+        const globalRef = doc(db, `usuarios/${user.uid}`);
+        const globalSnap = await getDoc(globalRef);
 
-      // 💡 Obtenemos primero el negocioID desde el usuario actual
-      const negocioRef = doc(db, `usuarios/${user.uid}`);
-      const negocioSnap = await getDoc(negocioRef);
-
-      if (negocioSnap.exists()) {
-        const negocioID = negocioSnap.data().negocioID;
-        const userRef = doc(db, `negocios/${negocioID}/usuarios/${user.uid}`);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          setRol({
-            tipo: data.rol || "sin rol",
-            negocioID,
-          });
-          console.log("✅ Rol obtenido:", data.rol, "| Negocio:", negocioID);
-        } else {
-          console.warn("⛔ Usuario no encontrado en su negocio.");
+        if (!globalSnap.exists()) {
+          console.warn("⛔ No se encontró el usuario en /usuarios/");
+          return;
         }
-      } else {
-        console.warn("⛔ No se encontró el negocio del usuario.");
+
+        const { negocioID } = globalSnap.data();
+
+        if (!negocioID) {
+          console.warn("⛔ El documento global no tiene negocioID");
+          return;
+        }
+
+        // ✅ Luego buscamos el documento dentro del negocio para saber el rol
+        const negocioRef = doc(db, `negocios/${negocioID}/usuarios/${user.uid}`);
+        const snap = await getDoc(negocioRef);
+
+        if (!snap.exists()) {
+          console.warn("⛔ No se encontró el usuario dentro del negocio");
+          return;
+        }
+
+        const data = snap.data();
+
+        setRol({
+          tipo: data.rol || "sin rol",
+          negocioID,
+        });
+
+        console.log("✅ Rol obtenido:", data.rol, "| Negocio:", negocioID);
+      } catch (error) {
+        console.error("❌ Error al obtener rol:", error);
       }
     };
 

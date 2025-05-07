@@ -27,7 +27,8 @@ export function LogoProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const cargarLogo = async () => {
-      if (loading || !user || !negocioID) return;
+      if (loading || !user || !rol || !rol.negocioID) return;
+
 
       try {
         const ref = doc(db, `negocios/${negocioID}/configuracion/datos`);

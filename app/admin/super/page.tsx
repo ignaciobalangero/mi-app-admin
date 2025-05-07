@@ -41,28 +41,26 @@ export default function SuperAdminPage() {
       const { initializeApp } = await import("firebase/app");
       const { getAuth, createUserWithEmailAndPassword, signOut } = await import("firebase/auth");
 
-      // ✅ Crear usuario en app secundaria
       const secondaryApp = initializeApp(auth.app.options, "Secondary");
       const secondaryAuth = getAuth(secondaryApp);
 
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const nuevoUID = userCredential.user.uid;
 
-      // 🔐 Desloguear cuenta secundaria antes de usar Firestore
       await signOut(secondaryAuth);
 
-      // ✅ Ahora sí, escribir datos desde sesión principal
-      await setDoc(doc(db, "usuarios", nuevoUID), {
+      // 🔄 Guardar usuario en ambas rutas
+      await setDoc(doc(db, `negocios/${negocioID}/usuarios/${nuevoUID}`), {
         email,
         negocioID,
         rol: "admin",
       });
 
-      // ✅ AGREGADO: Crear también el documento en /negocios/{negocioID}/usuarios/{uid}
-await setDoc(doc(db, `negocios/${negocioID}/usuarios/${nuevoUID}`), {
-  email,
-  rol: "admin",
-});
+      await setDoc(doc(db, `usuarios/${nuevoUID}`), {
+        email,
+        negocioID,
+        rol: "admin",
+      });
 
       await setDoc(doc(db, `negocios/${negocioID}`), {
         creadoPor: currentUID,

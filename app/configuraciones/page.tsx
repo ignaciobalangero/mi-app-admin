@@ -39,7 +39,29 @@ export default function Configuraciones() {
   useEffect(() => {
     if (user) {
       const cargarConfiguracion = async () => {
-        const ref = doc(db, "configuracion", "global");
+        // Primero obtenemos el negocioID desde la ruta correcta
+        const posiblesNegocios = ["iphonetec", "ignacio", "facu", "loop"]; // si querés podrías traer esto de forma dinámica si fuera necesario
+        let negocioID: string | null = null;
+  
+        for (const id of posiblesNegocios) {
+          const snap = await getDoc(doc(db, `negocios/${id}/usuarios/${user.uid}`));
+          if (snap.exists()) {
+            negocioID = id;
+            const data = snap.data();
+            setRol({
+              tipo: data.rol || "sin rol",
+              negocioID,
+            });
+            break;
+          }
+        }
+  
+        if (!negocioID) {
+          throw new Error("No se encontró el negocioID del usuario");
+        }
+  
+        // Traer configuración desde la nueva ruta
+        const ref = doc(db, `negocios/${negocioID}/configuracion/datos`);
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const data = snap.data();
@@ -48,19 +70,11 @@ export default function Configuraciones() {
           setImprimirTicket(data.imprimirTicket || false);
           setLogoUrl(data.logoUrl || "");
         }
-
-        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setRol({
-            tipo: data.rol || "sin rol",
-            negocioID: data.negocioID || "",
-          });
-        }        
       };
       cargarConfiguracion();
     }
   }, [user]);
+  
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -76,9 +90,8 @@ export default function Configuraciones() {
   
     try {
       // 🔍 Obtener negocioID desde el usuario
-      const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-      const negocioID = userDoc.exists() ? userDoc.data().negocioID : null;
-      if (!negocioID) throw new Error("No se encontró el negocioID del usuario");
+      const negocioID = rol?.negocioID;
+      if (!negocioID) throw new Error("No se encontró el negocioID del usuario");      
   
       let finalLogoUrl = logoUrl;
   
