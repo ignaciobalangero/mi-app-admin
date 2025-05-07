@@ -68,29 +68,6 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
     fetchCotizacion();
   }, [negocioID]);
 
-  useEffect(() => {
-    if (negocioID) {
-      obtenerTodosLosPagos();
-    }
-  }, [negocioID]);
-
-  const obtenerTodosLosPagos = async () => {
-    const pagosSnap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
-    const pagosExtraSnap = await getDocs(collection(db, `negocios/${negocioID}/pagoClientes`));
-
-    const pagos: Pago[] = pagosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pago));
-    const pagosExtras: Pago[] = pagosExtraSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pago));
-
-    const todos = [...pagos, ...pagosExtras];
-    const ordenados = todos.sort((a, b) => {
-      const fechaA = a.fecha?.seconds ? new Date(a.fecha.seconds * 1000) : new Date(a.fecha);
-      const fechaB = b.fecha?.seconds ? new Date(b.fecha.seconds * 1000) : new Date(b.fecha);
-      return fechaB.getTime() - fechaA.getTime();
-    });
-
-    setPagos(ordenados);
-  };
-
   const guardarPago = async () => {
     if (!cliente || monto <= 0 || !forma) return;
   
@@ -111,8 +88,12 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
         setEditandoId(null);
         setMensaje("✅ Pago actualizado con éxito");
       } else {
-        await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
+        const docRef = await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
+
+        window.dispatchEvent(new Event("recargarPagos"));
+
         setMensaje("✅ Pago guardado con éxito");
+        
       }
   
       // Limpiar formulario
@@ -121,8 +102,6 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
       setForma("");
       setDestino("");
       setMoneda("ARS");
-  
-      await obtenerTodosLosPagos();
   
       // Buscar ID real del cliente por su nombre antes de recalcular
       const clientesSnap = await getDocs(
@@ -153,39 +132,47 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
     let eliminado = false;
   
     try {
-      await deleteDoc(doc(db, `negocios/${negocioID}/pagos`, id));
-      eliminado = true;
-    } catch {
+      const ref1 = doc(db, `negocios/${negocioID}/pagos`, id);
+      const ref2 = doc(db, `negocios/${negocioID}/pagoClientes`, id);
+  
       try {
-        await deleteDoc(doc(db, `negocios/${negocioID}/pagoClientes`, id));
+        await deleteDoc(ref1);
         eliminado = true;
-      } catch (error) {
-        console.error("Error eliminando el pago de ambas colecciones:", error);
-        setMensaje("❌ Error al eliminar el pago");
+      } catch (err1) {
+        // Intentamos en la otra colección si falla
+        try {
+          await deleteDoc(ref2);
+          eliminado = true;
+        } catch (err2) {
+          console.error("❌ Error eliminando el pago en ambas colecciones:", err2);
+          setMensaje("❌ No se pudo eliminar el pago");
+          return;
+        }
       }
-    }
   
-    await obtenerTodosLosPagos();
+      if (eliminado) {
+        setMensaje("✅ Pago eliminado");
   
-    if (eliminado) {
-      setMensaje("✅ Pago eliminado");
+        // Recalcular cuenta del cliente
+        const clientesSnap = await getDocs(
+          query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
+        );
+        const clienteDoc = clientesSnap.docs[0];
   
-      // Obtener ID real del cliente por nombre
-      const clientesSnap = await getDocs(
-        query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
-      );
-      const clienteDoc = clientesSnap.docs[0];
+        if (clienteDoc) {
+          const clienteID = clienteDoc.id;
+          await recalcularCuentaCliente({ clienteID, negocioID });
+        }
   
-      if (clienteDoc) {
-        const clienteID = clienteDoc.id;
-        await recalcularCuentaCliente({ clienteID, negocioID });
-      } else {
-        console.warn("⚠️ No se pudo recalcular cuenta: cliente no encontrado");
       }
+    } catch (error) {
+      console.error("Error general al intentar eliminar el pago:", error);
+      setMensaje("❌ Error inesperado al eliminar");
     }
   
     setTimeout(() => setMensaje(""), 2000);
   };
+  
   
 
   return (
