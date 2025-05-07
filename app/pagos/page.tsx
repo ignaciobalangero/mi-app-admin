@@ -2,14 +2,11 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Header from "../Header";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { auth } from "@/lib/auth";
-import { useAuthState } from "react-firebase-hooks/auth";
 import FormularioPago from "./componentes/FormularioPago";
 import TablaPagos from "./componentes/TablaPagos";
+import { useRol } from "@/lib/useRol";
 
 export interface PagoConOrigen {
   id: string;
@@ -25,28 +22,15 @@ export interface PagoConOrigen {
 }
 
 export default function PagosPage() {
-  const [user] = useAuthState(auth);
-  const [negocioID, setNegocioID] = useState("");
-  const [pagos, setPagos] = useState<PagoConOrigen[]>([]);
-
-  useEffect(() => {
-    if (user) {
-      const buscarNegocio = async () => {
-        const negociosSnap = await getDocs(collection(db, "negocios"));
-        for (const negocioDoc of negociosSnap.docs) {
-          const negocioID = negocioDoc.id;
-          const usuarioSnap = await getDocs(collection(db, `negocios/${negocioID}/usuarios`));
-          const usuarioDoc = usuarioSnap.docs.find(docu => docu.id === user.uid);
-          if (usuarioDoc) {
-            setNegocioID(negocioID);
-            break;
-          }
-        }
-      };
-      buscarNegocio();
-    }
-  }, [user]);
+  const { rol } = useRol();
+  const negocioID = rol?.negocioID ?? "";
+  interface PagoConFecha extends PagoConOrigen {
+    fechaParseada: Date | null;
+  }
   
+  const [pagos, setPagos] = useState<PagoConFecha[]>([]);
+  
+
   return (
     <>
       <Header />

@@ -101,7 +101,7 @@ export default function IngresoForm() {
   };
 
   const obtenerConfiguracion = async (negocio: string) => {
-    const ref = doc(db, `negocios/${negocio}/configuracion/global`);
+    const ref = doc(db, `negocios/${negocio}/configuracion/datos`);
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data();

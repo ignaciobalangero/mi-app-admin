@@ -66,7 +66,7 @@ export default function SuperAdminPage() {
       });
   
       // Crear estructura inicial del negocio
-      await setDoc(doc(db, `negocios/${negocioID}/configuracion/global`), {
+      await setDoc(doc(db, `negocios/${negocioID}/configuracion/datos`), {
         logoURL: "",
         condicionesGarantia: "",
       });
