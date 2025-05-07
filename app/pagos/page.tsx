@@ -24,11 +24,8 @@ export interface PagoConOrigen {
 export default function PagosPage() {
   const { rol } = useRol();
   const negocioID = rol?.negocioID ?? "";
-  interface PagoConFecha extends PagoConOrigen {
-    fechaParseada: Date | null;
-  }
   
-  const [pagos, setPagos] = useState<PagoConFecha[]>([]);
+  const [pagos, setPagos] = useState<PagoConOrigen[]>([]);
   
 
   return (

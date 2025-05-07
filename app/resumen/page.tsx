@@ -28,6 +28,7 @@ interface Trabajo {
   clave: string;
   observaciones: string;
   estado: string;
+  estadoCuentaCorriente?: string;
   precio?: number;
   costo?: number;
 }
@@ -39,18 +40,17 @@ export default function ResumenPage() {
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [paginaActual, setPaginaActual] = useState(1);
   const ITEMS_POR_PAGINA = 40;
+  const [mostrarPagados, setMostrarPagados] = useState(false); // ✅ Nuevo
 
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
   const { rol } = useRol();
-
 
   useEffect(() => {
     if (rol?.negocioID) {
       setNegocioID(rol.negocioID);
     }
   }, [rol]);
-  
 
   useEffect(() => {
     if (!negocioID) return;
@@ -67,12 +67,20 @@ export default function ResumenPage() {
           clave: data.clave,
           observaciones: data.observaciones,
           estado: data.estado,
+          estadoCuentaCorriente: data.estadoCuentaCorriente, // ✅ Nuevo
           precio: data.precio,
           costo: data.costo,
         });
       });
 
-      const ordenados = lista.sort((a, b) => {
+      let filtrados = lista;
+      if (!mostrarPagados) {
+        filtrados = lista.filter(
+          (t) => !(t.estado === "ENTREGADO" && t.estadoCuentaCorriente === "PAGADO")
+        );
+      }
+
+      const ordenados = filtrados.sort((a, b) => {
         if (a.estado !== b.estado) {
           return a.estado === "PENDIENTE" ? -1 : 1;
         }
@@ -85,7 +93,7 @@ export default function ResumenPage() {
     });
 
     return () => unsubscribe();
-  }, [negocioID]);
+  }, [negocioID, mostrarPagados]); // ✅ actualizar también cuando cambia mostrarPagados
 
   const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
     const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
@@ -124,14 +132,14 @@ export default function ResumenPage() {
   };
 
   const trabajosFiltrados = trabajos
-  .filter(
-    (t) =>
-      t.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) &&
-      t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase())
-  )
-  .filter((t) =>
-    filtroEstado === "TODOS" ? true : t.estado === filtroEstado
-  );
+    .filter(
+      (t) =>
+        t.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) &&
+        t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase())
+    )
+    .filter((t) =>
+      filtroEstado === "TODOS" ? true : t.estado === filtroEstado
+    );
 
   const totalPaginas = Math.ceil(trabajosFiltrados.length / ITEMS_POR_PAGINA);
   const trabajosPaginados = trabajosFiltrados.slice(
@@ -167,6 +175,13 @@ export default function ResumenPage() {
           >
             Exportar CSV
           </button>
+
+          <button
+            onClick={() => setMostrarPagados(!mostrarPagados)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          >
+            {mostrarPagados ? "Ocultar trabajos pagados" : "Mostrar trabajos pagados"}
+          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -196,7 +211,9 @@ export default function ResumenPage() {
                   <tr
                     key={t.firebaseId}
                     className={`border-t border-gray-300 transition ${
-                      t.estado === "PENDIENTE" ? "bg-red-100" : "bg-green-100"
+                      t.estado === "PENDIENTE" ? "bg-red-100"
+                      : t.estadoCuentaCorriente === "PAGADO" ? "bg-blue-100"
+                      : "bg-green-100"
                     }`}
                   >
                     <td className="p-2 border-r border-gray-300">{t.fecha}</td>

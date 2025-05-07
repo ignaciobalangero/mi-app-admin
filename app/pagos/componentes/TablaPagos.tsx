@@ -12,37 +12,19 @@ import {
 import { db } from "@/lib/firebase";
 import type { PagoConOrigen } from "../page";
 
-interface PagoConFecha extends PagoConOrigen {
-  fechaParseada: Date | null;
-}
 
 interface TablaPagosProps {
   negocioID: string;
-  pagos: PagoConFecha[];
-  setPagos: React.Dispatch<React.SetStateAction<PagoConFecha[]>>;
+  pagos: PagoConOrigen[];
+  setPagos: React.Dispatch<React.SetStateAction<PagoConOrigen[]>>;
 }
 
-function parseFecha(fecha: any): Date | null {
-  if (fecha instanceof Date) return fecha;
-  if (fecha?.seconds) return new Date(fecha.seconds * 1000);
-  if (typeof fecha === "string") {
-    const partes = fecha.split(/[\/\-]/);
-    if (partes.length === 3) {
-      const [dia, mes, anio] = partes.map(Number);
-      if (!isNaN(dia) && !isNaN(mes) && !isNaN(anio)) {
-        return new Date(anio, mes - 1, dia);
-      }
-    }
-  }
-  if (typeof fecha === "number") return new Date(fecha);
-  return null;
-}
 
 export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosProps) {
   const [mensaje, setMensaje] = useState("");
   const [filtroCliente, setFiltroCliente] = useState("");
   const [pagoAEliminar, setPagoAEliminar] = useState<{ id: string; origen: "pagos" | "pagoClientes" } | null>(null);
-  const [pagoEditando, setPagoEditando] = useState<PagoConFecha | null>(null);
+  const [pagoEditando, setPagoEditando] = useState<PagoConOrigen | null>(null);
   const [form, setForm] = useState<any>({});
 
   const obtenerPagos = async () => {
@@ -77,14 +59,16 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         console.error("❌ Error al leer /pagoClientes:", e);
       }
 
-      const todos: PagoConFecha[] = [...pagosCargados, ...pagosExtras].map(p => ({
-        ...p,
-        fechaParseada: parseFecha(p.fecha)
-      }));
+      const todos: PagoConOrigen[] = [...pagosCargados, ...pagosExtras];
 
       const ordenados = todos
-        .filter(p => p.fechaParseada)
-        .sort((a, b) => b.fechaParseada!.getTime() - a.fechaParseada!.getTime());
+      .filter((p) => p.fecha) // nos aseguramos de que tenga fecha
+      .sort((a, b) => {
+        const fechaA = a.fecha instanceof Timestamp ? a.fecha.toDate() : new Date(a.fecha);
+        const fechaB = b.fecha instanceof Timestamp ? b.fecha.toDate() : new Date(b.fecha);
+        return fechaB.getTime() - fechaA.getTime();
+      });
+        
 
       setPagos(ordenados);
     } catch (err) {
@@ -95,14 +79,6 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
   useEffect(() => {
     obtenerPagos();
   }, [negocioID, setPagos]);
-
-  useEffect(() => {
-    const handler = () => {
-      obtenerPagos();
-    };
-    window.addEventListener("recargarPagos", handler);
-    return () => window.removeEventListener("recargarPagos", handler);
-  }, []);  
 
   const confirmarEliminar = async () => {
     if (!pagoAEliminar) return;
@@ -118,15 +94,13 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
     }
   };
 
-  const abrirEdicion = (pago: PagoConFecha) => {
+  const abrirEdicion = (pago: PagoConOrigen) => {
     setPagoEditando(pago);
     setForm({
       ...pago,
-      fecha: pago.fechaParseada
-        ? pago.fechaParseada.toISOString().split("T")[0]
-        : "",
+      fecha: pago.fecha || "", // usamos directamente el string
     });
-  };
+  };  
 
   const guardarEdicion = async () => {
     if (!pagoEditando) return;
@@ -218,63 +192,69 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
           </tr>
         </thead>
         <tbody>
-          {pagos
-            .filter(p => p.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()))
-            .map((pago) => (
-              <tr key={pago.id} className="text-cente border-t">
-                <td className="p-2 border border-gray-300">
-                  {pago.fechaParseada
-                    ? pago.fechaParseada.toLocaleDateString("es-AR")
-                    : "Fecha inválida"}
-                </td>
-                <td className="border border-gray-300">{pago.cliente}</td>
-                <td className="border border-gray-300">
-                  {pago.moneda === "USD"
-                    ? `USD ${pago.montoUSD}`
-                    : `$${pago.monto}`}
-                </td>
-                <td className="border border-gray-300">{pago.moneda}</td>
-                <td className="border border-gray-300">{pago.forma}</td>
-                <td className="border border-gray-300">{pago.destino}</td>
-                <td className="border border-gray-300 space-x-2">
+  {[...pagos]
+    .sort((a, b) => {
+      const fechaA = a.fecha instanceof Timestamp ? a.fecha.toDate() : new Date(a.fecha);
+      const fechaB = b.fecha instanceof Timestamp ? b.fecha.toDate() : new Date(b.fecha);
+      return fechaB.getTime() - fechaA.getTime(); // más reciente primero
+    })
+    .filter(p => p.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()))
+    .map((pago) => (
+      <tr key={pago.id} className="text-cente border-t">
+        <td className="p-2 border border-gray-300">
+      {typeof pago.fecha === "string" ? pago.fecha : "Fecha inválida"}
+        </td>
+
+        <td className="border border-gray-300">{pago.cliente}</td>
+        <td className="border border-gray-300">
+          {pago.moneda === "USD"
+            ? `USD ${pago.montoUSD}`
+            : `$${pago.monto}`}
+        </td>
+        <td className="border border-gray-300">{pago.moneda}</td>
+        <td className="border border-gray-300">{pago.forma}</td>
+        <td className="border border-gray-300">{pago.destino}</td>
+        <td className="border border-gray-300 space-x-2">
+          <button
+            onClick={() => abrirEdicion(pago)}
+            className="text-blue-600 hover:underline"
+          >
+            Editar
+          </button>
+          <button
+            onClick={() =>
+              setPagoAEliminar({ id: pago.id, origen: pago.origen })
+            }
+            className="text-red-600 hover:underline"
+          >
+            Eliminar
+          </button>
+          {pagoAEliminar && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+              <div className="bg-white text-black p-6 rounded-xl max-w-sm w-full text-center shadow-xl space-y-4">
+                <p className="text-lg">¿Confirmás eliminar este pago?</p>
+                <div className="flex justify-center gap-4">
                   <button
-                    onClick={() => abrirEdicion(pago)}
-                    className="text-blue-600 hover:underline"
+                    onClick={() => setPagoAEliminar(null)}
+                    className="px-4 py-2 bg-gray-400 text-white rounded"
                   >
-                    Editar
+                    Cancelar
                   </button>
                   <button
-                    onClick={() => setPagoAEliminar({ id: pago.id, origen: pago.origen })}
-                    className="text-red-600 hover:underline"
+                    onClick={confirmarEliminar}
+                    className="px-4 py-2 bg-red-600 text-white rounded"
                   >
                     Eliminar
                   </button>
-                  {pagoAEliminar && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-    <div className="bg-white text-black p-6 rounded-xl max-w-sm w-full text-center shadow-xl space-y-4">
-      <p className="text-lg">¿Confirmás eliminar este pago?</p>
-      <div className="flex justify-center gap-4">
-        <button
-          onClick={() => setPagoAEliminar(null)}
-          className="px-4 py-2 bg-gray-400 text-white rounded"
-        >
-          Cancelar
-        </button>
-        <button
-          onClick={confirmarEliminar}
-          className="px-4 py-2 bg-red-600 text-white rounded"
-        >
-          Eliminar
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+                </div>
+              </div>
+            </div>
+          )}
+        </td>
+      </tr>
+    ))}
+</tbody>
 
-                </td>
-              </tr>
-            ))}
-        </tbody>
       </table>
     </>
   );

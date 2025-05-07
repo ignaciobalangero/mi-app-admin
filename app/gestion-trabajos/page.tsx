@@ -140,58 +140,66 @@ export default function GestionTrabajosPage() {
   };
 
   const guardarPago = async () => {
-    if (!negocioID || !pagoData.cliente || !pagoData.monto) {
-      alert("Faltan datos para registrar el pago.");
-      return;
-    }
+  if (!negocioID || !pagoData.cliente || !pagoData.monto) {
+    alert("Faltan datos para registrar el pago.");
+    return;
+  }
 
-    const pago = {
-      fecha: new Date().toLocaleDateString("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }),
-      cliente: pagoData.cliente,
-      monto: pagoData.moneda === "ARS" ? Number(pagoData.monto) : null,
-      montoUSD: pagoData.moneda === "USD" ? Number(pagoData.monto) : null,
-      forma: pagoData.formaPago,
-      destino: pagoData.destino,
-      moneda: pagoData.moneda,
-      cotizacion: 1000,
-      observaciones: pagoData.observaciones || "",
-    };
+  // Buscar clienteID por nombre
+  const clientesSnap = await getDocs(
+    query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", pagoData.cliente))
+  );
+  const clienteDoc = clientesSnap.docs[0];
 
-    try {
-      await addDoc(collection(db, `negocios/${negocioID}/pagos`), pago);
+  if (!clienteDoc) {
+    alert("❌ Cliente no encontrado. Verificá el nombre.");
+    return;
+  }
 
-// 🟢 Recalcular cuenta
-
-// Buscar clienteID por nombre
-const clientesSnap = await getDocs(
-  query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", pago.cliente))
-);
-const clienteDoc = clientesSnap.docs[0];
-
-if (clienteDoc) {
   const clienteID = clienteDoc.id;
-  await recalcularCuentaCliente({ clienteID, negocioID });
-} else {
-  console.warn("⚠️ Cliente no encontrado al recalcular.");
-}
 
-
-alert("✅ Pago registrado correctamente");
-
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("trabajosActualizados"));
-      }
-      setModalPagoVisible(false);
-      setPagoData({ cliente: "", monto: "", moneda: "ARS", formaPago: "", destino: "Pago cliente desde gestión de trabajos", observaciones: "" });
-    } catch (error) {
-      console.error("Error al guardar el pago:", error);
-      alert("❌ No se pudo guardar el pago");
-    }
+  const pago = {
+    fecha: new Date().toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }),
+    cliente: pagoData.cliente,
+    monto: pagoData.moneda === "ARS" ? Number(pagoData.monto) : null,
+    montoUSD: pagoData.moneda === "USD" ? Number(pagoData.monto) : null,
+    forma: pagoData.formaPago,
+    destino: pagoData.destino,
+    moneda: pagoData.moneda,
+    cotizacion: 1000,
+    observaciones: pagoData.observaciones || "",
   };
+
+  try {
+    await addDoc(collection(db, `negocios/${negocioID}/pagos`), pago);
+
+    await recalcularCuentaCliente({ clienteID, negocioID });
+
+    alert("✅ Pago registrado correctamente");
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("trabajosActualizados"));
+    }
+
+    setModalPagoVisible(false);
+    setPagoData({
+      cliente: "",
+      monto: "",
+      moneda: "ARS",
+      formaPago: "",
+      destino: "Pago cliente desde gestión de trabajos",
+      observaciones: "",
+    });
+  } catch (error) {
+    console.error("Error al guardar el pago:", error);
+    alert("❌ No se pudo guardar el pago");
+  }
+};
+
 
   const trabajosFiltrados = useMemo(() => {
     const texto = filtroTexto.trim().toLowerCase();

@@ -33,6 +33,11 @@ export function LogoProvider({ children }: { children: React.ReactNode }) {
       try {
         const ref = doc(db, `negocios/${negocioID}/configuracion/datos`);
         const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          console.warn("⛔ No se encontró la configuración del negocio");
+          setLogoUrl("/logo.png");
+        return;
+       }
 
         if (!snap.exists()) {
           console.warn("⛔ No se encontró la configuración del negocio");

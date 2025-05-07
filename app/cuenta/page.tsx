@@ -106,14 +106,10 @@ export default function CuentaCorrientePage() {
         const trabajosCliente = trabajos.filter(
           (t) =>
             t.cliente === cliente &&
-            (
-              ["ENTREGADO"].includes(t.estado?.toUpperCase()) ||
-              (t.estado?.toUpperCase() === "ENTREGADO" && (t as any).estadoCuentaCorriente === "PAGADO")
-            )
-        );
+            t.estado?.toUpperCase() === "ENTREGADO" &&
+            (t as any).estadoCuentaCorriente !== "PAGADO"
+        );        
         
-        
-
         const pagosCliente = pagos.filter((p) => p.cliente === cliente);
 
         const adeudadoPesos = trabajosCliente

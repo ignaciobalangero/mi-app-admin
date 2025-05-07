@@ -12,26 +12,14 @@ import {
   doc,
   deleteDoc,
   serverTimestamp,
+  query,
+  where,
 } from "firebase/firestore";
-import { query, where } from "firebase/firestore";
-import { format } from "date-fns";
 import { recalcularCuentaCliente } from "@/lib/cuentas/recalcularCuentaCliente";
 
 interface Props {
   negocioID: string;
   setPagos: React.Dispatch<React.SetStateAction<any[]>>;
-}
-
-interface Pago {
-  id: string;
-  fecha: any;
-  cliente: string;
-  monto?: number;
-  montoUSD?: number;
-  moneda: string;
-  forma: string;
-  destino?: string;
-  cotizacion?: number;
 }
 
 export default function FormularioPago({ negocioID, setPagos }: Props) {
@@ -70,9 +58,22 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
 
   const guardarPago = async () => {
     if (!cliente || monto <= 0 || !forma) return;
-  
+
+    const clientesSnap = await getDocs(
+      query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
+    );
+    const clienteDoc = clientesSnap.docs[0];
+
+    if (!clienteDoc) {
+      console.error("❌ No se encontró el cliente en la base de datos.");
+      setMensaje("❌ Cliente no encontrado. Verificá el nombre.");
+      return;
+    }
+
+    const clienteID = clienteDoc.id;
+
     const nuevoPago = {
-      fecha: serverTimestamp(),
+      fecha: new Date().toLocaleDateString("es-AR"),
       cliente,
       monto: moneda === "USD" ? null : monto,
       montoUSD: moneda === "USD" ? monto : null,
@@ -81,99 +82,84 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
       moneda,
       cotizacion,
     };
-  
+
     try {
+      let docRef;
       if (editandoId) {
-        await updateDoc(doc(db, `negocios/${negocioID}/pagos`, editandoId), nuevoPago);
+        docRef = doc(db, `negocios/${negocioID}/pagos`, editandoId);
+        await updateDoc(docRef, nuevoPago);
         setEditandoId(null);
         setMensaje("✅ Pago actualizado con éxito");
       } else {
-        const docRef = await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
-
-        window.dispatchEvent(new Event("recargarPagos"));
-
+        docRef = await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
         setMensaje("✅ Pago guardado con éxito");
-        
       }
-  
+
+      // Recargar la tabla con el nuevo pago (como en accesorios)
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
+      const pagosActualizados = snap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        origen: "pagos",
+      }));
+      setPagos(pagosActualizados);
+
+      await recalcularCuentaCliente({ clienteID, negocioID });
+
       // Limpiar formulario
       setCliente("");
       setMonto(0);
       setForma("");
       setDestino("");
       setMoneda("ARS");
-  
-      // Buscar ID real del cliente por su nombre antes de recalcular
-      const clientesSnap = await getDocs(
-        query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
-      );
-      const clienteDoc = clientesSnap.docs[0];
-  
-      if (!clienteDoc) {
-        console.error("❌ No se encontró el cliente en la base de datos.");
-        return;
-      }
-  
-      const clienteID = clienteDoc.id;
-      await recalcularCuentaCliente({ clienteID, negocioID });
-      window.dispatchEvent(new Event("trabajosActualizados"));
-  
+
       setTimeout(() => setMensaje(""), 2000);
     } catch (error) {
       console.error("Error al guardar el pago:", error);
+      setMensaje("❌ Error inesperado al guardar el pago");
     }
   };
-  
 
   const eliminarPago = async (id: string, cliente: string) => {
     const confirmado = window.confirm(`¿Eliminar el pago de ${cliente}?`);
     if (!confirmado) return;
-  
-    let eliminado = false;
-  
+
     try {
       const ref1 = doc(db, `negocios/${negocioID}/pagos`, id);
       const ref2 = doc(db, `negocios/${negocioID}/pagoClientes`, id);
-  
+
       try {
         await deleteDoc(ref1);
-        eliminado = true;
-      } catch (err1) {
-        // Intentamos en la otra colección si falla
-        try {
-          await deleteDoc(ref2);
-          eliminado = true;
-        } catch (err2) {
-          console.error("❌ Error eliminando el pago en ambas colecciones:", err2);
-          setMensaje("❌ No se pudo eliminar el pago");
-          return;
-        }
+      } catch {
+        await deleteDoc(ref2);
       }
-  
-      if (eliminado) {
-        setMensaje("✅ Pago eliminado");
-  
-        // Recalcular cuenta del cliente
-        const clientesSnap = await getDocs(
-          query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
-        );
-        const clienteDoc = clientesSnap.docs[0];
-  
-        if (clienteDoc) {
-          const clienteID = clienteDoc.id;
-          await recalcularCuentaCliente({ clienteID, negocioID });
-        }
-  
+
+      // Actualizar lista
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
+      const pagosActualizados = snap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        origen: "pagos",
+      }));
+      setPagos(pagosActualizados);
+
+      // Recalcular
+      const clientesSnap = await getDocs(
+        query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
+      );
+      const clienteDoc = clientesSnap.docs[0];
+      if (clienteDoc) {
+        const clienteID = clienteDoc.id;
+        await recalcularCuentaCliente({ clienteID, negocioID });
       }
+
+      setMensaje("✅ Pago eliminado");
+      setTimeout(() => setMensaje(""), 2000);
     } catch (error) {
-      console.error("Error general al intentar eliminar el pago:", error);
+      console.error("❌ Error eliminando pago:", error);
       setMensaje("❌ Error inesperado al eliminar");
     }
-  
-    setTimeout(() => setMensaje(""), 2000);
   };
-  
-  
 
   return (
     <div className="mb-6">
@@ -197,13 +183,18 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
         </datalist>
 
         <input
-          type="number"
-          value={monto}
-          onChange={(e) => setMonto(Number(e.target.value))}
-          placeholder="Monto"
-          className="border-2 border-gray-400 text-black p-2 rounded"
-        />
-
+         type="number"
+        value={monto}
+        onChange={(e) => setMonto(Number(e.target.value))}
+         onFocus={() => {
+          if (monto === 0) setMonto(NaN);
+          }}
+           onBlur={() => {
+             if (isNaN(monto)) setMonto(0);
+               }}
+               placeholder="Monto"
+             className="border-2 border-gray-400 text-black p-2 rounded"
+            />
         <select
           value={moneda}
           onChange={(e) => setMoneda(e.target.value)}

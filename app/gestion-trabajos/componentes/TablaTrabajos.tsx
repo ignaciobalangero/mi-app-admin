@@ -6,6 +6,9 @@ import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore"; // ✅ Importamos updateDoc y doc
 import { db } from "@/lib/firebase"; // ✅ Importamos db
 import { useEffect } from "react";
+import { recalcularCuentaCliente } from "@/lib/cuentas/recalcularCuentaCliente"; // ✅ Nuevo
+import { getDocs, collection, query, where } from "firebase/firestore"; // ✅ Necesario
+
 
 interface Trabajo {
   firebaseId: string;
@@ -133,7 +136,27 @@ export default function TablaTrabajos({
       }
 
       await updateDoc(ref, updates);
+
+      // 🔄 Recalcular cuenta del cliente si fue marcado como PAGADO
+      if (nuevoEstado === "PAGADO") {
+        try {
+          const clientesSnap = await getDocs(
+            query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", t.cliente))
+          );
+          if (!clientesSnap.empty) {
+            const clienteID = clientesSnap.docs[0].id;
+            console.log("🔁 Recalculando cuenta para:", clienteID);
+            await recalcularCuentaCliente({ clienteID, negocioID });
+          } else {
+            console.warn("⚠️ Cliente no encontrado para recalcular:", t.cliente);
+          }
+        } catch (error) {
+          console.error("❌ Error al recalcular cuenta:", error);
+        }
+      }
+      
       await recargarTrabajos();
+      
     }}
     className="p-1 border rounded w-full"
   >

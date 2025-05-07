@@ -1,6 +1,4 @@
 import { db } from "@/lib/firebase";
-
-
 import {
   collection,
   getDocs,
@@ -9,7 +7,6 @@ import {
   updateDoc,
   doc,
 } from "firebase/firestore";
-
 
 export async function recalcularCuentaCliente({
   clienteID,
@@ -91,18 +88,11 @@ export async function recalcularCuentaCliente({
   let saldoRestante = totalPagado;
   for (const t of trabajos) {
     const precio = Number(t.precio) || 0;
-    console.log("⏳ Evaluando trabajo:", t.id, {
-      precio,
-      saldoRestante,
-      estadoActual: t.estado,
-      estadoCuentaCorriente: t.estadoCuentaCorriente,
-    });
-    
     if (saldoRestante >= precio) {
       saldoRestante -= precio;
       try {
         await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${t.id}`), {
-          estadoCuentaCorriente: "pagado",
+          estadoCuentaCorriente: "PAGADO",
           estado: "PAGADO",
         });
       } catch (e) {
@@ -111,7 +101,7 @@ export async function recalcularCuentaCliente({
     }
   }
 
-  // 8. Si el saldo es cero exacto, limpiar historial y marcar como pagado
+  // 8. Si el saldo es cero exacto, limpiar historial
   if (saldo === 0) {
     await updateDoc(clienteRef, {
       "cuenta.saldo": 0,
@@ -119,19 +109,18 @@ export async function recalcularCuentaCliente({
       "cuenta.historial": [],
     });
 
-    const trabajosPendientes = trabajos.filter((t) => t.estadoCuentaCorriente !== "pagado");
-    for (const t of trabajosPendientes) {
+    for (const t of trabajos) {
       try {
         await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${t.id}`), {
-          estadoCuentaCorriente: "pagado",
+          estadoCuentaCorriente: "PAGADO",
+          estado: "PAGADO",
         });
       } catch (e) {
-        console.warn("⚠️ No se pudo actualizar estadoCuentaCorriente:", t.id, e);
+        console.warn("⚠️ No se pudo actualizar estado final:", t.id, e);
       }
     }
   }
 
-  // 9. Emitir evento para actualizar interfaz
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("trabajosActualizados"));
   }
