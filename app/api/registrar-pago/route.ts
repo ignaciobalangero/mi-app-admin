@@ -3,7 +3,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase";
 import { addDoc, collection, doc, getDoc } from "firebase/firestore";
-import { recalcularCuentaCliente } from "@/lib/cuentas/recalcularCuentaCliente";
 
 export async function POST(req: Request) {
   try {
@@ -40,10 +39,11 @@ export async function POST(req: Request) {
     // Recalcular saldo
     let nuevoSaldo = 0;
     try {
-      nuevoSaldo = await recalcularCuentaCliente({ clienteID, negocioID });
-    } catch (e) {
-      console.error("⚠️ Error al recalcular saldo:", e);
-    }
+      return NextResponse.json({ ok: true });
+    } catch (error) {
+      console.error("❌ ERROR GENERAL EN /api/registrar-pago:", error);
+      return NextResponse.json({ error: "Error interno al registrar pago" }, { status: 500 });
+    }    
 
     return NextResponse.json({ ok: true, saldo: nuevoSaldo });
 
