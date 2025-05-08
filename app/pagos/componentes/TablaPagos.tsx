@@ -37,38 +37,17 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         ...doc.data()
       })) as PagoConOrigen[];
 
-      let pagosExtras: PagoConOrigen[] = [];
-      try {
-        const pagosExtraSnap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
-        pagosExtras = pagosExtraSnap.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            fecha: data.fecha,
-            cliente: data.cliente,
-            monto: data.monto,
-            montoUSD: data.montoUSD,
-            moneda: data.moneda,
-            forma: data.forma,
-            destino: data.destino,
-            cotizacion: data.cotizacion,
-            origen: "pagos" as const,
-          };
-        });
-      } catch (e) {
-        console.error("❌ Error al leer /pagos:", e);
-      }
-
-      const todos: PagoConOrigen[] = [...pagosCargados, ...pagosExtras];
-
-      const ordenados = todos
-      .filter((p) => p.fecha) // nos aseguramos de que tenga fecha
+      const ordenados = pagosCargados
+      .filter((p) => p.fecha)
       .sort((a, b) => {
-        const fechaA = a.fecha instanceof Timestamp ? a.fecha.toDate() : new Date(a.fecha);
-        const fechaB = b.fecha instanceof Timestamp ? b.fecha.toDate() : new Date(b.fecha);
-        return fechaB.getTime() - fechaA.getTime();
-      });
-        
+        const [diaA, mesA, anioA] = (a.fecha || "").split("/");
+        const [diaB, mesB, anioB] = (b.fecha || "").split("/");
+    
+        const fechaA = new Date(Number(anioA), Number(mesA) - 1, Number(diaA));
+        const fechaB = new Date(Number(anioB), Number(mesB) - 1, Number(diaB));
+    
+        return fechaB.getTime() - fechaA.getTime(); // 👉 más reciente primero
+      }); 
 
       setPagos(ordenados);
     } catch (err) {
@@ -198,7 +177,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       const fechaB = b.fecha instanceof Timestamp ? b.fecha.toDate() : new Date(b.fecha);
       return fechaB.getTime() - fechaA.getTime(); // más reciente primero
     })
-    .filter(p => p.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()))
+    .filter(p => (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase()))
     .map((pago) => (
       <tr key={`${pago.id}-${pago.origen}`} className="text-center border-t">
         <td className="p-2 border border-gray-300">
