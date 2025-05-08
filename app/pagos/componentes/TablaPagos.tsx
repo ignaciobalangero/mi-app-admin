@@ -23,7 +23,7 @@ interface TablaPagosProps {
 export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosProps) {
   const [mensaje, setMensaje] = useState("");
   const [filtroCliente, setFiltroCliente] = useState("");
-  const [pagoAEliminar, setPagoAEliminar] = useState<{ id: string; origen: "pagos" | "pagoClientes" } | null>(null);
+  const [pagoAEliminar, setPagoAEliminar] = useState<{ id: string; origen: "pagos" | "pagos" } | null>(null);
   const [pagoEditando, setPagoEditando] = useState<PagoConOrigen | null>(null);
   const [form, setForm] = useState<any>({});
 
@@ -39,7 +39,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
 
       let pagosExtras: PagoConOrigen[] = [];
       try {
-        const pagosExtraSnap = await getDocs(collection(db, `negocios/${negocioID}/pagoClientes`));
+        const pagosExtraSnap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
         pagosExtras = pagosExtraSnap.docs.map(doc => {
           const data = doc.data();
           return {
@@ -52,11 +52,11 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
             forma: data.forma,
             destino: data.destino,
             cotizacion: data.cotizacion,
-            origen: "pagoClientes" as const,
+            origen: "pagos" as const,
           };
         });
       } catch (e) {
-        console.error("❌ Error al leer /pagoClientes:", e);
+        console.error("❌ Error al leer /pagos:", e);
       }
 
       const todos: PagoConOrigen[] = [...pagosCargados, ...pagosExtras];
@@ -200,7 +200,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
     })
     .filter(p => p.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()))
     .map((pago) => (
-      <tr key={pago.id} className="text-cente border-t">
+      <tr key={`${pago.id}-${pago.origen}`} className="text-center border-t">
         <td className="p-2 border border-gray-300">
       {typeof pago.fecha === "string" ? pago.fecha : "Fecha inválida"}
         </td>

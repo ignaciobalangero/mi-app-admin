@@ -15,7 +15,6 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { recalcularCuentaCliente } from "@/lib/cuentas/recalcularCuentaCliente";
 
 interface Props {
   negocioID: string;
@@ -104,8 +103,6 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
       }));
       setPagos(pagosActualizados);
 
-      await recalcularCuentaCliente({ clienteID, negocioID });
-
       // Limpiar formulario
       setCliente("");
       setMonto(0);
@@ -126,7 +123,7 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
 
     try {
       const ref1 = doc(db, `negocios/${negocioID}/pagos`, id);
-      const ref2 = doc(db, `negocios/${negocioID}/pagoClientes`, id);
+      const ref2 = doc(db, `negocios/${negocioID}/pagos`, id);
 
       try {
         await deleteDoc(ref1);
@@ -150,7 +147,6 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
       const clienteDoc = clientesSnap.docs[0];
       if (clienteDoc) {
         const clienteID = clienteDoc.id;
-        await recalcularCuentaCliente({ clienteID, negocioID });
       }
 
       setMensaje("✅ Pago eliminado");
@@ -184,7 +180,7 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
 
         <input
          type="number"
-        value={monto}
+         value={isNaN(monto) ? "" : monto}
         onChange={(e) => setMonto(Number(e.target.value))}
          onFocus={() => {
           if (monto === 0) setMonto(NaN);

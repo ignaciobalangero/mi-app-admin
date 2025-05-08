@@ -20,8 +20,6 @@ import {
 import TablaTrabajos from "./componentes/TablaTrabajos";
 import FiltroTrabajos from "./componentes/FiltroTrabajos";
 import ModalPago from "./componentes/ModalPago";
-import { recalcularCuentaCliente } from "@/lib/cuentas/recalcularCuentaCliente";
-
 
 interface Trabajo {
   firebaseId: string;
@@ -32,7 +30,7 @@ interface Trabajo {
   estado: string;
   observaciones?: string;
   precio?: number;
-  estadoCuentaCorriente?: "pendiente" | "pagado";
+  estadoCuentaCorriente?: "PENDEINTE" | "PAGADO";
 }
 
 export default function GestionTrabajosPage() {
@@ -177,8 +175,6 @@ export default function GestionTrabajosPage() {
   try {
     await addDoc(collection(db, `negocios/${negocioID}/pagos`), pago);
 
-    await recalcularCuentaCliente({ clienteID, negocioID });
-
     alert("✅ Pago registrado correctamente");
 
     if (typeof window !== "undefined") {
@@ -211,10 +207,10 @@ export default function GestionTrabajosPage() {
       )
       .filter((t) => {
         if (filtroEstado === "TODOS") return true;
-        if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE" && (t.estadoCuentaCorriente !== "pagado");
-        if (filtroEstado === "ENTREGADO") return t.estado === "ENTREGADO" && (t.estadoCuentaCorriente !== "pagado");
-        if (filtroEstado === "REPARADO") return t.estado === "REPARADO" && (t.estadoCuentaCorriente !== "pagado");
-        if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "pagado";
+        if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE" && (t.estadoCuentaCorriente !== "PAGADO");
+        if (filtroEstado === "ENTREGADO") return t.estado === "ENTREGADO" && (t.estadoCuentaCorriente !== "PAGADO");
+        if (filtroEstado === "REPARADO") return t.estado === "REPARADO" && (t.estadoCuentaCorriente !== "PAGADO");
+        if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "PAGADO";
         return true;
       })
       

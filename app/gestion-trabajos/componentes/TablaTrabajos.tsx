@@ -6,7 +6,6 @@ import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore"; // ✅ Importamos updateDoc y doc
 import { db } from "@/lib/firebase"; // ✅ Importamos db
 import { useEffect } from "react";
-import { recalcularCuentaCliente } from "@/lib/cuentas/recalcularCuentaCliente"; // ✅ Nuevo
 import { getDocs, collection, query, where } from "firebase/firestore"; // ✅ Necesario
 
 
@@ -19,7 +18,7 @@ interface Trabajo {
   observaciones?: string;
   precio?: number;
   estado: string;
-  estadoCuentaCorriente?: "pendiente" | "pagado"; // ✅ Agregado campo opcional
+  estadoCuentaCorriente?: "PENDEINTE" | "PAGADO"; // ✅ Agregado campo opcional
 }
 
 interface TablaProps {
@@ -42,7 +41,7 @@ export default function TablaTrabajos({
   recargarTrabajos, // ✅ Lo recibimos
 }: TablaProps) {
   const obtenerClaseEstado = (trabajo: Trabajo) => {
-    if (trabajo.estadoCuentaCorriente === "pagado") return "bg-blue-100"; // Azul
+    if (trabajo.estadoCuentaCorriente === "PAGADO") return "bg-blue-100"; // Azul
     if (trabajo.estado === "ENTREGADO") return "bg-green-100"; // Verde
     if (trabajo.estado === "REPARADO") return "bg-yellow-100"; // Amarillo
     return "bg-red-100"; // Rojo por defecto (Pendiente)
@@ -68,7 +67,7 @@ export default function TablaTrabajos({
     if (!trabajoAConfirmarPago) return;
     try {
       const ref = doc(db, `negocios/${negocioID}/trabajos/${trabajoAConfirmarPago.firebaseId}`);
-      await updateDoc(ref, { estadoCuentaCorriente: "pagado" });
+      await updateDoc(ref, { estadoCuentaCorriente: "PAGADO" });
       setModalConfirmarPagoVisible(false);
       setTrabajoAConfirmarPago(null);
       alert("✅ Trabajo marcado como pagado correctamente.");
@@ -119,19 +118,19 @@ export default function TablaTrabajos({
               <td className="p-2 border">
   <div className="flex flex-col gap-1">
   <select
-    value={t.estadoCuentaCorriente === "pagado" ? "PAGADO" : t.estado}
+    value={t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
     onChange={async (e) => {
       const nuevoEstado = e.target.value;
       const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
       const updates: any = {};
 
       if (nuevoEstado === "PAGADO") {
-        updates.estadoCuentaCorriente = "pagado";
-        updates.estado = "ENTREGADO"; // o dejá el último estado anterior
+        updates.estadoCuentaCorriente = "PAGADO";
+        updates.estado = "PAGADO"; // o dejá el último estado anterior
       } else {
         updates.estado = nuevoEstado;
-        if (t.estadoCuentaCorriente === "pagado") {
-          updates.estadoCuentaCorriente = "pendiente"; // opcional
+        if (t.estadoCuentaCorriente === "PAGADO") {
+          updates.estadoCuentaCorriente = "PENDIENTE"; // opcional
         }
       }
 
@@ -146,7 +145,6 @@ export default function TablaTrabajos({
           if (!clientesSnap.empty) {
             const clienteID = clientesSnap.docs[0].id;
             console.log("🔁 Recalculando cuenta para:", clienteID);
-            await recalcularCuentaCliente({ clienteID, negocioID });
           } else {
             console.warn("⚠️ Cliente no encontrado para recalcular:", t.cliente);
           }

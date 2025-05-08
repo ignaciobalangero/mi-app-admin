@@ -146,7 +146,7 @@ export default function VentaAccesorios() {
         };
 
         const docRef = await addDoc(
-          collection(db, `negocios/${negocioID}/pagoClientes`),
+          collection(db, `negocios/${negocioID}/pagos`),
           datosPago
         );
 

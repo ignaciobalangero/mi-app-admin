@@ -18,7 +18,7 @@ export interface PagoConOrigen {
   forma: string;
   destino?: string;
   cotizacion?: number;
-  origen: "pagos" | "pagoClientes";
+  origen: "pagos" | "pagos";
 }
 
 export default function PagosPage() {
