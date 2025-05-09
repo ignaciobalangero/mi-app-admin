@@ -2,20 +2,24 @@ import { NextResponse } from "next/server";
 import { obtenerDatosDesdeSheet } from "@/lib/googleSheets";
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const sheetID = body.sheetID;
-  const hoja = body.hoja;
-
-  if (!sheetID || !hoja) {
-    return NextResponse.json({ error: "Faltan datos necesarios" }, { status: 400 });
-  }
-
-  const rango = `${hoja}!A2:I100`; // lee desde la hoja seleccionada
-
-  const cotizacionUSD = 1000; // 🔁 esto se puede automatizar después
-
   try {
+    const body = await req.json();
+    const sheetID = body.sheetID;
+    const hoja = body.hoja;
+
+    console.log("📥 Datos recibidos:", { sheetID, hoja });
+
+    if (!sheetID || !hoja) {
+      return NextResponse.json({ error: "Faltan datos necesarios" }, { status: 400 });
+    }
+
+    const rango = `${hoja}!A2:I100`;
+
     const datos = await obtenerDatosDesdeSheet(sheetID, rango);
+
+    console.log("📄 Datos crudos:", datos);
+
+    const cotizacionUSD = 1000;
 
     const procesados = datos.map((fila: string[]) => {
       const [
@@ -56,7 +60,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ datos: procesados });
   } catch (error: any) {
-    console.error("❌ Error al leer Sheet:", error.message);
+    console.error("❌ Error en /api/leer-stock:", error.message, error);
     return NextResponse.json({ error: "Error al leer Google Sheet" }, { status: 500 });
   }
 }

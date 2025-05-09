@@ -13,6 +13,7 @@ export default function StockSheetPage() {
   const [sheetID, setSheetID] = useState<string | null>(null);
   const [nombreHoja, setNombreHoja] = useState<string>("");
   const [hojasVinculadas, setHojasVinculadas] = useState<{ hoja: string; id: string }[]>([]);
+  const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
     const obtenerDatos = async () => {
@@ -22,7 +23,7 @@ export default function StockSheetPage() {
       const negocioID = snap.exists() ? snap.data().negocioID : null;
       if (!negocioID) return;
 
-      const configSnap = await getDoc(doc(db, `configuracion/${negocioID}`));
+      const configSnap = await getDoc(doc(db, `negocios/${negocioID}/configuracion/datos`));
       const configData = configSnap.exists() ? configSnap.data() : {};
       const hojas = configData.googleSheets || [];
 
@@ -87,6 +88,7 @@ export default function StockSheetPage() {
                   const json = await res.json();
                   if (json.ok) {
                     alert("✅ Códigos completados correctamente.");
+                    setRecarga((prev) => prev + 1);
                   } else {
                     throw new Error(json.error);
                   }
@@ -101,8 +103,18 @@ export default function StockSheetPage() {
             </button>
           </div>
 
-          <FormularioAgregarProducto sheetID={sheetID!} hoja={nombreHoja} />
-          <TablaProductosSheet sheetID={sheetID!} hoja={nombreHoja} />
+          <FormularioAgregarProducto
+  sheetID={sheetID!}
+  hoja={nombreHoja}
+  onProductoAgregado={() => setRecarga((prev) => prev + 1)} // 🔁 aumenta para forzar actualización
+/>
+
+<TablaProductosSheet
+  sheetID={sheetID!}
+  hoja={nombreHoja}
+  recarga={recarga} // ✅ acá pasás el prop faltante
+/>
+
         </>
       )}
     </main>

@@ -2,12 +2,12 @@
   "name": "mi-app-admin",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
+ "scripts": {
+  "dev": "NODE_OPTIONS='--openssl-legacy-provider' next dev --turbopack",
+  "build": "next build",
+  "start": "next start",
+  "lint": "next lint"
+},
   "dependencies": {
     "@headlessui/react": "^2.2.2",
     "axios": "^1.8.4",

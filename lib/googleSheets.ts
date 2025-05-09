@@ -1,4 +1,4 @@
-// lib/googleSheets.ts
+// lib/googleSheets.ts (actualizado)
 
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
@@ -23,12 +23,10 @@ export async function obtenerDatosDesdeSheet(sheetID: string, rango: string) {
 }
 
 export async function agregarProductoASheet(
-    sheetID: string,
-    hoja: string,
-    fila: string[]
-  ) {
-  
-
+  sheetID: string,
+  hoja: string,
+  fila: string[]
+) {
   const rango = `${hoja}!A1`;
 
   await sheets.spreadsheets.values.append({
@@ -41,7 +39,6 @@ export async function agregarProductoASheet(
   });
 }
 
-// ✅ Obtener sheetId automáticamente (por nombre o usa la primera)
 export async function obtenerSheetId(sheetID: string, hojaPreferida = "Stock") {
   const res = await sheets.spreadsheets.get({ spreadsheetId: sheetID });
   const hojas = res.data.sheets;
@@ -54,12 +51,14 @@ export async function obtenerSheetId(sheetID: string, hojaPreferida = "Stock") {
   return hoja?.properties?.sheetId ?? hojas[0].properties?.sheetId;
 }
 
-// ✅ Insertar producto ordenado por modelo (por ejemplo: A54 entre A52 y A56)
+// ✅ Insertar producto ordenado en la hoja correcta
 export async function insertarProductoOrdenado({
   sheetID,
+  hoja,
   producto,
 }: {
   sheetID: string;
+  hoja: string;
   producto: {
     codigo: string;
     producto: string;
@@ -70,8 +69,8 @@ export async function insertarProductoOrdenado({
     moneda: string;
   };
 }) {
-  const rangoLectura = "Stock!A2:G";
-  const sheetId = await obtenerSheetId(sheetID);
+  const rangoLectura = `${hoja}!A2:G`;
+  const sheetId = await obtenerSheetId(sheetID, hoja);
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetID,
@@ -79,11 +78,9 @@ export async function insertarProductoOrdenado({
   });
 
   const filas = res.data.values || [];
-
-  const index = filas.findIndex((f) => f[3] && f[3] > producto.modelo); // columna D = modelo
+  const index = filas.findIndex((f) => f[3] && f[3] > producto.modelo);
   const insertIndex = index === -1 ? filas.length + 1 : index + 1;
 
-  // Insertar fila vacía
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: sheetID,
     requestBody: {
@@ -103,10 +100,9 @@ export async function insertarProductoOrdenado({
     },
   });
 
-  // Escribir datos del producto
   await sheets.spreadsheets.values.update({
     spreadsheetId: sheetID,
-    range: `Stock!A${insertIndex + 1}`,
+    range: `${hoja}!A${insertIndex + 1}`,
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [
@@ -124,11 +120,11 @@ export async function insertarProductoOrdenado({
   });
 }
 
-// ✅ Completar códigos faltantes en orden por fila (ej: M-1001, M-1002...)
+// ✅ Completar códigos faltantes en una hoja específica
 export async function completarCodigosFaltantes(sheetID: string, hoja: string) {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetID,
-    range: `${hoja}!A2:Z`, // lee desde fila 2
+    range: `${hoja}!A2:Z`,
   });
 
   const filas = res.data.values || [];
@@ -138,7 +134,7 @@ export async function completarCodigosFaltantes(sheetID: string, hoja: string) {
   const updates: { range: string; values: string[][] }[] = [];
 
   filas.forEach((fila, i) => {
-    const codigoActual = fila[0]; // columna A
+    const codigoActual = fila[0];
     if (!codigoActual || codigoActual.trim() === "") {
       const nuevoCodigo = `${letra}-${contador}`;
       updates.push({

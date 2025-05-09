@@ -5,9 +5,11 @@ import { useState } from "react";
 export default function FormularioAgregarProducto({
     sheetID,
     hoja,
+    onProductoAgregado,
   }: {
     sheetID: string;
     hoja: string;
+    onProductoAgregado?: () => void; 
   }) {
   
   const [categoria, setCategoria] = useState("");
@@ -21,69 +23,69 @@ export default function FormularioAgregarProducto({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setMensaje("");
+  
+    // Validaciones
     if (!sheetID || !producto.trim() || !categoria.trim()) {
       setMensaje("⚠️ Completá categoría y producto.");
       return;
     }
-
-    try {
-      if (categoria.toLowerCase() === "pantallas" || categoria.toLowerCase() === "telefonos") {
-        const letra = categoria.trim().charAt(0).toUpperCase(); // M, B, etc.
-const numero = Math.floor(1000 + Math.random() * 9000); // genera 4 cifras
-const codigo = `${letra}-${numero}`; // ej: M-8412
-
-const nuevoProducto = {
-        codigo,
-        producto,
-        marca: categoria,
-        modelo: producto,
-        cantidad: Number(stock),
-        precio: Number(costo),
-        moneda,
-      };
-
-
-        await fetch("/api/insertar-producto", {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({ sheetID, producto: nuevoProducto }),
-         });
   
-
-        setMensaje("✅ Producto agregado y ordenado correctamente");
-        } else {
-        const fila = [
-          "", // código se genera automático
-          categoria,
-          producto,
-          stock,
-          "", // precio ARS lo calcula la API
-          moneda,
-          costo,
-          ganancia,
-          mostrar ? "si" : "no",
-        ];
-
-        await fetch("/api/agregar-stock", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sheetID, hoja, fila }), // ✅ ahora mandamos también el nombre de la hoja
-          });
-          
-
-        setMensaje("✅ Producto agregado correctamente");
-      }
-
+    const cantidad = Number(stock);
+    const costoNum = Number(costo);
+    const gananciaNum = Number(ganancia);
+  
+    if (isNaN(cantidad) || cantidad < 0) {
+      setMensaje("⚠️ El stock debe ser un número válido.");
+      return;
+    }
+  
+    if (isNaN(costoNum) || costoNum < 0) {
+      setMensaje("⚠️ El costo debe ser un número válido.");
+      return;
+    }
+  
+    // Generar código
+    const letra = categoria.trim().charAt(0).toUpperCase();
+    const numero = Math.floor(1000 + Math.random() * 9000);
+    const codigo = `${letra}-${numero}`;
+  
+    const nuevoProducto = {
+      codigo,
+      categoria,
+      producto,
+      cantidad,
+      precio: costoNum,
+      moneda,
+      ganancia: isNaN(gananciaNum) ? 0 : gananciaNum,
+      mostrar: mostrar ? "si" : "no",
+    };
+  
+    try {
+      const res = await fetch("/api/agregar-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sheetID, hoja, producto: nuevoProducto }),
+      });
+  
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error desconocido");
+  
+      setMensaje("✅ Producto agregado correctamente");
+      if (onProductoAgregado) onProductoAgregado();
+      // Limpiar campos
+      setCategoria("");
       setProducto("");
       setStock("");
       setCosto("");
       setGanancia("");
-      setCategoria("");
+      setMoneda("ARS");
+      setMostrar(true);
     } catch (err) {
-      console.error("❌ Error al agregar producto:", err);
-      setMensaje("❌ Error al guardar. Revisá la consola.");
+      console.error("❌ Error al guardar:", err);
+      setMensaje("❌ Error inesperado al guardar. Revisá consola.");
     }
-  };
+  };  
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 bg-white p-4 rounded shadow max-w-xl mx-auto mt-8">

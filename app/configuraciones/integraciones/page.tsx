@@ -20,7 +20,7 @@ export default function IntegracionGoogleSheetPage() {
       const negocioID = snap.exists() ? snap.data().negocioID : null;
       if (!negocioID) return;
 
-      const configSnap = await getDoc(doc(db, `configuracion/${negocioID}`));
+      const configSnap = await getDoc(doc(db, `negocios/${negocioID}/configuracion/datos`));
       const configData = configSnap.exists() ? configSnap.data() : {};
       const hojasGuardadas = configData.googleSheets || [];
 
@@ -38,7 +38,7 @@ export default function IntegracionGoogleSheetPage() {
     const negocioID = snap.exists() ? snap.data().negocioID : null;
     if (!negocioID) return setMensaje("⚠️ No se encontró el negocioID");
 
-    const configRef = doc(db, "configuracion", negocioID);
+    const configRef = doc(db, `negocios/${negocioID}/configuracion/datos`);
     const configSnap = await getDoc(configRef);
     const configData = configSnap.exists() ? configSnap.data() : {};
     const hojasActuales = configData.googleSheets || [];

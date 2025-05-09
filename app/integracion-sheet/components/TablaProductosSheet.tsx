@@ -9,9 +9,11 @@ import { auth } from "@/lib/auth";
 export default function TablaProductosSheet({
     sheetID,
     hoja,
+    recarga,
   }: {
     sheetID: string;
     hoja: string;
+    recarga: number;
   }) {
   
     const [user] = useAuthState(auth);
@@ -37,7 +39,7 @@ export default function TablaProductosSheet({
         }
       };
       fetchData();
-    }, [sheetID]);
+    }, [sheetID, hoja, recarga]);
   
     return (
       <div className="overflow-x-auto mt-8">
