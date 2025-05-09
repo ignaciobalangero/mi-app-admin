@@ -36,6 +36,7 @@ function Home() {
 
   useEffect(() => {
     const cargarDatos = async () => {
+      if (!rol?.tipo || !negocioID || !user) return;
       try {
         if (!negocioID) return;
 
@@ -68,13 +69,13 @@ function Home() {
         setAccesoriosVendidos(accesoriosCount);
         setTelefonosVendidos(telefonosCount);
       } catch (error) {
-        console.error("Error al cargar datos del dashboard:", error);
+        console.warn("⚠️ No se pudo cargar el dashboard:", error?.message || error);
       }
     };
 
-    if ((rol?.tipo === "admin" || rol?.tipo === "empleado") && negocioID) {
+    if ((rol?.tipo === "admin" || rol?.tipo === "empleado") && negocioID && user) {
       cargarDatos();
-    }
+    }    
   }, [rol, negocioID]);
 
   // ✅ Cambio solo esta parte:

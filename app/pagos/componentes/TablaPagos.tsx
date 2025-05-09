@@ -73,17 +73,38 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
     }
   };
 
+  const convertirFecha = (fecha: string): string => {
+    const [dia, mes, anio] = fecha.split("/");
+    return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+  };
+  
   const abrirEdicion = (pago: PagoConOrigen) => {
     setPagoEditando(pago);
+  
+    const fechaFormateada = typeof pago.fecha === "string"
+      ? convertirFecha(pago.fecha)
+      : "";
+  
     setForm({
-      ...pago,
-      fecha: pago.fecha || "", // usamos directamente el string
+      cliente: pago.cliente || "",
+      moneda: pago.moneda || "ARS",
+      forma: pago.forma || "",
+      monto: pago.monto ?? 0,
+      montoUSD: pago.montoUSD ?? 0,
+      destino: pago.destino || "",
+      cotizacion: pago.cotizacion ?? 0,
+      fecha: fechaFormateada,
     });
   };  
 
+  const formatearFechaParaGuardar = (fecha: string): string => {
+    const [anio, mes, dia] = fecha.split("-");
+    return `${dia}/${mes}/${anio}`;
+  };
+  
   const guardarEdicion = async () => {
     if (!pagoEditando) return;
-
+  
     try {
       const ref = doc(db, `negocios/${negocioID}/${pagoEditando.origen}`, pagoEditando.id);
       const datosActualizados: any = {
@@ -93,7 +114,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         destino: form.destino,
         cotizacion: Number(form.cotizacion || 0),
       };
-
+  
       if (form.moneda === "USD") {
         datosActualizados.montoUSD = Number(form.montoUSD);
         datosActualizados.monto = 0;
@@ -101,11 +122,11 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         datosActualizados.monto = Number(form.monto);
         datosActualizados.montoUSD = 0;
       }
-
+  
       if (form.fecha) {
-        datosActualizados.fecha = Timestamp.fromDate(new Date(form.fecha));
+        datosActualizados.fecha = formatearFechaParaGuardar(form.fecha); // 🔁 guarda como DD/MM/AAAA
       }
-
+  
       await updateDoc(ref, datosActualizados);
       setMensaje("✅ Pago editado");
       setPagoEditando(null);
@@ -113,7 +134,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
     } catch (err) {
       console.error("Error editando pago:", err);
     }
-  };
+  };  
 
   return (
     <>
@@ -121,34 +142,94 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         <div className="text-green-600 text-center mb-4 font-semibold">{mensaje}</div>
       )}
 
-      {/* Modal de edición */}
-      {pagoEditando && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white text-black p-6 rounded-xl max-w-md w-full text-center shadow-xl space-y-4">
-            <h2 className="text-lg font-bold">Editar pago</h2>
+{pagoEditando && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div className="bg-white text-black p-6 rounded-xl max-w-md w-full text-center shadow-xl space-y-4">
+      <h2 className="text-lg font-bold">Editar pago</h2>
 
-            <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} className="w-full border p-2 rounded" />
-            <input type="text" value={form.cliente} onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))} className="w-full border p-2 rounded" placeholder="Cliente" />
-            <select value={form.moneda} onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))} className="w-full border p-2 rounded">
-              <option value="ARS">Pesos</option>
-              <option value="USD">Dólares</option>
-            </select>
-            {form.moneda === "USD" ? (
-              <input type="number" value={form.montoUSD} onChange={e => setForm(f => ({ ...f, montoUSD: e.target.value }))} className="w-full border p-2 rounded" placeholder="Monto USD" />
-            ) : (
-              <input type="number" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} className="w-full border p-2 rounded" placeholder="Monto $" />
-            )}
-            <input type="text" value={form.forma} onChange={e => setForm(f => ({ ...f, forma: e.target.value }))} className="w-full border p-2 rounded" placeholder="Forma de pago" />
-            <input type="text" value={form.destino} onChange={e => setForm(f => ({ ...f, destino: e.target.value }))} className="w-full border p-2 rounded" placeholder="Destino" />
-            <input type="number" value={form.cotizacion} onChange={e => setForm(f => ({ ...f, cotizacion: e.target.value }))} className="w-full border p-2 rounded" placeholder="Cotización" />
+      <input
+        type="date"
+        value={form.fecha}
+        onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+        className="w-full border p-2 rounded"
+      />
 
-            <div className="flex justify-end gap-4">
-              <button onClick={() => setPagoEditando(null)} className="px-4 py-2 bg-gray-400 text-white rounded">Cancelar</button>
-              <button onClick={guardarEdicion} className="px-4 py-2 bg-blue-600 text-white rounded">Guardar</button>
-            </div>
-          </div>
-        </div>
+      <input
+        type="text"
+        value={form.cliente}
+        onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))}
+        className="w-full border p-2 rounded"
+        placeholder="Cliente"
+      />
+
+      <select
+        value={form.moneda}
+        onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
+        className="w-full border p-2 rounded"
+      >
+        <option value="ARS">Pesos</option>
+        <option value="USD">Dólares</option>
+      </select>
+
+      {form.moneda === "USD" ? (
+        <input
+          type="number"
+          value={form.montoUSD}
+          onChange={e => setForm(f => ({ ...f, montoUSD: e.target.value }))}
+          className="w-full border p-2 rounded"
+          placeholder="Monto USD"
+        />
+      ) : (
+        <input
+          type="number"
+          value={form.monto}
+          onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
+          className="w-full border p-2 rounded"
+          placeholder="Monto $"
+        />
       )}
+
+      <input
+        type="text"
+        value={form.forma}
+        onChange={e => setForm(f => ({ ...f, forma: e.target.value }))}
+        className="w-full border p-2 rounded"
+        placeholder="Forma de pago"
+      />
+
+      <input
+        type="text"
+        value={form.destino}
+        onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+        className="w-full border p-2 rounded"
+        placeholder="Destino"
+      />
+
+      <input
+        type="number"
+        value={form.cotizacion}
+        onChange={e => setForm(f => ({ ...f, cotizacion: e.target.value }))}
+        className="w-full border p-2 rounded"
+        placeholder="Cotización"
+      />
+
+      <div className="flex justify-end gap-4">
+        <button
+          onClick={() => setPagoEditando(null)}
+          className="px-4 py-2 bg-gray-400 text-white rounded"
+        >
+          Cancelar
+         </button>
+         <button
+          onClick={guardarEdicion}
+          className="px-4 py-2 bg-blue-600 text-white rounded"
+        >
+          Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+   )} 
 
       <input
         type="text"

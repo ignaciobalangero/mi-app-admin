@@ -29,7 +29,6 @@ export function LogoProvider({ children }: { children: React.ReactNode }) {
     const cargarLogo = async () => {
       if (loading || !user || !rol || !rol.negocioID) return;
 
-
       try {
         const ref = doc(db, `negocios/${negocioID}/configuracion/datos`);
         const snap = await getDoc(ref);

@@ -49,23 +49,24 @@ export default function FormularioEdicion() {
 
   useEffect(() => {
     const cargarDatos = async () => {
-      if (!user || !id) return;
-
-      if (!rol?.negocioID) return;    
-
+      if (!user || !id || !rol?.negocioID) return;
+  
       const snap = await getDoc(doc(db, `negocios/${rol.negocioID}/trabajos/${id}`));
       if (snap.exists()) {
         const data = snap.data();
+  
         let fechaFormateada = "";
-
-if (data.fecha?.seconds) {
-  fechaFormateada = data.fecha.toDate().toISOString().split("T")[0];
-} else if (typeof data.fecha === "string") {
-  fechaFormateada = data.fecha;
-} else {
-  fechaFormateada = new Date().toISOString().split("T")[0];
-}
-
+        if (data.fecha?.seconds) {
+          const f = data.fecha.toDate();
+          const dia = String(f.getDate()).padStart(2, "0");
+          const mes = String(f.getMonth() + 1).padStart(2, "0");
+          const anio = f.getFullYear();
+          fechaFormateada = `${dia}/${mes}/${anio}`;
+        }
+        else if (typeof data.fecha === "string") {
+          fechaFormateada = data.fecha; // ✅ ya viene como DD/MM/AAAA, no tocar
+        }        
+  
         setFormulario({
           fecha: fechaFormateada,
           cliente: data.cliente || "",
@@ -78,9 +79,9 @@ if (data.fecha?.seconds) {
         });
       }
     };
-
+  
     cargarDatos();
-  }, [user, id]);
+  }, [user, id, rol?.negocioID]);  
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -101,9 +102,15 @@ if (data.fecha?.seconds) {
       <Header />
       <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
         <h1 className="text-2xl font-bold mb-4">Editar Trabajo</h1>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-          <input type="date" name="fecha" value={formulario.fecha} onChange={handleChange} className="p-2 border rounded" placeholder="Fecha" />
+        <input
+          type="text"
+          name="fecha"
+          value={formulario.fecha}
+          onChange={handleChange}
+          className="p-2 border rounded"
+          placeholder="Fecha (DD/MM/AAAA)"
+          />
           <input name="cliente" value={formulario.cliente} onChange={handleChange} className="p-2 border rounded" placeholder="Cliente" />
           <input name="modelo" value={formulario.modelo} onChange={handleChange} className="p-2 border rounded" placeholder="Modelo" />
           <input name="trabajo" value={formulario.trabajo} onChange={handleChange} className="p-2 border rounded" placeholder="Trabajo" />
