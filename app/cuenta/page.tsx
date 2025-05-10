@@ -96,7 +96,7 @@ export default function CuentaCorrientePage() {
           saldoPesos: valores.saldoPesos,
           saldoUSD: valores.saldoUSD,
         }))
-        .filter((c) => c.saldoPesos > 0 || c.saldoUSD > 0);
+        .filter((c) => c.saldoPesos !== 0 || c.saldoUSD !== 0);
 
       setCuentas(cuentasFinales);
     };
