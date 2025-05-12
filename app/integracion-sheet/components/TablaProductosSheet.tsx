@@ -19,6 +19,7 @@ export default function TablaProductosSheet({
   const [datos, setDatos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarUSD, setMostrarUSD] = useState(false);
+  const [mostrarExtras, setMostrarExtras] = useState(false);
   const [cotizacion, setCotizacion] = useState<number | null>(null);
 
   useEffect(() => {
@@ -27,15 +28,12 @@ export default function TablaProductosSheet({
         const res = await fetch("https://dolarapi.com/v1/dolares/blue");
         const json = await res.json();
         const valor = json?.venta;
-        if (valor) {
-          setCotizacion(Number(valor));
-        }
+        if (valor) setCotizacion(Number(valor));
       } catch (error) {
         console.error("❌ Error obteniendo cotización del dólar:", error);
-        setCotizacion(1000); // valor por defecto en caso de error
+        setCotizacion(1000);
       }
     };
-
     obtenerCotizacion();
   }, []);
 
@@ -62,18 +60,29 @@ export default function TablaProductosSheet({
 
   return (
     <div className="overflow-x-auto mt-8">
-      <div className="mb-4 text-right">
-        <label className="text-sm mr-2">
-          <input
-            type="checkbox"
-            checked={mostrarUSD}
-            onChange={() => setMostrarUSD(!mostrarUSD)}
-            className="mr-1"
-          />
-          Mostrar precio USD
-        </label>
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-sm">
+          <label className="mr-4">
+            <input
+              type="checkbox"
+              checked={mostrarUSD}
+              onChange={() => setMostrarUSD(!mostrarUSD)}
+              className="mr-1"
+            />
+            Mostrar precio USD
+          </label>
+          <label className="mr-4">
+            <input
+              type="checkbox"
+              checked={mostrarExtras}
+              onChange={() => setMostrarExtras(!mostrarExtras)}
+              className="mr-1"
+            />
+            Mostrar columnas extra
+          </label>
+        </div>
         {cotizacion && (
-          <span className="ml-4 text-gray-500 text-sm">Dólar: ${cotizacion}</span>
+          <span className="text-gray-500 text-sm">Dólar: ${cotizacion}</span>
         )}
       </div>
 
@@ -89,6 +98,9 @@ export default function TablaProductosSheet({
               <th className="p-2 border">Cantidad</th>
               <th className="p-2 border">Precio ARS</th>
               {mostrarUSD && <th className="p-2 border">Precio USD</th>}
+              {mostrarExtras && <th className="p-2 border">Precio Costo</th>}
+              {mostrarExtras && <th className="p-2 border">Proveedor</th>}
+              {mostrarExtras && <th className="p-2 border">Ganancia</th>}
             </tr>
           </thead>
           <tbody>
@@ -100,6 +112,9 @@ export default function TablaProductosSheet({
                 <td className="p-2 border">{fila.cantidad}</td>
                 <td className="p-2 border">${fila.precioARS}</td>
                 {mostrarUSD && <td className="p-2 border">${fila.precioUSD}</td>}
+                {mostrarExtras && <td className="p-2 border">${fila.precioCosto}</td>}
+                {mostrarExtras && <td className="p-2 border">{fila.proveedor}</td>}
+                {mostrarExtras && <td className="p-2 border">${fila.ganancia}</td>}
               </tr>
             ))}
           </tbody>

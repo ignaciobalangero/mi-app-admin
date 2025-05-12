@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { obtenerDatosDesdeSheet } from "@/lib/googleSheets";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, setDoc, doc } from "firebase/firestore";
 
 export async function POST(req: Request) {
   try {
@@ -14,14 +14,14 @@ export async function POST(req: Request) {
     const rango = `${hoja}!A2:F100`;
     const datos = await obtenerDatosDesdeSheet(sheetID, rango);
 
-    // Obtener cotización actual desde Bluelytics
+    // Obtener cotización actual desde DolarAPI
     let cotizacionUSD = 1000;
     try {
-      const res = await fetch("https://api.bluelytics.com.ar/v2/latest");
+      const res = await fetch("https://dolarapi.com/v1/dolares/blue");
       const json = await res.json();
-      cotizacionUSD = json?.blue?.value_sell || 1000;
+      cotizacionUSD = json?.venta || 1000;
     } catch (err) {
-      console.warn("⚠️ No se pudo obtener cotización desde Bluelytics, se usa default");
+      console.warn("⚠️ No se pudo obtener cotización desde DolarAPI, se usa default");
     }
 
     const procesados = await Promise.all(
@@ -29,23 +29,27 @@ export async function POST(req: Request) {
         const [codigo, categoria, producto, cantidad, precioARSRaw, precioUSDRaw] = fila;
 
         const precioUSD = parseFloat(precioUSDRaw) || 0;
-        const precioARS = parseFloat(precioARSRaw) || Math.round(precioUSD * cotizacionUSD);
+        let precioARS = parseFloat(precioARSRaw);
 
-        // Buscar datos extras en Firebase (proveedor, precioCosto)
+        if (!precioARS && precioUSD > 0 && cotizacionUSD) {
+          precioARS = Math.round((precioUSD * cotizacionUSD) / 50) * 50;
+        }
+
+        // Buscar datos extras en Firebase (proveedor, precioCosto, ganancia)
         let proveedor = "-";
-        let precioCosto = null;
+        let precioCosto: number | null = null;
+        let ganancia: number | null = null;
+
         try {
           const extraSnap = await getDocs(
-            query(
-              collection(db, "stockExtra"),
-              where("codigo", "==", codigo)
-            )
+            query(collection(db, "stockExtra"), where("codigo", "==", codigo))
           );
 
-          extraSnap.forEach((doc) => {
-            const data = doc.data();
+          extraSnap.forEach((docu) => {
+            const data = docu.data();
             proveedor = data.proveedor || "-";
             precioCosto = data.precioCosto || null;
+            ganancia = data.ganancia || null;
           });
         } catch (error) {
           console.error("⚠️ No se pudo leer datos extra desde Firebase", error);
@@ -60,6 +64,7 @@ export async function POST(req: Request) {
           precioUSD,
           proveedor,
           precioCosto,
+          ganancia,
         };
       })
     );
