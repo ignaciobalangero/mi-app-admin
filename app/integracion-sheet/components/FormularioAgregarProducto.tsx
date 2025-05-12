@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { getAuth } from "firebase/auth";
+import { headers } from "next/headers";
+
 
 export default function FormularioAgregarProducto({
   sheetID,
