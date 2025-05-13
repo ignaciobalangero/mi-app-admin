@@ -38,6 +38,7 @@ export default function GestionTrabajosPage() {
   const [negocioID, setNegocioID] = useState("");
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [filtroTexto, setFiltroTexto] = useState("");
+  const [filtroTrabajo, setFiltroTrabajo] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADO">("TODOS");
   const [modalPagoVisible, setModalPagoVisible] = useState(false);
   const [pagoData, setPagoData] = useState({
@@ -199,11 +200,14 @@ export default function GestionTrabajosPage() {
 
   const trabajosFiltrados = useMemo(() => {
     const texto = filtroTexto.trim().toLowerCase();
+    const textoTrabajo = filtroTrabajo.trim().toLowerCase();
+    
     return trabajos
       .filter((t) =>
-        [t.cliente, t.modelo, t.trabajo, t.observaciones, t.estado].some((campo) =>
+        (!texto || [t.cliente, t.modelo].some((campo) =>
           campo?.toLowerCase().includes(texto)
-        )
+        )) &&
+        (!textoTrabajo || t.trabajo?.toLowerCase().includes(textoTrabajo))
       )
       .filter((t) => {
         if (filtroEstado === "TODOS") return true;
@@ -213,9 +217,9 @@ export default function GestionTrabajosPage() {
         if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "PAGADO";
         return true;
       })
-      
       .sort((a, b) => parsearFecha(b.fecha).getTime() - parsearFecha(a.fecha).getTime());
-  }, [trabajos, filtroTexto, filtroEstado]);
+    
+    }, [trabajos, filtroTexto, filtroEstado, filtroTrabajo]);
 
   return (
     <>
@@ -224,7 +228,12 @@ export default function GestionTrabajosPage() {
         <h1 className="text-2xl font-bold mb-4 text-center">Gestión de Trabajos</h1>
 
         <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-          <FiltroTrabajos filtro={filtroTexto} setFiltro={setFiltroTexto} />
+        <FiltroTrabajos
+        filtroTexto={filtroTexto}
+        setFiltroTexto={setFiltroTexto}
+        filtroTrabajo={filtroTrabajo}
+        setFiltroTrabajo={setFiltroTrabajo}
+        />
           <div className="flex gap-2">
             {["TODOS", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADO"].map((estado) => (
               <button

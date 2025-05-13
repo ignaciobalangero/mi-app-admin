@@ -50,9 +50,9 @@ export default function TablaTrabajos({
   
 
   const manejarClickEditar = (id: string) => {
-    router.push(`/gestion-trabajos/editar?id=${id}`);
+    router.push(`/gestion-trabajos/editar?id=${id}&origen=gestion`);
   };
-
+  
   const [pagina, setPagina] = useState(1);
   const [trabajoSeleccionado, setTrabajoSeleccionado] = useState<Trabajo | null>(null);
   const [modalConfirmarPagoVisible, setModalConfirmarPagoVisible] = useState(false); // ✅ Nuevo

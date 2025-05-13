@@ -18,6 +18,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 import { useRol } from "@/lib/useRol";
+import { useRouter } from "next/navigation";
 
 interface Trabajo {
   firebaseId: string;
@@ -40,11 +41,12 @@ export default function ResumenPage() {
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [paginaActual, setPaginaActual] = useState(1);
   const ITEMS_POR_PAGINA = 40;
-  const [mostrarPagados, setMostrarPagados] = useState(false); // ✅ Nuevo
+  const [mostrarPagados, setMostrarPagados] = useState(false);
 
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
   const { rol } = useRol();
+  const router = useRouter();
 
   useEffect(() => {
     if (rol?.negocioID) {
@@ -67,7 +69,7 @@ export default function ResumenPage() {
           clave: data.clave,
           observaciones: data.observaciones,
           estado: data.estado,
-          estadoCuentaCorriente: data.estadoCuentaCorriente, // ✅ Nuevo
+          estadoCuentaCorriente: data.estadoCuentaCorriente,
           precio: data.precio,
           costo: data.costo,
         });
@@ -93,7 +95,7 @@ export default function ResumenPage() {
     });
 
     return () => unsubscribe();
-  }, [negocioID, mostrarPagados]); // ✅ actualizar también cuando cambia mostrarPagados
+  }, [negocioID, mostrarPagados]);
 
   const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
     const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
@@ -105,6 +107,10 @@ export default function ResumenPage() {
     if (confirmar) {
       await deleteDoc(doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`));
     }
+  };
+
+  const editarTrabajo = (firebaseId: string) => {
+    router.push(`/gestion-trabajos/editar?id=${firebaseId}&origen=resumen`);
   };
 
   const exportarCSV = () => {
@@ -212,9 +218,11 @@ export default function ResumenPage() {
                     key={t.firebaseId}
                     className={`border-t border-gray-300 transition ${
                       t.estado === "PENDIENTE" ? "bg-red-100"
+                      : t.estado === "REPARADO" ? "bg-yellow-100"
+                      : t.estado === "ENTREGADO" ? "bg-green-100"
                       : t.estadoCuentaCorriente === "PAGADO" ? "bg-blue-100"
-                      : "bg-green-100"
-                    }`}
+                      : ""
+                    }`}                    
                   >
                     <td className="p-2 border-r border-gray-300">{t.fecha}</td>
                     <td className="p-2 border-r border-gray-300">{t.cliente}</td>
@@ -242,7 +250,13 @@ export default function ResumenPage() {
                     <td className="p-2 border-r border-gray-300">
                       {typeof ganancia === "number" ? `$${ganancia}` : "—"}
                     </td>
-                    <td className="p-2">
+                    <td className="p-2 space-x-2">
+                      <button
+                        onClick={() => editarTrabajo(t.firebaseId)}
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded"
+                      >
+                        Editar
+                      </button>
                       <button
                         onClick={() => eliminarTrabajo(t.firebaseId)}
                         className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
@@ -280,3 +294,4 @@ export default function ResumenPage() {
     </RequireAdmin>
   );
 }
+ 

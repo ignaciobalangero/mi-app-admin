@@ -30,6 +30,7 @@ interface Trabajo {
 export default function FormularioEdicion() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const origen = searchParams.get("origen") || "gestion";
   const id = searchParams.get("id");
 
   const [user] = useAuthState(auth);
@@ -107,7 +108,7 @@ export default function FormularioEdicion() {
       ...formulario,
       precio: formulario.precio ? parseFloat(formulario.precio) : 0,
     });
-    router.push("/gestion-trabajos");
+    router.push(`/${origen}`);
   };
 
   return (
