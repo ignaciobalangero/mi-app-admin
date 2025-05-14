@@ -108,7 +108,7 @@ export default function FormularioEdicion() {
       ...formulario,
       precio: formulario.precio ? parseFloat(formulario.precio) : 0,
     });
-    router.push(`/${origen}`);
+    router.push("/gestion-trabajos");
   };
 
   return (

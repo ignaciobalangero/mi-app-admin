@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getAuth } from "firebase/auth";
-import { headers } from "next/headers";
-
+import { useRol } from "@/lib/useRol";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function FormularioAgregarProducto({
   sheetID,
@@ -17,13 +18,36 @@ export default function FormularioAgregarProducto({
   const [categoria, setCategoria] = useState("");
   const [producto, setProducto] = useState("");
   const [stock, setStock] = useState("");
-  const [precioARS, setPrecioARS] = useState("");
   const [precioUSD, setPrecioUSD] = useState("");
   const [costo, setCosto] = useState("");
-  const [ganancia, setGanancia] = useState("");
   const [proveedor, setProveedor] = useState("");
   const [mostrar, setMostrar] = useState(true);
   const [mensaje, setMensaje] = useState("");
+  const { rol } = useRol();
+
+  const [usarDolarManual, setUsarDolarManual] = useState(false);
+  const [dolarManual, setDolarManual] = useState<number | null>(null);
+  const [cotizacion, setCotizacion] = useState<number>(1000);
+
+  const cotizacionFinal = usarDolarManual && dolarManual ? dolarManual : cotizacion || 0;
+
+  useEffect(() => {
+    const obtenerConfiguracion = async () => {
+      if (!rol?.negocioID) return;
+      try {
+        const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/moneda`);
+        const snap = await getDoc(configRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setUsarDolarManual(data.usarDolarManual ?? false);
+          setDolarManual(data.dolarManual ?? null);
+        }
+      } catch (err) {
+        console.error("❌ Error leyendo configuración de moneda:", err);
+      }
+    };
+    obtenerConfiguracion();
+  }, [rol?.negocioID]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,17 +59,14 @@ export default function FormularioAgregarProducto({
     }
 
     const cantidad = Number(stock);
-    const precioARSNum = Number(precioARS);
     const precioUSDNum = Number(precioUSD);
     const costoNum = Number(costo);
-    const gananciaNum = Number(ganancia);
 
     if (isNaN(cantidad) || cantidad < 0) {
       setMensaje("⚠️ El stock debe ser un número válido.");
       return;
     }
 
-    // Generar código
     const letra = categoria.trim().charAt(0).toUpperCase();
     const numero = Math.floor(1000 + Math.random() * 9000);
     const codigo = `${letra}-${numero}`;
@@ -55,14 +76,15 @@ export default function FormularioAgregarProducto({
       categoria,
       producto,
       cantidad,
-      precio: precioARSNum,
+      precio: precioUSDNum * cotizacionFinal,
       precioUSD: precioUSDNum,
-      moneda: "ARS",
-      costo: costoNum,
-      ganancia: isNaN(gananciaNum) ? 0 : gananciaNum,
-      proveedor,
+      cotizacion: cotizacionFinal,
+      precioCosto: costoNum,
+      proveedor: proveedor.trim(),
+      negocioID: String(rol?.negocioID || ""),
       mostrar: mostrar ? "si" : "no",
     };
+    
 
     try {
       const res = await fetch("/api/agregar-stock", {
@@ -70,55 +92,52 @@ export default function FormularioAgregarProducto({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sheetID, hoja, producto: nuevoProducto }),
       });
-    
+
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Error desconocido");
-    
-      // 🔁 Guardar en Firebase los campos extra administrativos
+
       const extraData = {
         codigo,
         precioCosto: costoNum,
-        ganancia: gananciaNum,
         proveedor: proveedor.trim(),
+        negocioID: String(rol?.negocioID || ""),
       };
-    
+
+      console.log("📦 Enviando a /api/stock-extra:", extraData);
+
       const auth = getAuth();
       const user = auth.currentUser;
-      
+
       if (user) {
         const token = await user.getIdToken();
-      
-        const firebaseRes = await fetch("/api/stock-extra", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(extraData),
+        await setDoc(doc(db, `negocios/${rol.negocioID}/stockExtra/${codigo}`), {
+          codigo,
+          categoria,
+          producto,
+          cantidad,
+          precioUSD: precioUSDNum,
+          cotizacion: cotizacionFinal,
+          precioCosto: costoNum,
+          proveedor: proveedor.trim(),
+          negocioID: rol.negocioID,
         });
-      
-        const fbJson = await firebaseRes.json();
-        if (!firebaseRes.ok) throw new Error(fbJson.error || "Error al guardar en Firebase");
+        
       }
-      
-    
+
       setMensaje("✅ Producto agregado correctamente");
       if (onProductoAgregado) onProductoAgregado();
-    
-      // Limpiar campos
+
       setCategoria("");
       setProducto("");
       setStock("");
-      setPrecioARS("");
       setPrecioUSD("");
       setCosto("");
-      setGanancia("");
       setProveedor("");
       setMostrar(true);
     } catch (err) {
       console.error("❌ Error al guardar:", err);
       setMensaje("❌ Error inesperado al guardar. Revisá consola.");
-    }    
+    }
   };
 
   return (
@@ -150,13 +169,6 @@ export default function FormularioAgregarProducto({
         className="w-full p-2 border rounded"
       />
       <input
-        value={precioARS}
-        onChange={(e) => setPrecioARS(e.target.value)}
-        type="number"
-        placeholder="Precio ARS"
-        className="w-full p-2 border rounded"
-      />
-      <input
         value={precioUSD}
         onChange={(e) => setPrecioUSD(e.target.value)}
         type="number"
@@ -170,13 +182,7 @@ export default function FormularioAgregarProducto({
         placeholder="Precio de costo"
         className="w-full p-2 border rounded"
       />
-      <input
-        value={ganancia}
-        onChange={(e) => setGanancia(e.target.value)}
-        type="number"
-        placeholder="Ganancia"
-        className="w-full p-2 border rounded"
-      />
+  
       <input
         value={proveedor}
         onChange={(e) => setProveedor(e.target.value)}

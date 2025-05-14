@@ -7,13 +7,18 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import FormularioAgregarProducto from "../components/FormularioAgregarProducto";
 import TablaProductosSheet from "../components/TablaProductosSheet";
+import BotonImportarStock from "../components/BotonImportarStock";
+import BotonActualizarPreciosSheet from "../components/BotonActualizarPreciosSheet";
+import { useRol } from "@/lib/useRol";
 
 export default function StockSheetPage() {
   const [user] = useAuthState(auth);
+  const { rol } = useRol();
   const [sheetID, setSheetID] = useState<string | null>(null);
   const [nombreHoja, setNombreHoja] = useState<string>("");
   const [hojasVinculadas, setHojasVinculadas] = useState<{ hoja: string; id: string }[]>([]);
   const [recarga, setRecarga] = useState(0);
+
 
   useEffect(() => {
     const obtenerDatos = async () => {
@@ -82,8 +87,8 @@ export default function StockSheetPage() {
                   const res = await fetch("/api/completar-codigos", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ sheetID, hoja: nombreHoja }),
-                  });
+                    body: JSON.stringify({ sheetID, hoja: nombreHoja, negocioID: rol?.negocioID }),
+                  });                  
 
                   const json = await res.json();
                   if (json.ok) {
@@ -108,11 +113,14 @@ export default function StockSheetPage() {
   hoja={nombreHoja}
   onProductoAgregado={() => setRecarga((prev) => prev + 1)} // 🔁 aumenta para forzar actualización
 />
+<BotonImportarStock sheetID={sheetID!} hoja={nombreHoja} />
+<BotonActualizarPreciosSheet sheetID={sheetID!} hoja={nombreHoja} />
 
 <TablaProductosSheet
   sheetID={sheetID!}
   hoja={nombreHoja}
   recarga={recarga} // ✅ acá pasás el prop faltante
+  setRecarga={setRecarga}
 />
 
         </>

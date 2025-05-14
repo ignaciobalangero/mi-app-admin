@@ -1,27 +1,29 @@
 import { NextResponse } from "next/server";
 import { obtenerDatosDesdeSheet } from "@/lib/googleSheets";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, setDoc, doc } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 
 export async function POST(req: Request) {
   try {
-    const { sheetID, hoja } = await req.json();
+    const { sheetID, hoja, negocioID } = await req.json();
 
-    if (!sheetID || !hoja) {
+    if (!sheetID || !hoja || !negocioID) {
       return NextResponse.json({ error: "Faltan datos necesarios" }, { status: 400 });
     }
 
     const rango = `${hoja}!A2:F100`;
     const datos = await obtenerDatosDesdeSheet(sheetID, rango);
 
-    // Obtener cotización actual desde DolarAPI
+    // ✅ Leer cotización manual desde Firebase
     let cotizacionUSD = 1000;
     try {
-      const res = await fetch("https://dolarapi.com/v1/dolares/blue");
-      const json = await res.json();
-      cotizacionUSD = json?.venta || 1000;
+      const snap = await getDoc(doc(db, `negocios/${negocioID}/configuracion/moneda`));
+      if (snap.exists()) {
+        const data = snap.data();
+        cotizacionUSD = Number(data.dolarManual) || 1000;
+      }
     } catch (err) {
-      console.warn("⚠️ No se pudo obtener cotización desde DolarAPI, se usa default");
+      console.warn("⚠️ No se pudo obtener cotización desde Firebase, se usa default 1000");
     }
 
     const procesados = await Promise.all(
@@ -35,36 +37,13 @@ export async function POST(req: Request) {
           precioARS = Math.round((precioUSD * cotizacionUSD) / 50) * 50;
         }
 
-        // Buscar datos extras en Firebase (proveedor, precioCosto, ganancia)
-        let proveedor = "-";
-        let precioCosto: number | null = null;
-        let ganancia: number | null = null;
-
-        try {
-          const extraSnap = await getDocs(
-            query(collection(db, "stockExtra"), where("codigo", "==", codigo))
-          );
-
-          extraSnap.forEach((docu) => {
-            const data = docu.data();
-            proveedor = data.proveedor || "-";
-            precioCosto = data.precioCosto || null;
-            ganancia = data.ganancia || null;
-          });
-        } catch (error) {
-          console.error("⚠️ No se pudo leer datos extra desde Firebase", error);
-        }
-
         return {
           codigo,
           categoria,
           producto,
           cantidad,
-          precioARS,
+          precio: precioARS,
           precioUSD,
-          proveedor,
-          precioCosto,
-          ganancia,
         };
       })
     );

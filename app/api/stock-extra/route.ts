@@ -2,27 +2,20 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import { getAuth } from "@/lib/firebaseAdmin"; // ✅ import correcto
+import { doc, setDoc } from "firebase/firestore";
+import { getAuth } from "@/lib/firebaseAdmin";
 import { headers } from "next/headers";
-
-// ✅ Función auxiliar para obtener el negocioID desde Firestore
-async function obtenerNegocioID(uid: string): Promise<string | null> {
-  const snap = await getDoc(doc(db, "usuarios", uid));
-  return snap.exists() ? snap.data().negocioID : null;
-}
 
 export async function POST(req: Request) {
   try {
-    const { codigo, precioCosto, ganancia, proveedor } = await req.json();
+    const { codigo, precioCosto, ganancia, proveedor, negocioID } = await req.json();
 
-    if (!codigo) {
-      return NextResponse.json({ error: "Falta el código" }, { status: 400 });
+    if (!codigo || !negocioID) {
+      return NextResponse.json({ error: "Faltan datos necesarios" }, { status: 400 });
     }
 
-    const headersList = await headers(); // ✅ corregido
-    const authorization = headersList.get("authorization"); // ✅ funciona ahora
-
+    const headersList = await headers();
+    const authorization = headersList.get("authorization");
 
     if (!authorization) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -32,17 +25,18 @@ export async function POST(req: Request) {
     const decoded = await getAuth().verifyIdToken(token);
     const uid = decoded.uid;
 
-    const negocioID = await obtenerNegocioID(uid);
+    // Log para depurar
+    console.log("✅ UID:", uid);
+    console.log("✅ NegocioID recibido:", negocioID);
+    console.log("✅ Guardando en ruta:", `negocios/${negocioID}/stockExtra/${codigo}`);
 
-    if (!negocioID) {
-      return NextResponse.json({ error: "No se encontró negocioID" }, { status: 403 });
-    }
-
+    // Guardar los datos en la colección del negocio
     await setDoc(doc(db, `negocios/${negocioID}/stockExtra/${codigo}`), {
-      proveedor,
-      precioCosto,
-      ganancia,
-    });
+        proveedor: proveedor ?? "",
+        precioCosto: precioCosto ?? 0,
+        ganancia: ganancia ?? 0,
+        negocioID: String(negocioID || ""), // 👈 forzado como string
+      });      
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {

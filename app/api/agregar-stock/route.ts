@@ -9,20 +9,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
     }
 
-    // Log de verificación
-    console.log("📥 Recibiendo producto:", producto);
-    console.log("📄 Hoja:", hoja, "🆔 SheetID:", sheetID);
+    // 📦 Preparar valores
+    const precioUSD = Number(producto.precioUSD) || 0;
+    const cotizacion = Number(producto.cotizacion) || 1000;
 
+    const precioARS =
+      producto.moneda === "USD" && precioUSD > 0
+        ? precioUSD * cotizacion
+        : Number(producto.precio) || 0;
+
+    // ✅ Solo insertamos columnas necesarias en el sheet
     const fila = [
       producto.codigo || "",
       producto.categoria || "",
       producto.producto || "",
       producto.cantidad || 0,
-      producto.precio || 0,
-      producto.moneda || "ARS",
-      producto.precio || 0, // repetido como costo por ahora si no viene `costo`
-      producto.ganancia || 0,
-      producto.mostrar || "no",
+      precioARS,
+      precioUSD,
     ];
 
     console.log("🧾 Fila a insertar:", fila);
