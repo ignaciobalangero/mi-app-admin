@@ -1,7 +1,7 @@
 // Archivo: /app/api/actualizar-precios-sheet/route.ts
 
 import { NextResponse } from "next/server";
-import { actualizarPreciosEnSheet } from "@/app/api/lib/googleSheets";
+import { actualizarPreciosEnSheet, obtenerDatosDesdeSheet } from "@/app/api/lib/googleSheets";
 
 export async function POST(req: Request) {
   try {
@@ -11,15 +11,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
     }
 
-    // Lógica para actualizar los precios en la columna E (precio ARS)
-    const valores = filas.map((fila: any) => ({
+    // ✅ Traer los datos actuales del Sheet para conservar lo que no venga desde Firebase
+    const datosSheet = await obtenerDatosDesdeSheet(sheetID, `${hoja}!A2:F`);
+
+    const valores = filas.map((fila: any) => {
+      const filaExistente = datosSheet.find((f) => f[0] === fila.codigo);
+
+      return {
         codigo: fila.codigo,
-        categoria: fila.categoria,
-        producto: fila.producto,
-        cantidad: fila.cantidad,
+        categoria: fila.categoria || filaExistente?.[1] || "",
+        producto: fila.producto || filaExistente?.[2] || "",
+        cantidad: fila.cantidad || filaExistente?.[3] || "",
         precioARS: fila.precioARS,
-        precioUSD: fila.precioUSD,
-      }));          
+        precioUSD: fila.precioUSD ?? (filaExistente?.[5] || 0),
+      };
+    });
 
     await actualizarPreciosEnSheet({ sheetID, hoja, filas: valores });
 

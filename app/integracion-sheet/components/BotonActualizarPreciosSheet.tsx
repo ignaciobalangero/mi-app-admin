@@ -10,9 +10,14 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
-import { obtenerDatosDesdeSheet } from "@/app/api/lib/googleSheets";
 
-export default function BotonActualizarPreciosSheet({ sheetID, hoja }: { sheetID: string; hoja: string }) {
+export default function BotonActualizarPreciosSheet({
+  sheetID,
+  hoja,
+}: {
+  sheetID: string;
+  hoja: string;
+}) {
   const { rol } = useRol();
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -26,42 +31,42 @@ export default function BotonActualizarPreciosSheet({ sheetID, hoja }: { sheetID
       let cotizacion = 1000;
 
       // Obtener cotización desde configuración manual
-      const configSnap = await getDoc(doc(db, `negocios/${rol.negocioID}/configuracion/moneda`));
+      const configSnap = await getDoc(
+        doc(db, `negocios/${rol.negocioID}/configuracion/moneda`)
+      );
       if (configSnap.exists()) {
         const data = configSnap.data();
         cotizacion = Number(data.dolarManual) || 1000;
       }
 
-      // Obtener productos
-  // Obtener productos
-const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));
-const productos = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      // Obtener productos desde Firebase
+      const snap = await getDocs(
+        collection(db, `negocios/${rol.negocioID}/stockExtra`)
+      );
+      const productos = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-// 🟡 Obtener datos actuales del Sheet para conservar valores
-const datosActuales = await obtenerDatosDesdeSheet(sheetID, `${hoja}!A2:Z`);
+      // Formar filas solo con los datos disponibles
+      const filas = productos.map((p: any) => {
+        const precioUSD = Number(p.precioUSD) || 0;
+        const precioARS = Number((precioUSD * cotizacion).toFixed(2));
 
-// Formar nuevas filas para el Sheet
-const filas = productos.map((p: any) => {
-  const precioUSD = Number(p.precioUSD) || 0;
-  const precioARS = Number((precioUSD * cotizacion).toFixed(2));
-  const filaSheet = datosActuales.find((f: string[]) => f[0] === p.id);
+        return {
+          codigo: p.id,
+          categoria: p.categoria || "",
+          producto: p.producto || "",
+          cantidad: p.cantidad || "",
+          precioARS,
+          precioUSD,
+        };
+      });
 
-  return {
-    codigo: p.id,
-    categoria: p.categoria || filaSheet?.[1] || "",
-    producto: p.producto || filaSheet?.[2] || "",
-    cantidad: p.cantidad || filaSheet?.[3] || "",    
-    precioARS,
-    precioUSD: p.precioUSD ?? Number(filaSheet?.[5]) ?? 0,
-  };
-});
+      console.log("🧾 Filas a enviar:", filas);
 
-      console.log("🧾 Filas a actualizar:", filas);
-      // Llamada a API para actualizar el Sheet
+      // Enviar a la API
       const res = await fetch("/api/actualizar-precios-sheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sheetID, hoja, filas, negocioID: rol?.negocioID }),
+        body: JSON.stringify({ sheetID, hoja, filas }),
       });
 
       const json = await res.json();
