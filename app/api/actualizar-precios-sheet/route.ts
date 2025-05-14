@@ -1,7 +1,7 @@
 // Archivo: /app/api/actualizar-precios-sheet/route.ts
 
 import { NextResponse } from "next/server";
-import { actualizarPreciosEnSheet } from "@/lib/googleSheets";
+import { actualizarPreciosEnSheet } from "@/app/api/lib/googleSheets";
 
 export async function POST(req: Request) {
   try {

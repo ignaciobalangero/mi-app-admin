@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { obtenerDatosDesdeSheet } from "@/lib/googleSheets";
+import { obtenerDatosDesdeSheet } from "@/app/api/lib/googleSheets";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 

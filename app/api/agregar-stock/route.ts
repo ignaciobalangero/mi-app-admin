@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { agregarProductoASheet } from "@/lib/googleSheets";
+import { agregarProductoASheet } from "@/app/api/lib/googleSheets";
 
 export async function POST(req: Request) {
   try {

@@ -10,7 +10,7 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
-import { obtenerDatosDesdeSheet } from "@/lib/googleSheets";
+import { obtenerDatosDesdeSheet } from "@/app/api/lib/googleSheets";
 
 export default function BotonActualizarPreciosSheet({ sheetID, hoja }: { sheetID: string; hoja: string }) {
   const { rol } = useRol();

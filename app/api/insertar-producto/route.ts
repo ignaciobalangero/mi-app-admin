@@ -1,7 +1,7 @@
 // app/api/insertar-producto/route.ts
 
 import { NextResponse } from "next/server";
-import { insertarProductoOrdenado } from "@/lib/googleSheets";
+import { insertarProductoOrdenado } from "@/app/api/lib/googleSheets";
 
 export async function POST(req: Request) {
   try {

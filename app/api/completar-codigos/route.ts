@@ -1,7 +1,7 @@
 // app/api/completar-codigos/route.ts
 
 import { NextResponse } from "next/server";
-import { completarCodigosFaltantes } from "@/lib/googleSheets";
+import { completarCodigosFaltantes } from "@/app/api/lib/googleSheets";
 
 export async function POST(req: Request) {
   try {
