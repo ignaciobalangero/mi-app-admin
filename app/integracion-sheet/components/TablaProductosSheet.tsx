@@ -5,6 +5,7 @@ interface ExtraData {
   proveedor?: string;
   precioCosto?: number;
   ganancia?: number;
+  hoja?: string;
 }
 
 import { useEffect, useState } from "react";
@@ -87,10 +88,14 @@ export default function TablaProductosSheet({
         const sheetData = sheetRes.datos || [];
 
         const extraSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));
-        const firestoreData: ExtraData[] = extraSnap.docs.map((doc) => ({
-          codigo: doc.id,
-          ...doc.data(),
-        }));
+        const firestoreData: ExtraData[] = extraSnap.docs
+         .map((doc) => {
+       const data = doc.data() as ExtraData;
+       return { codigo: doc.id, ...data };
+       })
+        .filter((prod) => prod.hoja === hoja); // ✅ ahora sí reconoce hoja
+
+
 
         const codigosSheet = sheetData.map((p: any) => p.codigo);
         const combinados = sheetData.map((producto: any) => {

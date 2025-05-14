@@ -90,8 +90,13 @@ export default function FormularioAgregarProducto({
       const res = await fetch("/api/agregar-stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sheetID, hoja, producto: nuevoProducto }),
-      });
+        body: JSON.stringify({
+          sheetID,
+          hoja,
+          producto: nuevoProducto,
+          negocioID: rol?.negocioID, // ✅ necesario para que no falle
+        }),
+      });      
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Error desconocido");
@@ -120,6 +125,7 @@ export default function FormularioAgregarProducto({
           precioCosto: costoNum,
           proveedor: proveedor.trim(),
           negocioID: rol.negocioID,
+          hoja,
         });
         
       }
