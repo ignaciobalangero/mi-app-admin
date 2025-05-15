@@ -23,6 +23,8 @@ export default function FormularioAgregarProducto({
   const [proveedor, setProveedor] = useState("");
   const [mostrar, setMostrar] = useState(true);
   const [mensaje, setMensaje] = useState("");
+  const [stockMinimo, setStockMinimo] = useState<number>(0);
+const [stockIdeal, setStockIdeal] = useState<number>(0);
   const { rol } = useRol();
 
   const [usarDolarManual, setUsarDolarManual] = useState(false);
@@ -83,6 +85,8 @@ export default function FormularioAgregarProducto({
       proveedor: proveedor.trim(),
       negocioID: String(rol?.negocioID || ""),
       mostrar: mostrar ? "si" : "no",
+      stockMinimo,
+      stockIdeal,
     };
     
 
@@ -174,6 +178,24 @@ export default function FormularioAgregarProducto({
         placeholder="Stock"
         className="w-full p-2 border rounded"
       />
+  
+       <input
+        type="number"
+       value={stockMinimo === 0 ? "" : stockMinimo}
+        onChange={(e) => setStockMinimo(Number(e.target.value))}
+       placeholder="Stock mínimo"
+       className="w-full p-2 border rounded"
+      />
+
+      <input
+       type="number"
+       value={stockIdeal === 0 ? "" : stockIdeal}
+       onChange={(e) => setStockIdeal(Number(e.target.value))}
+       placeholder="Stock ideal"
+       className="w-full p-2 border rounded"
+        />
+
+
       <input
         value={precioUSD}
         onChange={(e) => setPrecioUSD(e.target.value)}

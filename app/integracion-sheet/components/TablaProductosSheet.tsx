@@ -15,17 +15,21 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRol } from "@/lib/useRol";
 import AccionesProducto from "./AccionesProducto";
+import PedidosSugeridos from "./PedidosSugeridos";
+
 
 export default function TablaProductosSheet({
   sheetID,
   hoja,
   recarga,
   setRecarga,
+  setProductosAPedir,
 }: {
   sheetID: string;
   hoja: string;
   recarga: number;
   setRecarga: React.Dispatch<React.SetStateAction<number>>;
+  setProductosAPedir: React.Dispatch<React.SetStateAction<any[]>>; 
 }) {
   const [user] = useAuthState(auth);
   const [datos, setDatos] = useState<any[]>([]);
@@ -34,6 +38,7 @@ export default function TablaProductosSheet({
   const [usarDolarManual, setUsarDolarManual] = useState(false);
   const [dolarManual, setDolarManual] = useState<number | null>(null);
   const { rol } = useRol();
+  const [filtroTexto, setFiltroTexto] = useState("");
 
   const cotizacionFinal = usarDolarManual && dolarManual ? dolarManual : cotizacion || 0;
 
@@ -124,6 +129,7 @@ export default function TablaProductosSheet({
             const precioARSCalculado = Math.round(precioUSD * cotizacionFinal);
 
             return {
+              
               ...p,
               precioARS: precioARSCalculado,
               ganancia,
@@ -134,6 +140,14 @@ export default function TablaProductosSheet({
           // 🔠 Ordenar por código (alfabéticamente)
           resultadoFinal.sort((a, b) => a.codigo.localeCompare(b.codigo));
            setDatos(resultadoFinal);
+           // 🔍 Generar pedidos sugeridos
+const sugerencias = resultadoFinal.filter((p) => {
+  return typeof p.stockIdeal === "number" &&
+         typeof p.cantidad === "number" &&
+         p.stockIdeal > p.cantidad;
+});
+setProductosAPedir(sugerencias);
+
           
       } catch (err) {
         console.error("❌ Error cargando datos:", err);
@@ -144,13 +158,21 @@ export default function TablaProductosSheet({
 
     fetchData();
   }, [sheetID, hoja, recarga, rol?.negocioID, cotizacionFinal, dolarManual]);
-
+  const totalCosto = datos.reduce((acc, fila) => {
+    if (typeof fila.precioCosto === "number" && typeof fila.cantidad === "number") {
+      return acc + fila.precioCosto * fila.cantidad;
+    }
+    return acc;
+  }, 0);
+  
   return (
     <div className="overflow-x-auto mt-8">
       <div className="flex items-center gap-4 mb-4">
+        
         <label className="text-sm font-medium text-gray-700">
           Valor del dólar
         </label>
+
         <input
           type="number"
           value={dolarManual ?? ""}
@@ -162,12 +184,26 @@ export default function TablaProductosSheet({
           placeholder="Ej: 1100"
           className="p-1 border rounded w-24"
         />
+        
+         <input
+  type="text"
+  value={filtroTexto}
+  onChange={(e) => setFiltroTexto(e.target.value)}
+  placeholder="🔍 Buscar por producto..."
+  className="w-full max-w-sm p-2 border rounded"
+/>
+<div className="px-3 py-2 bg-yellow-100 text-yellow-900 rounded shadow font-bold text-sm border border-yellow-300">
+  💰 Total costo: ${totalCosto.toLocaleString("es-AR")}
+</div>
+
+
       </div>
 
       {cargando ? (
         <p className="text-center text-blue-600">Cargando datos desde Google Sheet...</p>
       ) : (
-        <table className="min-w-full bg-white text-sm border rounded shadow">
+       
+       <table className="min-w-full bg-white text-sm border rounded shadow">
           <thead className="bg-gray-300">
             <tr>
               <th className="p-2 border">Código</th>
@@ -179,11 +215,18 @@ export default function TablaProductosSheet({
               <th className="p-2 border">Precio Costo</th>
               <th className="p-2 border">Proveedor</th>
               <th className="p-2 border">Ganancia</th>
+              <th className="p-2 border">Total costo</th>
+
               <th className="p-2 border">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {datos.map((fila, i) => (
+                </tr>
+                    </thead>
+                      <tbody>
+                    {datos
+                .filter((fila) =>
+                fila.producto?.toLowerCase().includes(filtroTexto.toLowerCase())
+                )
+                .map((fila, i) => (
+
               <tr key={i} className="hover:bg-gray-100">
                 <td className="p-2 border">{fila.codigo}</td>
                 <td className="p-2 border">{fila.categoria}</td>
@@ -199,6 +242,13 @@ export default function TablaProductosSheet({
                   ${typeof fila.ganancia === "number" ? fila.ganancia.toFixed(2) : "-"}
                 </td>
                 <td className="p-2 border">
+                ${typeof fila.precioCosto === "number" && typeof fila.cantidad === "number"
+                  ? (fila.precioCosto * fila.cantidad).toLocaleString("es-AR")
+                  : "-"}
+                </td>
+
+                <td className="p-2 border">
+                  
                   <AccionesProducto
                     producto={fila}
                     sheetID={sheetID}
@@ -209,6 +259,7 @@ export default function TablaProductosSheet({
               </tr>
             ))}
           </tbody>
+
         </table>
       )}
     </div>

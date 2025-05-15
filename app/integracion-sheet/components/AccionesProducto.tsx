@@ -22,6 +22,9 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
     precio: producto.precio || 0,
     proveedor: producto.proveedor || "",
     precioCosto: producto.precioCosto || 0,
+    stockMinimo: producto.stockMinimo || 0,
+    stockIdeal: producto.stockIdeal || 0,
+  
   });
   const [mensaje, setMensaje] = useState("");
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
@@ -150,7 +153,25 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
               className="w-full p-2 border rounded mb-2"
               placeholder="Proveedor"
             />
-  
+
+  <label className="text-sm font-medium">Stock mínimo</label>
+<input
+  type="number"
+  value={formData.stockMinimo}
+  onChange={(e) => setFormData({ ...formData, stockMinimo: Number(e.target.value) })}
+  className="w-full p-2 border rounded mb-2"
+  placeholder="Stock mínimo"
+/>
+
+<label className="text-sm font-medium">Stock ideal</label>
+<input
+  type="number"
+  value={formData.stockIdeal}
+  onChange={(e) => setFormData({ ...formData, stockIdeal: Number(e.target.value) })}
+  className="w-full p-2 border rounded mb-2"
+  placeholder="Stock ideal"
+/>
+
             <label className="text-sm font-medium">Precio de costo</label>
             <input
               type="number"
@@ -159,7 +180,7 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
               className="w-full p-2 border rounded mb-2"
               placeholder="Precio costo"
             />
-  
+
             {mensaje && <p className="text-sm text-center my-2">{mensaje}</p>}
   
             <div className="flex justify-between mt-4">

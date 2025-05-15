@@ -10,6 +10,8 @@ import TablaProductosSheet from "../components/TablaProductosSheet";
 import BotonImportarStock from "../components/BotonImportarStock";
 import BotonActualizarPreciosSheet from "../components/BotonActualizarPreciosSheet";
 import { useRol } from "@/lib/useRol";
+import PedidosSugeridos from "../components/PedidosSugeridos";
+import { exportarPedidosAExcel } from "../components/exportarPedidos";
 
 export default function StockSheetPage() {
   const [user] = useAuthState(auth);
@@ -18,7 +20,9 @@ export default function StockSheetPage() {
   const [nombreHoja, setNombreHoja] = useState<string>("");
   const [hojasVinculadas, setHojasVinculadas] = useState<{ hoja: string; id: string }[]>([]);
   const [recarga, setRecarga] = useState(0);
-
+  const [mostrarFormulario, setMostrarFormulario] = useState(true);
+  const [mostrarPedidos, setMostrarPedidos] = useState(true);
+  const [productosAPedir, setProductosAPedir] = useState<any[]>([]);
 
   useEffect(() => {
     const obtenerDatos = async () => {
@@ -44,7 +48,31 @@ export default function StockSheetPage() {
 
   return (
     <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
-      <h1 className="text-2xl font-bold mb-6 text-center">📄 Stock desde Google Sheet</h1>
+      <div className="mb-4">
+        <div className="flex justify-between items-start mb-2">
+          <div className="flex gap-2">
+            <button
+              className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded text-sm"
+              onClick={() => exportarPedidosAExcel(productosAPedir)}
+            >
+              📤 Exportar pedidos sugeridos
+            </button>
+            <button
+              className="bg-yellow-600 hover:bg-yellow-700 text-white py-1 px-3 rounded text-sm"
+              onClick={() => setMostrarPedidos((prev) => !prev)}
+            >
+              {mostrarPedidos ? "Ocultar pedidos" : "Mostrar pedidos"}
+            </button>
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded text-sm"
+              onClick={() => setMostrarFormulario((prev) => !prev)}
+            >
+              {mostrarFormulario ? "Ocultar formulario" : "Mostrar formulario"}
+            </button>
+          </div>
+          <h1 className="text-2xl font-bold text-center w-full">📄 Stock desde Google Sheet</h1>
+        </div>
+      </div>
 
       {hojasVinculadas.length === 0 ? (
         <p className="text-center text-red-600">
@@ -88,7 +116,7 @@ export default function StockSheetPage() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ sheetID, hoja: nombreHoja, negocioID: rol?.negocioID }),
-                  });                  
+                  });
 
                   const json = await res.json();
                   if (json.ok) {
@@ -108,21 +136,28 @@ export default function StockSheetPage() {
             </button>
           </div>
 
-          <FormularioAgregarProducto
-  sheetID={sheetID!}
-  hoja={nombreHoja}
-  onProductoAgregado={() => setRecarga((prev) => prev + 1)} // 🔁 aumenta para forzar actualización
-/>
-<BotonImportarStock sheetID={sheetID!} hoja={nombreHoja} />
-<BotonActualizarPreciosSheet sheetID={sheetID!} hoja={nombreHoja} />
+          {mostrarFormulario && (
+            <FormularioAgregarProducto
+              sheetID={sheetID!}
+              hoja={nombreHoja}
+              onProductoAgregado={() => setRecarga((prev) => prev + 1)}
+            />
+          )}
 
-<TablaProductosSheet
-  sheetID={sheetID!}
-  hoja={nombreHoja}
-  recarga={recarga} // ✅ acá pasás el prop faltante
-  setRecarga={setRecarga}
-/>
+          <BotonImportarStock sheetID={sheetID!} hoja={nombreHoja} />
+          <BotonActualizarPreciosSheet sheetID={sheetID!} hoja={nombreHoja} />
 
+          {mostrarPedidos && (
+            <PedidosSugeridos productosAPedir={productosAPedir} />
+          )}
+
+          <TablaProductosSheet
+            sheetID={sheetID!}
+            hoja={nombreHoja}
+            recarga={recarga}
+            setRecarga={setRecarga}
+            setProductosAPedir={setProductosAPedir}
+          />
         </>
       )}
     </main>
