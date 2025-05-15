@@ -26,6 +26,7 @@ interface Trabajo {
   fecha: string;
   cliente: string;
   modelo: string;
+  imei?: string; // ✅ NUEVO CAMPO
   trabajo: string;
   estado: string;
   observaciones?: string;
@@ -37,6 +38,7 @@ export default function GestionTrabajosPage() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
+  const [filtroIMEI, setFiltroIMEI] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroTrabajo, setFiltroTrabajo] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADO">("TODOS");
@@ -201,14 +203,17 @@ export default function GestionTrabajosPage() {
   const trabajosFiltrados = useMemo(() => {
     const texto = filtroTexto.trim().toLowerCase();
     const textoTrabajo = filtroTrabajo.trim().toLowerCase();
-    
+    const textoIMEI = filtroIMEI.trim().toLowerCase(); // ✅ Asegurate de esto también
+
     return trabajos
-      .filter((t) =>
-        (!texto || [t.cliente, t.modelo].some((campo) =>
-          campo?.toLowerCase().includes(texto)
-        )) &&
-        (!textoTrabajo || t.trabajo?.toLowerCase().includes(textoTrabajo))
-      )
+    .filter((t) =>
+      (!texto || [t.cliente, t.modelo].some((campo) =>
+        campo?.toLowerCase().includes(texto)
+      )) &&
+      (!textoTrabajo || t.trabajo?.toLowerCase().includes(textoTrabajo)) &&
+      (!textoIMEI || t.imei?.toLowerCase().includes(textoIMEI)) // ✅ ESTA LÍNEA ES CLAVE
+
+    )  
       .filter((t) => {
         if (filtroEstado === "TODOS") return true;
         if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE" && (t.estadoCuentaCorriente !== "PAGADO");
@@ -219,7 +224,7 @@ export default function GestionTrabajosPage() {
       })
       .sort((a, b) => parsearFecha(b.fecha).getTime() - parsearFecha(a.fecha).getTime());
     
-    }, [trabajos, filtroTexto, filtroEstado, filtroTrabajo]);
+    }, [trabajos, filtroTexto, filtroEstado, filtroTrabajo, filtroIMEI]);
 
   return (
     <>
@@ -227,27 +232,43 @@ export default function GestionTrabajosPage() {
       <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
         <h1 className="text-2xl font-bold mb-4 text-center">Gestión de Trabajos</h1>
 
+        
+
         <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-        <FiltroTrabajos
-        filtroTexto={filtroTexto}
-        setFiltroTexto={setFiltroTexto}
-        filtroTrabajo={filtroTrabajo}
-        setFiltroTrabajo={setFiltroTrabajo}
-        />
-          <div className="flex gap-2">
-            {["TODOS", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADO"].map((estado) => (
-              <button
-                key={estado}
-                onClick={() => setFiltroEstado(estado as any)}
-                className={`px-4 py-2 rounded ${
-                  filtroEstado === estado ? "bg-blue-600 text-white" : "bg-gray-300 text-black"
-                }`}
-              >
-                {estado}
-              </button>
-            ))}
-          </div>
-        </div>
+  {/* Filtros a la izquierda */}
+  <div className="flex gap-2 items-center">
+    <FiltroTrabajos
+      filtroTexto={filtroTexto}
+      setFiltroTexto={setFiltroTexto}
+      filtroTrabajo={filtroTrabajo}
+      setFiltroTrabajo={setFiltroTrabajo}
+    />
+    <input
+      type="text"
+      placeholder="Buscar por IMEI"
+      value={filtroIMEI}
+      onChange={(e) => setFiltroIMEI(e.target.value)}
+      className="border p-2 rounded h-10"
+    />
+  </div>
+
+  {/* Botones de estado a la derecha */}
+  <div className="flex gap-2">
+    {["TODOS", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADO"].map((estado) => (
+      <button
+        key={estado}
+        onClick={() => setFiltroEstado(estado as any)}
+        className={`px-4 py-2 rounded ${
+          filtroEstado === estado ? "bg-blue-600 text-white" : "bg-gray-300 text-black"
+        }`}
+      >
+        {estado}
+      </button>
+    ))}
+  </div>
+</div>
+
+        
 
         <TablaTrabajos
           trabajos={trabajosFiltrados.map(t => ({ ...t, fecha: formatearFecha(t.fecha) }))}
@@ -266,9 +287,9 @@ export default function GestionTrabajosPage() {
             onClose={() => setModalPagoVisible(false)}
             onGuardar={guardarPago}
             handlePagoChange={handlePagoChange}
-          />
-        )}
-      </main>
-    </>
-  );
-}
+            />
+          )}
+        </main>
+      </>
+    );
+  }

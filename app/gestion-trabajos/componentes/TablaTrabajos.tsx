@@ -14,10 +14,12 @@ interface Trabajo {
   fecha: string;
   cliente: string;
   modelo: string;
+  imei?: string;
   trabajo: string;
   observaciones?: string;
   precio?: number;
   estado: string;
+  fechaModificacion?: string;
   estadoCuentaCorriente?: "PENDEINTE" | "PAGADO"; // ✅ Agregado campo opcional
 }
 
@@ -98,11 +100,14 @@ export default function TablaTrabajos({
             <th className="p-2 border">Fecha</th>
             <th className="p-2 border">Cliente</th>
             <th className="p-2 border">Modelo</th>
+            <th className="p-2 border">IMEI</th>
             <th className="p-2 border">Trabajo</th>
             <th className="p-2 border">Observaciones</th>
             <th className="p-2 border">Precio</th>
             <th className="p-2 border">Estado</th>
+            <th className="p-2 border">Fecha modificación</th>
             <th className="p-2 border">Acciones</th>
+
           </tr>
         </thead>
         <tbody>
@@ -111,10 +116,12 @@ export default function TablaTrabajos({
               <td className="p-2 border">{t.fecha}</td>
               <td className="p-2 border">{t.cliente}</td>
               <td className="p-2 border">{t.modelo}</td>
+              <td className="p-2 border">{t.imei || "-"}</td>
               <td className="p-2 border">{t.trabajo}</td>
               <td className="p-2 border">{t.observaciones || "-"}</td>
               <td className="p-2 border">${t.precio}</td>
               <td className="p-2 border font-semibold">{t.estado}</td>
+              <td className="p-2 border">{t.fechaModificacion || "-"}</td>
               <td className="p-2 border">
   <div className="flex flex-col gap-1">
   <select
@@ -123,6 +130,10 @@ export default function TablaTrabajos({
       const nuevoEstado = e.target.value;
       const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
       const updates: any = {};
+
+      const hoy = new Date();
+      const fechaModificacion = hoy.toLocaleDateString("es-AR");
+      updates.fechaModificacion = fechaModificacion;
 
       if (nuevoEstado === "PAGADO") {
         updates.estadoCuentaCorriente = "PAGADO";
