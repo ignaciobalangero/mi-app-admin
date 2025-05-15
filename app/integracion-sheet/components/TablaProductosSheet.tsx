@@ -130,8 +130,11 @@ export default function TablaProductosSheet({
             };
           });
 
-        const resultadoFinal = [...combinados, ...soloFirestore];
-        setDatos(resultadoFinal);
+          const resultadoFinal = [...combinados, ...soloFirestore];
+          // 🔠 Ordenar por código (alfabéticamente)
+          resultadoFinal.sort((a, b) => a.codigo.localeCompare(b.codigo));
+           setDatos(resultadoFinal);
+          
       } catch (err) {
         console.error("❌ Error cargando datos:", err);
       } finally {
