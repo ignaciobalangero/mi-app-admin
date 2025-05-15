@@ -207,9 +207,10 @@ export default function GestionTrabajosPage() {
 
     return trabajos
     .filter((t) =>
-      (!texto || [t.cliente, t.modelo].some((campo) =>
+      (!texto || [t.cliente, t.modelo, t.fecha].some((campo) =>
         campo?.toLowerCase().includes(texto)
-      )) &&
+      ))
+       &&
       (!textoTrabajo || t.trabajo?.toLowerCase().includes(textoTrabajo)) &&
       (!textoIMEI || t.imei?.toLowerCase().includes(textoIMEI)) // ✅ ESTA LÍNEA ES CLAVE
 
