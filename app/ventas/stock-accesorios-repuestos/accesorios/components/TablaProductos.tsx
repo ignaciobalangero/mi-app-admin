@@ -6,6 +6,7 @@ interface Producto {
   producto: string;
   categoria: string;
   marca: string;
+  modelo: string;
   color: string;
   precioCosto: number;
   precioVenta: number;
@@ -30,6 +31,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
           <th className="p-2 border border-gray-400">Producto</th>
           <th className="p-2 border border-gray-400">Categoría</th>
           <th className="p-2 border border-gray-400">Marca</th>
+          <th className="p-2 border border-gray-400">Modelo</th>
           <th className="p-2 border border-gray-400">Color</th>
           <th className="p-2 border border-gray-400">Costo</th>
           <th className="p-2 border border-gray-400">Precio</th>
@@ -54,6 +56,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
             <td className="p-2 border border-gray-300">{p.producto}</td>
             <td className="p-2 border border-gray-300">{p.categoria}</td>
             <td className="p-2 border border-gray-300">{p.marca}</td>
+            <td className="p-2 border border-gray-300">{p.modelo}</td>
             <td className="p-2 border border-gray-300">{p.color}</td>
             <td className="p-2 border border-gray-300">{p.moneda} ${p.precioCosto}</td>
             <td className="p-2 border border-gray-300">{p.moneda} ${p.precioVenta}</td>

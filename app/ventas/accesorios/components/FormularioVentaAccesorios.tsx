@@ -42,6 +42,19 @@ export default function FormularioVentaAccesorios(props: Props) {
   const [monedaPago, setMonedaPago] = useState("ARS");
   const [formaPago, setFormaPago] = useState("");
   const [observacionesPago, setObservacionesPago] = useState("");
+  const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
+const [cliente, setCliente] = useState("");
+const [producto, setProducto] = useState("");
+const [cantidad, setCantidad] = useState(1);
+const [precio, setPrecio] = useState(0);
+const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+const [cotizacion, setCotizacion] = useState(1000);
+const [codigo, setCodigo] = useState("");
+const [marca, setMarca] = useState("");
+const [modelo, setModelo] = useState("");
+const [categoria, setCategoria] = useState("");
+const [color, setColor] = useState("");
+
 
   const total =
     Number(props.precio) * Number(props.cantidad) *
@@ -64,7 +77,34 @@ export default function FormularioVentaAccesorios(props: Props) {
 
   return (
     <div className="flex flex-wrap gap-3 justify-center mb-6 items-start">
-      <SeccionDatosVenta {...props} total={total} />
+      
+      <SeccionDatosVenta
+  fecha={fecha}
+  cliente={cliente}
+  setCliente={setCliente}
+  producto={producto}
+  setProducto={setProducto}
+  cantidad={cantidad}
+  setCantidad={setCantidad}
+  precio={precio}
+  setPrecio={setPrecio}
+  moneda={moneda}
+  setMoneda={setMoneda}
+  cotizacion={cotizacion}
+  setCotizacion={setCotizacion}
+  codigo={codigo}
+  setCodigo={setCodigo}
+  marca={marca}
+  setMarca={setMarca}
+  modelo={modelo}
+  setModelo={setModelo}
+  categoria={categoria}
+  setCategoria={setCategoria}
+  color={color}
+  setColor={setColor}
+  total={total}
+/>
+
 
       <div className="flex items-end gap-2">
         <button

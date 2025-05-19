@@ -21,12 +21,13 @@ export default function StockProductosPage() {
   const router = useRouter();
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
-  const [codigo, setCodigo] = useState(uuidv4().slice(0, 8));
+  const [codigo, setCodigo] = useState("");
   const [proveedor, setProveedor] = useState("");
   const [producto, setProducto] = useState("");
   const [categoria, setCategoria] = useState("");
   const [calidad, setCalidad] = useState("");
   const [marca, setMarca] = useState("");
+  const [modelo, setModelo] = useState("");
   const [color, setColor] = useState("");
   const [precioCosto, setPrecioCosto] = useState(0);
   const [precioVenta, setPrecioVenta] = useState(0);
@@ -95,6 +96,7 @@ export default function StockProductosPage() {
       categoria,
       calidad,
       marca,
+      modelo,
       color,
       precioCosto,
       precioVenta,
@@ -110,15 +112,23 @@ export default function StockProductosPage() {
       await updateDoc(doc(db, `negocios/${negocioID}/stockRepuestos`, editandoId), data);
       setEditandoId(null);
     } else {
-      await addDoc(collection(db, `negocios/${negocioID}/stockRepuestos`), data);
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
+const nuevoCodigo = `ACC${String(snap.size + 1).padStart(3, "0")}`;
+
+await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
+  ...data,
+  codigo: nuevoCodigo,
+});
+
     }
 
-    setCodigo(uuidv4().slice(0, 8));
+    setCodigo("");
     setProveedor("");
     setProducto("");
     setCategoria("");
     setCalidad("");
     setMarca("");
+    setModelo("");
     setColor("");
     setPrecioCosto(0);
     setPrecioVenta(0);
@@ -141,6 +151,7 @@ export default function StockProductosPage() {
     setCategoria(prod.categoria);
     setCalidad(prod.calidad || "");
     setMarca(prod.marca);
+    setModelo(prod.modelo || "");
     setColor(prod.color);
     setPrecioCosto(prod.precioCosto);
     setPrecioVenta(prod.precioVenta);
@@ -222,6 +233,8 @@ export default function StockProductosPage() {
             setCalidad={setCalidad}
             marca={marca}
             setMarca={setMarca}
+            modelo={modelo}
+            setModelo={setModelo}
             color={color}
             setColor={setColor}
             precioCosto={precioCosto}

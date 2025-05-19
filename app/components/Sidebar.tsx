@@ -15,6 +15,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
 
   const botonesAdmin = [
     { label: "Inicio", icono: "🏠", href: "/" },
+    { label: "Ventas General", icono: "🧾", href: "/ventas-general" },
     { label: "Orden de trabajo", icono: "🛠️", href: "/ingreso" },
     { label: "Gestion de Ordenes", icono: "🛠️", href: "/gestion-trabajos" },
     { label: "Administrar $ ordenes", icono: "👥", href: "/resumen" },
@@ -33,6 +34,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
   const botonesEmpleado = [
     { label: "Inicio", icono: "🏠", href: "/" },
     { label: "Ingreso de trabajo", icono: "🛠️", href: "/ingreso" },
+    { label: "Ventas General", icono: "🧾", href: "/ventas-general" },
     { label: "Gestión de Trabajos", icono: "🛠️", href: "/gestion-trabajos" },
     { label: "Venta de teléfonos", icono: "🛒", href: "/ventas/telefonos" },
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },

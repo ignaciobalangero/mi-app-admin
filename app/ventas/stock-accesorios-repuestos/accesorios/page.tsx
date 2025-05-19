@@ -16,16 +16,18 @@ import Acciones from "./components/Acciones";
 import PedidosSugeridos from "./components/PedidosSugeridos";
 import FormularioProducto from "./components/FormularioProducto";
 import TablaProductos from "./components/TablaProductos";
+import { set } from "date-fns";
 
 export default function StockProductosPage() {
   const router = useRouter();
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
-  const [codigo, setCodigo] = useState(uuidv4().slice(0, 8));
+  const [codigo, setCodigo] = useState("");
   const [proveedor, setProveedor] = useState("");
   const [producto, setProducto] = useState("");
   const [categoria, setCategoria] = useState("");
   const [marca, setMarca] = useState("");
+  const [modelo, setModelo] = useState("");
   const [color, setColor] = useState("");
   const [precioCosto, setPrecioCosto] = useState(0);
   const [precioVenta, setPrecioVenta] = useState(0);
@@ -93,6 +95,7 @@ export default function StockProductosPage() {
       producto,
       categoria,
       marca,
+      modelo, 
       color,
       precioCosto,
       precioVenta,
@@ -108,14 +111,22 @@ export default function StockProductosPage() {
       await updateDoc(doc(db, `negocios/${negocioID}/stockAccesorios`, editandoId), data);
       setEditandoId(null);
     } else {
-      await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), data);
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
+const nuevoCodigo = `ACC${String(snap.size + 1).padStart(3, "0")}`;
+
+await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
+  ...data,
+  codigo: nuevoCodigo,
+});
+
     }
 
-    setCodigo(uuidv4().slice(0, 8));
+    setCodigo("");
     setProveedor("");
     setProducto("");
     setCategoria("");
     setMarca("");
+    setModelo("");
     setColor("");
     setPrecioCosto(0);
     setPrecioVenta(0);
@@ -133,19 +144,20 @@ export default function StockProductosPage() {
 
   const editarProducto = (prod: any) => {
     setCodigo(prod.codigo || uuidv4().slice(0, 8));
-    setProveedor(prod.proveedor);
-    setProducto(prod.producto);
-    setCategoria(prod.categoria);
-    setMarca(prod.marca);
-    setColor(prod.color);
-    setPrecioCosto(prod.precioCosto);
-    setPrecioVenta(prod.precioVenta);
-    setPrecioVentaPesos(prod.precioVentaPesos);
-    setMoneda(prod.moneda);
-    setCotizacion(prod.cotizacion);
-    setCantidad(prod.cantidad);
-    setStockIdeal(prod.stockIdeal);
-    setEditandoId(prod.id);
+    setProveedor(prod.proveedor || "");
+    setProducto(prod.producto || "");
+    setCategoria(prod.categoria || "");
+    setMarca(prod.marca || "");
+    setModelo(prod.modelo || "");
+    setColor(prod.color || "");
+    setPrecioCosto(prod.precioCosto || 0);
+    setPrecioVenta(prod.precioVenta || 0);
+    setPrecioVentaPesos(prod.precioVentaPesos || 0);
+    setMoneda(prod.moneda || "");
+    setCotizacion(prod.cotizacion || null);
+    setCantidad(prod.cantidad || 1);
+    setStockIdeal(prod.stockIdeal || 5);
+    setEditandoId(prod.id || "");
     setMostrarFormulario(true);
   };
 
@@ -215,6 +227,8 @@ export default function StockProductosPage() {
             setCategoria={setCategoria}
             marca={marca}
             setMarca={setMarca}
+            modelo={modelo}
+            setModelo={setModelo}
             color={color}
             setColor={setColor}
             precioCosto={precioCosto}

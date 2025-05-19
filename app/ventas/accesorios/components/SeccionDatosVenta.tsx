@@ -23,6 +23,8 @@ interface Props {
   marca: string;
   setMarca: (valor: string) => void;
   categoria: string;
+  setModelo: (valor: string) => void;
+  modelo: string;
   setCategoria: (valor: string) => void;
   color: string;
   setColor: (valor: string) => void;
@@ -54,6 +56,7 @@ export default function SeccionDatosVenta(props: Props) {
           setProducto={props.setProducto}
           setPrecio={props.setPrecio}
           setMarca={props.setMarca}
+          setModelo={props.setModelo}
           setCategoria={props.setCategoria}
           setColor={props.setColor}
           setCodigo={props.setCodigo}
@@ -77,6 +80,15 @@ export default function SeccionDatosVenta(props: Props) {
           type="text"
           value={props.marca}
           onChange={(e) => props.setMarca(e.target.value)}
+          className="p-2 border border-gray-400 rounded"
+        />
+      </div>
+      <div className="flex flex-col w-40">
+        <label className="text-xs text-gray-600 mb-1">Modelo</label>
+        <input
+          type="text"
+          value={props.modelo}
+          onChange={(e) => props.setModelo(e.target.value)}
           className="p-2 border border-gray-400 rounded"
         />
       </div>

@@ -73,12 +73,16 @@ export default function ResumenCuenta() {
         const d = doc.data();
         const key = obtenerMesAnio(d.fecha);
       
-        if (d.estado === "ENTREGADO" && d.precio != null && key) {
+        if (
+          (d.estado === "ENTREGADO" || d.estado === "PAGADO") &&
+          d.precio != null &&
+          key
+        ) {
           if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0 };
-          
-          // 🔥 CORREGIDO: Si d.costo no existe, se toma como 0
+        
           resumen[key].trabajos += Number(d.precio) - Number(d.costo || 0);
         }
+        
       });
       
 

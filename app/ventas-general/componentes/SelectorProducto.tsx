@@ -1,7 +1,8 @@
+// Archivo: SelectorProducto.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -30,6 +31,7 @@ interface ProductoStock {
   proveedor?: string;
   color?: string;
   moneda?: "ARS" | "USD";
+  hoja?: string; // ✅ agregamos esta línea
 }
 
 export default function SelectorProducto({
@@ -55,14 +57,11 @@ export default function SelectorProducto({
       setNegocioID(rol.negocioID);
     }
   }, [rol]);
-  
 
   useEffect(() => {
     const cargarProductos = async () => {
       if (!negocioID) return;
-      const snap = await getDocs(
-        collection(db, `negocios/${negocioID}/stockAccesorios`)
-      );
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
       const lista: ProductoStock[] = [];
       snap.forEach((doc) => {
         const data = doc.data();
@@ -100,7 +99,7 @@ export default function SelectorProducto({
     setPrecio(seleccionado.precioVenta || 0);
     setMarca(seleccionado.marca || "");
     setModelo(seleccionado.modelo || "");
-    setCategoria(seleccionado.categoria || "");
+    setCategoria(seleccionado.hoja || seleccionado.categoria || "");
     setColor(seleccionado.color || "");
     setCodigo(seleccionado.id);
     if (setMoneda && seleccionado.moneda) {
@@ -134,7 +133,7 @@ export default function SelectorProducto({
             >
               <strong>{p.nombre}</strong>
               <div className="text-gray-600 text-xs mt-1 leading-tight">
-                Marca: {p.marca || "—"} · Modelo: {p.modelo || "—"} . Categoría: {p.categoria || "—"}<br />
+                Marca: {p.marca || "—"} · Modelo: {p.modelo || "—"} · Categoría: {p.hoja || p.categoria || "—"}<br />
                 Stock: {p.cantidad ?? "—"} · Precio: ${p.precioVenta?.toLocaleString("es-AR") ?? "—"}<br />
                 Proveedor: {p.proveedor || "—"} · Color: {p.color || "—"}
               </div>
