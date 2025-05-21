@@ -113,15 +113,15 @@ export default function TablaTrabajos({
         <tbody>
           {trabajosPaginados.map((t) => (
             <tr key={t.firebaseId} className={obtenerClaseEstado(t)}>
-              <td className="p-2 border">{t.fecha}</td>
-              <td className="p-2 border">{t.cliente}</td>
+              <td className="p-2 border w-20">{t.fecha}</td>
+              <td className="p-2 border w-32">{t.cliente}</td>
               <td className="p-2 border">{t.modelo}</td>
               <td className="p-2 border">{t.imei || "-"}</td>
               <td className="p-2 border">{t.trabajo}</td>
               <td className="p-2 border">{t.observaciones || "-"}</td>
               <td className="p-2 border">${t.precio}</td>
               <td className="p-2 border font-semibold">{t.estado}</td>
-              <td className="p-2 border">{t.fechaModificacion || "-"}</td>
+              <td className="p-2 border w-20">{t.fechaModificacion || "-"}</td>
               <td className="p-2 border">
   <div className="flex flex-col gap-1">
   <select
@@ -178,25 +178,25 @@ export default function TablaTrabajos({
     <div className="flex flex-wrap gap-1 mt-1">
       <button
         onClick={() => manejarClickEditar(t.firebaseId)}
-        className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs"
+        className="bg-yellow-500 hover:bg-yellow-600 text-white px-1 py-1 rounded text-xs"
       >
         Editar
       </button>
       <button
         onClick={() => eliminarTrabajo(t.firebaseId)}
-        className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs"
+        className="bg-red-600 hover:bg-red-700 text-white px-1 py-1 rounded text-xs"
       >
         Eliminar
       </button>
       <button
         onClick={() => onPagar(t)}
-        className="bg-green-700 hover:bg-green-800 text-white px-2 py-1 rounded text-xs"
+        className="bg-green-700 hover:bg-green-800 text-white px-1 py-1 rounded text-xs"
       >
         Pagar
       </button>
       <button
         onClick={() => setTrabajoSeleccionado(t)}
-        className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs"
+        className="bg-gray-600 hover:bg-gray-700 text-white px-1 py-1 rounded text-xs"
       >
         Ver más
       </button>

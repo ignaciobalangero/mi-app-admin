@@ -15,8 +15,8 @@ export default function VentasPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-gray-100 text-black p-4">
-        <div className="bg-white p-6 rounded-xl shadow-lg max-w-7xl mx-auto space-y-6">
+      <main className="min-h-screen bg-gray-100 text-black p-7">
+        <div className="bg-white p-4 rounded-xl shadow-lg max-w-9xl mx-auto space-y-6">
           <FormularioVenta onVentaGuardada={obtenerVentas} />
           <TablaVentas refrescar={refrescar} />
         </div>

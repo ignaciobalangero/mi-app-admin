@@ -34,6 +34,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     proveedor: "",
     cliente: "",
     modelo: "",
+    marca: "",
     color: "",
     estado: "nuevo",
     bateria: "",
@@ -120,16 +121,19 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   };
 
   const guardar = async () => {
-    const precioFinal = telefonoRecibido?.precioEstimado
-      ? form.precioVenta - telefonoRecibido.precioEstimado
-      : form.precioVenta;
 
-    const baseVenta = {
-      ...form,
-      precioVenta: precioFinal,
-      ganancia: precioFinal - form.precioCosto,
-      creadoEn: Timestamp.now(),
-    };
+
+    const precioFinal = telefonoRecibido?.precioEstimado
+    ? form.precioVenta - telefonoRecibido.precioEstimado
+    : form.precioVenta;
+  
+  const baseVenta = {
+    ...form,
+    precioVenta: precioFinal,
+    ganancia: precioFinal - form.precioCosto,
+    creadoEn: Timestamp.now(),
+  };
+  
 
     const montoPagado = Number(pago.monto || 0);
     const valorTelefono = Number(telefonoRecibido?.precioCompra || 0);
@@ -178,6 +182,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       });
     }
 
+  
     const saldo = precioFinal - totalPagado;
     if (saldo > 0 && form.cliente) {
       await addDoc(collection(db, `negocios/${negocioID}/cuenta-corriente`), {
@@ -194,7 +199,33 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
         haber: 0,
         saldo,
       });
-    }
+     }
+     
+    // Guardar resumen en ventasGeneral
+      await addDoc(collection(db, `negocios/${negocioID}/ventasGeneral`), {
+      fecha: form.fecha,
+      cliente: form.cliente,
+      productos: [
+        {
+          categoria: "Teléfono",
+          descripcion: form.estado, // Producto = "nuevo" o "usado"
+          marca: form.marca || "—",
+          modelo: form.modelo,
+          color: form.color || "—",
+          cantidad: 1,
+          precioUnitario: precioFinal,
+          moneda: form.moneda, 
+        },
+      ],
+      total: precioFinal,
+      tipo: "telefono",
+      observaciones: pago.observaciones || "",
+      timestamp: Timestamp.now(),
+    });
+    
+
+    // Redirigir a ventas-general
+    router.push("/ventas-general");
 
     setForm({
       fecha: new Date().toLocaleDateString("es-AR", {
@@ -206,6 +237,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       proveedor: "",
       cliente: "",
       modelo: "",
+      marca: "",
       color: "", 
       estado: "nuevo",
       bateria: "",
@@ -239,14 +271,16 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       <div className="flex items-center gap-2 mb-4">
         <label className="text-sm font-semibold">Moneda:</label>
         <select
-          name="moneda"
-          value={form.moneda}
-          onChange={handleChange}
-          className="p-2 border border-gray-300 rounded"
-        >
-          <option value="ARS">ARS</option>
-          <option value="USD">USD</option>
-        </select>
+  name="moneda"
+  value={form.moneda}
+  onChange={handleChange}
+  className="p-2 border border-gray-300 rounded"
+  disabled={!!form.stockID} // ✅ desactiva si vino del stock
+>
+  <option value="ARS">ARS</option>
+  <option value="USD">USD</option>
+</select>
+
       </div>
 
       {telefonoRecibido && telefonoRecibido.precioCompra && (

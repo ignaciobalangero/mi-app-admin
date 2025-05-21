@@ -65,7 +65,7 @@ export default function ModalRepuesto({ isOpen, onClose, onAgregar }: Props) {
       precioUnitario: precio,
       total: precio * cantidad,
       codigo,
-      moneda,
+      moneda: "USD", // moneda fija para repuestos
     });
 
     onClose();

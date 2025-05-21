@@ -47,7 +47,7 @@ function Home() {
         let trabajosCount = 0;
         trabajosSnap.forEach((doc) => {
           const d = doc.data();
-          if (d.estado === "ENTREGADO") {
+          if (d.estado === "ENTREGADO" || d.estado === "PAGADO") {
             trabajosCount++;
           }
         });

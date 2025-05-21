@@ -138,14 +138,21 @@ export default function ResumenPage() {
   };
 
   const trabajosFiltrados = trabajos
-    .filter(
-      (t) =>
-        t.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) &&
-        t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase())
-    )
-    .filter((t) =>
-      filtroEstado === "TODOS" ? true : t.estado === filtroEstado
-    );
+  .filter(
+    (t) =>
+      t.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) &&
+      t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase())
+  )
+  .filter((t) => {
+    if (filtroEstado === "TODOS") return true;
+    if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "PAGADO";
+    return t.estado === filtroEstado;
+  })
+  .sort((a, b) => {
+    const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
+    const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
+    return fechaB - fechaA; // más reciente arriba
+  });  
 
   const totalPaginas = Math.ceil(trabajosFiltrados.length / ITEMS_POR_PAGINA);
   const trabajosPaginados = trabajosFiltrados.slice(
@@ -175,6 +182,49 @@ export default function ResumenPage() {
             onChange={(e) => setFiltroModelo(e.target.value)}
             className="bg-white border border-gray-400 p-2 rounded text-black"
           />
+          <div className="flex gap-2 flex-wrap justify-center">
+  <button
+    onClick={() => setFiltroEstado("TODOS")}
+    className={`px-3 py-1 rounded border ${
+      filtroEstado === "TODOS" ? "bg-blue-600 text-white" : "bg-white"
+    }`}
+  >
+    Todos
+  </button>
+  <button
+    onClick={() => setFiltroEstado("PENDIENTE")}
+    className={`px-3 py-1 rounded border ${
+      filtroEstado === "PENDIENTE" ? "bg-red-400 text-white" : "bg-white"
+    }`}
+  >
+    Pendientes
+  </button>
+  <button
+    onClick={() => setFiltroEstado("REPARADO")}
+    className={`px-3 py-1 rounded border ${
+      filtroEstado === "REPARADO" ? "bg-yellow-400 text-white" : "bg-white"
+    }`}
+  >
+    Reparados
+  </button>
+  <button
+    onClick={() => setFiltroEstado("ENTREGADO")}
+    className={`px-3 py-1 rounded border ${
+      filtroEstado === "ENTREGADO" ? "bg-green-400 text-white" : "bg-white"
+    }`}
+  >
+    Entregados
+  </button>
+  <button
+    onClick={() => setFiltroEstado("PAGADO")}
+    className={`px-3 py-1 rounded border ${
+      filtroEstado === "PAGADO" ? "bg-blue-400 text-white" : "bg-white"
+    }`}
+  >
+    Pagados
+  </button>
+</div>
+
           <button
             onClick={exportarCSV}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
@@ -182,12 +232,6 @@ export default function ResumenPage() {
             Exportar CSV
           </button>
 
-          <button
-            onClick={() => setMostrarPagados(!mostrarPagados)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-          >
-            {mostrarPagados ? "Ocultar trabajos pagados" : "Mostrar trabajos pagados"}
-          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -224,7 +268,7 @@ export default function ResumenPage() {
                       : ""
                     }`}                    
                   >
-                    <td className="p-2 border-r border-gray-300">{t.fecha}</td>
+                    <td className="p-2 border-r border-gray-300 w-20">{t.fecha}</td>
                     <td className="p-2 border-r border-gray-300">{t.cliente}</td>
                     <td className="p-2 border-r border-gray-300">{t.modelo}</td>
                     <td className="p-2 border-r border-gray-300">{t.trabajo}</td>
@@ -250,20 +294,23 @@ export default function ResumenPage() {
                     <td className="p-2 border-r border-gray-300">
                       {typeof ganancia === "number" ? `$${ganancia}` : "—"}
                     </td>
-                    <td className="p-2 space-x-2">
-                      <button
-                        onClick={() => editarTrabajo(t.firebaseId)}
-                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => eliminarTrabajo(t.firebaseId)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
-                      >
-                        Eliminar
-                      </button>
-                    </td>
+                    <td className="p-2 border-r border-gray-300">
+  <div className="flex gap-2">
+    <button
+      onClick={() => editarTrabajo(t.firebaseId)}
+      className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm"
+    >
+      Editar
+    </button>
+    <button
+      onClick={() => eliminarTrabajo(t.firebaseId)}
+      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+    >
+      Eliminar
+    </button>
+  </div>
+</td>
+
                   </tr>
                 );
               })}

@@ -47,6 +47,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
       }
 
       await deleteDoc(doc(db, `negocios/${negocioID}/ventaTelefonos/${ventaAEliminar.id}`));
+      await deleteDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${ventaAEliminar.id}`));
 
       const snapshot = await getDocs(collection(db, `negocios/${negocioID}/ventaTelefonos`));
       const nuevasVentas = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -129,7 +130,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
               <td className="p-2 border border-gray-300">${v.precioCosto?.toLocaleString("es-AR")}</td>
               <td className="p-2 border border-gray-300">${v.precioVenta?.toLocaleString("es-AR")}</td>
               <td className="p-2 border border-gray-300">{v.montoEntregado ? v.montoEntregado : "-"}</td>
-              <td className="p-2 border border-gray-300">{v.monedaEntregado || "-"}</td>
+              <td className="p-2 border border-gray-300">{v.productos?.[0]?.moneda || "-"}</td>
               <td className="p-2 border border-gray-300">${(v.precioVenta - v.precioCosto)?.toLocaleString("es-AR")}</td>
               <td className="p-2 border border-gray-300">
                 <button onClick={() => onEditar(v)} className="text-blue-600 hover:underline mr-2">Editar</button>

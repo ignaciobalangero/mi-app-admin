@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useRol } from "@/lib/useRol";
-import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, addDoc, collection, getDocs, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Header from "../../Header";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -110,20 +110,53 @@ export default function FormularioEdicionVenta() {
   
     const ref = doc(db, `negocios/${rol.negocioID}/ventasGeneral/${id}`);
     const snap = await getDoc(ref);
-  
     if (!snap.exists()) return;
+  
     const venta = snap.data();
   
+    // Reponer accesorios
     const accesorios = venta.productos.filter((p: any) => p.categoria === "Accesorio" && p.codigo);
     await reponerAccesoriosAlStock({ productos: accesorios, negocioID: rol.negocioID });
   
+    // Reponer repuestos
     const repuestos = venta.productos.filter((p: any) => p.categoria === "Repuesto" && p.codigo);
     await reponerRepuestosAlStock({ productos: repuestos, negocioID: rol.negocioID });
   
-    await deleteDoc(ref);
+    // Reponer teléfonos y eliminar ventaTelefonos si corresponde
+    if (venta.tipo === "telefono") {
+      const telefono = venta.productos?.[0];
+      if (telefono && telefono.modelo && telefono.color) {
+        // Reponer al stock
+        await addDoc(collection(db, `negocios/${rol.negocioID}/stockTelefonos`), {
+          modelo: telefono.modelo,
+          color: telefono.color,
+          estado: telefono.descripcion || "nuevo",
+          precioVenta: telefono.precioUnitario,
+          creadoEn: new Date(),
+        });
   
+        // Buscar y eliminar la venta en ventaTelefonos
+        const ventaSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/ventaTelefonos`));
+        const match = ventaSnap.docs.find((doc) => {
+          const data = doc.data();
+          return (
+            data.cliente === venta.cliente &&
+            data.modelo === telefono.modelo &&
+            data.color === telefono.color
+          );
+        });
+  
+        if (match) {
+          await deleteDoc(doc(db, `negocios/${rol.negocioID}/ventaTelefonos/${match.id}`));
+        }
+      }
+    }
+  
+    // Finalmente eliminar de ventasGeneral
+    await deleteDoc(ref);
     router.push("/ventas-general");
   };
+  
   
   return (
     <>

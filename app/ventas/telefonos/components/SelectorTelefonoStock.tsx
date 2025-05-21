@@ -48,6 +48,7 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
       precioVenta: t.precioVenta ? Number(t.precioVenta) : "",
       estado: t.estado || "nuevo",
       bateria: t.estado?.toLowerCase() === "usado" ? t.bateria : "",
+      moneda: t.moneda || "ARS", 
       stockID: t.id,
     }));
   };

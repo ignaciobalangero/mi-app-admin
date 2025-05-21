@@ -20,9 +20,11 @@ interface Trabajo {
 interface Pago {
   cliente: string;
   monto?: number | null;
+  montoUSD?: number | null; // ✅ agregar esto
   moneda: "ARS" | "USD";
   fecha: string;
 }
+
 
 interface CuentaCorriente {
   cliente: string;
@@ -49,6 +51,7 @@ export default function CuentaCorrientePage() {
 
       const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
       const pagosSnap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
+      const ventasSnap = await getDocs(collection(db, `negocios/${negocioID}/ventasGeneral`));
 
       const cuentasMap: { [cliente: string]: { saldoPesos: number; saldoUSD: number } } = {};
 
@@ -72,23 +75,56 @@ export default function CuentaCorrientePage() {
         }
       });
 
+
+// Procesar ventas de ventasGeneral
+ventasSnap.forEach((doc) => {
+  const data = doc.data();
+  const cliente = data.cliente;
+  const total = Number(data.total || 0);
+  const productos = data.productos || [];
+
+  if (!cliente || productos.length === 0) return;
+
+  if (!cuentasMap[cliente]) {
+    cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0 };
+  }
+
+  const primerTelefono = productos.find((p: any) => p.categoria === "Teléfono");
+
+  if (primerTelefono) {
+    const moneda = (primerTelefono.moneda || "ARS").toUpperCase();
+    if (moneda === "USD") {
+      cuentasMap[cliente].saldoUSD += total;
+    } else {
+      cuentasMap[cliente].saldoPesos += total;
+    }
+  } else {
+    cuentasMap[cliente].saldoPesos += total;
+  }
+  
+});
+
+
       // Procesar pagos
-      pagosSnap.forEach((doc) => {
-        const data = doc.data() as Pago;
-        const cliente = data.cliente;
-        const monto = Number(data.monto || 0);
-        const moneda = data.moneda || "ARS";
+// Procesar pagos
+pagosSnap.forEach((doc) => {
+  const data = doc.data() as Pago;
+  const cliente = data.cliente;
+  const moneda = data.moneda || "ARS";
 
-        if (!cuentasMap[cliente]) {
-          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0 };
-        }
+  if (!cuentasMap[cliente]) {
+    cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0 };
+  }
 
-        if (moneda === "ARS") {
-          cuentasMap[cliente].saldoPesos -= monto;
-        } else {
-          cuentasMap[cliente].saldoUSD -= monto;
-        }
-      });
+  if (moneda === "ARS") {
+    const monto = Number(data.monto || 0);
+    cuentasMap[cliente].saldoPesos -= monto;
+  } else {
+    const montoUSD = Number(data.montoUSD || 0);
+    cuentasMap[cliente].saldoUSD -= montoUSD;
+  }
+});
+
 
       const cuentasFinales = Object.entries(cuentasMap)
         .map(([cliente, valores]) => ({
@@ -135,7 +171,7 @@ export default function CuentaCorrientePage() {
           💰 Deuda Total: {formatPesos(totalPesos)} y {formatUSD(totalUSD)}
         </div>
 
-        <div className="mb-4 flex flex-wrap gap-4 justify-center sm:justify-between items-center">
+        <div className="mb-6 flex flex-wrap gap-4 justify-center sm:justify-between items-center">
           <input
             type="text"
             placeholder="Filtrar por cliente"
@@ -155,9 +191,9 @@ export default function CuentaCorrientePage() {
           <table className="w-full table-auto border-collapse">
             <thead className="bg-gray-300">
               <tr>
-                <th className="p-3 border border-gray-400 text-left">Cliente</th>
-                <th className="p-3 border border-gray-400 text-left">Saldo Adeudado ($)</th>
-                <th className="p-3 border border-gray-400 text-left">Saldo Adeudado (USD)</th>
+                <th className="p-3 border  border-gray-400 text-left">Cliente</th>
+                <th className="p-3 border  border-gray-400 text-left">Saldo Adeudado ($)</th>
+                <th className="p-3 border  border-gray-400 text-left">Saldo Adeudado (USD)</th>
               </tr>
             </thead>
             <tbody>

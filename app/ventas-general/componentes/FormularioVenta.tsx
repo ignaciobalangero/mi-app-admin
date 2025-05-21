@@ -7,9 +7,10 @@ import {
   collection,
   getDocs,
   addDoc,
+  doc,
+  getDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import ModalTelefono from "./ModalTelefono";
 import ModalAccesorio from "./ModalAccesorio";
 import ModalRepuesto from "./ModalRepuestos";
 import ModalPago from "./ModalPago";
@@ -24,6 +25,7 @@ interface ProductoVenta {
   descripcion: string;
   cantidad: number;
   precioUnitario: number;
+  moneda?: "ARS" | "USD"; 
   codigo?: string; // ← ✅ agregamos esto
   producto?: string;
   marca?: string;
@@ -48,6 +50,7 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
   const [guardadoConExito, setGuardadoConExito] = useState(false);
   const router = useRouter();
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
+  const [cotizacion, setCotizacion] = useState(1000); // valor inicial de respaldo
   
 
 
@@ -71,6 +74,29 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
     cargarClientes();
   }, [rol?.negocioID]);
 
+  useEffect(() => {
+    const obtenerCotizacion = async () => {
+      if (!rol?.negocioID) return;
+  
+      const docRef = doc(db, `negocios/${rol.negocioID}/configuracion/moneda`);
+      const docSnap = await getDoc(docRef);
+  
+      if (docSnap.exists()) {
+        const data = docSnap.data() as {
+          usarDolarManual?: boolean;
+          dolarManual?: number;
+        };
+  
+        if (data.usarDolarManual && data.dolarManual) {
+          setCotizacion(data.dolarManual);
+        }
+      }
+    };
+  
+    obtenerCotizacion();
+  }, [rol?.negocioID]);  
+  
+  
   const agregarProducto = (producto: ProductoVenta) => {
     setProductos([...productos, producto]);
   };
@@ -87,47 +113,56 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
       alert("Faltan datos para guardar la venta.");
       return;
     }
-
-    const total = productos.reduce((acc, p) => acc + p.precioUnitario * p.cantidad, 0);
-
+  
+    // ✅ Cotización actual desde Firebase (ya la tenés en tu useState)
+    const cotiz = cotizacion;
+  
+    // Mapear productos y calcular total individual
+    const productosFinal = productos.map((p) => {
+      const total = p.moneda === "USD"
+        ? p.precioUnitario * p.cantidad * cotiz
+        : p.precioUnitario * p.cantidad;
+  
+      return {
+        ...p,
+        moneda: p.moneda || "ARS",
+        total,
+      };
+    });
+  
+    const totalVenta = productosFinal.reduce((acc, p) => acc + p.total, 0);
+  
     const venta = {
       fecha,
       cliente,
       observaciones,
-      productos,
-      total,
+      productos: productosFinal,
+      total: totalVenta,
       tipo: "general",
       timestamp: serverTimestamp(),
     };
-
+  
     try {
       const ventaRef = await addDoc(
         collection(db, `negocios/${rol.negocioID}/ventasGeneral`),
         venta
       );
-      // Descontar del stock si hay accesorios con código
+  
       await descontarAccesorioDelStock({
         productos: productos.filter((p) => p.categoria === "Accesorio" && p.codigo),
         negocioID: rol.negocioID,
       });
-
+  
       await descontarRepuestoDelStock({
         productos: productos
-  .filter((p) => p.categoria === "Repuesto" && p.codigo)
-  .map((p) => ({ codigo: p.codigo!, cantidad: p.cantidad })),
+          .filter((p) => p.categoria === "Repuesto" && p.codigo)
+          .map((p) => ({ codigo: p.codigo!, cantidad: p.cantidad })),
         negocioID: rol.negocioID,
       });
-      
-
-      setGuardadoExitoso(true);
-      setTimeout(() => setGuardadoExitoso(false), 3000);
-      
-      localStorage.setItem("actualizarVentas", "1");
-      router.push("/ventas-general");
-            
-
+  
+      // Guardar pago si lo hay
       if (pago.monto && Number(pago.monto) > 0) {
-        const pagoData = {
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
           fecha,
           cliente,
           monto: Number(pago.monto),
@@ -138,11 +173,10 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
           origen: "ventasGeneral",
           idVenta: ventaRef.id,
           timestamp: serverTimestamp(),
-        };
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), pagoData);
+        });
       }
-
-
+  
+      // Reset
       setCliente("");
       setProductos([]);
       setObservaciones("");
@@ -150,29 +184,31 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
       setPago({ monto: "", moneda: "ARS", formaPago: "", destino: "", observaciones: "" });
       setMostrarModalPago(false);
       setGuardadoConExito(false);
-      onVentaGuardada(); // ✅ actualiza la tabla
-      
+      setGuardadoExitoso(true);
+      setTimeout(() => setGuardadoExitoso(false), 3000);
+      localStorage.setItem("actualizarVentas", "1");
+      router.push("/ventas-general");
+      onVentaGuardada();
     } catch (error) {
       console.error("Error al guardar venta:", error);
       alert("Hubo un error al guardar la venta.");
     }
-    
   };
-
+  
   return (
     <div className="space-y-4">
       <div className="space-y-2">
       <div className="flex flex-col sm:flex-row gap-4">
-  <div className="flex-1">
+  <div className="w-40">
     <label>Fecha</label>
     <input
       type="date"
       value={fecha}
       onChange={(e) => setFecha(e.target.value)}
-      className="border px-2 py-1 w-full"
+      className="border px-4 text-center py-1 w-full"
     />
   </div>
-  <div className="flex-1">
+  <div className="w-56">
     <label>Cliente</label>
     <input
       type="text"
@@ -188,20 +224,23 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
       ))}
     </datalist>
   </div>
-</div>
-
-
-
-        <label>Observaciones</label>
-        <textarea
+  <div className="w56">
+  <label>Observaciones</label>
+        <input
           value={observaciones}
           onChange={(e) => setObservaciones(e.target.value)}
-          className="border px-2 py-1 w-full"
+         className="border px-2 py-1 w-full"
         />
+</div>        
+</div>
+
       </div>
 
       <div className="flex gap-4">
-        <button onClick={() => setModalTelefono(true)} className="bg-blue-600 text-white px-4 py-2 rounded">
+      <button
+           onClick={() => router.push("/ventas/telefonos")}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+              >
           Agregar Teléfono
         </button>
         <button onClick={() => setModalAccesorio(true)} className="bg-green-600 text-white px-4 py-2 rounded">
@@ -247,11 +286,8 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
 
       </div>
 
-      <ModalTelefono
-        isOpen={modalTelefono}
-        onClose={() => setModalTelefono(false)}
-        onAgregar={agregarProducto}
-      />
+     
+    
       <ModalAccesorio
         isOpen={modalAccesorio}
         onClose={() => setModalAccesorio(false)}
