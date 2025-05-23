@@ -16,6 +16,7 @@ interface Trabajo {
   modelo: string;
   imei?: string;
   trabajo: string;
+  clave?: string;
   observaciones?: string;
   precio?: number;
   estado: string;
@@ -102,6 +103,7 @@ export default function TablaTrabajos({
             <th className="p-2 border">Modelo</th>
             <th className="p-2 border">IMEI</th>
             <th className="p-2 border">Trabajo</th>
+            <th className="p-3 border">Clave</th>
             <th className="p-2 border">Observaciones</th>
             <th className="p-2 border">Precio</th>
             <th className="p-2 border">Estado</th>
@@ -118,6 +120,7 @@ export default function TablaTrabajos({
               <td className="p-2 border">{t.modelo}</td>
               <td className="p-2 border">{t.imei || "-"}</td>
               <td className="p-2 border">{t.trabajo}</td>
+              <td className="p-2 border">{t.clave || "-"}</td>
               <td className="p-2 border">{t.observaciones || "-"}</td>
               <td className="p-2 border">${t.precio}</td>
               <td className="p-2 border font-semibold">{t.estado}</td>

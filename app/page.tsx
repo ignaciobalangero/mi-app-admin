@@ -7,78 +7,166 @@ import { auth } from "../lib/auth";
 import Header from "./Header";
 import Sidebar from "./components/Sidebar";
 import { useRol } from "../lib/useRol";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 
 function Home() {
   const { rol } = useRol();
   const router = useRouter();
+
   const [trabajosReparados, setTrabajosReparados] = useState(0);
   const [accesoriosVendidos, setAccesoriosVendidos] = useState(0);
   const [telefonosVendidos, setTelefonosVendidos] = useState(0);
-  const [negocioID, setNegocioID] = useState("");
+
+  const [datosGrafico, setDatosGrafico] = useState<any[]>([]);
+  const [totalCajaHoy, setTotalCajaHoy] = useState(0);
 
   const [user] = useAuthState(auth);
-  const [sidebarAbierto, setSidebarAbierto] = useState(true); // ✅
+  const [sidebarAbierto, setSidebarAbierto] = useState(true);
 
+  // ✅ Trabajos entregados/pagados del mes
   useEffect(() => {
-    if (rol?.negocioID) {
-      setNegocioID(rol.negocioID);
-    }
-  }, [rol]);
-  
+    const cargarTrabajosDelMes = async () => {
+      if (!rol?.negocioID) return;
 
-  useEffect(() => {
-    if (rol?.tipo === "cliente") {
-      router.push("/cliente");
-    }
-  }, [rol]);
+      const ref = collection(db, `negocios/${rol.negocioID}/trabajos`);
+      const snap = await getDocs(ref);
 
-  useEffect(() => {
-    const cargarDatos = async () => {
-      if (!rol?.tipo || !negocioID || !user) return;
-      try {
-        if (!negocioID) return;
+      const hoy = new Date();
+      const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
+      const anioActual = hoy.getFullYear().toString();
+      const mesAnioActual = `${mesActual}/${anioActual}`;
 
-        const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
-        const accesoriosSnap = await getDocs(collection(db, `negocios/${negocioID}/ventaAccesorios`));
-        const telefonosSnap = await getDocs(collection(db, `negocios/${negocioID}/ventaTelefonos`));
+      let contador = 0;
 
-        let trabajosCount = 0;
-        trabajosSnap.forEach((doc) => {
-          const d = doc.data();
-          if (d.estado === "ENTREGADO" || d.estado === "PAGADO") {
-            trabajosCount++;
-          }
-        });
+      snap.forEach((doc) => {
+        const data = doc.data();
+        const fecha = data.fecha || "";
+        const estado = data.estado || "";
 
-        let accesoriosCount = 0;
-        accesoriosSnap.forEach((doc) => {
-          const d = doc.data();
-          if (d.cantidad) {
-            accesoriosCount += Number(d.cantidad);
-          }
-        });
+        if (
+          (estado === "ENTREGADO" || estado === "PAGADO") &&
+          fecha.endsWith(mesAnioActual)
+        ) {
+          contador++;
+        }
+      });
 
-        let telefonosCount = 0;
-        telefonosSnap.forEach((doc) => {
-          telefonosCount++;
-        });
-
-        setTrabajosReparados(trabajosCount);
-        setAccesoriosVendidos(accesoriosCount);
-        setTelefonosVendidos(telefonosCount);
-      } catch (error) {
-        console.warn("⚠️ No se pudo cargar el dashboard:", error?.message || error);
-      }
+      setTrabajosReparados(contador);
     };
 
-    if ((rol?.tipo === "admin" || rol?.tipo === "empleado") && negocioID && user) {
-      cargarDatos();
-    }    
-  }, [rol, negocioID]);
+    cargarTrabajosDelMes();
+  }, [rol]);
 
-  // ✅ Cambio solo esta parte:
+  // ✅ Ventas del mes (accesorios/repuestos y teléfonos)
+  useEffect(() => {
+    const cargarVentasDelMes = async () => {
+      if (!rol?.negocioID) return;
+
+      const ref = collection(db, `negocios/${rol.negocioID}/ventasGeneral`);
+      const snap = await getDocs(ref);
+
+      const hoy = new Date();
+      const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
+      const anioActual = hoy.getFullYear().toString();
+      const mesAnioActual = `${mesActual}/${anioActual}`;
+
+      let accesoriosYRepuestos = 0;
+      let telefonos = 0;
+
+      snap.forEach((doc) => {
+        const data = doc.data();
+        const fecha = data.fecha || "";
+        if (!fecha.endsWith(mesAnioActual)) return;
+
+        const productos = data.productos || [];
+        productos.forEach((p: any) => {
+          if (p.categoria === "Teléfono") {
+            telefonos += 1;
+          } else {
+            accesoriosYRepuestos += Number(p.cantidad || 0);
+          }
+        });
+      });
+
+      setAccesoriosVendidos(accesoriosYRepuestos);
+      setTelefonosVendidos(telefonos);
+    };
+
+    cargarVentasDelMes();
+  }, [rol]);
+
+  // ✅ Gráfico mensual y caja diaria
+  useEffect(() => {
+    const cargarResumenMensual = async () => {
+      if (!rol?.negocioID) return;
+
+      const refTrabajos = collection(db, `negocios/${rol.negocioID}/trabajos`);
+      const refVentas = collection(db, `negocios/${rol.negocioID}/ventasGeneral`);
+      const [trabajosSnap, ventasSnap] = await Promise.all([
+        getDocs(refTrabajos),
+        getDocs(refVentas),
+      ]);
+
+      const hoy = new Date();
+      const resumen: Record<string, any> = {};
+      let cajaHoy = 0;
+
+      for (let i = 0; i < 6; i++) {
+        const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+        const key = `${String(fecha.getMonth() + 1).padStart(2, "0")}/${fecha.getFullYear()}`;
+        resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0 };
+      }
+
+      trabajosSnap.forEach((doc) => {
+        const d = doc.data();
+        const fecha = d.fecha || "";
+        const estado = d.estado || "";
+        Object.keys(resumen).forEach((key) => {
+          if ((estado === "ENTREGADO" || estado === "PAGADO") && fecha.endsWith(key)) {
+            resumen[key].trabajos += 1;
+          }
+        });
+      });
+
+      ventasSnap.forEach((doc) => {
+        const d = doc.data();
+        const fecha = d.fecha || "";
+        const productos = d.productos || [];
+
+        const hoyStr = new Date().toLocaleDateString("es-AR");
+
+        productos.forEach((p: any) => {
+          const total = Number(p.total || 0);
+
+          Object.keys(resumen).forEach((key) => {
+            if (fecha.endsWith(key)) {
+              if (p.categoria === "Teléfono") {
+                resumen[key].telefonos += 1;
+              } else {
+                resumen[key].accesorios += Number(p.cantidad || 0);
+              }
+            }
+          });
+
+          if (fecha === hoyStr) {
+            cajaHoy += total;
+          }
+        });
+      });
+
+      const datosOrdenados = Object.values(resumen)
+      .filter((item) => item.trabajos > 0 || item.accesorios > 0 || item.telefonos > 0)
+      .reverse();
+      setDatosGrafico(datosOrdenados);
+      setTotalCajaHoy(cajaHoy);
+    };
+
+    cargarResumenMensual();
+  }, [rol]);
+
+  // ✅ Seguridad por rol
   if (!rol || !rol.tipo) {
     return <p className="text-center text-black mt-10">Cargando panel...</p>;
   }
@@ -97,7 +185,7 @@ function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-green-100 text-green-800 rounded-xl p-6 text-center shadow">
               <div className="text-4xl mb-2">🛠️</div>
-              <h2 className="text-xl font-semibold">Telefonos Reparados</h2>
+              <h2 className="text-xl font-semibold">Teléfonos Reparados</h2>
               <p className="text-2xl font-bold">{trabajosReparados}</p>
             </div>
 
@@ -113,12 +201,35 @@ function Home() {
               <p className="text-2xl font-bold">{telefonosVendidos}</p>
             </div>
           </div>
+
+          {/* Gráfico mensual */}
+          <div className="bg-white rounded-xl shadow p-4 mt-10 mx-auto w-full max-w-4xl">
+            <h2 className="text-xl font-bold mb-4 text-center">Resumen de ventas por mes</h2>
+            <BarChart width={600} height={300} data={datosGrafico} className="mx-auto">
+              <XAxis dataKey="mes" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="trabajos" fill="#34d399" name="Reparaciones" />
+              <Bar dataKey="accesorios" fill="#60a5fa" name="Accesorios/Repuestos" />
+              <Bar dataKey="telefonos" fill="#f97316" name="Teléfonos" />
+            </BarChart>
+          </div>
+
+          {/* Caja diaria */}
+          <div className="bg-white rounded-xl shadow p-4 mt-10 mx-auto text-center w-full max-w-sm">
+            <h2 className="text-xl font-bold mb-2">💰 Caja del día</h2>
+            <p className="text-4xl font-bold text-green-700">
+              ${totalCajaHoy.toLocaleString("es-AR")}
+            </p>
+          </div>
         </main>
       </div>
     </>
   );
 }
 
+// 🔒 Wrapper para proteger por auth
 export default function HomeWrapper() {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();

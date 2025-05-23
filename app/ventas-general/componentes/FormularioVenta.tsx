@@ -133,14 +133,18 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
     const totalVenta = productosFinal.reduce((acc, p) => acc + p.total, 0);
   
     const venta = {
-      fecha,
+      fecha: new Date().toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
       cliente,
       observaciones,
       productos: productosFinal,
       total: totalVenta,
       tipo: "general",
       timestamp: serverTimestamp(),
-    };
+    };    
   
     try {
       const ventaRef = await addDoc(
@@ -237,19 +241,37 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
       </div>
 
       <div className="flex gap-4">
-      <button
-           onClick={() => router.push("/ventas/telefonos")}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-              >
-          Agregar Teléfono
-        </button>
-        <button onClick={() => setModalAccesorio(true)} className="bg-green-600 text-white px-4 py-2 rounded">
-          Agregar Accesorio
-        </button>
-        <button onClick={() => setModalRepuesto(true)} className="bg-yellow-500 text-white px-4 py-2 rounded">
-          Agregar Repuesto
-        </button>
-      </div>
+  <button
+    onClick={() => router.push(`/ventas/telefonos?cliente=${encodeURIComponent(cliente)}`)}
+    disabled={!cliente}
+    className={`px-4 py-2 rounded ${
+      !cliente ? "bg-gray-300 cursor-not-allowed text-gray-600" : "bg-blue-600 text-white"
+    }`}
+  >
+    Agregar Teléfono
+  </button>
+
+  <button
+    onClick={() => setModalAccesorio(true)}
+    disabled={!cliente}
+    className={`px-4 py-2 rounded ${
+      !cliente ? "bg-gray-300 cursor-not-allowed text-gray-600" : "bg-green-600 text-white"
+    }`}
+  >
+    Agregar Accesorio
+  </button>
+
+  <button
+    onClick={() => setModalRepuesto(true)}
+    disabled={!cliente}
+    className={`px-4 py-2 rounded ${
+      !cliente ? "bg-gray-300 cursor-not-allowed text-gray-600" : "bg-yellow-500 text-white"
+    }`}
+  >
+    Agregar Repuesto
+  </button>
+</div>
+
 
       <h2 className="text-xl font-semibold">Productos agregados</h2>
       <ul className="border p-2 rounded">

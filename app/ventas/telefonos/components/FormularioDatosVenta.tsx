@@ -8,6 +8,7 @@ import ModalPago from "./ModalPago";
 import FormularioStock from "@/app/ventas/stock-telefonos/components/FormularioStock";
 import { useRouter } from "next/navigation";
 import { useRol } from "@/lib/useRol";
+import { useSearchParams } from "next/navigation";
 
 interface Props {
   negocioID: string;
@@ -55,6 +56,13 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   });
   const [telefonoRecibido, setTelefonoRecibido] = useState<any | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+useEffect(() => {
+  const clienteParam = searchParams.get("cliente");
+  if (clienteParam) {
+    setForm((prev) => ({ ...prev, cliente: clienteParam }));
+  }
+}, []);
   const { rol } = useRol();
 
 
