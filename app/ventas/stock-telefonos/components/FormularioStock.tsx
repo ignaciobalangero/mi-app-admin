@@ -20,7 +20,7 @@ interface Telefono {
   marca: string;
   estado: "nuevo" | "usado";
   bateria: string;
-  almacenamiento: string;
+  gb: string;
   color: string;
   imei: string;
   serial: string;
@@ -37,7 +37,7 @@ const inicial: Telefono = {
   marca: "",
   estado: "nuevo",
   bateria: "",
-  almacenamiento: "",
+  gb: "",
   color: "",
   imei: "",
   serial: "",
@@ -61,18 +61,34 @@ export default function FormularioStock({
 
   // Si se pasan datos para editar, los cargamos automáticamente
   useEffect(() => {
-    if (datosIniciales) {
-      setForm({
-        ...datosIniciales,
-        fechaIngreso: new Date(datosIniciales.fechaIngreso?.seconds ? datosIniciales.fechaIngreso.toDate() : datosIniciales.fechaIngreso)
-          .toISOString()
-          .split("T")[0],
-      });
-      setEditandoID(datosIniciales.id || null);
-      setMostrarFormulario(true);
-    }
+    if (!datosIniciales) return;
+  
+    const fechaCruda = datosIniciales.fechaIngreso;
+    let fechaIngresoFormateada = "";
+  
+    if (fechaCruda?.seconds && typeof fechaCruda.toDate === "function") {
+      const d = fechaCruda.toDate();
+      if (!isNaN(d.getTime())) {
+        fechaIngresoFormateada = d.toISOString().split("T")[0];
+      }
+    } else if (typeof fechaCruda === "string") {
+      // Detectamos si viene en formato DD/MM/AAAA
+      const partes = fechaCruda.split("/");
+      if (partes.length === 3) {
+        const [dd, mm, yyyy] = partes;
+        fechaIngresoFormateada = `${yyyy}-${mm}-${dd}`; // Formato válido para el input
+      }
+    }    
+  
+    setForm({
+      ...datosIniciales,
+      fechaIngreso: fechaIngresoFormateada,
+    });
+  
+    setEditandoID(datosIniciales.id || null);
+    setMostrarFormulario(true);
   }, [datosIniciales]);
-
+  
   // Si se oculta el formulario, se resetea
   useEffect(() => {
     if (!mostrarFormulario) {
@@ -87,13 +103,29 @@ export default function FormularioStock({
   };
 
   const guardar = async () => {
+    let fechaFormateada: Date;
+
+    if (typeof form.fechaIngreso === "string") {
+      if (form.fechaIngreso.includes("/")) {
+        // viene en formato DD/MM/YYYY
+        const [dd, mm, yyyy] = form.fechaIngreso.split("/");
+        fechaFormateada = new Date(`${yyyy}-${mm}-${dd}`);
+      } else {
+        // viene como YYYY-MM-DD
+        fechaFormateada = new Date(form.fechaIngreso);
+      }
+    } else {
+      fechaFormateada = new Date();
+    }
+    
     const data = {
       ...form,
       estado: form.estado.toLowerCase(),
-      fechaIngreso: Timestamp.fromDate(new Date(form.fechaIngreso)),
+      fechaIngreso: Timestamp.fromDate(fechaFormateada),
       creadoEn: Timestamp.now(),
       proveedor: form.proveedor || (clienteRecibido ? `Recibido de ${clienteRecibido}` : ""),
     };
+    
 
     if (editandoID) {
       await updateDoc(doc(db, `negocios/${negocioID}/stockTelefonos/${editandoID}`), data);
@@ -175,12 +207,13 @@ export default function FormularioStock({
           
           <input
             type="number"
-            name="almacenamiento"
-            value={form.almacenamiento}
-            onChange={(e) => setForm(prev => ({ ...prev, almacenamiento: e.target.value }))}
-            placeholder="almacenamiento"
+            name="gb"
+            value={form.gb}
+            onChange={(e) => setForm(prev => ({ ...prev, gb: e.target.value }))}
+            placeholder="Almacenamiento (GB)"
             className="p-2 border rounded"
           />
+
         
           <input
             type="text"

@@ -5,9 +5,8 @@
 interface Producto {
   id: string;
   codigo: string;
-  producto: string;
   categoria: string;
-  calidad: string; // ✅ NUEVO
+  producto: string;
   marca: string;
   modelo: string;
   color: string;
@@ -17,6 +16,7 @@ interface Producto {
   cantidad: number;
   moneda: "ARS" | "USD";
   stockBajo?: number;
+  proveedor: string;
 }
 
 interface Props {
@@ -31,9 +31,8 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
       <thead className="bg-gray-300 text-left">
         <tr>
           <th className="p-2 border border-gray-400 w-[20px]">Código</th>
-          <th className="p-2 border border-gray-400">Producto</th>
           <th className="p-2 border border-gray-400">Categoría</th>
-          <th className="p-2 border border-gray-400">Calidad</th>
+          <th className="p-2 border border-gray-400">Producto</th>
           <th className="p-2 border border-gray-400">Marca</th>
           <th className="p-2 border border-gray-400">Modelo</th>
           <th className="p-2 border border-gray-400">Color</th>
@@ -41,6 +40,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
           <th className="p-2 border border-gray-400">Precio</th>
           <th className="p-2 border border-gray-400">Venta en pesos</th>
           <th className="p-2 border border-gray-400 w-[5px]">Cantidad</th>
+          <th className="p-2 border border-gray-400 w-[5px]">Proveedor</th>
           <th className="p-2 border border-gray-400 w-[5px]">Acciones</th>
         </tr>
       </thead>
@@ -54,12 +54,11 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
                 : p.cantidad <= (p.stockBajo ?? 3)
                 ? "bg-yellow-100"
                 : "bg-green-100"
-            }`}
+            }`} 
           >
             <td className="p-2 border border-gray-300">{p.codigo}</td>
-            <td className="p-2 border border-gray-300">{p.producto}</td>
             <td className="p-2 border border-gray-300">{p.categoria}</td>
-            <td className="p-2 border border-gray-300">{p.calidad}</td> {/* ✅ NUEVO */}
+            <td className="p-2 border border-gray-300">{p.producto}</td>
             <td className="p-2 border border-gray-300">{p.marca}</td>
             <td className="p-2 border border-gray-300">{p.modelo}</td>
             <td className="p-2 border border-gray-300">{p.color}</td>
@@ -69,6 +68,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
               ${p.precioVentaPesos?.toLocaleString("es-AR")} pesos
             </td>
             <td className="p-2 border border-gray-300">{p.cantidad}</td>
+            <td className="p-2 border border-gray-300">{p.proveedor}</td>
             <td className="p-2 border border-gray-300">
               <button
                 onClick={() => editarProducto(p)}

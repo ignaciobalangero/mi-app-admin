@@ -53,7 +53,10 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
 
   const exportarExcel = () => {
     const hoja = telefonos.map((t) => ({
-      Fecha: t.fechaIngreso?.toDate?.().toLocaleDateString?.("es-AR") || "-",
+      Fecha:
+      typeof t.fechaIngreso === "string"
+       ? t.fechaIngreso
+      : t.fechaIngreso?.toDate?.().toLocaleDateString("es-AR") || "-",
       Proveedor: t.proveedor,
       Modelo: t.modelo,
       Marca: t.marca,
@@ -164,7 +167,12 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
           <tbody>
             {filtrados.map((t) => (
               <tr key={`stock-${t.id || ""}-${t.imei || Math.random()}`} className="border-t hover:bg-gray-100">
-                <td className="p-2 border border-gray-300">{t.fechaIngreso?.toDate?.().toLocaleDateString?.("es-AR") || "-"}</td>
+               <td className="p-2 border border-gray-300">
+  {typeof t.fechaIngreso === "string"
+    ? t.fechaIngreso
+    : t.fechaIngreso?.toDate?.().toLocaleDateString?.("es-AR") || "-"}
+</td>
+
                 <td className="p-2 border border-gray-300">{t.proveedor}</td>
                 <td className="p-2 border border-gray-300">{t.modelo}</td>
                 <td className="p-2 border border-gray-300">{t.marca}</td>
@@ -172,8 +180,9 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
                 <td className="p-2 border border-gray-300">{t.estado?.toLowerCase() === "usado" ? `${t.bateria}%` : "-"}
                 </td>
                 <td className="p-2 border border-gray-300">
-                  {t.almacenamiento ? `${t.almacenamiento} GB` : "-"}
-                  </td>
+                  {t.gb ? `${t.gb} GB` : "-"}
+                </td>
+
                 <td className="p-2 border border-gray-300">{t.color}</td>
                 <td className="p-2 border border-gray-300">{t.imei}</td>
                 <td className="p-2 border border-gray-300">{t.serial}</td>

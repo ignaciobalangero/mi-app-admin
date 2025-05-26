@@ -39,11 +39,18 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
     setForm((prev: any) => ({
       ...prev,
       modelo: t.modelo,
+      fechaIngreso: t.fechaIngreso
+        ? typeof t.fechaIngreso === "string"
+          ? t.fechaIngreso
+          : t.fechaIngreso.toDate?.().toLocaleDateString?.("es-AR") || new Date().toLocaleDateString("es-AR")
+        : new Date().toLocaleDateString("es-AR"),
+      proveedor: t.proveedor || "Sin proveedor",
       marca: t.marca,
-      gb: t.almacenamiento ? Number(t.almacenamiento) : "",
+      gb: t.gb ? Number(t.gb) : "",
       color: t.color,
       imei: t.imei,
       serie: t.serial,
+      observaciones: t.observaciones || "",
       precioCosto: t.precioCompra ? Number(t.precioCompra) : "",
       precioVenta: t.precioVenta ? Number(t.precioVenta) : "",
       estado: t.estado || "nuevo",
@@ -62,6 +69,10 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
             onChange={(e) => setQuery(e.target.value)}
             displayValue={() => form.modelo}
             placeholder="Modelo (escribí o seleccioná del stock)"
+            autoComplete="off"
+            spellCheck={false}
+            autoCorrect="off"
+
           />
           <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-400 rounded mt-1 max-h-60 overflow-y-auto text-sm shadow-lg">
             {opcionesFiltradas.map((t) => (
@@ -75,7 +86,7 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
                 <div>
                   <p className="font-medium text-black">{`${t.modelo} | ${t.color} | IMEI: ${t.imei || "N/D"}`}</p>
                   <p className="text-xs text-gray-800">
-                     {`Almacenamiento: ${t.almacenamiento || "-"} GB | Estado: ${t.estado || "-"} | Serie: ${t.serial || "-"} | Batería: ${t.estado?.toLowerCase() === "usado" ? `${t.bateria || "-"}%` : "-"}`}
+                     {`Almacenamiento: ${t.gb || "-"} GB | Estado: ${t.estado || "-"} | Serie: ${t.serial || "-"} | Batería: ${t.estado?.toLowerCase() === "usado" ? `${t.bateria || "-"}%` : "-"}`}
                       {rol?.tipo === "admin" && (
                           <> | Compra: ${t.precioCompra || "-"} | Venta: ${t.precioVenta || "-"}</>
              )}

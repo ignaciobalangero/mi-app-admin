@@ -3,6 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Combobox } from "@headlessui/react";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -31,6 +32,8 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
   const [cotizacion, setCotizacion] = useState(1000);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("");
+  const [queryCliente, setQueryCliente] = useState("");
+
 
   useEffect(() => {
     if (!negocioID) return;
@@ -164,19 +167,44 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
       )}
 
       <div className="flex flex-wrap gap-2">
-        <input
-          type="text"
-          value={cliente}
-          onChange={(e) => setCliente(e.target.value)}
-          list="lista-clientes"
-          placeholder="Cliente"
-          className="border-2 border-gray-400 text-black p-2 rounded"
-        />
-        <datalist id="lista-clientes">
-          {clientes.map((nombre, i) => (
-            <option key={i} value={nombre} />
-          ))}
-        </datalist>
+<Combobox value={cliente} onChange={setCliente}>
+  <div className="relative">
+    <Combobox.Input
+      className="border-2 border-gray-400 text-black p-2 rounded w-full"
+      onChange={(e) => setQueryCliente(e.target.value)}
+      displayValue={() => cliente}
+      placeholder="Cliente"
+      autoComplete="off"
+      spellCheck={false}
+      autoCorrect="off"
+    />
+    <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-400 rounded mt-1 max-h-60 overflow-y-auto text-sm shadow-lg text-black">
+      {clientes
+        .filter((nombre) =>
+          nombre.toLowerCase().includes(queryCliente.toLowerCase())
+        )
+        .map((nombre, i) => (
+          <Combobox.Option
+            key={i}
+            value={nombre}
+            className={({ active }) =>
+              `px-4 py-2 cursor-pointer ${
+                active ? "bg-blue-600 text-white" : "text-black"
+              }`
+            }
+          >
+            {nombre}
+          </Combobox.Option>
+        ))}
+      {clientes.filter((nombre) =>
+        nombre.toLowerCase().includes(queryCliente.toLowerCase())
+      ).length === 0 && (
+        <div className="px-4 py-2 text-gray-500">Sin coincidencias</div>
+      )}
+    </Combobox.Options>
+  </div>
+</Combobox>
+
 
         <input
          type="number"

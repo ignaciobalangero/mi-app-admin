@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Timestamp, collection, getDocs, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import { Timestamp, collection, getDocs, addDoc, setDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import FormularioCamposVenta from "./FormularioCamposVenta";
 import ModalPago from "./ModalPago";
@@ -25,6 +25,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   const [mostrarPagoModal, setMostrarPagoModal] = useState(false);
   const [mostrarCargaRecibida, setMostrarCargaRecibida] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
+  const [cliente, setCliente] = useState("");
   const [form, setForm] = useState({
     fecha: new Date().toLocaleDateString("es-AR", {
       day: "2-digit",
@@ -110,9 +111,12 @@ useEffect(() => {
           serie: telefono.serial,
           estado: (telefono.estado || "nuevo").toLowerCase(),
           precioCosto: telefono.precioCompra,
+          proveedor: telefono.proveedor || "",
+          moneda: telefono.moneda || "USD",
+          gb: telefono.gb || "", // por si lo cargaste como "almacenamiento"
         }));
       }
-    }
+    }    
   };
 
   const handlePagoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -135,12 +139,20 @@ useEffect(() => {
     ? form.precioVenta - telefonoRecibido.precioEstimado
     : form.precioVenta;
   
-  const baseVenta = {
-    ...form,
-    precioVenta: precioFinal,
-    ganancia: precioFinal - form.precioCosto,
-    creadoEn: Timestamp.now(),
-  };
+    const baseVenta = {
+      ...form,
+      precioVenta: precioFinal,
+      ganancia: precioFinal - form.precioCosto,
+      creadoEn: Timestamp.now(),
+      proveedor: form.proveedor,
+      fechaIngreso: form.fecha, // ✅ importante
+      moneda: form.moneda,
+      observaciones: pago.observaciones || "",
+      gb: form.gb,
+    };
+    
+    
+    
   
 
     const montoPagado = Number(pago.monto || 0);
@@ -156,11 +168,35 @@ useEffect(() => {
     } else {
       const ref = await addDoc(collection(db, `negocios/${negocioID}/ventaTelefonos`), {
         ...baseVenta,
-        id: "",
+        id: "", // se sobrescribe abajo
       });
       await updateDoc(ref, { id: ref.id });
       ventaID = ref.id;
       onGuardado({ ...baseVenta, id: ref.id });
+      
+      // ✅ Agregamos también en ventasGeneral con el MISMO ID
+      await setDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${ref.id}`), {
+        fecha: form.fecha,
+        cliente: form.cliente,
+        productos: [
+          {
+            categoria: "Teléfono",
+            descripcion: form.estado, // Producto = "nuevo" o "usado"
+            marca: form.marca || "—",
+            modelo: form.modelo,
+            color: form.color || "—",
+            cantidad: 1,
+            precioUnitario: precioFinal,
+            moneda: form.moneda,
+            gb: form.gb,
+          },
+        ],
+        total: precioFinal,
+        tipo: "telefono",
+        observaciones: pago.observaciones || "",
+        timestamp: Timestamp.now(),
+      });
+      
 
       const telefonoDelStock = stock.find(
         (t) => t.modelo === form.modelo && t.imei === form.imei
@@ -209,28 +245,6 @@ useEffect(() => {
       });
      }
      
-    // Guardar resumen en ventasGeneral
-      await addDoc(collection(db, `negocios/${negocioID}/ventasGeneral`), {
-      fecha: form.fecha,
-      cliente: form.cliente,
-      productos: [
-        {
-          categoria: "Teléfono",
-          descripcion: form.estado, // Producto = "nuevo" o "usado"
-          marca: form.marca || "—",
-          modelo: form.modelo,
-          color: form.color || "—",
-          cantidad: 1,
-          precioUnitario: precioFinal,
-          moneda: form.moneda, 
-        },
-      ],
-      total: precioFinal,
-      tipo: "telefono",
-      observaciones: pago.observaciones || "",
-      timestamp: Timestamp.now(),
-    });
-    
 
     // Redirigir a ventas-general
     router.push("/ventas-general");
@@ -320,9 +334,18 @@ useEffect(() => {
         <button onClick={() => setMostrarPagoModal(true)} className="bg-green-600 text-white px-6 py-2 rounded">
           + Agregar Pago
         </button>
-        <button onClick={guardar} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded">
-          {editandoId ? "Actualizar Venta" : "Guardar Venta"}
-        </button>
+        <button
+  onClick={guardar}
+  disabled={!form.cliente?.trim()}
+  className={`px-6 py-2 rounded text-white ${
+    !form.cliente?.trim()
+      ? "bg-gray-400 cursor-not-allowed"
+      : "bg-blue-600 hover:bg-blue-700"
+  }`}
+>
+  {editandoId ? "Actualizar Venta" : "Guardar Venta"}
+</button>
+
       </div>
 
       <ModalPago

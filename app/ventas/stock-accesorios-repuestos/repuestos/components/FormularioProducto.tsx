@@ -11,8 +11,6 @@ interface Props {
   setProducto: (val: string) => void;
   categoria: string;
   setCategoria: (val: string) => void;
-  calidad: string;
-  setCalidad: (val: string) => void;
   marca: string;
   setMarca: (val: string) => void;
   modelo: string;
@@ -47,8 +45,6 @@ export default function FormularioProducto({
   setProducto,
   categoria,
   setCategoria,
-  calidad,
-  setCalidad,
   marca,
   setMarca,
   modelo,
@@ -103,10 +99,7 @@ export default function FormularioProducto({
           <label className="block font-semibold mb-1">Categoría</label>
           <input value={categoria} onChange={(e) => setCategoria(e.target.value)} className="p-2 border rounded w-full" />
         </div>
-        <div>
-          <label className="block font-semibold mb-1">Calidad</label>
-          <input value={calidad} onChange={(e) => setCalidad(e.target.value)} className="p-2 border rounded w-full" />
-        </div>
+
         <div>
           <label className="block font-semibold mb-1">Marca</label>
           <input value={marca} onChange={(e) => setMarca(e.target.value)} className="p-2 border rounded w-full" />

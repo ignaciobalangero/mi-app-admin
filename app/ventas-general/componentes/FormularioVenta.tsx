@@ -17,6 +17,8 @@ import ModalPago from "./ModalPago";
 import { descontarAccesorioDelStock } from "./descontarAccesorioDelStock"; // ajustá la ruta si hace falta
 import { useRouter } from "next/navigation";
 import { descontarRepuestoDelStock } from "./descontarRepuestoDelStock";
+import { Combobox } from "@headlessui/react";
+
 
 
 
@@ -51,7 +53,7 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
   const router = useRouter();
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
   const [cotizacion, setCotizacion] = useState(1000); // valor inicial de respaldo
-  
+  const [queryCliente, setQueryCliente] = useState("");
 
 
   const [pago, setPago] = useState({
@@ -213,21 +215,36 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
     />
   </div>
   <div className="w-56">
-    <label>Cliente</label>
-    <input
-      type="text"
-      value={cliente}
-      onChange={(e) => setCliente(e.target.value)}
-      placeholder="Escribí el nombre del cliente"
-      list="sugerencias-clientes"
-      className="border px-2 py-1 w-full"
-    />
-    <datalist id="sugerencias-clientes">
-      {listaClientes.map((c, i) => (
-        <option key={i} value={c} />
-      ))}
-    </datalist>
-  </div>
+  <label>Cliente</label>
+  <Combobox value={cliente} onChange={setCliente}>
+    <div className="relative">
+      <Combobox.Input
+        className="border px-2 py-1 w-full"
+        onChange={(e) => setQueryCliente(e.target.value)}
+        displayValue={() => cliente}
+        placeholder="Escribí el nombre del cliente"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+      <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-300 rounded mt-1 max-h-60 overflow-y-auto text-sm shadow-lg">
+        {listaClientes
+          .filter((c) => c.toLowerCase().includes(queryCliente.toLowerCase()))
+          .map((c, i) => (
+            <Combobox.Option
+              key={i}
+              value={c}
+              className={({ active }) =>
+                `px-4 py-2 cursor-pointer ${active ? "bg-blue-600 text-white" : "text-black"}`
+              }
+            >
+              {c}
+            </Combobox.Option>
+          ))}
+      </Combobox.Options>
+    </div>
+  </Combobox>
+</div>
   <div className="w56">
   <label>Observaciones</label>
         <input

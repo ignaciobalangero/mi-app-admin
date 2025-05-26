@@ -141,8 +141,12 @@ export default function ResumenPage() {
   .filter(
     (t) =>
       t.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) &&
-      t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase())
+      (
+        t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase()) ||
+        t.trabajo?.toLowerCase().includes(filtroModelo.toLowerCase())
+      )
   )
+
   .filter((t) => {
     if (filtroEstado === "TODOS") return true;
     if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "PAGADO";
@@ -177,7 +181,7 @@ export default function ResumenPage() {
       
           <input
             type="text"
-            placeholder="Filtrar por modelo"
+            placeholder="Filtrar modelo/trabajo"
             value={filtroModelo}
             onChange={(e) => setFiltroModelo(e.target.value)}
             className="bg-white border border-gray-400 p-2 rounded text-black"

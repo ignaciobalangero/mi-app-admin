@@ -198,12 +198,13 @@ pagosSnap.forEach((doc) => {
             </thead>
             <tbody>
               {cuentasFiltradas.map((c) => (
-                <tr
-                  key={c.cliente}
-                  className={`border-t ${
-                    c.saldoPesos > 0 || c.saldoUSD > 0 ? "bg-red-200" : "bg-green-200"
-                  }`}
-                >
+               <tr
+               key={c.cliente}
+               className={`border-t ${
+                 c.saldoPesos < 0 || c.saldoUSD < 0 ? "bg-green-200" : "bg-red-200"
+               }`}
+             >
+             
                   <td className="p-2 border border-gray-300">{c.cliente}</td>
                   <td className="p-2 border border-gray-300">{formatPesos(c.saldoPesos)}</td>
                   <td className="p-2 border border-gray-300">{formatUSD(c.saldoUSD)}</td>

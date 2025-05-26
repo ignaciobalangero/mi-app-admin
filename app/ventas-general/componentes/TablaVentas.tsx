@@ -9,6 +9,8 @@ import {
   orderBy,
   query,
   doc,
+  getDoc,
+  addDoc,
   deleteDoc,
   updateDoc,
 } from "firebase/firestore";
@@ -62,10 +64,49 @@ export default function TablaVentas({ refrescar }: Props) {
       negocioID: rol.negocioID,
     });
   
-    await deleteDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaAEliminar.id}`));
-    setVentas((prev) => prev.filter((v) => v.id !== ventaAEliminar.id));
-    setMostrarConfirmarEliminar(false);
-  };
+    // ✅ Lógica adicional si es una venta de teléfono
+    if (!rol?.negocioID || !ventaAEliminar) return;
+
+  const ventaRef = doc(db, `negocios/${rol.negocioID}/ventaTelefonos/${ventaAEliminar.id}`);
+  const snap = await getDoc(ventaRef);
+
+  if (snap.exists()) {
+    const data = snap.data();
+
+    const stockSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockTelefonos`));
+    const yaExiste = stockSnap.docs.some((d) => {
+      const tel = d.data();
+      return tel.modelo === data.modelo && tel.imei === data.imei;
+    });
+
+    if (!yaExiste) {
+      await addDoc(collection(db, `negocios/${rol.negocioID}/stockTelefonos`), {
+        fechaIngreso: data.fechaIngreso,
+        proveedor: data.proveedor || "—",
+        modelo: data.modelo,
+        marca: data.marca || "—",
+        estado: data.estado,
+        bateria: data.bateria || "",
+        gb: data.gb || "",
+        color: data.color || "—",
+        imei: data.imei || "",
+        serial: data.serie || "",
+        precioCompra: data.precioCosto,
+        precioVenta: data.precioVenta,
+        moneda: data.moneda || "ARS",
+        observaciones: data.observaciones || "",
+      });
+    }
+
+    await deleteDoc(ventaRef); // ❌ ventaTelefonos
+  }
+
+  await deleteDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaAEliminar.id}`)); // ❌ ventasGeneral
+
+  setVentas((prev) => prev.filter((v) => v.id !== ventaAEliminar.id));
+  setMostrarConfirmarEliminar(false);
+};
+  
   
   useEffect(() => {
     const obtenerVentas = async () => {

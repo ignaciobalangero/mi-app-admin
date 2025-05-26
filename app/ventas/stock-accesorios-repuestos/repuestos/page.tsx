@@ -41,6 +41,8 @@ export default function StockProductosPage() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(true);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [filtroTexto, setFiltroTexto] = useState("");
+
 
   useEffect(() => {
     if (user) {
@@ -88,7 +90,7 @@ export default function StockProductosPage() {
 
   const guardarProducto = async () => {
     if (!producto || precioVenta <= 0 || cantidad <= 0) return;
-
+  
     const data = {
       codigo,
       proveedor,
@@ -107,21 +109,29 @@ export default function StockProductosPage() {
       stockIdeal,
       stockBajo,
     };
-
+  
     if (editandoId) {
       await updateDoc(doc(db, `negocios/${negocioID}/stockRepuestos`, editandoId), data);
       setEditandoId(null);
     } else {
-      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
-const nuevoCodigo = `ACC${String(snap.size + 1).padStart(3, "0")}`;
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockRepuestos`));
 
-await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
-  ...data,
-  codigo: nuevoCodigo,
-});
+      const categoriaPrefix = (categoria || "REP").slice(0, 3).toUpperCase();
+      const existentes = snap.docs
+       .map((doc) => doc.data().codigo)
+       .filter((c) => c?.startsWith(categoriaPrefix));
 
+      const siguienteNumero = existentes.length + 1;
+      const nuevoCodigo = `${categoriaPrefix}${String(siguienteNumero).padStart(3, "0")}`;
+
+  
+      await addDoc(collection(db, `negocios/${negocioID}/stockRepuestos`), {
+        ...data,
+        codigo: nuevoCodigo,
+      });
     }
-
+  
+    // Reset
     setCodigo("");
     setProveedor("");
     setProducto("");
@@ -138,6 +148,7 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
     setMoneda("ARS");
     cargarProductos();
   };
+  
 
   const eliminarProducto = async (id: string) => {
     await deleteDoc(doc(db, `negocios/${negocioID}/stockRepuestos`, id));
@@ -192,6 +203,16 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
     XLSX.writeFile(wb, "pedidos_sugeridos_repuestos.xlsx");
   };
 
+  const productosFiltrados = productos.filter((p) => {
+    const texto = filtroTexto.toLowerCase();
+    return (
+      p.producto?.toLowerCase().includes(texto) ||
+      p.categoria?.toLowerCase().includes(texto) ||
+      p.marca?.toLowerCase().includes(texto) ||
+      p.modelo?.toLowerCase().includes(texto)
+    );
+  });
+  
   return (
     <>
       <Header />
@@ -229,8 +250,6 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
             setProducto={setProducto}
             categoria={categoria}
             setCategoria={setCategoria}
-            calidad={calidad}
-            setCalidad={setCalidad}
             marca={marca}
             setMarca={setMarca}
             modelo={modelo}
@@ -256,9 +275,19 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
             editandoId={editandoId}
           />
         )}
+        
+        <div className="mb-4 text-center">
+          <input
+             type="text"
+             placeholder="Buscar por categoría, producto, marca o modelo"
+             value={filtroTexto}
+             onChange={(e) => setFiltroTexto(e.target.value)}
+             className="p-2 border rounded w-full max-w-md"
+           />
+        </div>
 
         <TablaProductos
-          productos={productos}
+          productos={productosFiltrados}
           editarProducto={editarProducto}
           eliminarProducto={eliminarProducto}
         />

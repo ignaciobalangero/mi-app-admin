@@ -15,6 +15,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { guardarTrabajo } from "./guardarTrabajo";
 import CheckInForm from "./CheckInForm";
+import { Combobox } from "@headlessui/react";
 
 interface Cliente {
   nombre: string;
@@ -64,6 +65,7 @@ export default function IngresoForm() {
   const [mensajeExito, setMensajeExito] = useState("");
   const [configImpresion, setConfigImpresion] = useState(true);
   const [checkData, setCheckData] = useState(inicialCheckData);
+  const [queryCliente, setQueryCliente] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -178,22 +180,47 @@ export default function IngresoForm() {
           </div>
 
           <input type="text" value={form.id} readOnly className="p-3 rounded-xl bg-gray-200 border border-gray-600" placeholder="ID" />
-          <input
-            type="text"
-            value={form.cliente}
-            onChange={(e) => setForm((prev) => ({ ...prev, cliente: e.target.value }))}
-            list="clientes-lista"
-            className="p-3 rounded-xl bg-gray-200 border border-gray-600 text-black placeholder-opacity-60"
-            placeholder="Cliente"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-          <datalist id="clientes-lista">
-            {clientesGuardados.map((c, i) => (
-              <option key={i} value={c.nombre} />
-            ))}
-          </datalist>
+          <Combobox
+  value={form.cliente}
+  onChange={(val) => setForm((prev) => ({ ...prev, cliente: val }))}
+>
+  <div className="relative">
+    <Combobox.Input
+      className="p-3 rounded-xl bg-gray-200 border border-gray-600 w-full text-black placeholder-opacity-60"
+      onChange={(e) => setQueryCliente(e.target.value)}
+      displayValue={() => form.cliente}
+      placeholder="Cliente"
+      autoComplete="off"
+      spellCheck={false}
+      autoCorrect="off"
+    />
+    <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-400 rounded mt-1 max-h-60 overflow-y-auto text-sm shadow-xl text-black">
+      {clientesGuardados
+        .filter((c) =>
+          c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
+        )
+        .map((c, i) => (
+          <Combobox.Option
+            key={i}
+            value={c.nombre}
+            className={({ active }) =>
+              `px-4 py-2 cursor-pointer ${
+                active ? "bg-blue-600 text-white" : "text-black"
+              }`
+            }
+          >
+            {c.nombre}
+          </Combobox.Option>
+        ))}
+      {clientesGuardados.filter((c) =>
+        c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
+      ).length === 0 && (
+        <div className="px-4 py-2 text-gray-500">Sin coincidencias</div>
+      )}
+    </Combobox.Options>
+  </div>
+</Combobox>
+
           <input type="text" value={form.modelo} onChange={(e) => setForm((prev) => ({ ...prev, modelo: e.target.value }))} className="p-3 rounded-xl bg-gray-200 border border-gray-600 text-black placeholder-opacity-60" placeholder="Modelo" />
           <input type="text" value={form.trabajo} onChange={(e) => setForm((prev) => ({ ...prev, trabajo: e.target.value }))} className="p-3 rounded-xl bg-gray-200 border border-gray-600 text-black placeholder-opacity-60" placeholder="Trabajo" />
           <input type="text" value={form.clave} onChange={(e) => setForm((prev) => ({ ...prev, clave: e.target.value }))} className="p-3 rounded-xl bg-gray-200 border border-gray-600 text-black placeholder-opacity-60" placeholder="Clave" />

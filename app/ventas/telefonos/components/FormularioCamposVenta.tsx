@@ -1,4 +1,8 @@
 import SelectorTelefonoStock from "./SelectorTelefonoStock";
+import { Combobox } from "@headlessui/react";
+import { useState } from "react";
+
+
 interface Props {
   form: any;
   setForm: React.Dispatch<React.SetStateAction<any>>; 
@@ -20,6 +24,7 @@ export default function FormularioCamposVenta({
   onAgregarCliente,
   rol,
 }: Props) {
+  const [queryCliente, setQueryCliente] = useState("");
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <input
@@ -39,31 +44,48 @@ export default function FormularioCamposVenta({
         className="p-2 border rounded w-full"
       />
 
-      <div className="flex gap-2">
-        <div className="w-full">
-          <input
-            type="text"
-            name="cliente"
-            value={form.cliente}
-            onChange={handleChange}
-            list="clientes-options"
-            placeholder="Buscar cliente..."
-            className="p-2 border rounded w-full"
-          />
-          <datalist id="clientes-options">
-            {clientes.map((c) => (
-              <option key={c.id} value={c.nombre} />
+<div className="flex gap-2">
+  <div className="w-full">
+    <Combobox value={form.cliente} onChange={(value) => setForm((prev) => ({ ...prev, cliente: value }))}>
+      <div className="relative">
+        <Combobox.Input
+          className="p-2 border rounded w-full"
+          onChange={(e) => setQueryCliente(e.target.value)}
+          displayValue={(cliente: string) => cliente}
+          placeholder="Buscar cliente..."
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+        <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-400 rounded mt-1 max-h-60 overflow-y-auto text-sm shadow-lg">
+          {clientes
+            .filter((c) =>
+              c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
+            )
+            .map((c) => (
+              <Combobox.Option
+                key={c.id}
+                value={c.nombre}
+                className={({ active }) =>
+                  `px-4 py-2 cursor-pointer ${active ? "bg-blue-600 text-white" : "text-black"}`
+                }
+              >
+                {c.nombre}
+              </Combobox.Option>
             ))}
-          </datalist>
-        </div>
-        <button
-          onClick={onAgregarCliente}
-          type="button"
-          className="bg-blue-500 text-white px-3 rounded"
-        >
-          +
-        </button>
+        </Combobox.Options>
       </div>
+    </Combobox>
+  </div>
+  <button
+    onClick={onAgregarCliente}
+    type="button"
+    className="bg-blue-500 text-white px-3 rounded"
+  >
+    +
+  </button>
+</div>
+
 
       <SelectorTelefonoStock stock={stock} form={form} setForm={setForm} />
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { deleteDoc, doc, getDocs, collection, getDoc, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
-
+import { Timestamp } from "firebase/firestore";
 
 interface Props {
   negocioID: string;
@@ -20,38 +20,54 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
 
   const confirmarEliminacion = async () => {
     if (!ventaAEliminar) return;
-
+  
     try {
-      // 🔁 Revertimos el stock si el modelo e imei coinciden
-      const stockSnap = await getDocs(collection(db, `negocios/${negocioID}/stockTelefonos`));
-      const yaExiste = stockSnap.docs.some((docu) => {
-        const data = docu.data();
-        return data.modelo === ventaAEliminar.modelo && data.imei === ventaAEliminar.imei;
-      });
-
-      if (!yaExiste) {
-        await addDoc(collection(db, `negocios/${negocioID}/stockTelefonos`), {
-          proveedor: ventaAEliminar.proveedor,
-          modelo: ventaAEliminar.modelo,
-          marca: ventaAEliminar.marca || "",
-          estado: ventaAEliminar.estado,
-          bateria: ventaAEliminar.bateria,
-          color: ventaAEliminar.color,
-          gb: ventaAEliminar.gb,
-          imei: ventaAEliminar.imei,
-          serial: ventaAEliminar.serie,
-          precioCompra: ventaAEliminar.precioCosto,
-          precioVenta: ventaAEliminar.precioVenta,
-          fechaIngreso: ventaAEliminar.fecha,
+      // 🔁 Buscamos ventaTelefonos primero
+      const ref = doc(db, `negocios/${negocioID}/ventaTelefonos/${ventaAEliminar.id}`);
+      const snap = await getDoc(ref);
+  
+      if (snap.exists()) {
+        const data = snap.data();
+  
+        // 🔄 Verificamos si el stock ya lo tiene
+        const stockSnap = await getDocs(collection(db, `negocios/${negocioID}/stockTelefonos`));
+        const yaExiste = stockSnap.docs.some((docu) => {
+          const d = docu.data();
+          return d.modelo === data.modelo && d.imei === data.imei;
         });
+  
+        if (!yaExiste) {
+          await addDoc(collection(db, `negocios/${negocioID}/stockTelefonos`), {
+            proveedor: data.proveedor || "Sin proveedor",
+            modelo: data.modelo,
+            marca: data.marca || "",
+            estado: data.estado,
+            bateria: data.bateria,
+            color: data.color,
+            gb: data.gb ?? data.productos?.[0]?.gb ?? "", // ✅ CAMBIO CLAVE
+            imei: data.imei,
+            serial: data.serie,
+            precioCompra: data.precioCosto,
+            precioVenta: data.precioVenta,
+            moneda: data.moneda,
+            observaciones: data.observaciones || "",
+            fechaIngreso: data.fechaIngreso || new Date().toISOString().split("T")[0],
+
+           });
+          }
+        
+  
+        await deleteDoc(ref); // ✅ Eliminamos de ventaTelefonos
       }
-
-      await deleteDoc(doc(db, `negocios/${negocioID}/ventaTelefonos/${ventaAEliminar.id}`));
+  
+      // 🧨 Eliminamos de ventasGeneral también
       await deleteDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${ventaAEliminar.id}`));
-
+  
+      // 🔁 Recargamos ventas actualizadas
       const snapshot = await getDocs(collection(db, `negocios/${negocioID}/ventaTelefonos`));
       const nuevasVentas = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setVentas(nuevasVentas);
+  
       setMensaje("✅ Venta eliminada correctamente");
     } catch (error) {
       console.error("Error al eliminar venta:", error);
@@ -133,7 +149,6 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
               <td className="p-2 border border-gray-300">{v.productos?.[0]?.moneda || "-"}</td>
               <td className="p-2 border border-gray-300">${(v.precioVenta - v.precioCosto)?.toLocaleString("es-AR")}</td>
               <td className="p-2 border border-gray-300">
-                <button onClick={() => onEditar(v)} className="text-blue-600 hover:underline mr-2">Editar</button>
                 <button onClick={() => setVentaAEliminar(v)} className="text-red-600 hover:underline">Eliminar</button>
               </td>
             </tr>
