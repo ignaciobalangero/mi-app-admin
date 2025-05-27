@@ -27,11 +27,9 @@ export default function StockProductosPage() {
   const [categoria, setCategoria] = useState("");
   const [calidad, setCalidad] = useState("");
   const [marca, setMarca] = useState("");
-  const [modelo, setModelo] = useState("");
   const [color, setColor] = useState("");
   const [precioCosto, setPrecioCosto] = useState(0);
-  const [precioVenta, setPrecioVenta] = useState(0);
-  const [precioVentaPesos, setPrecioVentaPesos] = useState(0);
+  const [precioCostoPesos, setPrecioCostoPesos] = useState(0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
   const [cotizacion, setCotizacion] = useState<number | null>(null);
   const [cantidad, setCantidad] = useState(1);
@@ -65,11 +63,11 @@ export default function StockProductosPage() {
 
   useEffect(() => {
     if (moneda === "USD" && cotizacion !== null) {
-      setPrecioVentaPesos(precioVenta * cotizacion);
+      setPrecioCostoPesos(precioCosto * cotizacion);
     } else {
-      setPrecioVentaPesos(precioVenta);
+      setPrecioCostoPesos(precioCosto);
     }
-  }, [precioVenta, cotizacion, moneda]);
+  }, [precioCosto, cotizacion, moneda]);
 
   useEffect(() => {
     fetch("https://dolarapi.com/v1/dolares/blue")
@@ -89,7 +87,7 @@ export default function StockProductosPage() {
   };
 
   const guardarProducto = async () => {
-    if (!producto || precioVenta <= 0 || cantidad <= 0) return;
+    if (!producto || precioCosto <= 0 || cantidad <= 0) return;
   
     const data = {
       codigo,
@@ -98,11 +96,9 @@ export default function StockProductosPage() {
       categoria,
       calidad,
       marca,
-      modelo,
       color,
       precioCosto,
-      precioVenta,
-      precioVentaPesos: moneda === "USD" && cotizacion !== null ? precioVenta * cotizacion : precioVenta,
+      precioCostoPesos: moneda === "USD" && cotizacion !== null ? precioCosto * cotizacion : precioCosto,
       moneda,
       cotizacion,
       cantidad,
@@ -138,11 +134,9 @@ export default function StockProductosPage() {
     setCategoria("");
     setCalidad("");
     setMarca("");
-    setModelo("");
     setColor("");
     setPrecioCosto(0);
-    setPrecioVenta(0);
-    setPrecioVentaPesos(0);
+    setPrecioCostoPesos(0);
     setCantidad(1);
     setStockIdeal(5);
     setMoneda("ARS");
@@ -162,11 +156,9 @@ export default function StockProductosPage() {
     setCategoria(prod.categoria);
     setCalidad(prod.calidad || "");
     setMarca(prod.marca);
-    setModelo(prod.modelo || "");
     setColor(prod.color);
     setPrecioCosto(prod.precioCosto);
-    setPrecioVenta(prod.precioVenta);
-    setPrecioVentaPesos(prod.precioVentaPesos);
+    setPrecioCostoPesos(prod.precioVentaPesos);
     setMoneda(prod.moneda);
     setCotizacion(prod.cotizacion);
     setCantidad(prod.cantidad);
@@ -252,19 +244,15 @@ export default function StockProductosPage() {
             setCategoria={setCategoria}
             marca={marca}
             setMarca={setMarca}
-            modelo={modelo}
-            setModelo={setModelo}
             color={color}
             setColor={setColor}
             precioCosto={precioCosto}
             setPrecioCosto={setPrecioCosto}
-            precioVenta={precioVenta}
-            setPrecioVenta={setPrecioVenta}
             moneda={moneda}
             setMoneda={setMoneda}
             cotizacion={cotizacion}
             setCotizacion={setCotizacion}
-            precioVentaPesos={precioVentaPesos}
+            precioCostoPesos={precioCostoPesos}
             cantidad={cantidad}
             setCantidad={setCantidad}
             stockIdeal={stockIdeal}

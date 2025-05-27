@@ -13,19 +13,15 @@ interface Props {
   setCategoria: (val: string) => void;
   marca: string;
   setMarca: (val: string) => void;
-  modelo: string;
-  setModelo: (val: string) => void;
   color: string;
   setColor: (val: string) => void;
   precioCosto: number;
   setPrecioCosto: (val: number) => void;
-  precioVenta: number;
-  setPrecioVenta: (val: number) => void;
   moneda: "ARS" | "USD";
   setMoneda: (val: "ARS" | "USD") => void;
   cotizacion: number;
   setCotizacion: (val: number) => void;
-  precioVentaPesos: number;
+  precioCostoPesos: number;
   cantidad: number;
   setCantidad: (val: number) => void;
   stockIdeal: number;
@@ -47,19 +43,15 @@ export default function FormularioProducto({
   setCategoria,
   marca,
   setMarca,
-  modelo,
-  setModelo,
   color,
   setColor,
   precioCosto,
   setPrecioCosto,
-  precioVenta,
-  setPrecioVenta,
   moneda,
   setMoneda,
   cotizacion,
   setCotizacion,
-  precioVentaPesos,
+  precioCostoPesos,
   cantidad,
   setCantidad,
   stockIdeal,
@@ -105,20 +97,12 @@ export default function FormularioProducto({
           <input value={marca} onChange={(e) => setMarca(e.target.value)} className="p-2 border rounded w-full" />
         </div>
         <div>
-          <label className="block font-semibold mb-1">Modelo</label>
-          <input value={modelo} onChange={(e) => setModelo(e.target.value)} className="p-2 border rounded w-full" />
-        </div>
-        <div>
           <label className="block font-semibold mb-1">Color</label>
           <input value={color} onChange={(e) => setColor(e.target.value)} className="p-2 border rounded w-full" />
         </div>
         <div>
           <label className="block font-semibold mb-1">Precio de costo</label>
           <input type="number" value={precioCosto} onChange={(e) => setPrecioCosto(Number(e.target.value))} className={`p-2 border rounded w-full ${precioCosto <= 0 ? "border-red-500" : "border-gray-400"}`} />
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">Precio de venta</label>
-          <input type="number" value={precioVenta} onChange={(e) => setPrecioVenta(Number(e.target.value))} className={`p-2 border rounded w-full ${precioVenta <= 0 ? "border-red-500" : "border-gray-400"}`} />
         </div>
         <div>
           <label className="block font-semibold mb-1">Moneda</label>
@@ -133,10 +117,6 @@ export default function FormularioProducto({
             <input type="number" value={cotizacion} onChange={(e) => setCotizacion(Number(e.target.value))} className="p-2 border rounded w-full" />
           </div>
         )}
-        <div>
-          <label className="block font-semibold mb-1">Precio venta en pesos</label>
-          <input type="number" value={precioVentaPesos} readOnly className="p-2 border rounded w-full bg-gray-100" />
-        </div>
         <div>
           <label className="block font-semibold mb-1">Cantidad</label>
           <input type="number" value={cantidad} onChange={(e) => setCantidad(Number(e.target.value))} className={`p-2 border rounded w-full ${cantidad <= 0 ? "border-red-500" : "border-gray-400"}`} />
@@ -154,7 +134,7 @@ export default function FormularioProducto({
         <button
           onClick={guardarProducto}
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
-          disabled={!producto || precioVenta <= 0 || cantidad <= 0 || stockIdeal <= 0}
+          disabled={!producto || precioCosto <= 0 || cantidad <= 0 || stockIdeal <= 0}
         >
           {editandoId ? "Actualizar producto" : "Guardar producto"}
         </button>

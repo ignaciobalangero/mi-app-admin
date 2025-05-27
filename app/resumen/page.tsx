@@ -19,6 +19,7 @@ import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
+import ModalRepuestos from "./componentes/ModalRepuestos"; // o ruta que uses
 
 interface Trabajo {
   firebaseId: string;
@@ -32,6 +33,7 @@ interface Trabajo {
   estadoCuentaCorriente?: string;
   precio?: number;
   costo?: number;
+  repuestosUsados?: any[];
 }
 
 export default function ResumenPage() {
@@ -47,6 +49,8 @@ export default function ResumenPage() {
   const [negocioID, setNegocioID] = useState<string>("");
   const { rol } = useRol();
   const router = useRouter();
+  const [mostrarModalRepuestos, setMostrarModalRepuestos] = useState(false);
+  const [trabajoSeleccionado, setTrabajoSeleccionado] = useState<string | null>(null);
 
   useEffect(() => {
     if (rol?.negocioID) {
@@ -72,6 +76,7 @@ export default function ResumenPage() {
           estadoCuentaCorriente: data.estadoCuentaCorriente,
           precio: data.precio,
           costo: data.costo,
+          repuestosUsados: data.repuestosUsados ?? [],
         });
       });
 
@@ -96,6 +101,37 @@ export default function ResumenPage() {
 
     return () => unsubscribe();
   }, [negocioID, mostrarPagados]);
+  
+// 👇 A partir de acá pegás esto:
+const recargarTrabajos = async () => {
+  const snap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
+  const lista: Trabajo[] = [];
+  snap.forEach((docSnap) => {
+    const data = docSnap.data();
+    lista.push({
+      firebaseId: docSnap.id,
+      fecha: data.fecha,
+      cliente: data.cliente,
+      modelo: data.modelo,
+      trabajo: data.trabajo,
+      clave: data.clave,
+      observaciones: data.observaciones,
+      estado: data.estado,
+      estadoCuentaCorriente: data.estadoCuentaCorriente,
+      precio: data.precio,
+      costo: data.costo,
+    });
+  });
+
+  const ordenados = lista.sort((a, b) => {
+    const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
+    const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
+    return fechaB - fechaA;
+  });
+
+  setTrabajos(ordenados);
+};
+
 
   const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
     const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
@@ -282,7 +318,7 @@ export default function ResumenPage() {
                     <td className="p-2 border-r border-gray-300">
                       <input
                         type="number"
-                        defaultValue={t.precio ?? ""}
+                        defaultValue={typeof t.precio === "number" ? t.precio : ""}
                         onBlur={(e) => actualizarCampo(t.firebaseId, "precio", Number(e.target.value))}
                         className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
                       />
@@ -290,7 +326,7 @@ export default function ResumenPage() {
                     <td className="p-2 border-r border-gray-300">
                       <input
                         type="number"
-                        defaultValue={t.costo ?? ""}
+                        defaultValue={typeof t.costo === "number" && !isNaN(t.costo) ? t.costo : ""}
                         onBlur={(e) => actualizarCampo(t.firebaseId, "costo", Number(e.target.value))}
                         className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
                       />
@@ -300,6 +336,22 @@ export default function ResumenPage() {
                     </td>
                     <td className="p-2 border-r border-gray-300">
   <div className="flex gap-2">
+  <button
+  onClick={() => {
+    setTrabajoSeleccionado(t.firebaseId);
+    setMostrarModalRepuestos(true);
+  }}
+  className={`text-white px-2 py-1 rounded text-sm ${
+    t.repuestosUsados && t.repuestosUsados.length > 0
+      ? "bg-indigo-500 hover:bg-indigo-600"  // 🔵 ya tiene repuestos
+      : "bg-green-300 hover:bg-green-400"   // 🟢 no tiene
+  }`}
+  
+>
+  ➕
+</button>
+
+
     <button
       onClick={() => editarTrabajo(t.firebaseId)}
       className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm"
@@ -341,6 +393,17 @@ export default function ResumenPage() {
             </button>
           </div>
         )}
+       {mostrarModalRepuestos && trabajoSeleccionado && (
+  <ModalRepuestos
+    trabajoID={trabajoSeleccionado}
+    onClose={async () => {
+      setMostrarModalRepuestos(false);
+      setTrabajoSeleccionado(null);
+      await recargarTrabajos(); // ✅ aseguramos la recarga al cerrar
+    }}
+  />
+)}
+
       </main>
     </RequireAdmin>
   );

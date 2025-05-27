@@ -8,11 +8,9 @@ interface Producto {
   categoria: string;
   producto: string;
   marca: string;
-  modelo: string;
   color: string;
   precioCosto: number;
-  precioVenta: number;
-  precioVentaPesos: number;
+  precioCostoPesos: number;
   cantidad: number;
   moneda: "ARS" | "USD";
   stockBajo?: number;
@@ -34,11 +32,9 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
           <th className="p-2 border border-gray-400">Categoría</th>
           <th className="p-2 border border-gray-400">Producto</th>
           <th className="p-2 border border-gray-400">Marca</th>
-          <th className="p-2 border border-gray-400">Modelo</th>
           <th className="p-2 border border-gray-400">Color</th>
           <th className="p-2 border border-gray-400">Costo</th>
-          <th className="p-2 border border-gray-400">Precio</th>
-          <th className="p-2 border border-gray-400">Venta en pesos</th>
+          <th className="p-2 border border-gray-400">Costo en pesos</th>
           <th className="p-2 border border-gray-400 w-[5px]">Cantidad</th>
           <th className="p-2 border border-gray-400 w-[5px]">Proveedor</th>
           <th className="p-2 border border-gray-400 w-[5px]">Acciones</th>
@@ -57,17 +53,17 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
             }`} 
           >
             <td className="p-2 border border-gray-300">{p.codigo}</td>
-            <td className="p-2 border border-gray-300">{p.categoria}</td>
+            <td className="p-2 border w-20 border-gray-300">{p.categoria}</td>
             <td className="p-2 border border-gray-300">{p.producto}</td>
             <td className="p-2 border border-gray-300">{p.marca}</td>
-            <td className="p-2 border border-gray-300">{p.modelo}</td>
             <td className="p-2 border border-gray-300">{p.color}</td>
-            <td className="p-2 border border-gray-300">{p.moneda} ${p.precioCosto}</td>
-            <td className="p-2 border border-gray-300">{p.moneda} ${p.precioVenta}</td>
-            <td className="p-2 border border-gray-300">
-              ${p.precioVentaPesos?.toLocaleString("es-AR")} pesos
+            <td className="p-2 border w-28 border-gray-300">{p.moneda} ${p.precioCosto}</td>
+            <td className="p-2 border w-26 text-center whitespace-nowrap">
+                 {typeof p.precioCostoPesos === "number"
+              ? `$${p.precioCostoPesos.toLocaleString("es-AR")}`
+            : "—"}
             </td>
-            <td className="p-2 border border-gray-300">{p.cantidad}</td>
+            <td className="p-2 border w-18 border-gray-300">{p.cantidad}</td>
             <td className="p-2 border border-gray-300">{p.proveedor}</td>
             <td className="p-2 border border-gray-300">
               <button

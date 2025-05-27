@@ -7,6 +7,7 @@ import { doc, updateDoc } from "firebase/firestore"; // ✅ Importamos updateDoc
 import { db } from "@/lib/firebase"; // ✅ Importamos db
 import { useEffect } from "react";
 import { getDocs, collection, query, where } from "firebase/firestore"; // ✅ Necesario
+import ModalAgregarRepuesto from "@/app/resumen/componentes/ModalRepuestos";
 
 
 interface Trabajo {
@@ -20,6 +21,7 @@ interface Trabajo {
   observaciones?: string;
   precio?: number;
   estado: string;
+  repuestosUsados?: any[]; 
   fechaModificacion?: string;
   estadoCuentaCorriente?: "PENDEINTE" | "PAGADO"; // ✅ Agregado campo opcional
 }
@@ -60,6 +62,8 @@ export default function TablaTrabajos({
   const [trabajoSeleccionado, setTrabajoSeleccionado] = useState<Trabajo | null>(null);
   const [modalConfirmarPagoVisible, setModalConfirmarPagoVisible] = useState(false); // ✅ Nuevo
   const [trabajoAConfirmarPago, setTrabajoAConfirmarPago] = useState<Trabajo | null>(null); // ✅ Nuevo
+  const [mostrarModalRepuestos, setMostrarModalRepuestos] = useState(false);
+  const [trabajoIDSeleccionado, setTrabajoIDSeleccionado] = useState<string | null>(null);
 
   const abrirModalConfirmarPago = (trabajo: Trabajo) => {
     setTrabajoAConfirmarPago(trabajo);
@@ -179,6 +183,22 @@ export default function TablaTrabajos({
   </select>
 
     <div className="flex flex-wrap gap-1 mt-1">
+    <button
+  onClick={() => {
+    setTrabajoIDSeleccionado(t.firebaseId);
+    setMostrarModalRepuestos(true);
+  }}
+  className={`text-white px-2 py-1 rounded text-sm ${
+    t.repuestosUsados && t.repuestosUsados.length > 0
+      ? "bg-indigo-500 hover:bg-indigo-600"
+      : "bg-green-300 hover:bg-green-400"
+  }`}
+>
+  ➕
+</button>
+
+
+
       <button
         onClick={() => manejarClickEditar(t.firebaseId)}
         className="bg-yellow-500 hover:bg-yellow-600 text-white px-1 py-1 rounded text-xs"
@@ -257,6 +277,18 @@ export default function TablaTrabajos({
           </div>
         </div>
       )}
+{mostrarModalRepuestos && trabajoIDSeleccionado && (
+  <ModalAgregarRepuesto
+  trabajoID={trabajoIDSeleccionado}
+  onClose={() => {
+    setMostrarModalRepuestos(false);
+    setTrabajoIDSeleccionado(null);
+  }}
+  onGuardar={async () => {
+    await recargarTrabajos(); // ✅ refresca lista
+  }}
+/>
+)}
 
       {totalPaginas > 1 && (
         <div className="flex justify-center mt-6 gap-2">
