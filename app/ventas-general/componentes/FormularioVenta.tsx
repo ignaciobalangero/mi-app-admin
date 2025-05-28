@@ -36,10 +36,11 @@ interface ProductoVenta {
 }
 
 interface Props {
+  cerrarModal?: () => void;
   onVentaGuardada: () => void;
 }
 
-export default function FormularioVenta({ onVentaGuardada }: Props) {
+export default function FormularioVenta({ onVentaGuardada, cerrarModal }: Props) {
   const [fecha, setFecha] = useState<string>(new Date().toISOString().split("T")[0]);
   const [cliente, setCliente] = useState("");
   const [listaClientes, setListaClientes] = useState<string[]>([]);
@@ -154,17 +155,13 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
         venta
       );
   
-      await descontarAccesorioDelStock({
-        productos: productos.filter((p) => p.categoria === "Accesorio" && p.codigo),
-        negocioID: rol.negocioID,
-      });
+      for (const p of productos.filter((p) => p.categoria === "Accesorio" && p.codigo)) {
+        await descontarAccesorioDelStock(rol.negocioID, p.codigo, p.cantidad);
+      }      
   
-      await descontarRepuestoDelStock({
-        productos: productos
-          .filter((p) => p.categoria === "Repuesto" && p.codigo)
-          .map((p) => ({ codigo: p.codigo!, cantidad: p.cantidad })),
-        negocioID: rol.negocioID,
-      });
+      for (const p of productos.filter((p) => p.categoria === "Repuesto" && p.codigo)) {
+        await descontarRepuestoDelStock(rol.negocioID, p.codigo, p.cantidad);
+      }      
   
       // Guardar pago si lo hay
       if (pago.monto && Number(pago.monto) > 0) {
@@ -193,8 +190,9 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
       setGuardadoExitoso(true);
       setTimeout(() => setGuardadoExitoso(false), 3000);
       localStorage.setItem("actualizarVentas", "1");
-      router.push("/ventas-general");
-      onVentaGuardada();
+      if (onVentaGuardada) onVentaGuardada();
+      if (cerrarModal) cerrarModal();
+      
     } catch (error) {
       console.error("Error al guardar venta:", error);
       alert("Hubo un error al guardar la venta.");
@@ -343,10 +341,10 @@ export default function FormularioVenta({ onVentaGuardada }: Props) {
         pago={pago}
         onClose={() => setMostrarModalPago(false)}
         handlePagoChange={handlePagoChange}
-        onGuardar={() => {
+        onGuardarPago={() => {
           setGuardadoConExito(true);
           setTimeout(() => setGuardadoConExito(false), 1500);
-        }}
+        }}        
         guardadoConExito={guardadoConExito}
       />
     </div>

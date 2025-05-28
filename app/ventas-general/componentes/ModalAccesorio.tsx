@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import SelectorProducto from "./SelectorProducto";
+import SelectorProductoVentaGeneral from "./SelectorProductoVentaGeneral";
 
 interface Props {
   isOpen: boolean;
@@ -10,31 +10,33 @@ interface Props {
 }
 
 export default function ModalAccesorio({ isOpen, onClose, onAgregar }: Props) {
-  const [producto, setProducto] = useState("");
+  const [productos, setProductos] = useState<any[]>([]);
+  const [cantidad, setCantidad] = useState(1);
   const [marca, setMarca] = useState("");
   const [modelo, setModelo] = useState("");
   const [categoria, setCategoria] = useState("");
   const [color, setColor] = useState("");
-  const [precio, setPrecio] = useState(0);
-  const [cantidad, setCantidad] = useState(1);
   const [codigo, setCodigo] = useState("");
+  const [precio, setPrecio] = useState(0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+  const [filtroTexto, setFiltroTexto] = useState("");
 
   const handleAgregar = () => {
-    if (!producto || cantidad <= 0 || precio <= 0) return;
+    const producto = productos[0];
+    if (!producto || cantidad <= 0 || producto.precioUnitario <= 0) return;
 
     onAgregar({
       categoria: "Accesorio",
-      producto,
-      marca,
-      modelo,
-      categoriaAccesorio: categoria,
-      color,
+      producto: producto.producto,
+      marca: producto.marca,
+      modelo: producto.modelo,
+      categoriaAccesorio: producto.categoria,
+      color: producto.color,
       cantidad,
-      precioUnitario: precio,
-      total: precio * cantidad,
-      codigo,
-      moneda,
+      precioUnitario: producto.precioUnitario,
+      total: producto.precioUnitario * cantidad,
+      codigo: producto.id,
+      moneda: producto.moneda,
     });
 
     onClose();
@@ -42,15 +44,8 @@ export default function ModalAccesorio({ isOpen, onClose, onAgregar }: Props) {
   };
 
   const reset = () => {
-    setProducto("");
-    setMarca("");
-    setModelo("");
-    setCategoria("");
-    setColor("");
-    setPrecio(0);
+    setProductos([]);
     setCantidad(1);
-    setCodigo("");
-    setMoneda("ARS");
   };
 
   if (!isOpen) return null;
@@ -60,17 +55,20 @@ export default function ModalAccesorio({ isOpen, onClose, onAgregar }: Props) {
       <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-xl space-y-4">
         <h2 className="text-xl font-bold">Agregar Accesorio</h2>
 
-        <SelectorProducto
-          producto={producto}
-          setProducto={setProducto}
-          setPrecio={setPrecio}
-          setMarca={setMarca}
-          setModelo={setModelo}
-          setCategoria={setCategoria}
-          setColor={setColor}
-          setCodigo={setCodigo}
-          setMoneda={setMoneda}
-        />
+        <SelectorProductoVentaGeneral
+  productos={productos}
+  setProductos={setProductos}
+  setPrecio={setPrecio}
+  setMarca={setMarca}
+  setModelo={setModelo}
+  setCategoria={setCategoria}
+  setColor={setColor}
+  setCodigo={setCodigo}
+  setMoneda={setMoneda}
+  filtroTexto={filtroTexto}
+  setFiltroTexto={setFiltroTexto}
+/>
+
 
         <input
           type="number"
@@ -98,4 +96,3 @@ export default function ModalAccesorio({ isOpen, onClose, onAgregar }: Props) {
     </div>
   );
 }
-

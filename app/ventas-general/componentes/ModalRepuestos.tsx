@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import SelectorRepuesto from "./SelectorRepuesto";
+import SelectorProductoVentaGeneral from "./SelectorProductoVentaGeneral";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRol } from "@/lib/useRol";
+import type { ProductoStock } from "./SelectorProductoVentaGeneral";
 
 interface Props {
   isOpen: boolean;
@@ -28,9 +29,10 @@ export default function ModalRepuesto({ isOpen, onClose, onAgregar }: Props) {
   const [cantidad, setCantidad] = useState(1);
   const [codigo, setCodigo] = useState("");
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
-
+  const [productos, setProductos] = useState<ProductoStock[]>([]);
   const [user] = useAuthState(auth);
   const { rol } = useRol();
+  const [filtroTexto, setFiltroTexto] = useState("");
 
   useEffect(() => {
     const cargarHojas = async () => {
@@ -54,8 +56,8 @@ export default function ModalRepuesto({ isOpen, onClose, onAgregar }: Props) {
     if (!producto || cantidad <= 0 || precio <= 0) return;
 
     onAgregar({
-      categoria: "Repuesto", // usado para lógica de stock
-      hoja: hojaSeleccionada, // nombre visible en tabla
+      categoria: "Repuesto",
+      hoja: hojaSeleccionada,
       producto,
       marca,
       modelo,
@@ -65,7 +67,7 @@ export default function ModalRepuesto({ isOpen, onClose, onAgregar }: Props) {
       precioUnitario: precio,
       total: precio * cantidad,
       codigo,
-      moneda: "USD", // moneda fija para repuestos
+      moneda: "USD",
     });
 
     onClose();
@@ -105,9 +107,9 @@ export default function ModalRepuesto({ isOpen, onClose, onAgregar }: Props) {
           </select>
         )}
 
-        <SelectorRepuesto
-          producto={producto}
-          setProducto={setProducto}
+        <SelectorProductoVentaGeneral
+          productos={productos}
+          setProductos={setProductos}
           setPrecio={setPrecio}
           setMarca={setMarca}
           setModelo={setModelo}
@@ -115,7 +117,8 @@ export default function ModalRepuesto({ isOpen, onClose, onAgregar }: Props) {
           setColor={setColor}
           setCodigo={setCodigo}
           setMoneda={setMoneda}
-          hojaSeleccionada={hojaSeleccionada}
+          filtroTexto={filtroTexto}
+          setFiltroTexto={setFiltroTexto}
         />
 
         <input

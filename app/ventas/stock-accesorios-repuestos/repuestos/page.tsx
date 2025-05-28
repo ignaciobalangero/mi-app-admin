@@ -196,14 +196,12 @@ export default function StockProductosPage() {
   };
 
   const productosFiltrados = productos.filter((p) => {
-    const texto = filtroTexto.toLowerCase();
-    return (
-      p.producto?.toLowerCase().includes(texto) ||
-      p.categoria?.toLowerCase().includes(texto) ||
-      p.marca?.toLowerCase().includes(texto) ||
-      p.modelo?.toLowerCase().includes(texto)
-    );
-  });
+    const texto = `${p.categoria} ${p.producto} ${p.marca} ${p.modelo}`.toLowerCase();
+    return filtroTexto
+      .toLowerCase()
+      .split(" ")
+      .every((palabra) => texto.includes(palabra));
+  });  
   
   return (
     <>

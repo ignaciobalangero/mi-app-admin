@@ -41,6 +41,7 @@ export default function StockProductosPage() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(true);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [filtroTexto, setFiltroTexto] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -173,7 +174,14 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
   const totalPesos = cotizacion !== null ? totalUSD * cotizacion : 0;
 
   const productosAPedir = productos.filter((p) => p.cantidad < p.stockIdeal);
-
+  const productosFiltrados = productos.filter((p) => {
+    const texto = `${p.categoria} ${p.producto} ${p.marca} ${p.modelo}`.toLowerCase();
+    return filtroTexto
+      .toLowerCase()
+      .split(" ")
+      .every((palabra) => texto.includes(palabra));
+  });
+  
   const exportarExcel = () => {
     const data = productosAPedir.map((p) => ({
       Producto: p.producto,
@@ -251,8 +259,18 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
           />
         )}
 
+<div className="mb-4 text-center">
+  <input
+    type="text"
+    placeholder="Buscar por categoría, producto, marca o modelo"
+    value={filtroTexto}
+    onChange={(e) => setFiltroTexto(e.target.value)}
+    className="p-2 border rounded w-full max-w-md"
+  />
+</div>
+
         <TablaProductos
-          productos={productos}
+          productos={productosFiltrados}
           editarProducto={editarProducto}
           eliminarProducto={eliminarProducto}
         />
