@@ -30,7 +30,6 @@ export default function StockProductosPage() {
   const [modelo, setModelo] = useState("");
   const [color, setColor] = useState("");
   const [precioCosto, setPrecioCosto] = useState(0);
-  const [precioVenta, setPrecioVenta] = useState(0);
   const [precioVentaPesos, setPrecioVentaPesos] = useState(0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
   const [cotizacion, setCotizacion] = useState<number | null>(null);
@@ -42,6 +41,26 @@ export default function StockProductosPage() {
   const [mostrarSugerencias, setMostrarSugerencias] = useState(true);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [filtroTexto, setFiltroTexto] = useState("");
+  const [precio1, setPrecio1] = useState(0);
+  const [precio2, setPrecio2] = useState(0);
+  const [precio3, setPrecio3] = useState(0);
+  const [mostrarModalPrecios, setMostrarModalPrecios] = useState(false);
+const [preciosConvertidos, setPreciosConvertidos] = useState({
+  precio1: 0,
+  precio2: 0,
+  precio3: 0,
+});
+
+const verPreciosConvertidos = (p: any) => {
+  if (p.moneda === "USD" && cotizacion) {
+    setPreciosConvertidos({
+      precio1: p.precio1 * cotizacion,
+      precio2: p.precio2 * cotizacion,
+      precio3: p.precio3 * cotizacion,
+    });
+    setMostrarModalPrecios(true);
+  }
+};
 
   useEffect(() => {
     if (user) {
@@ -62,13 +81,6 @@ export default function StockProductosPage() {
     if (negocioID) cargarProductos();
   }, [negocioID]);
 
-  useEffect(() => {
-    if (moneda === "USD" && cotizacion !== null) {
-      setPrecioVentaPesos(precioVenta * cotizacion);
-    } else {
-      setPrecioVentaPesos(precioVenta);
-    }
-  }, [precioVenta, cotizacion, moneda]);
 
   useEffect(() => {
     fetch("https://dolarapi.com/v1/dolares/blue")
@@ -88,7 +100,7 @@ export default function StockProductosPage() {
   };
 
   const guardarProducto = async () => {
-    if (!producto || precioVenta <= 0 || cantidad <= 0) return;
+    if (!producto || (precio1 <= 0 && precio2 <= 0 && precio3 <= 0) || cantidad <= 0) return;
 
     const data = {
       codigo,
@@ -99,14 +111,19 @@ export default function StockProductosPage() {
       modelo, 
       color,
       precioCosto,
-      precioVenta,
-      precioVentaPesos: moneda === "USD" && cotizacion !== null ? precioVenta * cotizacion : precioVenta,
+      precio1,
+      precio2,
+      precio3,
+      precio1Pesos: moneda === "USD" && cotizacion !== null ? precio1 * cotizacion : precio1,
+      precio2Pesos: moneda === "USD" && cotizacion !== null ? precio2 * cotizacion : precio2,
+      precio3Pesos: moneda === "USD" && cotizacion !== null ? precio3 * cotizacion : precio3,
       moneda,
       cotizacion,
       cantidad,
       stockIdeal,
       stockBajo,
     };
+    
 
     if (editandoId) {
       await updateDoc(doc(db, `negocios/${negocioID}/stockAccesorios`, editandoId), data);
@@ -130,7 +147,9 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
     setModelo("");
     setColor("");
     setPrecioCosto(0);
-    setPrecioVenta(0);
+    setPrecio1(0);
+    setPrecio2(0);
+    setPrecio3(0);
     setPrecioVentaPesos(0);
     setCantidad(1);
     setStockIdeal(5);
@@ -152,8 +171,9 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
     setModelo(prod.modelo || "");
     setColor(prod.color || "");
     setPrecioCosto(prod.precioCosto || 0);
-    setPrecioVenta(prod.precioVenta || 0);
-    setPrecioVentaPesos(prod.precioVentaPesos || 0);
+    setPrecio1(prod.precio1 || 0);
+    setPrecio2(prod.precio2 || 0);
+    setPrecio3(prod.precio3 || 0);
     setMoneda(prod.moneda || "");
     setCotizacion(prod.cotizacion || null);
     setCantidad(prod.cantidad || 1);
@@ -241,13 +261,16 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
             setColor={setColor}
             precioCosto={precioCosto}
             setPrecioCosto={setPrecioCosto}
-            precioVenta={precioVenta}
-            setPrecioVenta={setPrecioVenta}
+            precio1={precio1}
+            setPrecio1={setPrecio1}
+            precio2={precio2}
+            setPrecio2={setPrecio2}
+            precio3={precio3}
+            setPrecio3={setPrecio3}
             moneda={moneda}
             setMoneda={setMoneda}
             cotizacion={cotizacion}
             setCotizacion={setCotizacion}
-            precioVentaPesos={precioVentaPesos}
             cantidad={cantidad}
             setCantidad={setCantidad}
             stockIdeal={stockIdeal}
@@ -269,11 +292,30 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
   />
 </div>
 
-        <TablaProductos
-          productos={productosFiltrados}
-          editarProducto={editarProducto}
-          eliminarProducto={eliminarProducto}
-        />
+<TablaProductos
+  productos={productosFiltrados}
+  editarProducto={editarProducto}
+  eliminarProducto={eliminarProducto}
+  verPreciosConvertidos={verPreciosConvertidos}
+  cotizacion={cotizacion}
+/>
+{mostrarModalPrecios && (
+  <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md text-center border-2 border-gray-200">
+      <h2 className="text-xl font-bold text-gray-800 mb-4">Precios en pesos 🇦🇷</h2>
+      <p className="mb-2 text-gray-700 text-lg">💰 <strong>Precio 1:</strong> ${preciosConvertidos.precio1.toLocaleString("es-AR")}</p>
+      <p className="mb-2 text-gray-700 text-lg">💰 <strong>Precio 2:</strong> ${preciosConvertidos.precio2.toLocaleString("es-AR")}</p>
+      <p className="mb-4 text-gray-700 text-lg">💰 <strong>Precio 3:</strong> ${preciosConvertidos.precio3.toLocaleString("es-AR")}</p>
+      <button
+        onClick={() => setMostrarModalPrecios(false)}
+        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+      >
+        Cerrar
+      </button>
+    </div>
+  </div>
+)}
+
       </main>
     </>
   );

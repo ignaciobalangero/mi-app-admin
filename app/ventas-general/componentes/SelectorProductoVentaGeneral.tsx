@@ -7,6 +7,7 @@ import { useRol } from "@/lib/useRol";
 
 interface ProductoStock {
   id: string;
+  codigo?: string; // Agregado para manejar el código del producto
   producto: string;
   marca?: string;
   modelo?: string;
@@ -15,6 +16,9 @@ interface ProductoStock {
   precio1: number;
   precio2: number;
   precio3: number;
+  precio1Pesos?: number;
+  precio2Pesos?: number;
+  precio3Pesos?: number;
   moneda: "ARS" | "USD";
   cantidad?: number;
   tipo: "accesorio" | "repuesto";
@@ -67,16 +71,17 @@ export default function SelectorProductoVentaGeneral({
         modelo: doc.data().modelo || "",
         categoria: doc.data().categoria || "",
         color: doc.data().color || "",
-        precio1: typeof doc.data().precio1 === "number" ? doc.data().precio1 : (
-          typeof doc.data().precio === "number" ? doc.data().precio : 0
-        ),
-        precio2: typeof doc.data().precio2 === "number" ? doc.data().precio2 : 0,
-        precio3: typeof doc.data().precio3 === "number" ? doc.data().precio3 : 0,
-        
-        moneda: doc.data().moneda || "ARS",
+        precio1: doc.data().precio1Pesos || 0,
+        precio2: doc.data().precio2Pesos || 0,
+        precio3: doc.data().precio3Pesos || 0,
+        precio1Pesos: doc.data().precio1Pesos || 0,
+        precio2Pesos: doc.data().precio2Pesos || 0,
+        precio3Pesos: doc.data().precio3Pesos || 0,
+        moneda: "ARS",
         cantidad: doc.data().cantidad || 0,
         tipo: "accesorio",
       }));
+      
       
       const repuestos: ProductoStock[] = repSnap.docs.map(doc => ({
         id: doc.id,
@@ -88,7 +93,10 @@ export default function SelectorProductoVentaGeneral({
         precio1: doc.data().precio1 || 0,
         precio2: doc.data().precio2 || 0,
         precio3: doc.data().precio3 || 0,
-        moneda: doc.data().moneda || "USD",
+        precio1Pesos: doc.data().precio1Pesos || 0,
+        precio2Pesos: doc.data().precio2Pesos || 0,
+        precio3Pesos: doc.data().precio3Pesos || 0,
+        moneda: "ARS",
         cantidad: doc.data().cantidad || 0,
         tipo: "repuesto",
         hoja: doc.data().hoja || "",
@@ -125,6 +133,7 @@ export default function SelectorProductoVentaGeneral({
       {
         ...productoSeleccionado,
         cantidad,
+        codigo: productoSeleccionado.id, 
         precioUnitario: precioElegido,
       },
     ]);
@@ -163,11 +172,12 @@ export default function SelectorProductoVentaGeneral({
             >
               <strong>{p.producto}</strong> — {p.marca} {p.modelo} ({p.color})<br />
               <span className="text-xs text-gray-500">
-                {p.tipo.toUpperCase()} · {p.categoria} · Stock: {p.cantidad} ·
-                Precio 1: {p.moneda} {p.precio1.toLocaleString("es-AR")} ·
-                Precio 2: {p.moneda} {p.precio2.toLocaleString("es-AR")} ·
-                Precio 3: {p.moneda} {p.precio3.toLocaleString("es-AR")}
+              {p.tipo.toUpperCase()} · {p.categoria} · Stock: {p.cantidad} ·
+              Precio 1: ARS ${p.precio1Pesos?.toLocaleString("es-AR") || 0} ·
+              Precio 2: ARS ${p.precio2Pesos?.toLocaleString("es-AR") || 0} ·
+              Precio 3: ARS ${p.precio3Pesos?.toLocaleString("es-AR") || 0}
               </span>
+
             </li>
           ))}
         </ul>
@@ -191,23 +201,35 @@ export default function SelectorProductoVentaGeneral({
             </div>
 
             <div className="mb-3">
-              <label className="block text-sm mb-1">Elegí un precio:</label>
-              <div className="flex gap-2">
-                {[productoSeleccionado.precio1, productoSeleccionado.precio2, productoSeleccionado.precio3].map(
-                  (precio, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setPrecioElegido(precio)}
-                      className={`border px-3 py-1 rounded ${
-                        precioElegido === precio ? "bg-blue-600 text-white" : ""
-                      }`}
-                    >
-                      {productoSeleccionado.moneda} {precio.toLocaleString("es-AR")}
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
+            <label className="block text-sm mb-1">Elegí un precio:</label>
+            <div className="flex gap-2">
+  {[1, 2, 3].map((nivel) => {
+    const keyUSD = `precio${nivel}` as keyof ProductoStock;
+    const keyPesos = `precio${nivel}Pesos` as keyof ProductoStock;
+
+    const precio = 
+      productoSeleccionado.tipo === "repuesto" || productoSeleccionado.tipo === "accesorio"
+        ? productoSeleccionado[keyPesos]
+        : productoSeleccionado[keyUSD];
+
+    if (typeof precio !== "number") return null;
+
+    return (
+      <button
+        key={nivel}
+        onClick={() => setPrecioElegido(precio)}
+        className={`border px-3 py-1 rounded ${
+          precioElegido === precio ? "bg-blue-600 text-white" : ""
+        }`}
+      >
+        {productoSeleccionado.tipo === "repuesto" || productoSeleccionado.tipo === "accesorio"
+          ? `ARS $${precio.toLocaleString("es-AR")}`
+          : `USD $${precio.toLocaleString("en-US")}`}
+      </button>
+    );
+  })}
+</div>
+                 </div>
 
             <div className="flex justify-end gap-2">
               <button

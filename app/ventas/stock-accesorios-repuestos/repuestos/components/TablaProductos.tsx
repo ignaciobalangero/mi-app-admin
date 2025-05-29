@@ -28,16 +28,16 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
     <table className="w-full bg-white rounded shadow overflow-hidden">
       <thead className="bg-gray-300 text-left">
         <tr>
-          <th className="p-2 border border-gray-400 w-[20px]">Código</th>
-          <th className="p-2 border border-gray-400">Categoría</th>
-          <th className="p-2 border border-gray-400">Producto</th>
-          <th className="p-2 border border-gray-400">Marca</th>
-          <th className="p-2 border border-gray-400">Color</th>
-          <th className="p-2 border border-gray-400">Costo</th>
-          <th className="p-2 border border-gray-400">Costo en pesos</th>
-          <th className="p-2 border border-gray-400 w-[5px]">Cantidad</th>
-          <th className="p-2 border border-gray-400 w-[5px]">Proveedor</th>
-          <th className="p-2 border border-gray-400 w-[5px]">Acciones</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[40px]">Código</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[80px]">Categoría</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[200px]">Producto</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[90px]">Marca</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[80px]">Color</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[60px]">Costo</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[20px]">Costo en Pesos</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm text-center w-[30px]">Cant.</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[90px]">Proveedor</th>
+        <th className="px-2 py-1 border border-gray-400 text-sm w-[60px]">Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -58,7 +58,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
             <td className="p-2 border border-gray-300">{p.marca}</td>
             <td className="p-2 border border-gray-300">{p.color}</td>
             <td className="p-2 border w-28 border-gray-300">{p.moneda} ${p.precioCosto}</td>
-            <td className="p-2 border w-26 text-center whitespace-nowrap">
+            <td className="p-2 border w-28 border-gray-300">
                  {typeof p.precioCostoPesos === "number"
               ? `$${p.precioCostoPesos.toLocaleString("es-AR")}`
             : "—"}

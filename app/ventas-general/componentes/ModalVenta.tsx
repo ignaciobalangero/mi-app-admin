@@ -8,7 +8,7 @@ import { obtenerUltimoNumeroVenta } from "@/lib/ventas/contadorVentas";
 import BotonGuardarVenta from "./BotonGuardarVenta";
 import SelectorProductoVentaGeneral from "./SelectorProductoVentaGeneral";
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, addDoc, getDocs } from "firebase/firestore";
 import { Combobox } from "@headlessui/react";
 
 export default function ModalVenta({
@@ -17,13 +17,18 @@ export default function ModalVenta({
   pagoInicial = null,
   onClose,
   onGuardar,
+  refrescar,
+  setRefrescar,
 }: {
   clienteInicial?: string;
   productosIniciales?: any[];
   pagoInicial?: any;
   onClose?: () => void;
   onGuardar?: () => void;
+  refrescar: boolean;
+  setRefrescar: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
+
   const { rol } = useRol();
   const [cliente, setCliente] = useState(clienteInicial);
   const [numeroVenta, setNumeroVenta] = useState("");
@@ -82,6 +87,8 @@ const [filtroTexto, setFiltroTexto] = useState("");
 
   
   if (!rol || !rol.negocioID || numeroVenta === "") return null;
+  
+  const hayTelefono = productos.some((p) => p.categoria === "Teléfono");
 
   return (
     <div className="fixed inset-0 z-[9998] bg-white/30 flex items-center justify-center">
@@ -173,44 +180,49 @@ const [filtroTexto, setFiltroTexto] = useState("");
       </tr>
     </thead>
     <tbody className="text-gray-700 min-h-[200px]">
-      {productos.length > 0 ? (
-        productos.map((p, i) => (
-          <tr key={i} className="border-b hover:bg-gray-50">
-            <td className="p-2 border">{p.categoria}</td>
-            <td className="p-2 border">{p.producto}</td>
-            <td className="p-2 border">{p.marca}</td>
-            <td className="p-2 border">{p.modelo}</td>
-            <td className="p-2 border">{p.color}</td>
-            <td className="p-2 border text-right">
-              {p.moneda === "USD" ? "USD $" : "$"}{" "}
-              {Number(p.precioUnitario).toLocaleString("es-AR")}
-            </td>
-            <td className="p-2 border text-right">{p.cantidad}</td>
-            <td className="p-2 border text-right">
-              {(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}
-            </td>
-            <td className="p-2 border text-center">
-              <button
-                onClick={() => {
-                  const copia = [...productos];
-                  copia.splice(i, 1);
-                  setProductos(copia);
-                }}
-                className="text-red-500 hover:text-red-700"
-              >
-                🗑
-              </button>
-            </td>
-          </tr>
-        ))
-      ) : (
-        <tr>
-          <td colSpan={9} className="p-4 text-center text-gray-400 border">
-            No hay productos cargados.
+  {productos.length > 0 ? (
+    productos.map((p, i) => {
+      const precioMostrar = hayTelefono ? p.precioUSD || p.precioUnitario : p.precioARS || p.precioUnitario;
+      const moneda = hayTelefono ? "USD" : "ARS";
+
+      return (
+        <tr key={i} className="border-b hover:bg-gray-50">
+          <td className="p-2 border">{p.categoria}</td>
+          <td className="p-2 border">{p.producto}</td>
+          <td className="p-2 border">{p.marca}</td>
+          <td className="p-2 border">{p.modelo}</td>
+          <td className="p-2 border">{p.color}</td>
+          <td className="p-2 border text-right">
+            {moneda === "USD" ? "USD $" : "$"}{" "}
+            {Number(precioMostrar).toLocaleString("es-AR")}
+          </td>
+          <td className="p-2 border text-right">{p.cantidad}</td>
+          <td className="p-2 border text-right">
+            {(precioMostrar * p.cantidad).toLocaleString("es-AR")}
+          </td>
+          <td className="p-2 border text-center">
+            <button
+              onClick={() => {
+                const copia = [...productos];
+                copia.splice(i, 1);
+                setProductos(copia);
+              }}
+              className="text-red-500 hover:text-red-700"
+            >
+              🗑
+            </button>
           </td>
         </tr>
-      )}
-    </tbody>
+      );
+    })
+  ) : (
+    <tr>
+      <td colSpan={9} className="p-4 text-center text-gray-400 border">
+        No hay productos cargados.
+      </td>
+    </tr>
+  )}
+</tbody>
   </table>
 </div>
 
@@ -224,12 +236,19 @@ const [filtroTexto, setFiltroTexto] = useState("");
 
         {/* Total y acciones */}
         <div className="flex justify-between items-center mt-4">
-          <div className="text-2xl font-bold text-gray-900">
-            Total: $
-            {productos
-              .reduce((acc, p) => acc + p.precioUnitario * p.cantidad, 0)
-              .toLocaleString("es-AR")}
+        <div className="text-2xl font-bold text-gray-900">
+        Total:{" "}
+        {hayTelefono ? "USD $" : "$"}
+        {productos
+         .reduce((acc, p) => {
+          const precio = hayTelefono
+           ? p.precioUSD || p.precioUnitario
+           : p.precioARS || p.precioUnitario;
+           return acc + (precio * p.cantidad);
+           }, 0)
+          .toLocaleString("es-AR")}
           </div>
+
 
           <div className="flex gap-4">
           <button
@@ -243,13 +262,17 @@ const [filtroTexto, setFiltroTexto] = useState("");
             </button>
 
             <BotonGuardarVenta
-              cliente={cliente}
-              productos={productos}
-              fecha={new Date().toLocaleDateString("es-AR")}
-              observaciones=""
-              pago={pago}
-              onGuardar={onClose}
-            />
+  cliente={cliente}
+  productos={productos}
+  fecha={new Date().toLocaleDateString("es-AR")}
+  observaciones=""
+  pago={pago}
+  moneda={hayTelefono ? "USD" : "ARS"}
+  onGuardar={() => {
+    setRefrescar(prev => !prev);  // ✅ actualiza la tabla
+    onClose?.();                  // ✅ cierra el modal después
+  }}
+/>
           </div>
         </div>
 
@@ -266,14 +289,32 @@ const [filtroTexto, setFiltroTexto] = useState("");
         [name]: value,
       }));
     }}
-    onGuardarPago={(nuevoPago) => {
-      console.log("GUARDAR PAGO:", nuevoPago);
-      setPago(nuevoPago);
-      setGuardadoConExito(true);
-      setTimeout(() => setGuardadoConExito(false), 2000);
-      setModalPagoAbierto(false);
+    onGuardarPago={async (nuevoPago) => {
+      if (!rol?.negocioID) return;
+
+      const nuevoPagoFirebase = {
+        ...nuevoPago,
+        cliente,
+        fecha: new Date().toLocaleDateString("es-AR"),
+        moneda: nuevoPago.moneda || "ARS",
+        forma: nuevoPago.formaPago || "",
+        observaciones: nuevoPago.observaciones || "",
+      };
+
+      try {
+        await addDoc(
+          collection(db, `negocios/${rol.negocioID}/pagos`),
+          nuevoPagoFirebase
+        );
+
+        setPago(nuevoPago);
+        setGuardadoConExito(true);
+        setTimeout(() => setGuardadoConExito(false), 2000);
+        setModalPagoAbierto(false);
+      } catch (err) {
+        console.error("Error al guardar pago:", err);
+      }
     }}
-    
     guardadoConExito={guardadoConExito}
   />
 )}

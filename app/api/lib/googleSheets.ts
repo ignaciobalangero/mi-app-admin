@@ -209,3 +209,23 @@ export async function eliminarProductoDeSheet(sheetID: string, hoja: string, cod
     },
   });
 }
+export async function actualizarFilaEnSheet({
+  sheetID,
+  hoja,
+  filaIndex,
+  valores,
+}: {
+  sheetID: string;
+  hoja: string;
+  filaIndex: number;
+  valores: (string | number)[];
+}) {
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: sheetID,
+    range: `${hoja}!A${filaIndex}:F${filaIndex}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [valores],
+    },
+  });
+}

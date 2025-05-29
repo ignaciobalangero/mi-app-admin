@@ -4,8 +4,13 @@ interface ExtraData {
   codigo: string;
   proveedor?: string;
   precioCosto?: number;
-  ganancia?: number;
   hoja?: string;
+  precio1?: number;
+  precio2?: number;
+  precio3?: number;
+  precio1Pesos?: number;
+  precio2Pesos?: number;
+  precio3Pesos?: number;
 }
 
 import { useEffect, useState } from "react";
@@ -106,11 +111,10 @@ export default function TablaProductosSheet({
         const combinados = sheetData.map((producto: any) => {
           const extra = firestoreData.find((e: any) => e.codigo === producto.codigo);
 
-          const precioUSD = Number(producto.precioUSD) || 0;
+          const precioUSD = Number(extra?.precio1) || Number(producto.precio1) || 0;
+          const precioARS = Number(extra?.precio1Pesos) || 0;
           const precioCosto = Number(extra?.precioCosto) || 0;
-          const ganancia = precioUSD - precioCosto;
-
-          const precioARS = Math.round(precioUSD * cotizacionFinal);
+          const ganancia = precioUSD - precioCosto;          
 
           return {
             ...producto,
@@ -235,8 +239,12 @@ setProductosAPedir(sugerencias);
                 <td className="p-2 border">
                   ${typeof fila.precioARS === "number" ? fila.precioARS.toLocaleString("es-AR") : "-"}
                 </td>
-                <td className="p-2 border">${fila.precioUSD}</td>
-                <td className="p-2 border">${fila.precioCosto}</td>
+                <td className="p-2 border">
+                    ${typeof fila.precio1 === "number" ? fila.precio1.toLocaleString("es-AR") : "-"}
+                </td>
+                <td className="p-2 border">
+                     ${typeof fila.precioCosto === "number" ? fila.precioCosto.toLocaleString("es-AR") : "-"}
+                </td>
                 <td className="p-2 border">{fila.proveedor}</td>
                 <td className="p-2 border">
                   ${typeof fila.ganancia === "number" ? fila.ganancia.toFixed(2) : "-"}

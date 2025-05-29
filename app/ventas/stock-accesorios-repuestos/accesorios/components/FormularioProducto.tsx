@@ -19,13 +19,16 @@ interface Props {
   setColor: (val: string) => void;
   precioCosto: number;  
   setPrecioCosto: (val: number) => void;
-  precioVenta: number;
-  setPrecioVenta: (val: number) => void;
+  precio1: number;
+  setPrecio1: (val: number) => void;
+  precio2: number;
+  setPrecio2: (val: number) => void;
+  precio3: number;
+  setPrecio3: (val: number) => void;
   moneda: "ARS" | "USD";
   setMoneda: (val: "ARS" | "USD") => void;
   cotizacion: number;
   setCotizacion: (val: number) => void;
-  precioVentaPesos: number;
   cantidad: number;
   setCantidad: (val: number) => void;
   stockIdeal: number;
@@ -53,13 +56,16 @@ export default function FormularioProducto({
   setColor,
   precioCosto,
   setPrecioCosto,
-  precioVenta,
-  setPrecioVenta,
+  precio1,
+  setPrecio1,
+  precio2,
+  setPrecio2,
+  precio3,
+  setPrecio3,
   moneda,
   setMoneda,
   cotizacion,
   setCotizacion,
-  precioVentaPesos,
   cantidad,
   setCantidad,
   stockIdeal,
@@ -117,10 +123,33 @@ export default function FormularioProducto({
           {precioCosto <= 0 && <p className="text-red-600 text-sm mt-1"></p>}
         </div>
         <div>
-          <label className="block font-semibold mb-1">Precio de venta</label>
-          <input type="number" value={precioVenta} onChange={(e) => setPrecioVenta(Number(e.target.value))} className={`p-2 border rounded w-full ${precioVenta <= 0 ? "border-red-500" : "border-gray-400"}`} />
-          {precioVenta <= 0 && <p className="text-red-600 text-sm mt-1"></p>}
-        </div>
+  <label className="block font-semibold mb-1">Precio 1 (recomendado)</label>
+  <input
+    type="number"
+    value={precio1}
+    onChange={(e) => setPrecio1(Number(e.target.value))}
+    className={`p-2 border rounded w-full ${precio1 <= 0 ? "border-red-500" : "border-gray-400"}`}
+  />
+</div>
+<div>
+  <label className="block font-semibold mb-1">Precio 2 (opcional)</label>
+  <input
+    type="number"
+    value={precio2}
+    onChange={(e) => setPrecio2(Number(e.target.value))}
+    className="p-2 border rounded w-full"
+  />
+</div>
+<div>
+  <label className="block font-semibold mb-1">Precio 3 (opcional)</label>
+  <input
+    type="number"
+    value={precio3}
+    onChange={(e) => setPrecio3(Number(e.target.value))}
+    className="p-2 border rounded w-full"
+  />
+</div>
+
         <div>
           <label className="block font-semibold mb-1">Moneda</label>
           <select value={moneda} onChange={(e) => setMoneda(e.target.value as "ARS" | "USD")} className="p-2 border rounded w-full">
@@ -134,10 +163,14 @@ export default function FormularioProducto({
             <input type="number" value={cotizacion} onChange={(e) => setCotizacion(Number(e.target.value))} className="p-2 border rounded w-full" />
           </div>
         )}
-        <div>
-          <label className="block font-semibold mb-1">Precio venta en pesos</label>
-          <input type="number" value={precioVentaPesos} readOnly className="p-2 border rounded w-full bg-gray-100" />
-        </div>
+        {moneda === "USD" && cotizacion > 0 && (
+      <div className="col-span-2 text-sm text-gray-600">
+          <p>💰 Precio 1 en pesos: ${ (precio1 * cotizacion).toLocaleString("es-AR") }</p>
+          <p>💰 Precio 2 en pesos: ${ (precio2 * cotizacion).toLocaleString("es-AR") }</p>
+          <p>💰 Precio 3 en pesos: ${ (precio3 * cotizacion).toLocaleString("es-AR") }</p>
+       </div>
+          )}  
+
         <div>
           <label className="block font-semibold mb-1">Cantidad</label>
           <input type="number" value={cantidad} onChange={(e) => setCantidad(Number(e.target.value))} className={`p-2 border rounded w-full ${cantidad <= 0 ? "border-red-500" : "border-gray-400"}`} />
@@ -157,7 +190,7 @@ export default function FormularioProducto({
         <button
           onClick={guardarProducto}
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
-          disabled={!producto || precioVenta <= 0 || cantidad <= 0 || stockIdeal <= 0}
+          disabled={!producto || precio1 <= 0 || cantidad <= 0 || stockIdeal <= 0}
         >
           {editandoId ? "Actualizar producto" : "Guardar producto"}
         </button>

@@ -107,18 +107,24 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
 
   const guardarTodos = async () => {
     if (seleccionados.length === 0) return;
-
   
     const trabajoRef = doc(db, `negocios/${rol.negocioID}/trabajos/${trabajoID}`);
+    const trabajoSnap = await getDoc(trabajoRef);
+    const trabajoData = trabajoSnap.data();
   
-    const costoTotal = seleccionados.reduce((sum, r) => sum + r.costoPesos, 0);
+    const previos = trabajoData?.repuestosUsados || [];
+  
+    // Sumamos nuevos + previos
+    const repuestosActualizados = [...previos, ...seleccionados];
+  
+    const costoTotal = repuestosActualizados.reduce((sum, r) => sum + (r.costoPesos || 0), 0);
   
     await updateDoc(trabajoRef, {
-        repuestosUsados: seleccionados,
-        costo: Number(costoTotal),
-      });
-      
+      repuestosUsados: repuestosActualizados,
+      costo: Number(costoTotal),
+    });
   
+    // Descontar stock de cada repuesto nuevo
     for (const r of seleccionados) {
       const ref = doc(db, `negocios/${rol.negocioID}/stockRepuestos/${r.id}`);
       await updateDoc(ref, {
@@ -127,7 +133,7 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     }
   
     onClose();
-    if (onGuardar) onGuardar(); // ✅ Notificamos a la tabla que se guardó    
+    if (onGuardar) onGuardar();
   };
   
 

@@ -54,6 +54,7 @@ export default function TablaVentas({ refrescar }: Props) {
       (p: any) => p.categoria === "Repuesto" && p.codigo
     );
   
+    // Reponer accesorios y repuestos
     await reponerAccesoriosAlStock({
       productos: accesorios,
       negocioID: rol.negocioID,
@@ -64,49 +65,53 @@ export default function TablaVentas({ refrescar }: Props) {
       negocioID: rol.negocioID,
     });
   
-    // ✅ Lógica adicional si es una venta de teléfono
-    if (!rol?.negocioID || !ventaAEliminar) return;
-
-  const ventaRef = doc(db, `negocios/${rol.negocioID}/ventaTelefonos/${ventaAEliminar.id}`);
-  const snap = await getDoc(ventaRef);
-
-  if (snap.exists()) {
-    const data = snap.data();
-
-    const stockSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockTelefonos`));
-    const yaExiste = stockSnap.docs.some((d) => {
-      const tel = d.data();
-      return tel.modelo === data.modelo && tel.imei === data.imei;
-    });
-
-    if (!yaExiste) {
-      await addDoc(collection(db, `negocios/${rol.negocioID}/stockTelefonos`), {
-        fechaIngreso: data.fechaIngreso,
-        proveedor: data.proveedor || "—",
-        modelo: data.modelo,
-        marca: data.marca || "—",
-        estado: data.estado,
-        bateria: data.bateria || "",
-        gb: data.gb || "",
-        color: data.color || "—",
-        imei: data.imei || "",
-        serial: data.serie || "",
-        precioCompra: data.precioCosto,
-        precioVenta: data.precioVenta,
-        moneda: data.moneda || "ARS",
-        observaciones: data.observaciones || "",
-      });
-    }
-
-    await deleteDoc(ventaRef); // ❌ ventaTelefonos
-  }
-
-  await deleteDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaAEliminar.id}`)); // ❌ ventasGeneral
-
-  setVentas((prev) => prev.filter((v) => v.id !== ventaAEliminar.id));
-  setMostrarConfirmarEliminar(false);
-};
+    // Si es una venta de teléfono, reponerlo al stock
+    const telefono = ventaAEliminar.productos.find((p: any) => p.categoria === "Teléfono");
   
+    if (telefono) {
+      const refTelefono = doc(db, `negocios/${rol.negocioID}/ventaTelefonos/${ventaAEliminar.id}`);
+      const snap = await getDoc(refTelefono);
+  
+      if (snap.exists()) {
+        const data = snap.data();
+  
+        const stockSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockTelefonos`));
+        const yaExiste = stockSnap.docs.some((d) => {
+          const tel = d.data();
+          return tel.modelo === data.modelo && tel.imei === data.imei;
+        });
+  
+        if (!yaExiste) {
+          await addDoc(collection(db, `negocios/${rol.negocioID}/stockTelefonos`), {
+            fechaIngreso: data.fechaIngreso,
+            proveedor: data.proveedor || "—",
+            modelo: data.modelo,
+            marca: data.marca || "—",
+            estado: data.estado,
+            bateria: data.bateria || "",
+            gb: data.gb || "",
+            color: data.color || "—",
+            imei: data.imei || "",
+            serial: data.serie || "",
+            precioCompra: data.precioCosto,
+            precioVenta: data.precioVenta,
+            moneda: data.moneda || "ARS",
+            observaciones: data.observaciones || "",
+          });
+        }
+  
+        // Borrar de ventaTelefonos
+        await deleteDoc(refTelefono);
+      }
+    }
+  
+    // Eliminar de ventasGeneral
+    await deleteDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaAEliminar.id}`));
+  
+    // Refrescar estado
+    setVentas((prev) => prev.filter((v) => v.id !== ventaAEliminar.id));
+    setMostrarConfirmarEliminar(false);
+  };  
   
   useEffect(() => {
     const obtenerVentas = async () => {
@@ -217,8 +222,7 @@ export default function TablaVentas({ refrescar }: Props) {
             <th className="p-1">Modelo</th>
             <th className="p-1">Color</th>
             <th className="p-1">Cantidad</th>
-            <th className="p-1 w-24">Precio ARS</th>
-            <th className="p-1">Precio USD</th>
+            <th className="p-1 w-24">Precio ARS/USD</th>
             <th className="p-1">Total</th>
             <th className="p-1">Acciones</th>
           </tr>
@@ -264,19 +268,13 @@ export default function TablaVentas({ refrescar }: Props) {
     : `$${p.precioUnitario.toLocaleString("es-AR")}`}
 </td>
 
-{/* Precio USD */}
-<td className="p-1 text-center">
-  {p.moneda?.toUpperCase() === "USD"
-    ? `USD $${(p.precioUnitario).toLocaleString("es-AR")}`
-    : "—"}
-</td>
-
 {/* Total en ARS */}
 <td className="p-1 text-center">
-  {p.moneda?.toUpperCase() === "USD"
-    ? `$${(p.precioUnitario * p.cantidad * cotizacion).toLocaleString("es-AR")}`
+  {venta.moneda === "USD"
+    ? `USD $${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
     : `$${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`}
 </td>
+
 
 
 

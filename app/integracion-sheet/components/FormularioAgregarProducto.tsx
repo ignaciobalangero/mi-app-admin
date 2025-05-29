@@ -24,14 +24,15 @@ export default function FormularioAgregarProducto({
   const [mostrar, setMostrar] = useState(true);
   const [mensaje, setMensaje] = useState("");
   const [stockMinimo, setStockMinimo] = useState<number>(0);
-const [stockIdeal, setStockIdeal] = useState<number>(0);
+  const [stockIdeal, setStockIdeal] = useState<number>(0);
   const { rol } = useRol();
-
   const [usarDolarManual, setUsarDolarManual] = useState(false);
   const [dolarManual, setDolarManual] = useState<number | null>(null);
   const [cotizacion, setCotizacion] = useState<number>(1000);
-
-  const cotizacionFinal = usarDolarManual && dolarManual ? dolarManual : cotizacion || 0;
+  const [precio1, setPrecio1] = useState("");
+  const [precio2, setPrecio2] = useState("");
+  const [precio3, setPrecio3] = useState("");
+  
 
   useEffect(() => {
     const obtenerConfiguracion = async () => {
@@ -72,14 +73,24 @@ const [stockIdeal, setStockIdeal] = useState<number>(0);
     const letra = categoria.trim().charAt(0).toUpperCase();
     const numero = Math.floor(1000 + Math.random() * 9000);
     const codigo = `${letra}-${numero}`;
-
-    const nuevoProducto = {
+    const cotizacionFinal =
+    usarDolarManual && dolarManual ? dolarManual : cotizacion || 0;
+  
+  const precio1Num = Number(precio1);
+  const precio2Num = Number(precio2);
+  const precio3Num = Number(precio3);
+  
+  const precio1Pesos = Math.round(precio1Num * cotizacionFinal);
+  const precio2Pesos = Math.round(precio2Num * cotizacionFinal);
+  const precio3Pesos = Math.round(precio3Num * cotizacionFinal);
+    
+  const nuevoProducto = {
       codigo,
       categoria,
       producto,
       cantidad,
-      precio: precioUSDNum * cotizacionFinal,
-      precioUSD: precioUSDNum,
+      precio: Number(precio1) * cotizacionFinal, // compatible con lo anterior
+      precioUSD: Number(precio1),
       cotizacion: cotizacionFinal,
       precioCosto: costoNum,
       proveedor: proveedor.trim(),
@@ -87,8 +98,13 @@ const [stockIdeal, setStockIdeal] = useState<number>(0);
       mostrar: mostrar ? "si" : "no",
       stockMinimo,
       stockIdeal,
-    };
-    
+      precio1: precio1Num,
+      precio2: precio2Num,
+      precio3: precio3Num,
+      precio1Pesos,
+      precio2Pesos,
+      precio3Pesos,
+    };    
 
     try {
       const res = await fetch("/api/agregar-stock", {
@@ -110,7 +126,14 @@ const [stockIdeal, setStockIdeal] = useState<number>(0);
         precioCosto: costoNum,
         proveedor: proveedor.trim(),
         negocioID: String(rol?.negocioID || ""),
-      };
+        precio1: precio1Num,
+        precio2: precio2Num,
+        precio3: precio3Num,
+        precio1Pesos,
+        precio2Pesos,
+        precio3Pesos,
+        
+      };      
 
       console.log("📦 Enviando a /api/stock-extra:", extraData);
 
@@ -124,13 +147,20 @@ const [stockIdeal, setStockIdeal] = useState<number>(0);
           categoria,
           producto,
           cantidad,
-          precioUSD: precioUSDNum,
+          precioUSD: Number(precio1),
           cotizacion: cotizacionFinal,
           precioCosto: costoNum,
           proveedor: proveedor.trim(),
           negocioID: rol.negocioID,
           hoja,
-        });
+          precio1: precio1Num,
+          precio2: precio2Num,
+          precio3: precio3Num,
+          precio1Pesos,
+          precio2Pesos,
+          precio3Pesos,
+          
+        });        
         
       }
 
@@ -195,15 +225,8 @@ const [stockIdeal, setStockIdeal] = useState<number>(0);
        className="w-full p-2 border rounded"
         />
 
-
-      <input
-        value={precioUSD}
-        onChange={(e) => setPrecioUSD(e.target.value)}
-        type="number"
-        placeholder="Precio USD"
-        className="w-full p-2 border rounded"
-      />
-      <input
+<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+<input
         value={costo}
         onChange={(e) => setCosto(e.target.value)}
         type="number"
@@ -211,6 +234,31 @@ const [stockIdeal, setStockIdeal] = useState<number>(0);
         className="w-full p-2 border rounded"
       />
   
+  <input
+    value={precio1}
+    onChange={(e) => setPrecio1(e.target.value)}
+    type="number"
+    placeholder="Precio 1 (USD)"
+    className="w-full p-2 border rounded"
+  />
+
+  <input
+    value={precio2}
+    onChange={(e) => setPrecio2(e.target.value)}
+    type="number"
+    placeholder="Precio 2 (USD)"
+    className="w-full p-2 border rounded"
+  />
+
+  <input
+    value={precio3}
+    onChange={(e) => setPrecio3(e.target.value)}
+    type="number"
+    placeholder="Precio 3 (USD)"
+    className="w-full p-2 border rounded"
+  />
+
+</div>
       <input
         value={proveedor}
         onChange={(e) => setProveedor(e.target.value)}

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { useRol } from "@/lib/useRol";
@@ -9,16 +15,23 @@ import { descontarAccesorioDelStock } from "@/app/ventas-general/componentes/des
 import { descontarRepuestoDelStock } from "@/app/ventas-general/componentes/descontarRepuestoDelStock";
 import { obtenerUltimoNumeroVenta } from "@/lib/ventas/contadorVentas";
 
-interface Props {
-  productos: any[];
+export default function BotonGuardarVenta({
+  cliente,
+  productos,
+  fecha,
+  observaciones,
+  pago,
+  moneda,
+  onGuardar,
+}: {
   cliente: string;
+  productos: any[];
   fecha: string;
   observaciones: string;
   pago: any;
+  moneda: "ARS" | "USD";
   onGuardar?: () => void;
-}
-
-export default function BotonGuardarVenta({ productos, cliente, fecha, observaciones, pago, onGuardar }: Props) {
+}) {
   const router = useRouter();
   const { rol } = useRol();
   const [guardando, setGuardando] = useState(false);
@@ -39,27 +52,79 @@ export default function BotonGuardarVenta({ productos, cliente, fecha, observaci
     setGuardando(true);
 
     try {
-      // Descontar stock
-      for (const producto of productos) {
-        if (producto.categoria === "Accesorio") {
-          await descontarAccesorioDelStock(rol.negocioID, producto.codigo, producto.cantidad);
+      const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
+      const snap = await getDoc(configRef);
+      const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
+
+      // ✅ Asegurar código en cada producto
+      const productosConCodigo = productos.map((p) => ({
+        ...p,
+        codigo: p.codigo || p.id || "",
+      }));
+
+      for (const producto of productosConCodigo) {
+        const codigo = producto.codigo;
+        if (!codigo) continue;
+
+        if (producto.tipo === "accesorio") {
+          await descontarAccesorioDelStock(rol.negocioID, codigo, producto.cantidad);
         }
-        if (producto.categoria === "Repuesto") {
-          await descontarRepuestoDelStock(rol.negocioID, producto.codigo, producto.cantidad);
+
+        if (producto.tipo === "repuesto") {
+          await descontarRepuestoDelStock(rol.negocioID, codigo, producto.cantidad);
+
+          const hojaFirebase = producto.hoja;
+          const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);
+
+          if (sheetConfig?.id) {
+            await fetch("/api/actualizar-stock-sheet", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sheetID: sheetConfig.id,
+                hoja: hojaFirebase,
+                codigo,
+                cantidadVendida: producto.cantidad,
+              }),
+            });
+          }
         }
       }
 
-      // Guardar venta en Firestore
+      const pagoLimpio = {
+        monto: pago?.monto || 0,
+        moneda: pago?.moneda || "ARS",
+        forma: pago?.formaPago || "",
+        destino: pago?.destino || "",
+        observaciones: pago?.observaciones || "",
+      };
+
+      // ✅ Guardar venta
       await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
-        productos,
+        productos: productosConCodigo,
         cliente,
         fecha,
         observaciones,
-        pago,
+        pago: pagoLimpio,
+        moneda,
         estado: "pendiente",
         nroVenta,
         timestamp: serverTimestamp(),
       });
+
+      // ✅ Guardar pago (si existe)
+      if (pagoLimpio.monto > 0) {
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          cliente,
+          fecha,
+          monto: Number(pagoLimpio.monto),
+          moneda: pagoLimpio.moneda,
+          forma: pagoLimpio.forma,
+          destino: pagoLimpio.destino,
+          observaciones: pagoLimpio.observaciones,
+          timestamp: serverTimestamp(),
+        });
+      }
 
       if (onGuardar) onGuardar();
       router.push("/ventas-general");
