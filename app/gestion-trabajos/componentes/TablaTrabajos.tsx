@@ -119,67 +119,67 @@ export default function TablaTrabajos({
           <table className="w-full min-w-[1600px] border-collapse border-2 border-black">
             <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
               <tr>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1] w-18">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📅</span>
                     Fecha
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">👤</span>
                     Cliente
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📱</span>
                     Modelo
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📲</span>
                     IMEI
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🔧</span>
                     Trabajo
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🔑</span>
                     Clave
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📝</span>
                     Observaciones
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1] w-28">
                   <div className="flex items-center gap-2">
                     <span className="text-base">💰</span>
                     Precio
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1] w-24">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🚦</span>
                     Estado
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1] w-24">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📅</span>
-                    F.Modificación
+                    F.Mod
                   </div>
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                <th className="p-3 text-center text-sm font-bold text-black border border-black bg-[#ecf0f1] w-60">
                   <div className="flex items-center justify-center gap-2">
                     <span className="text-base">⚙️</span>
                     Acciones
@@ -197,38 +197,38 @@ export default function TablaTrabajos({
                     key={t.firebaseId}
                     className={`transition-all duration-200 hover:bg-[#ebf3fd] ${bgClass}`}
                   >
-                    <td className="p-3 border border-black">
-                      <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                    <td className="p-3 border border-black w-24">
+                      <span className="text-sm font-normal text-black bg-[#ecf0f1] px-2 py-1 rounded text-center block">
                         {t.fecha}
                       </span>
                     </td>
                     <td className="p-3 border border-black">
-                      <span className="text-sm font-semibold text-[#3498db]">{t.cliente}</span>
+                      <span className="text-sm font-normal text-black">{t.cliente}</span>
                     </td>
                     <td className="p-3 border border-black">
-                      <span className="text-sm text-[#2c3e50]">{t.modelo}</span>
+                      <span className="text-sm font-normal text-black">{t.modelo}</span>
                     </td>
                     <td className="p-3 border border-black">
-                      <span className="text-sm text-[#7f8c8d] font-mono bg-[#ecf0f1] px-2 py-1 rounded">
+                      <span className="text-sm font-normal text-black font-mono bg-[#ecf0f1] px-2 py-1 rounded">
                         {t.imei || "—"}
                       </span>
                     </td>
                     <td className="p-3 border border-black w-64">
-                      <span className="text-sm text-[#2c3e50]">{t.trabajo}</span>
+                      <span className="text-sm font-normal text-black">{t.trabajo}</span>
                     </td>
                     <td className="p-3 border border-black">
-                      <span className="text-sm text-[#7f8c8d]">{t.clave || "—"}</span>
+                      <span className="text-sm font-normal text-black">{t.clave || "—"}</span>
                     </td>
                     <td className="p-3 border border-black">
-                      <span className="text-sm text-[#7f8c8d]">{t.observaciones || "—"}</span>
+                      <span className="text-sm font-normal text-black">{t.observaciones || "—"}</span>
                     </td>
-                    <td className="p-3 border border-black">
-                      <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
-                        ${t.precio}
+                    <td className="p-3 border border-black w-28">
+                      <span className="text-sm font-normal text-[#1e7e34] bg-green-100 px-2 py-1 rounded text-center block">
+                        ${t.precio?.toLocaleString('es-AR') || '0'}
                       </span>
                     </td>
-                    <td className="p-3 border border-black">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
+                    <td className="p-3 border border-black w-24">
+                      <span className={`inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-bold shadow-sm w-full ${
                         t.estadoCuentaCorriente === "PAGADO" ? "bg-[#9b59b6] text-white" :
                         t.estado === "ENTREGADO" ? "bg-[#27ae60] text-white" :
                         t.estado === "REPARADO" ? "bg-[#f39c12] text-white" :
@@ -238,12 +238,12 @@ export default function TablaTrabajos({
                         {t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
                       </span>
                     </td>
-                    <td className="p-3 border border-black w-20">
-                    <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
-                       {t.fechaModificacion || "—"}
+                    <td className="p-3 border border-black w-24">
+                      <span className="text-sm font-normal text-black bg-[#ecf0f1] px-2 py-1 rounded text-center block">
+                        {t.fechaModificacion || "—"}
                       </span>
                     </td>
-                    <td className="p-3 border border-black">
+                    <td className="p-3 border border-black w-40">
                       <div className="flex flex-col gap-2">
                         
                         {/* Selector de estado */}
@@ -288,7 +288,7 @@ export default function TablaTrabajos({
                             
                             await recargarTrabajos();
                           }}
-                          className="w-full px-2 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs"
+                          className="w-full px-2 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-black text-xs font-normal"
                         >
                           <option value="PENDIENTE">⏳ Pendiente</option>
                           <option value="REPARADO">🔧 Reparado</option>
@@ -391,11 +391,11 @@ export default function TablaTrabajos({
 
             <div className="p-6 space-y-4 bg-[#f8f9fa]">
               <div className="bg-white border border-[#ecf0f1] rounded-lg p-4 space-y-3">
-                <p className="flex justify-between"><strong className="text-[#2c3e50]">Cliente:</strong> <span className="text-[#3498db] font-semibold">{trabajoSeleccionado.cliente}</span></p>
-                <p className="flex justify-between"><strong className="text-[#2c3e50]">Modelo:</strong> <span className="text-[#2c3e50]">{trabajoSeleccionado.modelo}</span></p>
-                <p className="flex justify-between"><strong className="text-[#2c3e50]">Trabajo:</strong> <span className="text-[#2c3e50]">{trabajoSeleccionado.trabajo}</span></p>
-                <p className="flex justify-between"><strong className="text-[#2c3e50]">Precio:</strong> <span className="text-[#27ae60] font-bold">${trabajoSeleccionado.precio}</span></p>
-                <p className="flex justify-between"><strong className="text-[#2c3e50]">Estado:</strong> 
+                <p className="flex justify-between"><strong className="text-black">Cliente:</strong> <span className="text-[#3498db] font-bold">{trabajoSeleccionado.cliente}</span></p>
+                <p className="flex justify-between"><strong className="text-black">Modelo:</strong> <span className="text-black font-bold">{trabajoSeleccionado.modelo}</span></p>
+                <p className="flex justify-between"><strong className="text-black">Trabajo:</strong> <span className="text-black font-bold">{trabajoSeleccionado.trabajo}</span></p>
+                <p className="flex justify-between"><strong className="text-black">Precio:</strong> <span className="text-[#1e7e34] font-bold">${trabajoSeleccionado.precio?.toLocaleString('es-AR') || '0'}</span></p>
+                <p className="flex justify-between"><strong className="text-black">Estado:</strong> 
                   <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
                     trabajoSeleccionado.estadoCuentaCorriente === "PAGADO" ? "bg-[#9b59b6] text-white" :
                     trabajoSeleccionado.estado === "ENTREGADO" ? "bg-[#27ae60] text-white" :
@@ -406,8 +406,8 @@ export default function TablaTrabajos({
                   </span>
                 </p>
                 <div className="pt-2 border-t border-[#ecf0f1]">
-                  <p className="text-sm"><strong className="text-[#2c3e50]">Observaciones:</strong></p>
-                  <p className="text-[#7f8c8d] text-sm mt-1 bg-[#f8f9fa] p-2 rounded border">{trabajoSeleccionado.observaciones || "Sin observaciones"}</p>
+                  <p className="text-sm"><strong className="text-black">Observaciones:</strong></p>
+                  <p className="text-black text-sm mt-1 bg-[#f8f9fa] p-2 rounded border font-bold">{trabajoSeleccionado.observaciones || "Sin observaciones"}</p>
                 </div>
               </div>
               
@@ -444,7 +444,7 @@ export default function TablaTrabajos({
 
             <div className="p-6 space-y-6 bg-[#f8f9fa]">
               <div className="bg-white border-2 border-[#27ae60] rounded-xl p-4 shadow-sm">
-                <p className="text-[#2c3e50] font-semibold text-center">
+                <p className="text-black font-bold text-center">
                   ¿Estás seguro que querés marcar este trabajo como pagado?
                 </p>
               </div>

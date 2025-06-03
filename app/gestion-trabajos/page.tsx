@@ -232,7 +232,7 @@ export default function GestionTrabajosPage() {
           {/* Header de la página - Estilo GestiOne */}
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+              <div className="w-16 h-6 bg-white/20 rounded-2xl flex items-center justify-center">
                 <span className="text-4xl">🔧</span>
               </div>
               <div>
