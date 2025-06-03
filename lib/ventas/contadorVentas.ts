@@ -1,22 +1,32 @@
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-export async function obtenerUltimoNumeroVenta(negocioID: string): Promise<string> {
-  try {
-    const ref = collection(db, `negocios/${negocioID}/ventasGeneral`);
-    const q = query(ref, orderBy("numero", "desc"), limit(1));
-    const snap = await getDocs(q);
+// 👉 esta SÍ incrementa (solo se usa en guardar venta)
+export async function obtenerYSumarNumeroVenta(negocioID: string): Promise<string> {
+  const ref = doc(db, `negocios/${negocioID}/configuracion/contadorVentas`);
+  const snap = await getDoc(ref);
 
-    if (!snap.empty) {
-      const ultimo = snap.docs[0].data();
-      const ultimoNumero = parseInt(ultimo.numero || "0", 10);
-      const nuevoNumero = (ultimoNumero + 1).toString().padStart(5, "0");
-      return nuevoNumero;
-    } else {
-      return "00001";
-    }
-  } catch (error) {
-    console.error("Error al obtener el número de venta:", error);
-    return "00001"; // fallback
+  if (!snap.exists()) {
+    await setDoc(ref, { ultimo: 1 });
+    return "00001";
   }
+
+  const data = snap.data();
+  const siguiente = (data.ultimo || 0) + 1;
+
+  await updateDoc(ref, { ultimo: increment(1) });
+  return siguiente.toString().padStart(5, "0");
+}
+
+// 👉 esta NO incrementa, solo visual (usala en ModalVenta)
+export async function obtenerUltimoNumeroVenta(negocioID: string): Promise<string> {
+  const ref = doc(db, `negocios/${negocioID}/configuracion/contadorVentas`);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return "00001";
+
+  const data = snap.data();
+  const actual = data.ultimo || 0;
+  const estimado = actual + 1;
+  return estimado.toString().padStart(5, "0");
 }

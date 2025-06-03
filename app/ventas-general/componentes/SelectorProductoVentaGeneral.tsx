@@ -7,7 +7,7 @@ import { useRol } from "@/lib/useRol";
 
 interface ProductoStock {
   id: string;
-  codigo?: string; // Agregado para manejar el código del producto
+  codigo?: string;
   producto: string;
   marca?: string;
   modelo?: string;
@@ -23,7 +23,9 @@ interface ProductoStock {
   cantidad?: number;
   tipo: "accesorio" | "repuesto";
   hoja?: string;
-  precioUnitario?: number; // Agregado para manejar el precio elegido
+  precioUnitario?: number;
+  precioARS?: number | null;
+  precioUSD?: number | null; 
 }
 
 export type { ProductoStock };
@@ -38,14 +40,15 @@ interface Props {
   setColor: (valor: string) => void;
   setCodigo: (valor: string) => void;
   setMoneda: (valor: "ARS" | "USD") => void;
-  filtroTexto: string; // 👈 agregá esto
-  setFiltroTexto: React.Dispatch<React.SetStateAction<string>>; 
+  filtroTexto: string;
+  setFiltroTexto: React.Dispatch<React.SetStateAction<string>>;
+  hayTelefono?: boolean; 
 }
-
 
 export default function SelectorProductoVentaGeneral({
   productos,
   setProductos,
+  hayTelefono = false,
 }: Props) {
   const { rol } = useRol();
   const [busqueda, setBusqueda] = useState("");
@@ -71,9 +74,9 @@ export default function SelectorProductoVentaGeneral({
         modelo: doc.data().modelo || "",
         categoria: doc.data().categoria || "",
         color: doc.data().color || "",
-        precio1: doc.data().precio1Pesos || 0,
-        precio2: doc.data().precio2Pesos || 0,
-        precio3: doc.data().precio3Pesos || 0,
+        precio1: doc.data().precio1 || 0,
+        precio2: doc.data().precio2 || 0,
+        precio3: doc.data().precio3 || 0,
         precio1Pesos: doc.data().precio1Pesos || 0,
         precio2Pesos: doc.data().precio2Pesos || 0,
         precio3Pesos: doc.data().precio3Pesos || 0,
@@ -81,7 +84,6 @@ export default function SelectorProductoVentaGeneral({
         cantidad: doc.data().cantidad || 0,
         tipo: "accesorio",
       }));
-      
       
       const repuestos: ProductoStock[] = repSnap.docs.map(doc => ({
         id: doc.id,
@@ -101,7 +103,6 @@ export default function SelectorProductoVentaGeneral({
         tipo: "repuesto",
         hoja: doc.data().hoja || "",
       }));
-      
 
       setTodos([...accesorios, ...repuestos]);
     };
@@ -121,8 +122,6 @@ export default function SelectorProductoVentaGeneral({
       .split(" ")
       .every(palabra => textoProducto.includes(palabra));
   });
-  
-  
 
   const confirmarAgregar = () => {
     if (!productoSeleccionado) return;
@@ -135,6 +134,9 @@ export default function SelectorProductoVentaGeneral({
         cantidad,
         codigo: productoSeleccionado.id, 
         precioUnitario: precioElegido,
+        precioARS: hayTelefono ? null : precioElegido,
+        precioUSD: hayTelefono ? precioElegido : null,
+        moneda: hayTelefono ? "USD" : "ARS",
       },
     ]);
     setProductoSeleccionado(null);
@@ -155,12 +157,12 @@ export default function SelectorProductoVentaGeneral({
         }}
         onFocus={() => setMostrar(true)}
         onBlur={() => setTimeout(() => setMostrar(false), 200)}
-        placeholder="Buscar por nombre, marca, color, modelo, categoría..."
-        className="w-full p-2 border rounded"
+        placeholder="🔍 Buscar por nombre, marca, color, modelo, categoría..."
+        className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
       />
 
       {mostrar && filtrados.length > 0 && (
-        <ul className="absolute z-50 w-full bg-white border border-gray-300 rounded shadow max-h-60 overflow-auto text-sm mt-1">
+        <ul className="absolute z-50 w-full bg-white border border-gray-300 rounded-lg shadow-xl max-h-60 overflow-auto text-sm mt-1">
           {filtrados.map((p, i) => (
             <li
               key={i}
@@ -168,81 +170,163 @@ export default function SelectorProductoVentaGeneral({
                 setProductoSeleccionado(p);
                 setPrecioElegido(p.precio1);
               }}
-              className="p-2 hover:bg-gray-100 cursor-pointer"
+              className="p-3 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
             >
-              <strong>{p.producto}</strong> — {p.marca} {p.modelo} ({p.color})<br />
-              <span className="text-xs text-gray-500">
-              {p.tipo.toUpperCase()} · {p.categoria} · Stock: {p.cantidad} ·
-              Precio 1: ARS ${p.precio1Pesos?.toLocaleString("es-AR") || 0} ·
-              Precio 2: ARS ${p.precio2Pesos?.toLocaleString("es-AR") || 0} ·
-              Precio 3: ARS ${p.precio3Pesos?.toLocaleString("es-AR") || 0}
-              </span>
-
+              <div className="text-gray-900">
+                <strong className="text-gray-800">{p.producto}</strong>
+                <span className="text-gray-700"> — {p.marca} {p.modelo}</span>
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 ml-2">
+                  {p.color}
+                </span>
+              </div>
+              <div className="text-xs text-gray-600 mt-1">
+                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mr-2 ${
+                  p.tipo === "accesorio" 
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-orange-100 text-orange-700'
+                }`}>
+                  {p.tipo.toUpperCase()}
+                </span>
+                <span className="text-gray-600">{p.categoria} · Stock: {p.cantidad}</span>
+              </div>
+              <div className="text-xs text-gray-600 mt-1">
+                {hayTelefono ? (
+                  <>
+                    <span className="text-green-700 font-medium">
+                      Precio 1: USD ${p.precio1?.toLocaleString("es-AR") || 0}
+                    </span>
+                    <span className="text-gray-500 mx-1">·</span>
+                    <span className="text-green-700">
+                      Precio 2: USD ${p.precio2?.toLocaleString("es-AR") || 0}
+                    </span>
+                    <span className="text-gray-500 mx-1">·</span>
+                    <span className="text-green-700">
+                      Precio 3: USD ${p.precio3?.toLocaleString("es-AR") || 0}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-green-700 font-medium">
+                      Precio 1: ARS ${p.precio1Pesos?.toLocaleString("es-AR") || 0}
+                    </span>
+                    <span className="text-gray-500 mx-1">·</span>
+                    <span className="text-green-700">
+                      Precio 2: ARS ${p.precio2Pesos?.toLocaleString("es-AR") || 0}
+                    </span>
+                    <span className="text-gray-500 mx-1">·</span>
+                    <span className="text-green-700">
+                      Precio 3: ARS ${p.precio3Pesos?.toLocaleString("es-AR") || 0}
+                    </span>
+                  </>
+                )}
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      {/* Mini modal */}
+      {/* Mini modal mejorado */}
       {productoSeleccionado && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded-lg shadow-lg w-full max-w-md">
-            <h3 className="text-lg font-bold mb-2">{productoSeleccionado.producto}</h3>
-
-            <div className="mb-3">
-              <label className="block text-sm mb-1">Cantidad:</label>
-              <input
-                type="number"
-                value={cantidad}
-                min={1}
-                onChange={(e) => setCantidad(Number(e.target.value))}
-                className="w-full border p-2 rounded"
-              />
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 border border-gray-200 overflow-hidden">
+            {/* Header del modal */}
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🛍️</span>
+                <div>
+                  <h3 className="text-xl font-bold">{productoSeleccionado.producto}</h3>
+                  <p className="text-purple-100 text-sm">
+                    {productoSeleccionado.marca} {productoSeleccionado.modelo}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="mb-3">
-            <label className="block text-sm mb-1">Elegí un precio:</label>
-            <div className="flex gap-2">
-  {[1, 2, 3].map((nivel) => {
-    const keyUSD = `precio${nivel}` as keyof ProductoStock;
-    const keyPesos = `precio${nivel}Pesos` as keyof ProductoStock;
+            {/* Contenido del modal */}
+            <div className="p-6 space-y-4">
+              {/* Cantidad */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  📦 Cantidad:
+                </label>
+                <input
+                  type="number"
+                  value={cantidad}
+                  min={1}
+                  onChange={(e) => setCantidad(Number(e.target.value))}
+                  className="w-full border border-gray-300 p-3 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900 transition-all"
+                />
+              </div>
 
-    const precio = 
-      productoSeleccionado.tipo === "repuesto" || productoSeleccionado.tipo === "accesorio"
-        ? productoSeleccionado[keyPesos]
-        : productoSeleccionado[keyUSD];
+              {/* Selección de precio */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                  💰 Elegí un precio:
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {[1, 2, 3].map((nivel) => {
+                    const keyUSD = `precio${nivel}` as keyof ProductoStock;
+                    const keyPesos = `precio${nivel}Pesos` as keyof ProductoStock;
 
-    if (typeof precio !== "number") return null;
+                    const precio = hayTelefono 
+                      ? productoSeleccionado[keyUSD]
+                      : productoSeleccionado[keyPesos];
 
-    return (
-      <button
-        key={nivel}
-        onClick={() => setPrecioElegido(precio)}
-        className={`border px-3 py-1 rounded ${
-          precioElegido === precio ? "bg-blue-600 text-white" : ""
-        }`}
-      >
-        {productoSeleccionado.tipo === "repuesto" || productoSeleccionado.tipo === "accesorio"
-          ? `ARS $${precio.toLocaleString("es-AR")}`
-          : `USD $${precio.toLocaleString("en-US")}`}
-      </button>
-    );
-  })}
-</div>
-                 </div>
+                    if (typeof precio !== "number") return null;
 
-            <div className="flex justify-end gap-2">
+                    return (
+                      <button
+                        key={nivel}
+                        onClick={() => setPrecioElegido(precio)}
+                        className={`p-3 rounded-lg border-2 transition-all duration-200 font-medium ${
+                          precioElegido === precio 
+                            ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-600 shadow-lg transform scale-105" 
+                            : "bg-white text-gray-700 border-gray-300 hover:border-purple-400 hover:bg-purple-50"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span>Precio {nivel}</span>
+                          <span className="font-bold">
+                            {hayTelefono 
+                              ? `USD $${precio.toLocaleString("es-AR")}`
+                              : `ARS $${precio.toLocaleString("es-AR")}`}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Total */}
+              {precioElegido > 0 && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+                  <div className="flex justify-between items-center">
+                    <span className="text-green-800 font-medium">Total:</span>
+                    <span className="text-green-700 font-bold text-lg">
+                      {hayTelefono 
+                        ? `USD $${(precioElegido * cantidad).toLocaleString("es-AR")}`
+                        : `ARS $${(precioElegido * cantidad).toLocaleString("es-AR")}`}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer con botones */}
+            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
               <button
                 onClick={() => setProductoSeleccionado(null)}
-                className="text-sm px-3 py-1"
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium"
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmarAgregar}
-                className="bg-green-600 text-white px-4 py-2 rounded"
+                disabled={precioElegido === 0}
+                className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg disabled:transform-none disabled:shadow-none"
               >
-                Agregar
+                ✅ Agregar
               </button>
             </div>
           </div>

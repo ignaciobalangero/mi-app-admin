@@ -23,7 +23,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
   const [stock, setStock] = useState<any[]>([]);
   const [mostrarPagoModal, setMostrarPagoModal] = useState(false);
-  const [mostrarCargaRecibida, setMostrarCargaRecibida] = useState(false);
+  const [mostrarModalTelefono, setMostrarModalTelefono] = useState(false); // 🔥 CAMBIO: Estado específico para modal de teléfono
   const [guardadoConExito, setGuardadoConExito] = useState(false);
   const [cliente, setCliente] = useState("");
   const [form, setForm] = useState({
@@ -58,14 +58,15 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   const [telefonoRecibido, setTelefonoRecibido] = useState<any | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
-useEffect(() => {
-  const clienteParam = searchParams.get("cliente");
-  if (clienteParam) {
-    setForm((prev) => ({ ...prev, cliente: clienteParam }));
-  }
-}, []);
+  
+  useEffect(() => {
+    const clienteParam = searchParams.get("cliente");
+    if (clienteParam) {
+      setForm((prev) => ({ ...prev, cliente: clienteParam }));
+    }
+  }, []);
+  
   const { rol } = useRol();
-
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -113,7 +114,7 @@ useEffect(() => {
           precioCosto: telefono.precioCompra,
           proveedor: telefono.proveedor || "",
           moneda: telefono.moneda || "USD",
-          gb: telefono.gb || "", // por si lo cargaste como "almacenamiento"
+          gb: telefono.gb || "",
         }));
       }
     }    
@@ -133,129 +134,57 @@ useEffect(() => {
   };
 
   const guardar = async () => {
-
-
     const precioFinal = telefonoRecibido?.precioEstimado
-    ? form.precioVenta - telefonoRecibido.precioEstimado
-    : form.precioVenta;
+      ? form.precioVenta - telefonoRecibido.precioEstimado
+      : form.precioVenta;
   
-    const baseVenta = {
-      ...form,
+    const ventaTelefono = {
+      fecha: form.fecha,
+      fechaIngreso: form.fecha,
+      proveedor: form.proveedor || "",
+      cliente: form.cliente,
+      modelo: form.modelo,
+      marca: form.marca || "",
+      color: form.color || "",
+      estado: form.estado || "nuevo",
+      bateria: form.bateria || "",
+      gb: form.gb || "",
+      imei: form.imei || "",
+      serie: form.serie || "",
+      precioCosto: form.precioCosto || 0,
       precioVenta: precioFinal,
-      ganancia: precioFinal - form.precioCosto,
-      creadoEn: Timestamp.now(),
-      proveedor: form.proveedor,
-      fechaIngreso: form.fecha, // ✅ importante
-      moneda: form.moneda,
+      ganancia: precioFinal - (form.precioCosto || 0),
+      moneda: form.moneda || "ARS",
+      stockID: form.stockID || "",
       observaciones: pago.observaciones || "",
-      gb: form.gb,
+      telefonoRecibido: telefonoRecibido ? {
+        modelo: telefonoRecibido.modelo,
+        precioCompra: telefonoRecibido.precioCompra,
+        precioEstimado: telefonoRecibido.precioEstimado,
+        ...telefonoRecibido
+      } : null,
     };
-    
-    
-    
   
-
-    const montoPagado = Number(pago.monto || 0);
-    const valorTelefono = Number(telefonoRecibido?.precioCompra || 0);
-    const totalPagado = montoPagado + valorTelefono;
-
-    let ventaID = editandoId;
-
-    if (editandoId) {
-      await updateDoc(doc(db, `negocios/${negocioID}/ventaTelefonos/${editandoId}`), baseVenta);
-      ventaID = editandoId;
-      onGuardado({ ...baseVenta, id: editandoId });
-    } else {
-      const ref = await addDoc(collection(db, `negocios/${negocioID}/ventaTelefonos`), {
-        ...baseVenta,
-        id: "", // se sobrescribe abajo
-      });
-      await updateDoc(ref, { id: ref.id });
-      ventaID = ref.id;
-      onGuardado({ ...baseVenta, id: ref.id });
-      
-      // ✅ Agregamos también en ventasGeneral con el MISMO ID
-      await setDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${ref.id}`), {
-        fecha: form.fecha,
-        cliente: form.cliente,
-        productos: [
-          {
-            categoria: "Teléfono",
-            descripcion: form.estado, // Producto = "nuevo" o "usado"
-            marca: form.marca || "—",
-            modelo: form.modelo,
-            color: form.color || "—",
-            cantidad: 1,
-            precioUnitario: precioFinal,
-            moneda: form.moneda,
-            gb: form.gb,
-          },
-        ],
-        total: precioFinal,
-        tipo: "telefono",
-        observaciones: pago.observaciones || "",
-        timestamp: Timestamp.now(),
-      });
-      
-
-      const telefonoDelStock = stock.find(
-        (t) => t.modelo === form.modelo && t.imei === form.imei
-      );
-      if (form.stockID) {
-        await deleteDoc(doc(db, `negocios/${negocioID}/stockTelefonos/${form.stockID}`));
-        
-        // 🔄 ACTUALIZAR STOCK LOCAL
-        setStock((prevStock) => prevStock.filter((tel) => tel.id !== form.stockID));
-      }
-    }
-
-    if (totalPagado > 0 && form.cliente) {
-      await addDoc(collection(db, `negocios/${negocioID}/pagos`), {
-        fecha: new Date().toLocaleDateString("es-AR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        }),        
-        cliente: form.cliente,
-        monto: form.moneda === "USD" ? null : totalPagado,
-        montoUSD: form.moneda === "USD" ? totalPagado : null,
-        forma: `Efectivo + Entrega equipo`,
-        destino: "ventaTelefonos",
-        moneda: form.moneda,
-        cotizacion: 1000,
-      });
-    }
-
+    const pagoTelefono = {
+      monto: pago.monto || "",
+      moneda: form.moneda || "ARS",
+      formaPago: pago.formaPago || "",
+      observaciones: pago.observaciones || "",
+      destino: "ventaTelefonos",
+    };
   
-    const saldo = precioFinal - totalPagado;
-    if (saldo > 0 && form.cliente) {
-      await addDoc(collection(db, `negocios/${negocioID}/cuenta-corriente`), {
-        cliente: form.cliente,
-        fecha: new Date().toLocaleDateString("es-AR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        }),
-        
-        concepto: `Venta de ${form.modelo}`,
-        debe: form.moneda === "USD" ? null : saldo,
-        debeUSD: form.moneda === "USD" ? saldo : null,
-        haber: 0,
-        saldo,
-      });
-     }
-     
-
-    // Redirigir a ventas-general
-    router.push("/ventas-general");
-
+    localStorage.setItem("ventaTelefonoPendiente", JSON.stringify(ventaTelefono));
+    localStorage.setItem("pagoTelefonoPendiente", JSON.stringify(pagoTelefono));
+    localStorage.setItem("clienteDesdeTelefono", form.cliente);
+    
+    router.push("/ventas-general?desdeTelefono=1");
+  
     setForm({
       fecha: new Date().toLocaleDateString("es-AR", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
       }),
-      
       proveedor: "",
       cliente: "",
       modelo: "",
@@ -271,83 +200,158 @@ useEffect(() => {
       moneda: "ARS",
       stockID: "",
     });
-
+  
     setPago({ monto: "", moneda: "ARS", formaPago: "", observaciones: "", destino: "" });
     setTelefonoRecibido(null);
     setMostrarPagoModal(false);
   };
 
+  const calcularRestaPagar = () => {
+    return Number(form.precioVenta || 0) - 
+           Number(pago.monto || 0) - 
+           Number(telefonoRecibido?.precioCompra || 0);
+  };
+
+  const hayPagos = pago.monto || telefonoRecibido?.precioCompra;
+
   return (
-    <>
-      <FormularioCamposVenta
-        form={form}
-        setForm={setForm}
-        clientes={clientes}
-        stock={stock}
-        setStock={setStock}
-        handleChange={handleChange}
-        rol={rol}
-        onAgregarCliente={() => router.push("/clientes/agregar?origen=ventas-telefonos")}
-      />
-
-      <div className="flex items-center gap-2 mb-4">
-        <label className="text-sm font-semibold">Moneda:</label>
-        <select
-  name="moneda"
-  value={form.moneda}
-  onChange={handleChange}
-  className="p-2 border border-gray-300 rounded"
-  disabled={!!form.stockID} // ✅ desactiva si vino del stock
->
-  <option value="ARS">ARS</option>
-  <option value="USD">USD</option>
-</select>
-
+    <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+      {/* Header del formulario */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+        <h2 className="text-2xl font-bold flex items-center gap-3">
+          📱 {editandoId ? "Editar Venta de Teléfono" : "Nueva Venta de Teléfono"}
+        </h2>
+        <p className="text-blue-100 mt-2">
+          Completa todos los datos para registrar la venta
+        </p>
       </div>
 
-      {telefonoRecibido && telefonoRecibido.precioCompra && (
-        <p className="text-sm text-green-700 bg-green-100 border border-green-300 px-4 py-2 rounded">
-          Equipo recibido: {telefonoRecibido.modelo} - ${Number(telefonoRecibido.precioCompra).toLocaleString("es-AR")} descontado del total
-        </p>
-      )}
+      <div className="p-8 space-y-8">
+        {/* Formulario principal */}
+        <div className="bg-gray-50 rounded-xl p-6">
+          <FormularioCamposVenta
+            form={form}
+            setForm={setForm}
+            clientes={clientes}
+            stock={stock}
+            setStock={setStock}
+            handleChange={handleChange}
+            rol={rol}
+            onAgregarCliente={() => router.push("/clientes/agregar?origen=ventas-telefonos")}
+          />
+        </div>
 
-      {pago.monto && !isNaN(Number(pago.monto)) && (
-        <p className="text-sm text-blue-700 bg-blue-100 border border-blue-300 px-4 py-2 rounded mt-2">
-          Monto abonado: {pago.moneda} ${Number(pago.monto).toLocaleString("es-AR")}
-        </p>
-      )}
+        {/* Selector de moneda */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-amber-800 mb-4 flex items-center gap-2">
+            💰 Configuración de Moneda
+          </h3>
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium text-amber-700">Moneda de venta:</label>
+            <select
+              name="moneda"
+              value={form.moneda}
+              onChange={handleChange}
+              className="px-4 py-2 border border-amber-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              disabled={!!form.stockID}
+            >
+              <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
+              <option value="USD">🇺🇸 Dólares (USD)</option>
+            </select>
+            {form.stockID && (
+              <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded">
+                Moneda fijada por stock seleccionado
+              </span>
+            )}
+          </div>
+        </div>
 
-      {form.precioVenta > 0 && !isNaN(Number(form.precioVenta)) && (
-        <p className="text-sm text-red-700 bg-red-100 border border-red-300 px-4 py-2 rounded mt-2">
-          Resta pagar: ${(
-            Number(form.precioVenta || 0) -
-            Number(pago.monto || 0) -
-            Number(telefonoRecibido?.precioCompra || 0)
-          ).toLocaleString("es-AR")}
-        </p>
-      )}
+        {/* Resumen de pagos */}
+        {hayPagos && (
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-green-800 mb-4 flex items-center gap-2">
+              💳 Resumen de Pagos
+            </h3>
+            <div className="space-y-3">
+              {telefonoRecibido?.precioCompra && (
+                <div className="flex items-center justify-between bg-white rounded-lg p-4 border border-green-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="font-medium text-green-700">
+                      📱 Equipo recibido: {telefonoRecibido.modelo}
+                    </span>
+                  </div>
+                  <span className="font-bold text-green-800">
+                    ${Number(telefonoRecibido.precioCompra).toLocaleString("es-AR")}
+                  </span>
+                </div>
+              )}
+              
+              {pago.monto && !isNaN(Number(pago.monto)) && (
+                <div className="flex items-center justify-between bg-white rounded-lg p-4 border border-blue-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span className="font-medium text-blue-700">
+                      💰 Monto abonado ({pago.formaPago || "Efectivo"})
+                    </span>
+                  </div>
+                  <span className="font-bold text-blue-800">
+                    {pago.moneda} ${Number(pago.monto).toLocaleString("es-AR")}
+                  </span>
+                </div>
+              )}
 
-      <div className="md:col-span-2 flex justify-end gap-2 mt-4">
-        <button onClick={() => setMostrarCargaRecibida(true)} className="bg-yellow-100 text-yellow-900 border border-yellow-400 px-6 py-2 rounded">
-          + Teléfono como parte de pago
-        </button>
-        <button onClick={() => setMostrarPagoModal(true)} className="bg-green-600 text-white px-6 py-2 rounded">
-          + Agregar Pago
-        </button>
-        <button
-  onClick={guardar}
-  disabled={!form.cliente?.trim()}
-  className={`px-6 py-2 rounded text-white ${
-    !form.cliente?.trim()
-      ? "bg-gray-400 cursor-not-allowed"
-      : "bg-blue-600 hover:bg-blue-700"
-  }`}
->
-  {editandoId ? "Actualizar Venta" : "Guardar Venta"}
-</button>
+              {form.precioVenta > 0 && (
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="flex items-center justify-between bg-red-50 rounded-lg p-4 border border-red-200">
+                    <span className="font-semibold text-red-700">
+                      📊 Resta pagar:
+                    </span>
+                    <span className="text-xl font-bold text-red-800">
+                      ${calcularRestaPagar().toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
+        {/* Botones de acción */}
+        <div className="bg-gray-50 rounded-xl p-6">
+          <div className="flex flex-wrap gap-4 justify-between items-center">
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setMostrarModalTelefono(true)}
+                className="bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+              >
+                📦 Teléfono como parte de pago
+              </button>
+              
+              <button
+                onClick={() => setMostrarPagoModal(true)}
+                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+              >
+                💳 Agregar Pago
+              </button>
+            </div>
+
+            <button
+              onClick={guardar}
+              disabled={!form.cliente?.trim()}
+              className={`px-8 py-3 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-lg flex items-center gap-2 ${
+                !form.cliente?.trim()
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:scale-105"
+              }`}
+            >
+              {editandoId ? "✏️ Actualizar Venta" : "💾 Guardar Venta"}
+            </button>
+          </div>
+        </div>
       </div>
 
+      {/* Modal de pago */}
       <ModalPago
         mostrar={mostrarPagoModal}
         pago={pago}
@@ -357,19 +361,42 @@ useEffect(() => {
         guardadoConExito={guardadoConExito}
       />
 
-      {mostrarCargaRecibida && (
-        <div className="md:col-span-2 bg-gray-100 p-4 rounded mt-4">
-          <h3 className="text-lg font-semibold mb-2 text-center">📦 Teléfono entregado por el cliente</h3>
-          <FormularioStock
-            negocioID={negocioID}
-            placeholderProveedor="Cliente que entregó el teléfono"
-            onGuardado={(datos) => {
-              setTelefonoRecibido(datos);
-              setMostrarCargaRecibida(false);
-            }}
-          />
+      {/* Modal directo para FormularioStock con fondo transparente */}
+      {mostrarModalTelefono && (
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200">
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-t-2xl p-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-2xl font-bold flex items-center gap-3">
+                    📦 Agregar Teléfono al Stock
+                  </h3>
+                  <p className="text-purple-100 mt-2">
+                    Registra el equipo que el cliente entrega como parte de pago
+                  </p>
+                </div>
+                <button
+                  onClick={() => setMostrarModalTelefono(false)}
+                  className="text-purple-100 hover:text-white text-2xl font-bold transition-colors duration-200 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-8 bg-gradient-to-br from-gray-50 to-purple-50">
+              <FormularioStock
+                negocioID={negocioID}
+                placeholderProveedor="Cliente que entregó el teléfono"
+                onGuardado={(datos) => {
+                  setTelefonoRecibido(datos);
+                  setMostrarModalTelefono(false);
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
