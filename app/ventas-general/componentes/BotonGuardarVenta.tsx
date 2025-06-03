@@ -334,20 +334,27 @@ export default function BotonGuardarVenta({
 
   return (
     <div className="mt-6">
-      <div className="flex justify-end gap-2">
-      <button
-  onClick={guardarVenta}
-  disabled={guardando}
-  className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2"
-  style={{ 
-    height: "40px", 
-    padding: "0 24px",
-    minHeight: "40px",
-    maxHeight: "40px"
-  }}
->
-  {guardando ? "Guardando..." : "Guardar Venta"}
-</button>
+      <div className="flex justify-end gap-4">
+       
+
+        {/* Botón Guardar Venta - Estilo GestiOne */}
+        <button
+          onClick={guardarVenta}
+          disabled={guardando}
+          className={`rounded-lg font-medium flex items-center gap-2 transition-all duration-200 transform ${
+            guardando 
+              ? "bg-[#bdc3c7] cursor-not-allowed" 
+              : "bg-[#3498db] hover:bg-[#2980b9] hover:scale-105"
+          } text-white`}
+          style={{ 
+            height: "40px", 
+            padding: "0 24px",
+            minHeight: "40px",
+            maxHeight: "40px"
+          }}
+        >
+          {guardando ? "Guardando..." : "Guardar Venta"}
+        </button>
       </div>
     </div>
   );

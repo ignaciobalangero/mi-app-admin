@@ -44,7 +44,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
             estado: data.estado,
             bateria: data.bateria,
             color: data.color,
-            gb: data.gb ?? data.productos?.[0]?.gb ?? "", // ✅ CAMBIO CLAVE
+            gb: data.gb ?? data.productos?.[0]?.gb ?? "",
             imei: data.imei,
             serial: data.serie,
             precioCompra: data.precioCosto,
@@ -52,12 +52,10 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
             moneda: data.moneda,
             observaciones: data.observaciones || "",
             fechaIngreso: data.fechaIngreso || new Date().toISOString().split("T")[0],
-
-           });
-          }
-        
+          });
+        }
   
-        await deleteDoc(ref); // ✅ Eliminamos de ventaTelefonos
+        await deleteDoc(ref);
       }
   
       // 🧨 Eliminamos de ventasGeneral también
@@ -82,62 +80,70 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
   };
 
   const obtenerColorGanancia = (ganancia: number) => {
-    if (ganancia > 0) return "text-green-700 font-semibold";
-    if (ganancia < 0) return "text-red-700 font-semibold";
-    return "text-gray-600";
+    if (ganancia > 0) return "text-[#27ae60] font-semibold";
+    if (ganancia < 0) return "text-[#e74c3c] font-semibold";
+    return "text-[#7f8c8d]";
   };
 
   return (
     <div className="space-y-6">
-      {/* Mensaje de confirmación */}
+      {/* Mensaje de confirmación - Estilo GestiOne */}
       {mensaje && (
-        <div className="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300 rounded-xl p-4 animate-fade-in">
+        <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] border-2 border-[#27ae60] rounded-xl p-4 shadow-sm animate-fade-in">
           <div className="flex items-center justify-center gap-3">
-            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-[#27ae60] rounded-xl flex items-center justify-center">
               <span className="text-white text-sm font-bold">✓</span>
             </div>
-            <span className="text-green-800 font-semibold">{mensaje}</span>
+            <span className="text-[#27ae60] font-semibold text-lg">{mensaje}</span>
           </div>
         </div>
       )}
 
-      {/* Modal de confirmación de eliminación */}
+      {/* Modal de confirmación de eliminación - Estilo GestiOne */}
       {ventaAEliminar && (
-        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex justify-center items-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-gray-200 transform transition-all duration-300">
-            <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-t-2xl p-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300 scale-100 hover:scale-[1.02]">
+            
+            {/* Header del modal - Estilo GestiOne */}
+            <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-t-2xl p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                   <span className="text-2xl">⚠️</span>
                 </div>
                 <div>
                   <h2 className="text-xl font-bold">Confirmar Eliminación</h2>
-                  <p className="text-red-100 text-sm">Esta acción no se puede deshacer</p>
+                  <p className="text-red-100 text-sm mt-1">Esta acción no se puede deshacer</p>
                 </div>
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800 font-medium">
+            <div className="p-6 space-y-6 bg-[#f8f9fa]">
+              <div className="bg-white border-2 border-[#e74c3c] rounded-xl p-4 shadow-sm">
+                <p className="text-[#2c3e50] font-semibold mb-3">
                   ¿Estás seguro que querés eliminar esta venta?
                 </p>
-                <div className="mt-2 text-sm text-red-600">
-                  <strong>Cliente:</strong> {ventaAEliminar.cliente}<br/>
-                  <strong>Modelo:</strong> {ventaAEliminar.modelo}
+                <div className="space-y-2 text-sm text-[#7f8c8d]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-[#3498db] rounded-full"></span>
+                    <strong className="text-[#2c3e50]">Cliente:</strong> {ventaAEliminar.cliente}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-[#3498db] rounded-full"></span>
+                    <strong className="text-[#2c3e50]">Modelo:</strong> {ventaAEliminar.modelo}
+                  </div>
                 </div>
               </div>
               
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setVentaAEliminar(null)}
-                  className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+                  className="px-6 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={confirmarEliminacion}
-                  className="px-6 py-2 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
+                  className="px-6 py-3 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
                 >
                   Sí, eliminar
                 </button>
@@ -147,71 +153,117 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
         </div>
       )}
 
-      {/* Tabla principal */}
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-        {/* Header de la tabla */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
-          <h3 className="text-xl font-bold flex items-center gap-3">
-            📱 Historial de Ventas de Teléfonos
-          </h3>
-          <p className="text-blue-100 mt-1">
-            {ventas.length} {ventas.length === 1 ? 'venta registrada' : 'ventas registradas'}
-          </p>
+      {/* Contenedor principal de la tabla - Estilo GestiOne */}
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+        
+        {/* Header de la tabla - Estilo GestiOne */}
+        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">📊</span>
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold">Historial de Ventas</h3>
+              <p className="text-blue-100 mt-1">
+                {ventas.length} {ventas.length === 1 ? 'venta registrada' : 'ventas registradas'}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Contenedor con scroll horizontal */}
-        <div className="overflow-x-auto border border-gray-300">
-          <table className="w-full min-w-[1200px] border-collapse">
-            <thead className="bg-gradient-to-r from-gray-100 to-gray-200">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1600px] border-collapse border-2 border-black">
+            <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
               <tr>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  📅 Fecha
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📅</span>
+                    Fecha
+                  </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  🏪 Proveedor
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🏪</span>
+                    Proveedor
+                  </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  👤 Cliente
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">👤</span>
+                    Cliente
+                  </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  📱 Modelo
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📱</span>
+                    Modelo
+                  </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  🎨 Color
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🎨</span>
+                    Color
+                  </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  🔋 Batería
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🔋</span>
+                    Batería
+                  </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  💾 GB
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💾</span>
+                    GB
+                  </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  🔢 IMEI
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🔢</span>
+                    IMEI
+                  </div>
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  🏷️ Serie
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🏷️</span>
+                    Serie
+                  </div>
                 </th>
                 {rol?.tipo === "admin" && (
-                  <th className="p-3 text-right text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                    💸 Costo
+                  <th className="p-4 text-right text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                    <div className="flex items-center justify-end gap-2">
+                      <span className="text-base">💸</span>
+                      Costo
+                    </div>
                   </th>
                 )}
-                <th className="p-3 text-right text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  💰 Venta
+                <th className="p-4 text-right text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="text-base">💰</span>
+                    Venta
+                  </div>
                 </th>
-                <th className="p-3 text-right text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  🤝 Entregado
-                </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  💱 Moneda
+
+                <th className="p-4 text-center text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-base">💱</span>
+                    Moneda
+                  </div>
                 </th>
                 {rol?.tipo === "admin" && (
-                  <th className="p-3 text-right text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                    📈 Ganancia
+                  <th className="p-4 text-right text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                    <div className="flex items-center justify-end gap-2">
+                      <span className="text-base">📈</span>
+                      Ganancia
+                    </div>
                   </th>
                 )}
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
-                  ⚙️ Acciones
+                <th className="p-4 text-center text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-base">⚙️</span>
+                    Acciones
+                  </div>
                 </th>
               </tr>
             </thead>
@@ -219,16 +271,16 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
               {ventas.length === 0 ? (
                 <tr>
                   <td 
-                    colSpan={rol?.tipo === "admin" ? 15 : 12}
-                    className="p-12 text-center text-gray-500 border border-gray-300"
+                    colSpan={rol?.tipo === "admin" ? 13 : 11}
+                    className="p-16 text-center border border-black"
                   >
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                        <span className="text-3xl">📱</span>
+                    <div className="flex flex-col items-center gap-6">
+                      <div className="w-20 h-20 bg-[#ecf0f1] rounded-2xl flex items-center justify-center">
+                        <span className="text-4xl">📱</span>
                       </div>
                       <div>
-                        <p className="text-lg font-medium text-gray-600">No hay ventas registradas</p>
-                        <p className="text-sm text-gray-400">Las ventas aparecerán aquí una vez que comiences a registrarlas</p>
+                        <p className="text-xl font-semibold text-[#2c3e50] mb-2">No hay ventas registradas</p>
+                        <p className="text-sm text-[#7f8c8d]">Las ventas aparecerán aquí una vez que comiences a registrarlas</p>
                       </div>
                     </div>
                   </td>
@@ -241,79 +293,89 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                   return (
                     <tr 
                       key={v.id} 
-                      className={`transition-colors duration-200 hover:bg-blue-50 ${
-                        isEven ? 'bg-white' : 'bg-gray-50'
+                      className={`transition-all duration-200 hover:bg-[#ebf3fd] border-b border-[#ecf0f1] ${
+                        isEven ? 'bg-white' : 'bg-[#f8f9fa]'
                       }`}
                     >
-                      <td className="p-3 border border-gray-300">
-                        <span className="text-sm font-medium text-gray-800">{v.fecha}</span>
+                      <td className="p-4">
+                        <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                          {v.fecha}
+                        </span>
                       </td>
-                      <td className="p-3 border border-gray-300">
-                        <span className="text-sm text-gray-700">{v.proveedor || "-"}</span>
+                      <td className="p-4">
+                        <span className="text-sm text-[#7f8c8d]">{v.proveedor || "-"}</span>
                       </td>
-                      <td className="p-3 border border-gray-300">
-                        <span className="text-sm font-medium text-blue-700">{v.cliente}</span>
+                      <td className="p-4">
+                        <span className="text-sm font-semibold text-[#3498db] bg-blue-50 px-3 py-1 rounded-lg">
+                          {v.cliente}
+                        </span>
                       </td>
-                      <td className="p-3 border border-gray-300">
-                        <div className="font-medium text-gray-800 text-sm">{v.modelo}</div>
-                        {v.marca && <div className="text-xs text-gray-500">{v.marca}</div>}
+                      <td className="p-4">
+                        <div className="font-semibold text-[#2c3e50] text-sm">{v.modelo}</div>
+                        {v.marca && <div className="text-xs text-[#7f8c8d] mt-1">{v.marca}</div>}
                       </td>
-                      <td className="p-3 border border-gray-300">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      <td className="p-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-medium bg-[#f39c12] text-white shadow-sm">
                           {v.color || "-"}
                         </span>
                       </td>
-                      <td className="p-3 border border-gray-300">
-                        <span className="text-sm text-gray-700">{v.bateria || "-"}</span>
+                      <td className="p-4">
+                        <span className="text-sm text-[#2c3e50] bg-[#d5f4e6] px-2 py-1 rounded-lg">
+                          {v.bateria || "-"}
+                        </span>
                       </td>
-                      <td className="p-3 border border-gray-300">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                      <td className="p-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-[#3498db] text-white shadow-sm">
                           {v.gb || "-"}
                         </span>
                       </td>
-                      <td className="p-3 border border-gray-300">
-                        <span className="text-xs font-mono text-gray-600 break-all">{v.imei || "-"}</span>
+                      <td className="p-4">
+                        <span className="text-xs font-mono text-[#7f8c8d] bg-[#ecf0f1] px-2 py-1 rounded break-all">
+                          {v.imei || "-"}
+                        </span>
                       </td>
-                      <td className="p-3 border border-gray-300">
-                        <span className="text-xs font-mono text-gray-600 break-all">{v.serie || "-"}</span>
+                      <td className="p-4">
+                        <span className="text-xs font-mono text-[#7f8c8d] bg-[#ecf0f1] px-2 py-1 rounded break-all">
+                          {v.serie || "-"}
+                        </span>
                       </td>
                       {rol?.tipo === "admin" && (
-                        <td className="p-3 border border-gray-300 text-right">
-                          <span className="text-sm font-medium text-gray-700">
+                        <td className="p-4 text-right">
+                          <span className="text-sm font-semibold text-[#e74c3c] bg-red-50 px-3 py-1 rounded-lg">
                             {formatearPrecio(v.precioCosto)}
                           </span>
                         </td>
                       )}
-                      <td className="p-3 border border-gray-300 text-right">
-                        <span className="text-sm font-semibold text-green-700">
+                      <td className="p-4 text-right">
+                        <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
                           {formatearPrecio(v.precioVenta)}
                         </span>
                       </td>
-                      <td className="p-3 border border-gray-300 text-right">
-                        <span className="text-sm text-gray-700">
-                          {v.montoEntregado ? formatearPrecio(v.montoEntregado) : "-"}
-                        </span>
-                      </td>
-                      <td className="p-3 border border-gray-300 text-center">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+
+                      <td className="p-4 text-center">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
                           (v.productos?.[0]?.moneda || v.moneda) === 'USD' 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-blue-100 text-blue-700'
+                            ? 'bg-[#27ae60] text-white' 
+                            : 'bg-[#3498db] text-white'
                         }`}>
                           {v.productos?.[0]?.moneda || v.moneda || "ARS"}
                         </span>
                       </td>
                       {rol?.tipo === "admin" && (
-                        <td className="p-3 border border-gray-300 text-right">
-                          <span className={`text-sm font-semibold ${obtenerColorGanancia(ganancia)}`}>
+                        <td className="p-4 text-right">
+                          <span className={`text-sm font-bold px-3 py-1 rounded-lg ${
+                            ganancia > 0 ? 'bg-green-50 text-[#27ae60]' : 
+                            ganancia < 0 ? 'bg-red-50 text-[#e74c3c]' : 
+                            'bg-gray-50 text-[#7f8c8d]'
+                          }`}>
                             {formatearPrecio(ganancia)}
                           </span>
                         </td>
                       )}
-                      <td className="p-3 border border-gray-300 text-center">
+                      <td className="p-4 text-center">
                         <button 
                           onClick={() => setVentaAEliminar(v)} 
-                          className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors duration-200"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-[#e74c3c] text-white hover:bg-[#c0392b] transition-all duration-200 transform hover:scale-105 shadow-md"
                         >
                           🗑️ Eliminar
                         </button>
@@ -326,25 +388,42 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
           </table>
         </div>
 
-        {/* Footer de la tabla */}
+        {/* Footer de la tabla - Estilo GestiOne */}
         {ventas.length > 0 && (
-          <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-            <div className="flex justify-between items-center text-sm text-gray-600">
-              <span>
-                Mostrando {ventas.length} {ventas.length === 1 ? 'venta' : 'ventas'}
-              </span>
+          <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] px-6 py-4 border-t-2 border-[#bdc3c7]">
+            <div className="flex flex-wrap justify-between items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">📊</span>
+                </div>
+                <span className="text-sm font-semibold text-[#2c3e50]">
+                  Mostrando {ventas.length} {ventas.length === 1 ? 'venta' : 'ventas'}
+                </span>
+              </div>
+              
               {rol?.tipo === "admin" && (
-                <div className="flex gap-6">
-                  <span>
-                    Total vendido: <strong className="text-green-700">
-                      {formatearPrecio(ventas.reduce((sum, v) => sum + (v.precioVenta || 0), 0))}
-                    </strong>
-                  </span>
-                  <span>
-                    Ganancia total: <strong className="text-blue-700">
-                      {formatearPrecio(ventas.reduce((sum, v) => sum + ((v.precioVenta || 0) - (v.precioCosto || 0)), 0))}
-                    </strong>
-                  </span>
+                <div className="flex flex-wrap gap-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-[#27ae60] rounded-lg flex items-center justify-center">
+                      <span className="text-white text-xs">💰</span>
+                    </div>
+                    <span className="text-sm text-[#2c3e50]">
+                      Total vendido: <strong className="text-[#27ae60] font-bold">
+                        {formatearPrecio(ventas.reduce((sum, v) => sum + (v.precioVenta || 0), 0))}
+                      </strong>
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-[#f39c12] rounded-lg flex items-center justify-center">
+                      <span className="text-white text-xs">📈</span>
+                    </div>
+                    <span className="text-sm text-[#2c3e50]">
+                      Ganancia total: <strong className="text-[#f39c12] font-bold">
+                        {formatearPrecio(ventas.reduce((sum, v) => sum + ((v.precioVenta || 0) - (v.precioCosto || 0)), 0))}
+                      </strong>
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

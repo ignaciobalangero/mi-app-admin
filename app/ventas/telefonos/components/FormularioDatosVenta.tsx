@@ -23,7 +23,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
   const [stock, setStock] = useState<any[]>([]);
   const [mostrarPagoModal, setMostrarPagoModal] = useState(false);
-  const [mostrarModalTelefono, setMostrarModalTelefono] = useState(false); // 🔥 CAMBIO: Estado específico para modal de teléfono
+  const [mostrarModalTelefono, setMostrarModalTelefono] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
   const [cliente, setCliente] = useState("");
   const [form, setForm] = useState({
@@ -215,20 +215,35 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   const hayPagos = pago.monto || telefonoRecibido?.precioCompra;
 
   return (
-    <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
-      {/* Header del formulario */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
-        <h2 className="text-2xl font-bold flex items-center gap-3">
-          📱 {editandoId ? "Editar Venta de Teléfono" : "Nueva Venta de Teléfono"}
-        </h2>
-        <p className="text-blue-100 mt-2">
-          Completa todos los datos para registrar la venta
-        </p>
+    <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+      
+      {/* Header del formulario - Estilo GestiOne */}
+      <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+            <span className="text-2xl">📱</span>
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold">
+              {editandoId ? "Editar Venta de Teléfono" : "Nueva Venta de Teléfono"}
+            </h2>
+            <p className="text-blue-100 mt-1">
+              Completa todos los datos para registrar la venta
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="p-8 space-y-8">
-        {/* Formulario principal */}
-        <div className="bg-gray-50 rounded-xl p-6">
+      <div className="p-8 space-y-8 bg-[#f8f9fa]">
+        
+        {/* Formulario principal - Estilo GestiOne */}
+        <div className="bg-white rounded-xl border border-[#ecf0f1] p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
+            <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+              <span className="text-white text-sm">📋</span>
+            </div>
+            Datos del Teléfono
+          </h3>
           <FormularioCamposVenta
             form={form}
             setForm={setForm}
@@ -241,73 +256,79 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
           />
         </div>
 
-        {/* Selector de moneda */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-amber-800 mb-4 flex items-center gap-2">
-            💰 Configuración de Moneda
+        {/* Selector de moneda - Estilo GestiOne */}
+        <div className="bg-white rounded-xl border-2 border-[#f39c12] p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
+            <div className="w-8 h-8 bg-[#f39c12] rounded-lg flex items-center justify-center">
+              <span className="text-white text-sm">💰</span>
+            </div>
+            Configuración de Moneda
           </h3>
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-amber-700">Moneda de venta:</label>
+            <label className="text-sm font-medium text-[#2c3e50]">Moneda de venta:</label>
             <select
               name="moneda"
               value={form.moneda}
               onChange={handleChange}
-              className="px-4 py-2 border border-amber-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              className="px-4 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50]"
               disabled={!!form.stockID}
             >
               <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
               <option value="USD">🇺🇸 Dólares (USD)</option>
             </select>
             {form.stockID && (
-              <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded">
+              <span className="text-xs text-[#f39c12] bg-yellow-100 px-2 py-1 rounded-lg font-medium">
                 Moneda fijada por stock seleccionado
               </span>
             )}
           </div>
         </div>
 
-        {/* Resumen de pagos */}
+        {/* Resumen de pagos - Estilo GestiOne */}
         {hayPagos && (
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-green-800 mb-4 flex items-center gap-2">
-              💳 Resumen de Pagos
+          <div className="bg-white rounded-xl border-2 border-[#27ae60] p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
+              <div className="w-8 h-8 bg-[#27ae60] rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">💳</span>
+              </div>
+              Resumen de Pagos
             </h3>
             <div className="space-y-3">
               {telefonoRecibido?.precioCompra && (
-                <div className="flex items-center justify-between bg-white rounded-lg p-4 border border-green-200">
+                <div className="flex items-center justify-between bg-[#f8f9fa] rounded-lg p-4 border border-[#ecf0f1]">
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="font-medium text-green-700">
+                    <div className="w-3 h-3 bg-[#27ae60] rounded-full"></div>
+                    <span className="font-medium text-[#2c3e50]">
                       📱 Equipo recibido: {telefonoRecibido.modelo}
                     </span>
                   </div>
-                  <span className="font-bold text-green-800">
+                  <span className="font-bold text-[#27ae60]">
                     ${Number(telefonoRecibido.precioCompra).toLocaleString("es-AR")}
                   </span>
                 </div>
               )}
               
               {pago.monto && !isNaN(Number(pago.monto)) && (
-                <div className="flex items-center justify-between bg-white rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center justify-between bg-[#f8f9fa] rounded-lg p-4 border border-[#ecf0f1]">
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <span className="font-medium text-blue-700">
+                    <div className="w-3 h-3 bg-[#3498db] rounded-full"></div>
+                    <span className="font-medium text-[#2c3e50]">
                       💰 Monto abonado ({pago.formaPago || "Efectivo"})
                     </span>
                   </div>
-                  <span className="font-bold text-blue-800">
+                  <span className="font-bold text-[#3498db]">
                     {pago.moneda} ${Number(pago.monto).toLocaleString("es-AR")}
                   </span>
                 </div>
               )}
 
               {form.precioVenta > 0 && (
-                <div className="border-t border-gray-200 pt-4">
-                  <div className="flex items-center justify-between bg-red-50 rounded-lg p-4 border border-red-200">
-                    <span className="font-semibold text-red-700">
+                <div className="border-t border-[#ecf0f1] pt-4">
+                  <div className="flex items-center justify-between bg-red-50 rounded-lg p-4 border-2 border-[#e74c3c]">
+                    <span className="font-semibold text-[#e74c3c]">
                       📊 Resta pagar:
                     </span>
-                    <span className="text-xl font-bold text-red-800">
+                    <span className="text-xl font-bold text-[#e74c3c]">
                       ${calcularRestaPagar().toLocaleString("es-AR")}
                     </span>
                   </div>
@@ -317,20 +338,20 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
           </div>
         )}
 
-        {/* Botones de acción */}
-        <div className="bg-gray-50 rounded-xl p-6">
+        {/* Botones de acción - Estilo GestiOne */}
+        <div className="bg-white rounded-xl border border-[#ecf0f1] p-6 shadow-sm">
           <div className="flex flex-wrap gap-4 justify-between items-center">
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setMostrarModalTelefono(true)}
-                className="bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+                className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md flex items-center gap-2"
               >
                 📦 Teléfono como parte de pago
               </button>
               
               <button
                 onClick={() => setMostrarPagoModal(true)}
-                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+                className="bg-[#27ae60] hover:bg-[#229954] text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md flex items-center gap-2"
               >
                 💳 Agregar Pago
               </button>
@@ -341,8 +362,8 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
               disabled={!form.cliente?.trim()}
               className={`px-8 py-3 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-lg flex items-center gap-2 ${
                 !form.cliente?.trim()
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:scale-105"
+                  ? "bg-[#bdc3c7] cursor-not-allowed"
+                  : "bg-[#3498db] hover:bg-[#2980b9] hover:scale-105"
               }`}
             >
               {editandoId ? "✏️ Actualizar Venta" : "💾 Guardar Venta"}
@@ -361,30 +382,38 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
         guardadoConExito={guardadoConExito}
       />
 
-      {/* Modal directo para FormularioStock con fondo transparente */}
+      {/* Modal para FormularioStock - Estilo GestiOne */}
       {mostrarModalTelefono && (
-        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-t-2xl p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border-2 border-[#ecf0f1]">
+            
+            {/* Header del modal - Estilo GestiOne */}
+            <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] text-white rounded-t-2xl p-6">
               <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-2xl font-bold flex items-center gap-3">
-                    📦 Agregar Teléfono al Stock
-                  </h3>
-                  <p className="text-purple-100 mt-2">
-                    Registra el equipo que el cliente entrega como parte de pago
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <span className="text-xl">📦</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">
+                      Agregar Teléfono al Stock
+                    </h3>
+                    <p className="text-purple-100 text-sm mt-1">
+                      Registra el equipo que el cliente entrega como parte de pago
+                    </p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setMostrarModalTelefono(false)}
-                  className="text-purple-100 hover:text-white text-2xl font-bold transition-colors duration-200 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center"
+                  className="text-purple-100 hover:text-white text-2xl font-bold transition-colors duration-200 hover:bg-white/20 rounded-xl w-10 h-10 flex items-center justify-center hover:scale-110"
                 >
                   ×
                 </button>
               </div>
             </div>
             
-            <div className="p-8 bg-gradient-to-br from-gray-50 to-purple-50">
+            {/* Contenido del modal */}
+            <div className="p-6 bg-[#f8f9fa]">
               <FormularioStock
                 negocioID={negocioID}
                 placeholderProveedor="Cliente que entregó el teléfono"

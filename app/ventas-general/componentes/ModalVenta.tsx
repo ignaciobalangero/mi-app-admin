@@ -188,25 +188,31 @@ export default function ModalVenta({
     <div className="fixed inset-0 z-[9998] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl border border-gray-200 max-h-[95vh] overflow-hidden flex flex-col">
         
-        {/* Header del Remito */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 flex justify-between items-center">
+        {/* Header del Remito - Estilo GestiOne */}
+        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-              <span className="text-2xl">🧾</span>
+            {/* Logo mini de GestiOne */}
+            <div className="w-12 h-12 rounded-xl flex overflow-hidden shadow-lg">
+              <div className="w-1/2 h-full bg-[#2c3e50] flex items-center justify-center">
+                <span className="text-white font-bold text-sm">G</span>
+              </div>
+              <div className="w-1/2 h-full bg-[#3498db] flex items-center justify-center">
+                <span className="text-white font-bold text-sm">1</span>
+              </div>
             </div>
             <div>
               <h2 className="text-2xl font-bold">Remito de Venta</h2>
-              <p className="text-purple-100">N° {numeroVenta}</p>
+              <p className="text-blue-100">N° {numeroVenta}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-sm text-purple-100">Fecha</p>
+              <p className="text-sm text-blue-100">Fecha</p>
               <p className="font-medium">{new Date().toLocaleDateString("es-AR")}</p>
             </div>
             <button
               onClick={onClose}
-              className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-xl font-bold transition-all duration-200"
+              className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-xl font-bold transition-all duration-200 hover:scale-105"
             >
               ×
             </button>
@@ -214,17 +220,18 @@ export default function ModalVenta({
         </div>
 
         {/* Contenido scrolleable */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#f8f9fa]">
           
-          {/* Información del Cliente */}
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              👤 Datos del Cliente
+          {/* Información del Cliente - Estilo GestiOne */}
+          <div className="bg-white rounded-xl border border-[#ecf0f1] p-6 shadow-md">
+            <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-2">
+              <span className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center text-white">👤</span>
+              Datos del Cliente
             </h3>
             <Combobox value={cliente} onChange={setCliente}>
               <div className="relative">
                 <Combobox.Input
-                  className="w-full p-4 border border-gray-300 rounded-lg text-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-gray-900 placeholder-gray-500"
+                  className="w-full p-4 border border-[#bdc3c7] rounded-lg text-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
                   onChange={(e) => setQueryCliente(e.target.value)}
                   displayValue={() => cliente}
                   placeholder="🔍 Ingrese o seleccione el nombre del cliente..."
@@ -232,7 +239,7 @@ export default function ModalVenta({
                   autoCorrect="off"
                   spellCheck={false}
                 />
-                <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
+                <Combobox.Options className="absolute z-10 w-full bg-white border border-[#bdc3c7] rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
                   {listaClientes
                     .filter((c) => c.toLowerCase().includes(queryCliente.toLowerCase()))
                     .map((c, i) => (
@@ -240,8 +247,8 @@ export default function ModalVenta({
                         key={i}
                         value={c}
                         className={({ active }) =>
-                          `px-4 py-3 cursor-pointer transition-colors text-gray-900 ${
-                            active ? "bg-purple-600 text-white" : "hover:bg-gray-100"
+                          `px-4 py-3 cursor-pointer transition-colors text-[#2c3e50] ${
+                            active ? "bg-[#3498db] text-white" : "hover:bg-[#ecf0f1]"
                           }`
                         }
                       >
@@ -253,10 +260,11 @@ export default function ModalVenta({
             </Combobox>
           </div>
 
-          {/* Selector de Productos */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              🛍️ Agregar Productos
+          {/* Selector de Productos - Estilo GestiOne */}
+          <div className="bg-white rounded-xl border border-[#ecf0f1] p-6 shadow-md">
+            <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-2">
+              <span className="w-8 h-8 bg-[#27ae60] rounded-lg flex items-center justify-center text-white">🛍️</span>
+              Agregar Productos
             </h3>
             <SelectorProductoVentaGeneral
               productos={productos}
@@ -274,27 +282,27 @@ export default function ModalVenta({
             />
           </div>
 
-          {/* Tabla de Productos - Estilo Remito */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-gray-100 to-gray-200 p-4 border-b border-gray-300">
-              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+          {/* Tabla de Productos - Estilo GestiOne */}
+          <div className="bg-white rounded-xl border border-[#ecf0f1] shadow-md overflow-hidden">
+            <div className="bg-[#2c3e50] p-4 text-white">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
                 📋 Detalle de Productos
               </h3>
             </div>
             
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
-                <thead className="bg-gradient-to-r from-purple-100 to-pink-100">
+                <thead className="bg-[#ecf0f1]">
                   <tr>
-                    <th className="p-3 text-left font-semibold text-gray-700 border border-gray-300">📦 Categoría</th>
-                    <th className="p-3 text-left font-semibold text-gray-700 border border-gray-300">🏷️ Producto</th>
-                    <th className="p-3 text-left font-semibold text-gray-700 border border-gray-300">🏭 Marca</th>
-                    <th className="p-3 text-left font-semibold text-gray-700 border border-gray-300">📱 Modelo</th>
-                    <th className="p-3 text-left font-semibold text-gray-700 border border-gray-300">🎨 Color</th>
-                    <th className="p-3 text-right font-semibold text-gray-700 border border-gray-300">💰 Precio</th>
-                    <th className="p-3 text-right font-semibold text-gray-700 border border-gray-300">📊 Cant.</th>
-                    <th className="p-3 text-right font-semibold text-gray-700 border border-gray-300">💵 Total</th>
-                    <th className="p-3 text-center font-semibold text-gray-700 border border-gray-300 w-16">🗑️</th>
+                    <th className="p-3 text-left font-semibold text-[#2c3e50] border border-[#bdc3c7]">📦 Categoría</th>
+                    <th className="p-3 text-left font-semibold text-[#2c3e50] border border-[#bdc3c7]">🏷️ Producto</th>
+                    <th className="p-3 text-left font-semibold text-[#2c3e50] border border-[#bdc3c7]">🏭 Marca</th>
+                    <th className="p-3 text-left font-semibold text-[#2c3e50] border border-[#bdc3c7]">📱 Modelo</th>
+                    <th className="p-3 text-left font-semibold text-[#2c3e50] border border-[#bdc3c7]">🎨 Color</th>
+                    <th className="p-3 text-right font-semibold text-[#2c3e50] border border-[#bdc3c7]">💰 Precio</th>
+                    <th className="p-3 text-right font-semibold text-[#2c3e50] border border-[#bdc3c7]">📊 Cant.</th>
+                    <th className="p-3 text-right font-semibold text-[#2c3e50] border border-[#bdc3c7]">💵 Total</th>
+                    <th className="p-3 text-center font-semibold text-[#2c3e50] border border-[#bdc3c7] w-16">🗑️</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -305,52 +313,52 @@ export default function ModalVenta({
                       const isEven = i % 2 === 0;
 
                       return (
-                        <tr key={i} className={`transition-colors duration-200 hover:bg-purple-50 ${isEven ? "bg-white" : "bg-gray-50"}`}>
-                          <td className="p-3 border border-gray-300">
+                        <tr key={i} className={`transition-colors duration-200 hover:bg-[#ecf0f1] ${isEven ? "bg-white" : "bg-[#f8f9fa]"}`}>
+                          <td className="p-3 border border-[#bdc3c7]">
                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                               p.categoria === "Teléfono" 
-                                ? 'bg-green-100 text-green-700'
+                                ? 'bg-[#27ae60] text-white'
                                 : p.categoria === "Accesorio"
-                                ? 'bg-blue-100 text-blue-700'
+                                ? 'bg-[#3498db] text-white'
                                 : p.categoria === "Repuesto"
-                                ? 'bg-orange-100 text-orange-700'
-                                : 'bg-gray-100 text-gray-700'
+                                ? 'bg-[#f39c12] text-white'
+                                : 'bg-[#7f8c8d] text-white'
                             }`}>
                               {p.categoria}
                             </span>
                           </td>
-                          <td className="p-3 border border-gray-300 font-medium text-gray-800">{p.producto}</td>
-                          <td className="p-3 border border-gray-300 text-gray-700">{p.marca}</td>
-                          <td className="p-3 border border-gray-300 text-gray-700">{p.modelo}</td>
-                          <td className="p-3 border border-gray-300">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                          <td className="p-3 border border-[#bdc3c7] font-medium text-[#2c3e50]">{p.producto}</td>
+                          <td className="p-3 border border-[#bdc3c7] text-[#7f8c8d]">{p.marca}</td>
+                          <td className="p-3 border border-[#bdc3c7] text-[#7f8c8d]">{p.modelo}</td>
+                          <td className="p-3 border border-[#bdc3c7]">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#ecf0f1] text-[#2c3e50]">
                               {p.color}
                             </span>
                           </td>
-                          <td className="p-3 border border-gray-300 text-right font-medium">
-                            <span className="text-green-700">
+                          <td className="p-3 border border-[#bdc3c7] text-right font-medium">
+                            <span className="text-[#27ae60] font-semibold">
                               {monedaProducto === "USD" ? "USD $" : "$"}{" "}
                               {Number(precioMostrar).toLocaleString("es-AR")}
                             </span>
                           </td>
-                          <td className="p-3 border border-gray-300 text-right">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                          <td className="p-3 border border-[#bdc3c7] text-right">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
                               {p.cantidad}
                             </span>
                           </td>
-                          <td className="p-3 border border-gray-300 text-right font-bold text-green-700">
+                          <td className="p-3 border border-[#bdc3c7] text-right font-bold text-[#27ae60]">
                             ${(precioMostrar * p.cantidad).toLocaleString("es-AR")}
                           </td>
-                          <td className="p-3 border border-gray-300 text-center">
+                          <td className="p-3 border border-[#bdc3c7] text-center">
                             <button
                               onClick={() => {
                                 const copia = [...productos];
                                 copia.splice(i, 1);
                                 setProductos(copia);
                               }}
-                              className="w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 rounded-full flex items-center justify-center transition-all duration-200 transform hover:scale-105"
+                              className="w-8 h-8 bg-[#e74c3c] hover:bg-[#c0392b] text-white rounded-full flex items-center justify-center transition-all duration-200 transform hover:scale-105"
                             >
-                              🗑️
+                              ×
                             </button>
                           </td>
                         </tr>
@@ -358,14 +366,14 @@ export default function ModalVenta({
                     })
                   ) : (
                     <tr>
-                      <td colSpan={9} className="p-12 text-center border border-gray-300">
+                      <td colSpan={9} className="p-12 text-center border border-[#bdc3c7]">
                         <div className="flex flex-col items-center gap-4">
-                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                          <div className="w-16 h-16 bg-[#ecf0f1] rounded-full flex items-center justify-center">
                             <span className="text-3xl">📦</span>
                           </div>
                           <div>
-                            <p className="text-lg font-medium text-gray-600">No hay productos cargados</p>
-                            <p className="text-sm text-gray-400">Use el selector arriba para agregar productos</p>
+                            <p className="text-lg font-medium text-[#7f8c8d]">No hay productos cargados</p>
+                            <p className="text-sm text-[#bdc3c7]">Use el selector arriba para agregar productos</p>
                           </div>
                         </div>
                       </td>
@@ -376,24 +384,25 @@ export default function ModalVenta({
             </div>
           </div>
 
-          {/* Sección de Pagos y Descuentos */}
+          {/* Sección de Pagos y Descuentos - Estilo GestiOne */}
           {(pago.monto || telefonoComoPago) && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6">
-              <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center gap-2">
-                💳 Pagos Registrados
+            <div className="bg-gradient-to-r from-[#ecf0f1] to-white rounded-xl border border-[#3498db] p-6">
+              <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-2">
+                <span className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center text-white">💳</span>
+                Pagos Registrados
               </h3>
               <div className="space-y-3">
                 {pago.monto && (
-                  <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <div className="bg-white rounded-lg p-4 border border-[#ecf0f1] shadow-sm">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">💰</span>
+                        <span className="w-8 h-8 bg-[#27ae60] rounded-full flex items-center justify-center text-white">💰</span>
                         <div>
-                          <p className="font-medium text-gray-800">Pago en {pago.formaPago}</p>
-                          <p className="text-sm text-gray-600">{pago.observaciones}</p>
+                          <p className="font-medium text-[#2c3e50]">Pago en {pago.formaPago}</p>
+                          <p className="text-sm text-[#7f8c8d]">{pago.observaciones}</p>
                         </div>
                       </div>
-                      <span className="text-lg font-bold text-green-700">
+                      <span className="text-lg font-bold text-[#27ae60]">
                         ${Number(pago.monto).toLocaleString("es-AR")} {pago.moneda}
                       </span>
                     </div>
@@ -401,16 +410,16 @@ export default function ModalVenta({
                 )}
                 
                 {telefonoComoPago && (
-                  <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <div className="bg-white rounded-lg p-4 border border-[#ecf0f1] shadow-sm">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">📱</span>
+                        <span className="w-8 h-8 bg-[#3498db] rounded-full flex items-center justify-center text-white">📱</span>
                         <div>
-                          <p className="font-medium text-gray-800">Teléfono como parte de pago</p>
-                          <p className="text-sm text-gray-600">{telefonoComoPago.marca} {telefonoComoPago.modelo}</p>
+                          <p className="font-medium text-[#2c3e50]">Teléfono como parte de pago</p>
+                          <p className="text-sm text-[#7f8c8d]">{telefonoComoPago.marca} {telefonoComoPago.modelo}</p>
                         </div>
                       </div>
-                      <span className="text-lg font-bold text-blue-700">
+                      <span className="text-lg font-bold text-[#3498db]">
                         ${Number(telefonoComoPago.valorPago).toLocaleString("es-AR")}
                       </span>
                     </div>
@@ -421,30 +430,30 @@ export default function ModalVenta({
           )}
         </div>
 
-        {/* Footer con Totales y Acciones */}
-        <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200 p-4">
+        {/* Footer con Totales y Acciones - Estilo GestiOne */}
+        <div className="bg-[#ecf0f1] border-t border-[#bdc3c7] p-4">
           {/* Resumen de Totales */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+          <div className="bg-white rounded-xl border border-[#bdc3c7] p-4 mb-4 shadow-sm">
             <div className="space-y-3">
               <div className="flex justify-between items-center text-lg">
-                <span className="font-medium text-gray-700">Subtotal:</span>
-                <span className="font-bold text-gray-900">
+                <span className="font-medium text-[#2c3e50]">Subtotal:</span>
+                <span className="font-bold text-[#2c3e50]">
                   {hayTelefono ? "USD $" : "$"}{subtotal.toLocaleString("es-AR")}
                 </span>
               </div>
               
               {totalDescuentos > 0 && (
                 <>
-                  <div className="border-t border-gray-200 pt-3">
-                    <div className="flex justify-between items-center text-sm text-green-700">
+                  <div className="border-t border-[#ecf0f1] pt-3">
+                    <div className="flex justify-between items-center text-sm text-[#27ae60]">
                       <span>Descuentos aplicados:</span>
                       <span className="font-medium">-${totalDescuentos.toLocaleString("es-AR")}</span>
                     </div>
                   </div>
-                  <div className="border-t border-gray-300 pt-3">
+                  <div className="border-t border-[#bdc3c7] pt-3">
                     <div className="flex justify-between items-center text-xl">
-                      <span className="font-bold text-gray-800">TOTAL A PAGAR:</span>
-                      <span className="font-bold text-purple-700 text-2xl">
+                      <span className="font-bold text-[#2c3e50]">TOTAL A PAGAR:</span>
+                      <span className="font-bold text-[#3498db] text-2xl">
                         {hayTelefono ? "USD $" : "$"}{Math.max(0, totalFinal).toLocaleString("es-AR")}
                       </span>
                     </div>
@@ -453,10 +462,10 @@ export default function ModalVenta({
               )}
               
               {totalDescuentos === 0 && (
-                <div className="border-t border-gray-300 pt-3">
+                <div className="border-t border-[#bdc3c7] pt-3">
                   <div className="flex justify-between items-center text-xl">
-                    <span className="font-bold text-gray-800">TOTAL:</span>
-                    <span className="font-bold text-purple-700 text-2xl">
+                    <span className="font-bold text-[#2c3e50]">TOTAL:</span>
+                    <span className="font-bold text-[#3498db] text-2xl">
                       {hayTelefono ? "USD $" : "$"}{subtotal.toLocaleString("es-AR")}
                     </span>
                   </div>
@@ -465,24 +474,24 @@ export default function ModalVenta({
             </div>
           </div>
 
-          {/* Botones de Acción */}
-          <div className="flex justify-end gap-2">
-          <button
-  onClick={() => {
-    console.log("COBRAR PRESIONADO");
-    setModalPagoAbierto(true);
-  }}
-  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
-  style={{ 
-    height: "40px", 
-    padding: "0 24px",
-    minHeight: "40px",
-    maxHeight: "20px",
-   transform: "translateY(24px)",
-  }}
->
-  💰 COBRAR
-</button>
+          {/* Botones de Acción - Estilo GestiOne */}
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => {
+                console.log("COBRAR PRESIONADO");
+                setModalPagoAbierto(true);
+              }}
+              className="bg-[#27ae60] hover:bg-[#229954] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+              style={{ 
+                height: "40px", 
+                padding: "0 24px",
+                minHeight: "40px",
+                maxHeight: "40px",
+                marginTop: "24px",
+              }}
+           >
+              💳 COBRAR
+            </button>
 
             <BotonGuardarVenta
               cliente={cliente}

@@ -207,41 +207,45 @@ export default function TablaVentas({ refrescar }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header de filtros y controles */}
-      <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-6">
+      {/* Header de filtros y controles - Estilo GestiOne */}
+      <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-6">
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* Filtros principales - Ahora en 2 filas compactas */}
-          <div className="flex flex-col gap-3 min-w-[300px]">
+          
+          {/* Filtros principales */}
+          <div className="flex flex-col gap-4 min-w-[300px]">
             {/* Fila 1: Estados */}
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-gray-600">Estado:</span>
-              <div className="flex gap-1">
+              <span className="text-xs font-semibold text-[#2c3e50] flex items-center gap-2">
+                <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">📊</span>
+                Estado:
+              </span>
+              <div className="flex gap-2">
                 <button
                   onClick={() => setFiltroEstado("todos")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
                     filtroEstado === "todos" 
-                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md" 
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      ? "bg-[#3498db] text-white shadow-md" 
+                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
                   Todos
                 </button>
                 <button
                   onClick={() => setFiltroEstado("pendiente")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
                     filtroEstado === "pendiente" 
-                      ? "bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-md" 
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      ? "bg-[#f39c12] text-white shadow-md" 
+                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
                   Pendientes
                 </button>
                 <button
                   onClick={() => setFiltroEstado("pagado")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
                     filtroEstado === "pagado" 
-                      ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md" 
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      ? "bg-[#27ae60] text-white shadow-md" 
+                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
                   Pagadas
@@ -251,44 +255,47 @@ export default function TablaVentas({ refrescar }: Props) {
 
             {/* Fila 2: Categorías */}
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-gray-600">Categoría:</span>
-              <div className="flex gap-1">
+              <span className="text-xs font-semibold text-[#2c3e50] flex items-center gap-2">
+                <span className="w-4 h-4 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs">🏷️</span>
+                Categoría:
+              </span>
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => setFiltroCategoria("todas")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
                     filtroCategoria === "todas" 
-                      ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md" 
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      ? "bg-[#2c3e50] text-white shadow-md" 
+                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
                   📊 Todas
                 </button>
                 <button
                   onClick={() => setFiltroCategoria("telefono")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
                     filtroCategoria === "telefono" 
-                      ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md" 
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      ? "bg-[#27ae60] text-white shadow-md" 
+                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
                   📱 Teléfonos
                 </button>
                 <button
                   onClick={() => setFiltroCategoria("accesorio")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
                     filtroCategoria === "accesorio" 
-                      ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md" 
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      ? "bg-[#3498db] text-white shadow-md" 
+                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
                   🔌 Accesorios
                 </button>
                 <button
                   onClick={() => setFiltroCategoria("repuesto")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-xs ${
+                  className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
                     filtroCategoria === "repuesto" 
-                      ? "bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-md" 
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                      ? "bg-[#f39c12] text-white shadow-md" 
+                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
                   🔧 Repuestos
@@ -297,9 +304,10 @@ export default function TablaVentas({ refrescar }: Props) {
             </div>
           </div>
 
-          {/* Buscador de cliente */}
+          {/* Buscador de cliente - Estilo GestiOne */}
           <div className="flex-1">
-            <label className="text-xs font-semibold text-gray-600 block mb-2">
+            <label className="text-xs font-semibold text-[#2c3e50] block mb-3 flex items-center gap-2">
+              <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
               Buscar cliente:
             </label>
             <input
@@ -307,15 +315,18 @@ export default function TablaVentas({ refrescar }: Props) {
               placeholder="🔍 Filtrar por nombre de cliente..."
               value={filtroCliente}
               onChange={(e) => setFiltroCliente(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+              className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
             />
           </div>
 
-          {/* Control de cotización USD */}
+          {/* Control de cotización USD - Estilo GestiOne */}
           <div className="flex flex-col gap-2 min-w-[200px]">
-            <span className="text-xs font-semibold text-gray-600">Cotización USD:</span>
-            <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-100 to-orange-100 px-3 py-2.5 rounded-lg border border-yellow-300">
-              <span className="text-sm font-medium">$</span>
+            <span className="text-xs font-semibold text-[#2c3e50] flex items-center gap-2">
+              <span className="w-4 h-4 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-xs">💰</span>
+              Cotización USD:
+            </span>
+            <div className="flex items-center gap-2 bg-gradient-to-r from-[#f8f9fa] to-[#ecf0f1] px-3 py-3 rounded-lg border-2 border-[#f39c12]">
+              <span className="text-sm font-medium text-[#2c3e50]">$</span>
               <input
                 type="number"
                 value={cotizacion}
@@ -356,68 +367,74 @@ export default function TablaVentas({ refrescar }: Props) {
 
                   await Promise.all(updates);
                 }}
-                className="w-20 px-2 py-1.5 border border-yellow-300 rounded-lg bg-white focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-center font-medium text-sm"
+                className="w-20 px-2 py-2 border-2 border-[#f39c12] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-center font-medium text-sm text-[#2c3e50]"
               />
-              <div className="text-xs text-yellow-700">
+              <div className="text-xs text-[#f39c12]">
                 <div className="font-medium">ARS</div>
-                <div className="text-yellow-600">(Solo pendientes)</div>
+                <div className="text-[#7f8c8d]">(Solo pendientes)</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabla principal */}
-      <div className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
+      {/* Tabla principal - Estilo GestiOne */}
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+        
         {/* Header de la tabla */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4">
-          <h3 className="text-lg font-bold flex items-center gap-2">
-            📊 Ventas Registradas
-          </h3>
-          <p className="text-purple-100 mt-1 text-sm">
-            {ventasFiltradas.length} {ventasFiltradas.length === 1 ? 'venta' : 'ventas'} encontradas
-          </p>
+        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">📊</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Ventas Registradas</h3>
+              <p className="text-blue-100 text-sm">
+                {ventasFiltradas.length} {ventasFiltradas.length === 1 ? 'venta' : 'ventas'} encontradas
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Contenedor con scroll horizontal */}
-        <div className="overflow-x-auto border border-gray-300">
+        <div className="overflow-x-auto border border-[#bdc3c7]">
           <table className="w-full min-w-[1400px] border-collapse">
-            <thead className="bg-gradient-to-r from-gray-100 to-gray-200">
+            <thead className="bg-[#ecf0f1]">
               <tr>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-20">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-20">
                   📋 Nro Venta
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-24">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-24">
                   📅 Fecha
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   👤 Cliente
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   🏷️ Categoría
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   📱 Producto
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   🏭 Marca
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   📱 Modelo
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   🎨 Color
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   📦 Cantidad
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-24">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-24">
                   💰 Precio ARS/USD
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   💵 Total
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   ⚙️ Acciones
                 </th>
               </tr>
@@ -425,16 +442,16 @@ export default function TablaVentas({ refrescar }: Props) {
             <tbody>
               {ventasFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-12 text-center text-gray-500 border border-gray-300">
+                  <td colSpan={12} className="p-12 text-center text-[#7f8c8d] border border-[#bdc3c7]">
                     <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                      <div className="w-16 h-16 bg-[#ecf0f1] rounded-full flex items-center justify-center">
                         <span className="text-3xl">📊</span>
                       </div>
                       <div>
-                        <p className="text-lg font-medium text-gray-600">
+                        <p className="text-lg font-medium text-[#7f8c8d]">
                           {ventas.length === 0 ? "No hay ventas registradas" : "No se encontraron resultados"}
                         </p>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-[#bdc3c7]">
                           {ventas.length === 0 
                             ? "Las ventas aparecerán aquí una vez que registres algunas"
                             : "Intenta ajustar los filtros de búsqueda"
@@ -455,95 +472,95 @@ export default function TablaVentas({ refrescar }: Props) {
                       return (
                         <tr
                           key={`${venta.id}-${i}`}
-                          className={`transition-colors duration-200 hover:bg-purple-50 border border-gray-300 ${
+                          className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
                             (venta.estado || "pendiente") === "pagado"
                               ? "bg-green-50"
                               : (venta.estado || "pendiente") === "pendiente"
                               ? "bg-yellow-50"
-                              : isEven ? "bg-white" : "bg-gray-50"
+                              : isEven ? "bg-white" : "bg-[#f8f9fa]"
                           } ${
                             tieneMultiplesProductos 
                               ? esProductoPrincipal 
-                                ? 'border-l-4 border-l-blue-500' 
-                                : 'border-l-4 border-l-blue-300' 
+                                ? 'border-l-4 border-l-[#3498db]' 
+                                : 'border-l-4 border-l-[#bdc3c7]' 
                               : ''
                           }`}
                         >
                           {/* Nro Venta - Solo en la primera fila del grupo */}
-                          <td className="p-3 text-center border border-gray-300">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
                             {esProductoPrincipal ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
                                 #{venta.nroVenta || venta.id.slice(-6)}
                               </span>
                             ) : (
-                              <span className="text-gray-400 text-sm">↳</span>
+                              <span className="text-[#bdc3c7] text-sm">↳</span>
                             )}
                           </td>
                           
                           {/* Fecha - Solo en la primera fila del grupo */}
-                          <td className="p-3 text-center border border-gray-300">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
                             {esProductoPrincipal ? (
-                              <span className="text-sm font-medium text-gray-800">{venta.fecha}</span>
+                              <span className="text-sm font-medium text-[#2c3e50]">{venta.fecha}</span>
                             ) : ""}
                           </td>
                           
                           {/* Cliente - Solo en la primera fila del grupo */}
-                          <td className="p-3 text-center border border-gray-300">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
                             {esProductoPrincipal ? (
-                              <span className="text-sm font-medium text-gray-800">{venta.cliente}</span>
+                              <span className="text-sm font-medium text-[#2c3e50]">{venta.cliente}</span>
                             ) : ""}
                           </td>
                           
                           {/* Categoría */}
-                          <td className="p-3 text-center border border-gray-300">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                               p.categoria === "Teléfono" 
-                                ? 'bg-green-100 text-green-700'
+                                ? 'bg-[#27ae60] text-white'
                                 : p.categoria === "Accesorio"
-                                ? 'bg-blue-100 text-blue-700'
+                                ? 'bg-[#3498db] text-white'
                                 : p.categoria === "Repuesto"
-                                ? 'bg-orange-100 text-orange-700'
-                                : 'bg-gray-100 text-gray-700'
+                                ? 'bg-[#f39c12] text-white'
+                                : 'bg-[#7f8c8d] text-white'
                             }`}>
                               {p.categoria === "Repuesto" && p.hoja ? p.hoja : p.categoria}
                             </span>
                           </td>
                           
                           {/* Producto */}
-                          <td className="p-3 text-center border border-gray-300">
-                            <span className="text-sm text-gray-700">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
+                            <span className="text-sm text-[#2c3e50]">
                               {p.producto || p.descripcion || "—"}
                               {p.hoja ? ` (${p.hoja})` : ""}
                             </span>
                           </td>
                           
                           {/* Marca */}
-                          <td className="p-3 text-center border border-gray-300">
-                            <span className="text-sm text-gray-700">{p.marca || "—"}</span>
+                          <td className="p-3 text-center border border-[#bdc3c7]">
+                            <span className="text-sm text-[#7f8c8d]">{p.marca || "—"}</span>
                           </td>
                           
                           {/* Modelo */}
-                          <td className="p-3 text-center border border-gray-300">
-                            <span className="text-sm text-gray-700">{p.modelo || "—"}</span>
+                          <td className="p-3 text-center border border-[#bdc3c7]">
+                            <span className="text-sm text-[#7f8c8d]">{p.modelo || "—"}</span>
                           </td>
                           
                           {/* Color */}
-                          <td className="p-3 text-center border border-gray-300">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#ecf0f1] text-[#2c3e50]">
                               {p.color || "—"}
                             </span>
                           </td>
                           
                           {/* Cantidad */}
-                          <td className="p-3 text-center border border-gray-300">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
                               {p.cantidad}
                             </span>
                           </td>
                           
                           {/* Precio ARS */}
-                          <td className="p-3 text-center border border-gray-300">
-                            <span className="text-sm font-medium text-gray-800">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
+                            <span className="text-sm font-medium text-[#2c3e50]">
                               {p.moneda?.toUpperCase() === "USD"
                                 ? `$${(p.precioUnitario * cotizacion).toLocaleString("es-AR")}`
                                 : `$${p.precioUnitario.toLocaleString("es-AR")}`}
@@ -551,8 +568,8 @@ export default function TablaVentas({ refrescar }: Props) {
                           </td>
 
                           {/* Total en ARS */}
-                          <td className="p-3 text-center border border-gray-300">
-                            <span className="text-sm font-bold text-green-700">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
+                            <span className="text-sm font-bold text-[#27ae60]">
                               {venta.moneda === "USD"
                                 ? `USD $${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
                                 : `$${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`}
@@ -560,7 +577,7 @@ export default function TablaVentas({ refrescar }: Props) {
                           </td>
 
                           {/* Acciones */}
-                          <td className="p-3 text-center border border-gray-300">
+                          <td className="p-3 text-center border border-[#bdc3c7]">
                             <div className="flex flex-col items-center gap-2">
                               {/* Select de estado - Solo en la primera fila */}
                               {esProductoPrincipal && (
@@ -573,10 +590,10 @@ export default function TablaVentas({ refrescar }: Props) {
                                     });
                                     await refrescarVentas();
                                   }}
-                                  className={`text-xs px-2 py-1 border rounded-lg w-full text-center font-medium transition-all ${
+                                  className={`text-xs px-2 py-1 border-2 rounded-lg w-full text-center font-medium transition-all ${
                                     (venta.estado || "pendiente") === "pagado"
-                                      ? "bg-green-100 text-green-700 border-green-300"
-                                      : "bg-yellow-100 text-yellow-700 border-yellow-300"
+                                      ? "bg-[#27ae60] text-white border-[#27ae60]"
+                                      : "bg-[#f39c12] text-white border-[#f39c12]"
                                   }`}
                                 >
                                   <option value="pendiente">Pendiente</option>
@@ -586,38 +603,38 @@ export default function TablaVentas({ refrescar }: Props) {
 
                               {/* Botones */}
                               <div className="flex gap-1 w-full">
-                              {esProductoPrincipal && (
-  <>
-    <button
-      onClick={() => editarVenta(venta)}
-      className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
-    >
-      ✏️ Editar
-    </button>
-    
-    <button
-      onClick={() => {
-        setVentaParaRemito(venta);
-        setMostrarRemito(true);
-      }}
-      className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
-    >
-      🖨️ Remito
-    </button>
-  </>
-)}
+                                {esProductoPrincipal && (
+                                  <>
+                                    <button
+                                      onClick={() => editarVenta(venta)}
+                                      className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
+                                    >
+                                      ✏️ Editar
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => {
+                                        setVentaParaRemito(venta);
+                                        setMostrarRemito(true);
+                                      }}
+                                      className="bg-[#3498db] hover:bg-[#2980b9] text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
+                                    >
+                                      🖨️ Remito
+                                    </button>
+                                  </>
+                                )}
 
                                 {venta.productos.length > 1 ? (
                                   <button
                                     onClick={() => eliminarProducto(venta.id, i)}
-                                    className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
+                                    className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
                                   >
                                     🗑️
                                   </button>
                                 ) : (
                                   <button
                                     onClick={() => pedirConfirmacionEliminar(venta)}
-                                    className="bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
+                                    className="bg-[#c0392b] hover:bg-[#a93226] text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
                                   >
                                     ❌
                                   </button>
@@ -635,21 +652,21 @@ export default function TablaVentas({ refrescar }: Props) {
           </table>
         </div>
 
-        {/* Footer de la tabla */}
+        {/* Footer de la tabla - Estilo GestiOne */}
         {ventasFiltradas.length > 0 && (
-          <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-            <div className="flex justify-between items-center text-sm text-gray-600">
+          <div className="bg-[#f8f9fa] px-6 py-4 border-t border-[#bdc3c7]">
+            <div className="flex justify-between items-center text-sm text-[#7f8c8d]">
               <span>
                 Mostrando {ventasFiltradas.length} de {ventas.length} {ventas.length === 1 ? 'venta' : 'ventas'}
               </span>
               <div className="flex gap-6">
                 <span>
-                  Total productos: <strong className="text-blue-700">
+                  Total productos: <strong className="text-[#3498db]">
                     {ventasFiltradas.reduce((sum, v) => sum + v.productos.length, 0)}
                   </strong>
                 </span>
                 <span>
-                  Valor total: <strong className="text-green-700">
+                  Valor total: <strong className="text-[#27ae60]">
                     ${ventasFiltradas.reduce((sum, v) => sum + (v.total || 0), 0).toLocaleString("es-AR")}
                   </strong>
                 </span>
@@ -659,13 +676,15 @@ export default function TablaVentas({ refrescar }: Props) {
         )}
       </div>
 
-      {/* Modal de confirmación de eliminación */}
+      {/* Modal de confirmación de eliminación - Estilo GestiOne */}
       {mostrarConfirmarEliminar && ventaAEliminar && (
-        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex justify-center items-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-gray-200 transform transition-all duration-300">
-            <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-t-2xl p-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 border-2 border-[#ecf0f1] transform transition-all duration-300">
+            
+            {/* Header del modal */}
+            <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-t-2xl p-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                   <span className="text-2xl">⚠️</span>
                 </div>
                 <div>
@@ -675,27 +694,29 @@ export default function TablaVentas({ refrescar }: Props) {
               </div>
             </div>
             
+            {/* Contenido del modal */}
             <div className="p-6 space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800 font-medium">
+              <div className="bg-red-50 border-2 border-[#e74c3c] rounded-lg p-4">
+                <p className="text-[#e74c3c] font-medium">
                   ¿Estás seguro que querés eliminar esta venta?
                 </p>
-                <div className="mt-2 text-sm text-red-600">
+                <div className="mt-2 text-sm text-[#7f8c8d]">
                   <strong>Cliente:</strong> {ventaAEliminar.cliente}<br/>
                   <strong>Productos:</strong> {ventaAEliminar.productos.length}
                 </div>
               </div>
               
+              {/* Botones */}
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setMostrarConfirmarEliminar(false)}
-                  className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+                  className="px-6 py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={eliminarVenta}
-                  className="px-6 py-2 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
+                  className="px-6 py-3 bg-[#e74c3c] hover:bg-[#c0392b] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
                 >
                   Sí, eliminar
                 </button>
@@ -705,20 +726,20 @@ export default function TablaVentas({ refrescar }: Props) {
         </div>
       )}
 
-{/* Modal de Remito */}
-{mostrarRemito && (
-  <ModalRemitoImpresion
-    mostrar={mostrarRemito}
-    venta={ventaParaRemito}
-    onClose={() => {
-      setMostrarRemito(false);
-      setVentaParaRemito(null);
-    }}
-    nombreNegocio="Tu Negocio"
-    direccionNegocio="Dirección del negocio"
-    telefonoNegocio="Tel: XXX-XXXX"
-  />
-)}
-</div>  // 👈 No tocar esta línea
-);
+      {/* Modal de Remito */}
+      {mostrarRemito && (
+        <ModalRemitoImpresion
+          mostrar={mostrarRemito}
+          venta={ventaParaRemito}
+          onClose={() => {
+            setMostrarRemito(false);
+            setVentaParaRemito(null);
+          }}
+          nombreNegocio="Tu Negocio"
+          direccionNegocio="Dirección del negocio"
+          telefonoNegocio="Tel: XXX-XXXX"
+        />
+      )}
+    </div>
+  );
 }
