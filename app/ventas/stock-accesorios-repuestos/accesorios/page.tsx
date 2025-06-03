@@ -45,22 +45,22 @@ export default function StockProductosPage() {
   const [precio2, setPrecio2] = useState(0);
   const [precio3, setPrecio3] = useState(0);
   const [mostrarModalPrecios, setMostrarModalPrecios] = useState(false);
-const [preciosConvertidos, setPreciosConvertidos] = useState({
-  precio1: 0,
-  precio2: 0,
-  precio3: 0,
-});
+  const [preciosConvertidos, setPreciosConvertidos] = useState({
+    precio1: 0,
+    precio2: 0,
+    precio3: 0,
+  });
 
-const verPreciosConvertidos = (p: any) => {
-  if (p.moneda === "USD" && cotizacion) {
-    setPreciosConvertidos({
-      precio1: p.precio1 * cotizacion,
-      precio2: p.precio2 * cotizacion,
-      precio3: p.precio3 * cotizacion,
-    });
-    setMostrarModalPrecios(true);
-  }
-};
+  const verPreciosConvertidos = (p: any) => {
+    if (p.moneda === "USD" && cotizacion) {
+      setPreciosConvertidos({
+        precio1: p.precio1 * cotizacion,
+        precio2: p.precio2 * cotizacion,
+        precio3: p.precio3 * cotizacion,
+      });
+      setMostrarModalPrecios(true);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -76,11 +76,9 @@ const verPreciosConvertidos = (p: any) => {
     }
   }, [user]);
   
-
   useEffect(() => {
     if (negocioID) cargarProductos();
   }, [negocioID]);
-
 
   useEffect(() => {
     fetch("https://dolarapi.com/v1/dolares/blue")
@@ -124,19 +122,17 @@ const verPreciosConvertidos = (p: any) => {
       stockBajo,
     };
     
-
     if (editandoId) {
       await updateDoc(doc(db, `negocios/${negocioID}/stockAccesorios`, editandoId), data);
       setEditandoId(null);
     } else {
       const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
-const nuevoCodigo = `ACC${String(snap.size + 1).padStart(3, "0")}`;
+      const nuevoCodigo = `ACC${String(snap.size + 1).padStart(3, "0")}`;
 
-await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
-  ...data,
-  codigo: nuevoCodigo,
-});
-
+      await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
+        ...data,
+        codigo: nuevoCodigo,
+      });
     }
 
     setCodigo("");
@@ -219,104 +215,158 @@ await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
   return (
     <>
       <Header />
-      <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
-        <h1 className="text-2xl font-bold mb-4 text-center">Stock de Accesorios</h1>
+      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+        <div className="w-full px-4 max-w-[1200px] mx-auto space-y-4">
+          
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                <span className="text-3xl">🎧</span>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white mb-1">
+                  Stock de Accesorios
+                </h2>
+                <p className="text-blue-100 text-sm">
+                  Gestión completa de inventario de accesorios y productos
+                </p>
+              </div>
+              
+              <button
+                onClick={() => router.push("/ventas")}
+                className="ml-auto bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm border border-white/30"
+              >
+                ← Atrás
+              </button>
+            </div>
+          </div>
 
-        <div className="mb-6 text-center">
-          <button
-            onClick={() => router.push("/ventas")}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
-          >
-            ← Atrás
-          </button>
-        </div>
+          <ResumenCapital totalUSD={totalUSD} totalPesos={totalPesos} />
 
-        <ResumenCapital totalUSD={totalUSD} totalPesos={totalPesos} />
-
-        <Acciones
-          exportarExcel={exportarExcel}
-          mostrarSugerencias={mostrarSugerencias}
-          setMostrarSugerencias={setMostrarSugerencias}
-          mostrarFormulario={mostrarFormulario}
-          setMostrarFormulario={setMostrarFormulario}
-        />
-
-        {mostrarSugerencias && <PedidosSugeridos productosAPedir={productosAPedir} />}
-
-        {mostrarFormulario && (
-          <FormularioProducto
-            codigo={codigo}
-            setCodigo={setCodigo}
-            proveedor={proveedor}
-            setProveedor={setProveedor}
-            producto={producto}
-            setProducto={setProducto}
-            categoria={categoria}
-            setCategoria={setCategoria}
-            marca={marca}
-            setMarca={setMarca}
-            modelo={modelo}
-            setModelo={setModelo}
-            color={color}
-            setColor={setColor}
-            precioCosto={precioCosto}
-            setPrecioCosto={setPrecioCosto}
-            precio1={precio1}
-            setPrecio1={setPrecio1}
-            precio2={precio2}
-            setPrecio2={setPrecio2}
-            precio3={precio3}
-            setPrecio3={setPrecio3}
-            moneda={moneda}
-            setMoneda={setMoneda}
-            cotizacion={cotizacion}
-            setCotizacion={setCotizacion}
-            cantidad={cantidad}
-            setCantidad={setCantidad}
-            stockIdeal={stockIdeal}
-            setStockIdeal={setStockIdeal}
-            stockBajo={stockBajo}
-            setStockBajo={setStockBajo}
-            guardarProducto={guardarProducto}
-            editandoId={editandoId}
+          <Acciones
+            exportarExcel={exportarExcel}
+            mostrarSugerencias={mostrarSugerencias}
+            setMostrarSugerencias={setMostrarSugerencias}
+            mostrarFormulario={mostrarFormulario}
+            setMostrarFormulario={setMostrarFormulario}
           />
-        )}
 
-<div className="mb-4 text-center">
-  <input
-    type="text"
-    placeholder="Buscar por categoría, producto, marca o modelo"
-    value={filtroTexto}
-    onChange={(e) => setFiltroTexto(e.target.value)}
-    className="p-2 border rounded w-full max-w-md"
-  />
-</div>
+          {mostrarSugerencias && <PedidosSugeridos productosAPedir={productosAPedir} />}
 
-<TablaProductos
-  productos={productosFiltrados}
-  editarProducto={editarProducto}
-  eliminarProducto={eliminarProducto}
-  verPreciosConvertidos={verPreciosConvertidos}
-  cotizacion={cotizacion}
-/>
-{mostrarModalPrecios && (
-  <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50">
-    <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md text-center border-2 border-gray-200">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Precios en pesos 🇦🇷</h2>
-      <p className="mb-2 text-gray-700 text-lg">💰 <strong>Precio 1:</strong> ${preciosConvertidos.precio1.toLocaleString("es-AR")}</p>
-      <p className="mb-2 text-gray-700 text-lg">💰 <strong>Precio 2:</strong> ${preciosConvertidos.precio2.toLocaleString("es-AR")}</p>
-      <p className="mb-4 text-gray-700 text-lg">💰 <strong>Precio 3:</strong> ${preciosConvertidos.precio3.toLocaleString("es-AR")}</p>
-      <button
-        onClick={() => setMostrarModalPrecios(false)}
-        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-      >
-        Cerrar
-      </button>
-    </div>
-  </div>
-)}
+          {mostrarFormulario && (
+            <FormularioProducto
+              codigo={codigo}
+              setCodigo={setCodigo}
+              proveedor={proveedor}
+              setProveedor={setProveedor}
+              producto={producto}
+              setProducto={setProducto}
+              categoria={categoria}
+              setCategoria={setCategoria}
+              marca={marca}
+              setMarca={setMarca}
+              modelo={modelo}
+              setModelo={setModelo}
+              color={color}
+              setColor={setColor}
+              precioCosto={precioCosto}
+              setPrecioCosto={setPrecioCosto}
+              precio1={precio1}
+              setPrecio1={setPrecio1}
+              precio2={precio2}
+              setPrecio2={setPrecio2}
+              precio3={precio3}
+              setPrecio3={setPrecio3}
+              moneda={moneda}
+              setMoneda={setMoneda}
+              cotizacion={cotizacion}
+              setCotizacion={setCotizacion}
+              cantidad={cantidad}
+              setCantidad={setCantidad}
+              stockIdeal={stockIdeal}
+              setStockIdeal={setStockIdeal}
+              stockBajo={stockBajo}
+              setStockBajo={setStockBajo}
+              guardarProducto={guardarProducto}
+              editandoId={editandoId}
+            />
+          )}
 
+          <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">🔍</span>
+              </div>
+              <div className="flex-1">
+                <input
+                  type="text"
+                  placeholder="🔍 Buscar por categoría, producto, marca o modelo..."
+                  value={filtroTexto}
+                  onChange={(e) => setFiltroTexto(e.target.value)}
+                  className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+                />
+              </div>
+            </div>
+          </div>
+
+          <TablaProductos
+            productos={productosFiltrados}
+            editarProducto={editarProducto}
+            eliminarProducto={eliminarProducto}
+            verPreciosConvertidos={verPreciosConvertidos}
+            cotizacion={cotizacion}
+          />
+
+          <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
+            <div className="flex items-center gap-3 text-[#2c3e50]">
+              <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">💡</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  <strong>Tip:</strong> Los códigos se generan automáticamente como ACC001, ACC002, etc. 
+                  Utiliza el filtro para encontrar productos específicos rápidamente.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
+
+      {mostrarModalPrecios && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md text-center border border-[#ecf0f1]">
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-[#27ae60] rounded-xl flex items-center justify-center">
+                <span className="text-white text-lg">💰</span>
+              </div>
+              <h2 className="text-xl font-bold text-[#2c3e50]">Precios en Pesos</h2>
+            </div>
+            
+            <div className="space-y-3 mb-6">
+              <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-lg p-3 border border-[#27ae60]/30">
+                <p className="text-sm font-semibold text-[#27ae60]">Precio 1</p>
+                <p className="text-lg font-bold text-[#27ae60]">${preciosConvertidos.precio1.toLocaleString("es-AR")}</p>
+              </div>
+              <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-lg p-3 border border-[#27ae60]/30">
+                <p className="text-sm font-semibold text-[#27ae60]">Precio 2</p>
+                <p className="text-lg font-bold text-[#27ae60]">${preciosConvertidos.precio2.toLocaleString("es-AR")}</p>
+              </div>
+              <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-lg p-3 border border-[#27ae60]/30">
+                <p className="text-sm font-semibold text-[#27ae60]">Precio 3</p>
+                <p className="text-lg font-bold text-[#27ae60]">${preciosConvertidos.precio3.toLocaleString("es-AR")}</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setMostrarModalPrecios(false)}
+              className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#3f51b5] text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

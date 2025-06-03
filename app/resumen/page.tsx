@@ -202,16 +202,16 @@ export default function ResumenPage() {
         <div className="w-full px-6 max-w-[1800px] mx-auto">
           
           {/* Header de la página - Estilo GestiOne */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 mb-4 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-6">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
                 <span className="text-4xl">📊</span>
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">
+                <h1 className="text-2xl font-bold text-white mb-2">
                   Resumen de Clientes
                 </h1>
-                <p className="text-blue-100 text-lg">
+                <p className="text-blue-100 text-sm">
                   Gestión completa de trabajos y servicios técnicos
                 </p>
               </div>
@@ -219,10 +219,10 @@ export default function ResumenPage() {
           </div>
 
           {/* Filtros y controles - Estilo GestiOne */}
-          <div className="bg-white rounded-2xl p-6 mb-8 shadow-lg border border-[#ecf0f1]">
+          <div className="bg-white rounded-2xl p-5 mb-4 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-10 h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg">🔍</span>
+              <div className="10 h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
+                <span className="text-white text-4xl">🔍</span>
               </div>
               <h2 className="text-2xl font-bold text-[#2c3e50]">Filtros de Búsqueda</h2>
             </div>

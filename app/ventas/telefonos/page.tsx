@@ -52,16 +52,16 @@ export default function VentaTelefonosPage() {
         <div className="w-full px-6 max-w-[1600px] mx-auto">
           
           {/* Header de la página - Estilo GestiOne */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 mb-4 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+              <div className="w-10 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
                 <span className="text-4xl">📱</span>
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">
+                <h1 className="text-3xl font-bold text-white mb-2">
                   Venta de Teléfonos
                 </h1>
-                <p className="text-blue-100 text-lg">
+                <p className="text-blue-100 text-sm">
                   Gestiona las ventas de equipos móviles de tu negocio
                 </p>
               </div>
@@ -75,9 +75,9 @@ export default function VentaTelefonosPage() {
               <div className="bg-white rounded-2xl p-8 shadow-lg border border-[#ecf0f1]">
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-10 h-10 bg-[#27ae60] rounded-xl flex items-center justify-center">
-                    <span className="text-white text-lg">➕</span>
+                    <span className="text-white text-sm">➕</span>
                   </div>
-                  <h2 className="text-2xl font-bold text-[#2c3e50]">
+                  <h2 className="text-1xl font-bold text-[#2c3e50]">
                     Nueva Venta
                   </h2>
                 </div>
@@ -91,18 +91,9 @@ export default function VentaTelefonosPage() {
               </div>
 
               {/* Sección de la tabla - Estilo GestiOne */}
-              <div className="bg-white rounded-2xl p-8 shadow-lg border border-[#ecf0f1]">
+              <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="w-10 h-10 bg-[#3498db] rounded-xl flex items-center justify-center">
-                    <span className="text-white text-lg">📊</span>
-                  </div>
                   <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-[#2c3e50]">
-                      Historial de Ventas
-                    </h2>
-                    <p className="text-[#7f8c8d] mt-1">
-                      Registro completo de todas las ventas realizadas
-                    </p>
                   </div>
                   {ventas.length > 0 && (
                     <div className="bg-[#ecf0f1] px-4 py-2 rounded-lg">

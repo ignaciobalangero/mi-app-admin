@@ -154,26 +154,24 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
  };
 
  return (
-   <div className="bg-white rounded-2xl p-8 shadow-lg border border-[#ecf0f1] mb-8">
+   <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
      
-     {/* Header del formulario - Estilo GestiOne */}
-     <div className="flex items-center gap-4 mb-6">
-       <div className="w-12 h-12 bg-[#27ae60] rounded-xl flex items-center justify-center">
-         <span className="text-white text-2xl">💰</span>
+     <div className="flex items-center gap-3 mb-4">
+       <div className="w-10 h-10 bg-[#27ae60] rounded-xl flex items-center justify-center">
+         <span className="text-white text-lg">💰</span>
        </div>
        <div>
-         <h2 className="text-2xl font-bold text-[#2c3e50]">
+         <h2 className="text-lg font-bold text-[#2c3e50]">
            {editandoId ? "Editar Pago" : "Nuevo Pago"}
          </h2>
-         <p className="text-[#7f8c8d] mt-1">
+         <p className="text-[#7f8c8d] text-xs">
            Registra los pagos de tus clientes
          </p>
        </div>
      </div>
 
-     {/* Mensaje de estado */}
      {mensaje && (
-       <div className={`rounded-xl p-4 mb-6 text-center font-semibold ${
+       <div className={`rounded-xl p-3 mb-4 text-center font-semibold text-sm ${
          mensaje.includes("✅") 
            ? "bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] border-2 border-[#27ae60] text-[#27ae60]"
            : "bg-gradient-to-r from-[#fadbd8] to-[#f5b7b1] border-2 border-[#e74c3c] text-[#e74c3c]"
@@ -182,18 +180,18 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
        </div>
      )}
 
-     {/* Formulario - Estilo GestiOne */}
-     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+     {/* Grid con todos los campos de 2 columnas */}
+     <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
        
-       {/* Combobox de cliente */}
-       <div className="lg:col-span-2">
+       {/* Cliente - 2 columnas */}
+       <div className="col-span-2">
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
            👤 Cliente
          </label>
          <Combobox value={cliente} onChange={setCliente}>
            <div className="relative">
              <Combobox.Input
-               className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+               className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
                onChange={(e) => setQueryCliente(e.target.value)}
                displayValue={() => cliente}
                placeholder="Seleccionar cliente"
@@ -211,7 +209,7 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
                      key={i}
                      value={nombre}
                      className={({ active }) =>
-                       `px-4 py-3 cursor-pointer transition-colors duration-200 ${
+                       `px-3 py-2.5 cursor-pointer transition-colors duration-200 ${
                          active ? "bg-[#27ae60] text-white" : "text-[#2c3e50] hover:bg-[#ecf0f1]"
                        }`
                      }
@@ -222,15 +220,15 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
                {clientes.filter((nombre) =>
                  nombre.toLowerCase().includes(queryCliente.toLowerCase())
                ).length === 0 && (
-                 <div className="px-4 py-3 text-[#7f8c8d] text-center">Sin coincidencias</div>
+                 <div className="px-3 py-2.5 text-[#7f8c8d] text-center">Sin coincidencias</div>
                )}
              </Combobox.Options>
            </div>
          </Combobox>
        </div>
 
-       {/* Monto */}
-       <div>
+       {/* Monto - 2 columnas */}
+       <div className="col-span-2">
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
            💵 Monto
          </label>
@@ -245,41 +243,41 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
              if (isNaN(monto)) setMonto(0);
            }}
            placeholder="0.00"
-           className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
          />
        </div>
 
-       {/* Moneda */}
-       <div>
+       {/* Moneda - 2 columnas */}
+       <div className="col-span-2">
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
            💱 Moneda
          </label>
          <select
            value={moneda}
            onChange={(e) => setMoneda(e.target.value)}
-           className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50]"
+           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] text-sm"
          >
-           <option value="ARS">🇦🇷 Pesos Argentinos</option>
+           <option value="ARS">🇦🇷 Pesos</option>
            <option value="USD">🇺🇸 Dólares</option>
          </select>
        </div>
 
-       {/* Cotización */}
-       <div>
+       {/* Cotización - 2 columnas */}
+       <div className="col-span-2">
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
-           📈 Cotización USD
+           📈 Cotización
          </label>
          <input
            type="number"
            value={cotizacion}
            onChange={(e) => setCotizacion(Number(e.target.value))}
-           placeholder="Cotización del dólar"
-           className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+           placeholder="1000"
+           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
          />
        </div>
 
-       {/* Forma de pago */}
-       <div>
+       {/* Forma de pago - 2 columnas */}
+       <div className="col-span-2">
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
            💳 Forma de Pago
          </label>
@@ -287,44 +285,43 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
            value={forma}
            onChange={(e) => setForma(e.target.value)}
            placeholder="Efectivo, Tarjeta, etc."
-           className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
          />
        </div>
 
-       {/* Destino */}
-       <div className="lg:col-span-2">
+       {/* Destino - 2 columnas */}
+       <div className="col-span-2">
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
            🎯 Destino
          </label>
          <input
            value={destino}
            onChange={(e) => setDestino(e.target.value)}
-           placeholder="Concepto o destino del pago"
-           className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+           placeholder="Concepto del pago"
+           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
          />
-       </div>
-
-       {/* Botón guardar */}
-       <div className="flex items-end">
-         <button
-           onClick={guardarPago}
-           disabled={!cliente || monto <= 0 || !forma}
-           className={`w-full px-6 py-3 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-md flex items-center justify-center gap-2 ${
-             (!cliente || monto <= 0 || !forma)
-               ? "bg-[#bdc3c7] cursor-not-allowed"
-               : "bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] hover:scale-105"
-           }`}
-         >
-           💾 {editandoId ? "Actualizar" : "Guardar Pago"}
-         </button>
        </div>
      </div>
 
-     {/* Información adicional - Estilo GestiOne */}
-     <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 mt-6 border border-[#bdc3c7]">
+     {/* Botón guardar centrado */}
+     <div className="flex justify-center mt-4">
+       <button
+         onClick={guardarPago}
+         disabled={!cliente || monto <= 0 || !forma}
+         className={`px-6 py-2 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-md flex items-center justify-center gap-2 text-sm ${
+           (!cliente || monto <= 0 || !forma)
+             ? "bg-[#bdc3c7] cursor-not-allowed"
+             : "bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] hover:scale-105"
+         }`}
+       >
+         💾 {editandoId ? "Actualizar" : "Guardar Pago"}
+       </button>
+     </div>
+
+     <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-3 mt-4 border border-[#bdc3c7]">
        <div className="flex items-center gap-3 text-[#2c3e50]">
-         <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-           <span className="text-white text-sm">💡</span>
+         <div className="w-6 h-6 bg-[#3498db] rounded-lg flex items-center justify-center">
+           <span className="text-white text-xs">💡</span>
          </div>
          <div className="flex-1">
            <p className="text-sm font-medium">

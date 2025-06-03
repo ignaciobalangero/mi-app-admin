@@ -157,9 +157,9 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
         
         {/* Header de la tabla - Estilo GestiOne */}
-        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
+        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
               <span className="text-2xl">📊</span>
             </div>
             <div>
@@ -176,90 +176,90 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
           <table className="w-full min-w-[1600px] border-collapse border-2 border-black">
             <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
               <tr>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📅</span>
                     Fecha
                   </div>
                 </th>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🏪</span>
                     Proveedor
                   </div>
                 </th>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">👤</span>
                     Cliente
                   </div>
                 </th>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📱</span>
                     Modelo
                   </div>
                 </th>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🎨</span>
                     Color
                   </div>
                 </th>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🔋</span>
                     Batería
                   </div>
                 </th>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">💾</span>
                     GB
                   </div>
                 </th>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🔢</span>
                     IMEI
                   </div>
                 </th>
-                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-left text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🏷️</span>
                     Serie
                   </div>
                 </th>
                 {rol?.tipo === "admin" && (
-                  <th className="p-4 text-right text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <th className="p-4 text-right text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                     <div className="flex items-center justify-end gap-2">
                       <span className="text-base">💸</span>
                       Costo
                     </div>
                   </th>
                 )}
-                <th className="p-4 text-right text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-right text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center justify-end gap-2">
                     <span className="text-base">💰</span>
                     Venta
                   </div>
                 </th>
 
-                <th className="p-4 text-center text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-center text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center justify-center gap-2">
-                    <span className="text-base">💱</span>
+                    <span className="text-base">$</span>
                     Moneda
                   </div>
                 </th>
                 {rol?.tipo === "admin" && (
-                  <th className="p-4 text-right text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                  <th className="p-4 text-right text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                     <div className="flex items-center justify-end gap-2">
                       <span className="text-base">📈</span>
                       Ganancia
                     </div>
                   </th>
                 )}
-                <th className="p-4 text-center text-sm font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
+                <th className="p-4 text-center text-xs font-semibold text-[#2c3e50] border-b-2 border-[#bdc3c7]">
                   <div className="flex items-center justify-center gap-2">
                     <span className="text-base">⚙️</span>
                     Acciones
@@ -298,15 +298,15 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                       }`}
                     >
                       <td className="p-4">
-                        <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                        <span className="text-xs font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
                           {v.fecha}
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="text-sm text-[#7f8c8d]">{v.proveedor || "-"}</span>
+                        <span className="text-xs text-normal">{v.proveedor || "-"}</span>
                       </td>
                       <td className="p-4">
-                        <span className="text-sm font-semibold text-[#3498db] bg-blue-50 px-3 py-1 rounded-lg">
+                        <span className="text-xs font-semibold text-normal px-3 py-1 rounded-lg">
                           {v.cliente}
                         </span>
                       </td>
@@ -320,7 +320,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="text-sm text-[#2c3e50] bg-[#d5f4e6] px-2 py-1 rounded-lg">
+                        <span className="text-xs text-[#2c3e50] bg-[#d5f4e6] px-2 py-1 rounded-lg">
                           {v.bateria || "-"}
                         </span>
                       </td>
@@ -330,7 +330,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="text-xs font-mono text-[#7f8c8d] bg-[#ecf0f1] px-2 py-1 rounded break-all">
+                        <span className="text-xs font-mono text-normal px-2 py-1 rounded break-all">
                           {v.imei || "-"}
                         </span>
                       </td>

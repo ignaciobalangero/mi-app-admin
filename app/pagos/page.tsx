@@ -31,16 +31,16 @@ export default function PagosPage() {
         <div className="w-full px-6 max-w-[1600px] mx-auto">
           
           {/* Header de la página - Estilo GestiOne */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-4 mb-2 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
                 <span className="text-4xl">💰</span>
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">
+                <h1 className="text-2xl font-bold text-white mb-2">
                   Gestión de Pagos
                 </h1>
-                <p className="text-blue-100 text-lg">
+                <p className="text-blue-100 text-sm">
                   Administra todos los pagos y cobros de tu negocio
                 </p>
               </div>

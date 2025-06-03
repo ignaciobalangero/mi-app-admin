@@ -220,16 +220,13 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       {/* Header del formulario - Estilo GestiOne */}
       <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+          <div className="w-12 h-8 bg-white/20 rounded-xl flex items-center justify-center">
             <span className="text-2xl">📱</span>
           </div>
           <div>
             <h2 className="text-2xl font-bold">
               {editandoId ? "Editar Venta de Teléfono" : "Nueva Venta de Teléfono"}
             </h2>
-            <p className="text-blue-100 mt-1">
-              Completa todos los datos para registrar la venta
-            </p>
           </div>
         </div>
       </div>
@@ -257,20 +254,20 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
         </div>
 
         {/* Selector de moneda - Estilo GestiOne */}
-        <div className="bg-white rounded-xl border-2 border-[#f39c12] p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
+        <div className="bg-white rounded-xl border-2 border-[#f39c12] p-4 shadow-sm">
+          <h3 className="text-lg font-semibold text-[#2c3e50] mb-1 flex items-center gap-2">
             <div className="w-8 h-8 bg-[#f39c12] rounded-lg flex items-center justify-center">
               <span className="text-white text-sm">💰</span>
             </div>
             Configuración de Moneda
           </h3>
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-[#2c3e50]">Moneda de venta:</label>
+            <label className="text-xsm font-medium text-[#2c3e50]">Moneda de venta:</label>
             <select
               name="moneda"
               value={form.moneda}
               onChange={handleChange}
-              className="px-4 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50]"
+              className="px-2 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50]"
               disabled={!!form.stockID}
             >
               <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
