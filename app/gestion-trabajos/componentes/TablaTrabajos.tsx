@@ -106,8 +106,8 @@ export default function TablaTrabajos({
               <span className="text-2xl">🔧</span>
             </div>
             <div>
-              <h3 className="text-2xl font-bold">Lista de Trabajos</h3>
-              <p className="text-blue-100 mt-1">
+              <h3 className="text-xl font-bold">Lista de Trabajos</h3>
+              <p className="text-sm blue-100 mt-1">
                 {trabajos.length} {trabajos.length === 1 ? 'trabajo registrado' : 'trabajos registrados'}
               </p>
             </div>
@@ -119,67 +119,67 @@ export default function TablaTrabajos({
           <table className="w-full min-w-[1600px] border-collapse border-2 border-black">
             <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
               <tr>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1] w-18">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-18">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📅</span>
                     Fecha
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">👤</span>
                     Cliente
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📱</span>
                     Modelo
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📲</span>
                     IMEI
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🔧</span>
                     Trabajo
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🔑</span>
                     Clave
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1]">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1]">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📝</span>
                     Observaciones
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1] w-28">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-28">
                   <div className="flex items-center gap-2">
                     <span className="text-base">💰</span>
                     Precio
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1] w-24">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-24">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🚦</span>
                     Estado
                   </div>
                 </th>
-                <th className="p-3 text-left text-sm font-bold text-black border border-black bg-[#ecf0f1] w-24">
+                <th className="p-2 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-24">
                   <div className="flex items-center gap-2">
                     <span className="text-base">📅</span>
                     F.Mod
                   </div>
                 </th>
-                <th className="p-3 text-center text-sm font-bold text-black border border-black bg-[#ecf0f1] w-50">
+                <th className="p-2 text-center text-xs font-bold text-black border border-black bg-[#ecf0f1] w-50">
                   <div className="flex items-center justify-center gap-2">
                     <span className="text-base">⚙️</span>
                     Acciones
@@ -197,37 +197,37 @@ export default function TablaTrabajos({
                     key={t.firebaseId}
                     className={`transition-all duration-200 hover:bg-[#ebf3fd] ${bgClass}`}
                   >
-                    <td className="p-3 border border-black w-24">
-                      <span className="text-sm font-normal text-black bg-[#ecf0f1] px-2 py-1 rounded text-center block">
+                    <td className="p-2 border border-black w-24">
+                      <span className="text-xs font-normal text-black bg-[#ecf0f1] px-2 py-1 rounded text-center block">
                         {t.fecha}
                       </span>
                     </td>
-                    <td className="p-3 border border-black">
-                      <span className="text-sm font-normal text-black">{t.cliente}</span>
+                    <td className="p-2 border border-black">
+                      <span className="text-xs font-normal text-black">{t.cliente}</span>
                     </td>
-                    <td className="p-3 border border-black">
-                      <span className="text-sm font-normal text-black">{t.modelo}</span>
+                    <td className="p-2 border border-black">
+                      <span className="text-xs font-normal text-black">{t.modelo}</span>
                     </td>
-                    <td className="p-3 border border-black">
-                      <span className="text-sm font-normal text-black font-mono bg-[#ecf0f1] px-2 py-1 rounded">
+                    <td className="p-2 border border-black">
+                      <span className="text-xs font-normal text-black font-mono bg-[#ecf0f1] px-2 py-1 rounded">
                         {t.imei || "—"}
                       </span>
                     </td>
-                    <td className="p-3 border border-black w-64">
-                      <span className="text-sm font-normal text-black">{t.trabajo}</span>
+                    <td className="p-2 border border-black w-64">
+                      <span className="text-xs font-normal text-black">{t.trabajo}</span>
                     </td>
-                    <td className="p-3 border border-black">
-                      <span className="text-sm font-normal text-black">{t.clave || "—"}</span>
+                    <td className="p-2 border border-black">
+                      <span className="text-xs font-normal text-black">{t.clave || "—"}</span>
                     </td>
-                    <td className="p-3 border border-black">
-                      <span className="text-sm font-normal text-black">{t.observaciones || "—"}</span>
+                    <td className="p-2 border border-black">
+                      <span className="text-xs font-normal text-black">{t.observaciones || "—"}</span>
                     </td>
-                    <td className="p-3 border border-black w-28">
-                      <span className="text-sm font-normal text-[#1e7e34] bg-green-100 px-2 py-1 rounded text-center block">
+                    <td className="p-2 border border-black w-28">
+                      <span className="text-xs font-normal text-[#1e7e34] bg-green-100 px-2 py-1 rounded text-center block">
                         ${t.precio?.toLocaleString('es-AR') || '0'}
                       </span>
                     </td>
-                    <td className="p-3 border border-black w-24">
+                    <td className="p-2 border border-black w-24">
                       <span className={`inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-bold shadow-sm w-full ${
                         t.estadoCuentaCorriente === "PAGADO" ? "bg-[#9b59b6] text-white" :
                         t.estado === "ENTREGADO" ? "bg-[#27ae60] text-white" :
@@ -238,12 +238,12 @@ export default function TablaTrabajos({
                         {t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
                       </span>
                     </td>
-                    <td className="p-3 border border-black w-24">
-                      <span className="text-sm font-normal text-black bg-[#ecf0f1] px-2 py-1 rounded text-center block">
+                    <td className="p-2 border border-black w-24">
+                      <span className="text-xs font-normal text-black bg-[#ecf0f1] px-2 py-1 rounded text-center block">
                         {t.fechaModificacion || "—"}
                       </span>
                     </td>
-                    <td className="p-3 border border-black w-40">
+                    <td className="p-2 border border-black w-40">
                       <div className="flex flex-col gap-2">
                         
                         {/* Selector de estado */}
