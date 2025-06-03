@@ -98,7 +98,6 @@ export default function VistaVentas() {
         </div>
       </main>
 
-      {/* Modal de carga de venta */}
       {mostrarModalVenta && (
         <ModalVenta
           refrescar={refrescar}
