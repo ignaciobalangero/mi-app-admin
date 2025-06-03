@@ -179,7 +179,7 @@ export default function TablaTrabajos({
                     F.Mod
                   </div>
                 </th>
-                <th className="p-3 text-center text-sm font-bold text-black border border-black bg-[#ecf0f1] w-60">
+                <th className="p-3 text-center text-sm font-bold text-black border border-black bg-[#ecf0f1] w-50">
                   <div className="flex items-center justify-center gap-2">
                     <span className="text-base">⚙️</span>
                     Acciones

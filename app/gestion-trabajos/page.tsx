@@ -236,12 +236,9 @@ export default function GestionTrabajosPage() {
                 <span className="text-4xl">🔧</span>
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">
+                <h1 className="text-4xl font-bold text-white mb-1/2">
                   Gestión de Trabajos
                 </h1>
-                <p className="text-blue-100 text-lg">
-                  Administra todos los trabajos y reparaciones técnicas
-                </p>
               </div>
             </div>
           </div>
