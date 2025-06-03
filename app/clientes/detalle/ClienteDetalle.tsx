@@ -29,10 +29,6 @@ export default function ClienteDetalle() {
     }
   
     console.log("🔍 Ejecutando consultas...");
-  
-    // ... lo demás queda igual
-  
-
     console.log("🔍 Buscando datos de:", nombreCliente);
 
     const trabajosQuery = query(
@@ -99,78 +95,307 @@ export default function ClienteDetalle() {
   return (
     <>
       <Header />
-      <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
-        <h1 className="text-2xl font-bold mb-4">Historial de {nombreCliente}</h1>
+      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+        <div className="w-full px-6 max-w-[1600px] mx-auto">
+          
+          {/* Header de la página - Estilo GestiOne */}
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                <span className="text-4xl">👤</span>
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  Historial de {nombreCliente}
+                </h1>
+                <p className="text-blue-100 text-lg">
+                  Resumen completo de trabajos y pagos del cliente
+                </p>
+              </div>
+            </div>
+          </div>
 
-        <div className="mb-4 flex justify-between items-center">
-          <button
-            onClick={() => window.history.back()}
-            className="text-blue-600 hover:underline"
-          >
-            ← Volver al listado de clientes
-          </button>
+          {/* Controles y navegación - Estilo GestiOne */}
+          <div className="bg-white rounded-2xl p-6 mb-8 shadow-lg border border-[#ecf0f1]">
+            <div className="flex justify-between items-center flex-wrap gap-4">
+              <button
+                onClick={() => window.history.back()}
+                className="bg-[#95a5a6] hover:bg-[#7f8c8d] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-md flex items-center gap-2"
+              >
+                ← Volver al Listado
+              </button>
 
-          <button
-            onClick={exportarPDF}
-            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-          >
-            Descargar resumen en PDF
-          </button>
+              <button
+                onClick={exportarPDF}
+                className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+              >
+                📄 Descargar PDF
+              </button>
+            </div>
+          </div>
+
+          {/* Resumen financiero - Estilo GestiOne */}
+          <div className="bg-white rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-[#f39c12] rounded-xl flex items-center justify-center">
+                <span className="text-white text-2xl">💰</span>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-[#2c3e50]">Resumen Financiero</h2>
+                <p className="text-[#7f8c8d] mt-1">Estado actual de la cuenta del cliente</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-gradient-to-r from-[#3498db]/10 to-[#2980b9]/10 border-2 border-[#3498db] rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">📋</span>
+                  </div>
+                  <span className="text-sm font-medium text-[#2c3e50]">Total Trabajos</span>
+                </div>
+                <p className="text-2xl font-bold text-[#3498db]">
+                  ${totalTrabajos.toLocaleString("es-AR")}
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-r from-[#27ae60]/10 to-[#2ecc71]/10 border-2 border-[#27ae60] rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-[#27ae60] rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">💳</span>
+                  </div>
+                  <span className="text-sm font-medium text-[#2c3e50]">Total Pagos</span>
+                </div>
+                <p className="text-2xl font-bold text-[#27ae60]">
+                  ${totalPagos.toLocaleString("es-AR")}
+                </p>
+              </div>
+
+              <div className={`rounded-xl p-6 border-2 ${
+                saldo > 0 
+                  ? "bg-gradient-to-r from-[#e74c3c]/10 to-[#c0392b]/10 border-[#e74c3c]" 
+                  : saldo < 0 
+                    ? "bg-gradient-to-r from-[#f39c12]/10 to-[#e67e22]/10 border-[#f39c12]"
+                    : "bg-gradient-to-r from-[#95a5a6]/10 to-[#7f8c8d]/10 border-[#95a5a6]"
+              }`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    saldo > 0 ? "bg-[#e74c3c]" : saldo < 0 ? "bg-[#f39c12]" : "bg-[#95a5a6]"
+                  }`}>
+                    <span className="text-white text-sm">📊</span>
+                  </div>
+                  <span className="text-sm font-medium text-[#2c3e50]">Saldo</span>
+                </div>
+                <p className={`text-2xl font-bold ${
+                  saldo > 0 ? "text-[#e74c3c]" : saldo < 0 ? "text-[#f39c12]" : "text-[#95a5a6]"
+                }`}>
+                  ${Math.abs(saldo).toLocaleString("es-AR")}
+                </p>
+                <p className="text-xs mt-1 font-medium text-[#7f8c8d]">
+                  {saldo > 0 ? "(Debe)" : saldo < 0 ? "(A favor)" : "(En cero)"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla de trabajos - Estilo GestiOne */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1] mb-8">
+            
+            {/* Header de trabajos */}
+            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">🔧</span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold">Trabajos Realizados</h3>
+                  <p className="text-blue-100 mt-1">
+                    {trabajos.length} {trabajos.length === 1 ? 'trabajo registrado' : 'trabajos registrados'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabla trabajos */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px] border-collapse border-2 border-black">
+                <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
+                  <tr>
+                    <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📅</span>
+                        Fecha
+                      </div>
+                    </th>
+                    <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📱</span>
+                        Modelo
+                      </div>
+                    </th>
+                    <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🔧</span>
+                        Trabajo
+                      </div>
+                    </th>
+                    <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🚦</span>
+                        Estado
+                      </div>
+                    </th>
+                    <th className="p-3 text-right text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-base">💰</span>
+                        Precio
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trabajos.length > 0 ? (
+                    trabajos.map((t, i) => {
+                      const isEven = i % 2 === 0;
+                      return (
+                        <tr key={i} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
+                          <td className="p-3 border border-black">
+                            <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                              {t.fecha}
+                            </span>
+                          </td>
+                          <td className="p-3 border border-black">
+                            <span className="text-sm text-[#2c3e50]">{t.modelo}</span>
+                          </td>
+                          <td className="p-3 border border-black">
+                            <span className="text-sm text-[#2c3e50]">{t.trabajo}</span>
+                          </td>
+                          <td className="p-3 border border-black">
+                            <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
+                              t.estado === "PAGADO" ? "bg-[#9b59b6] text-white" :
+                              t.estado === "ENTREGADO" ? "bg-[#27ae60] text-white" :
+                              t.estado === "REPARADO" ? "bg-[#f39c12] text-white" :
+                              "bg-[#e74c3c] text-white"
+                            }`}>
+                              {t.estado}
+                            </span>
+                          </td>
+                          <td className="p-3 border border-black text-right">
+                            <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
+                              ${t.precio}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="p-12 text-center border border-black">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-16 h-16 bg-[#ecf0f1] rounded-2xl flex items-center justify-center">
+                            <span className="text-3xl">🔧</span>
+                          </div>
+                          <p className="text-lg font-medium text-[#7f8c8d]">No hay trabajos registrados</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Tabla de pagos - Estilo GestiOne */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+            
+            {/* Header de pagos */}
+            <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">💳</span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold">Pagos Realizados</h3>
+                  <p className="text-green-100 mt-1">
+                    {pagos.length} {pagos.length === 1 ? 'pago registrado' : 'pagos registrados'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabla pagos */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[600px] border-collapse border-2 border-black">
+                <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
+                  <tr>
+                    <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📅</span>
+                        Fecha
+                      </div>
+                    </th>
+                    <th className="p-3 text-right text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-base">💵</span>
+                        Monto
+                      </div>
+                    </th>
+                    <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">💳</span>
+                        Forma
+                      </div>
+                    </th>
+                    <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🎯</span>
+                        Destino
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagos.length > 0 ? (
+                    pagos.map((p, i) => {
+                      const isEven = i % 2 === 0;
+                      return (
+                        <tr key={i} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
+                          <td className="p-3 border border-black">
+                            <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                              {p.fecha}
+                            </span>
+                          </td>
+                          <td className="p-3 border border-black text-right">
+                            <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
+                              ${p.monto}
+                            </span>
+                          </td>
+                          <td className="p-3 border border-black">
+                            <span className="text-sm text-[#2c3e50]">{p.forma}</span>
+                          </td>
+                          <td className="p-3 border border-black">
+                            <span className="text-sm text-[#7f8c8d]">{p.destino}</span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="p-12 text-center border border-black">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-16 h-16 bg-[#ecf0f1] rounded-2xl flex items-center justify-center">
+                            <span className="text-3xl">💳</span>
+                          </div>
+                          <p className="text-lg font-medium text-[#7f8c8d]">No hay pagos registrados</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-
-        <div className="mb-6">
-          <p className="font-semibold">Total trabajos: ${totalTrabajos.toLocaleString("es-AR")}</p>
-          <p className="font-semibold">Total pagos: ${totalPagos.toLocaleString("es-AR")}</p>
-          <p className="font-semibold">
-            Saldo: ${saldo.toLocaleString("es-AR")} {saldo > 0 ? "(debe)" : saldo < 0 ? "(saldo a favor)" : "(saldo en cero)"}
-          </p>
-        </div>
-
-        <h2 className="text-xl font-semibold mb-2">Trabajos</h2>
-        <table className="w-full bg-white text-sm mb-8">
-          <thead className="bg-gray-300">
-            <tr>
-              <th className="p-2 border">Fecha</th>
-              <th className="p-2 border">Modelo</th>
-              <th className="p-2 border">Trabajo</th>
-              <th className="p-2 border">Estado</th>
-              <th className="p-2 border">Precio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trabajos.map((t, i) => (
-              <tr key={i} className="border-t">
-                <td className="p-2 border">{t.fecha}</td>
-                <td className="p-2 border">{t.modelo}</td>
-                <td className="p-2 border">{t.trabajo}</td>
-                <td className="p-2 border">{t.estado}</td>
-                <td className="p-2 border">${t.precio}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <h2 className="text-xl font-semibold mb-2">Pagos realizados</h2>
-        <table className="w-full bg-white text-sm">
-          <thead className="bg-gray-300">
-            <tr>
-              <th className="p-2 border">Fecha</th>
-              <th className="p-2 border">Monto</th>
-              <th className="p-2 border">Forma</th>
-              <th className="p-2 border">Destino</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagos.map((p, i) => (
-              <tr key={i} className="border-t">
-                <td className="p-2 border">{p.fecha}</td>
-                <td className="p-2 border">${p.monto}</td>
-                <td className="p-2 border">{p.forma}</td>
-                <td className="p-2 border">{p.destino}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </main>
     </>
   );

@@ -1,5 +1,3 @@
-// Archivo: app/pagos/page.tsx
-
 "use client";
 
 import { useState } from "react";
@@ -24,17 +22,54 @@ export interface PagoConOrigen {
 export default function PagosPage() {
   const { rol } = useRol();
   const negocioID = rol?.negocioID ?? "";
-  
   const [pagos, setPagos] = useState<PagoConOrigen[]>([]);
-  
 
   return (
     <>
       <Header />
-      <main className="pt-28 p-4 bg-gray-100 min-h-screen">
-        <h1 className="text-2xl font-bold mb-4 text-black">Pagos de clientes</h1>
-        <FormularioPago negocioID={negocioID} setPagos={setPagos} />
-        <TablaPagos negocioID={negocioID} pagos={pagos} setPagos={setPagos} />
+      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+        <div className="w-full px-6 max-w-[1600px] mx-auto">
+          
+          {/* Header de la página - Estilo GestiOne */}
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                <span className="text-4xl">💰</span>
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  Gestión de Pagos
+                </h1>
+                <p className="text-blue-100 text-lg">
+                  Administra todos los pagos y cobros de tu negocio
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Formulario y tabla */}
+          {negocioID && (
+            <div className="space-y-8">
+              <FormularioPago negocioID={negocioID} setPagos={setPagos} />
+              <TablaPagos negocioID={negocioID} pagos={pagos} setPagos={setPagos} />
+            </div>
+          )}
+
+          {/* Estado de carga - Estilo GestiOne */}
+          {!negocioID && (
+            <div className="bg-white rounded-2xl p-12 shadow-lg border border-[#ecf0f1] text-center">
+              <div className="w-16 h-16 bg-[#ecf0f1] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">⏳</span>
+              </div>
+              <h3 className="text-xl font-semibold text-[#2c3e50] mb-2">
+                Cargando información del negocio...
+              </h3>
+              <p className="text-[#7f8c8d]">
+                Por favor espera mientras verificamos los permisos
+              </p>
+            </div>
+          )}
+        </div>
       </main>
     </>
   );

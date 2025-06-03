@@ -11,29 +11,46 @@ export default function FiltroTrabajos({
   filtroTrabajo,
   setFiltroTrabajo,
 }: FiltroProps) {
+  
   return (
-    <div className="flex gap-4 flex-wrap">
-      <div className="relative max-w-xs">
+    <>
+      {/* Filtro por cliente/modelo */}
+      <div className="relative">
         <input
           type="text"
-          placeholder="Filtrar por cliente o modelo"
+          placeholder="🔍 Filtrar por cliente o modelo"
           value={filtroTexto}
           onChange={(e) => setFiltroTexto(e.target.value)}
-          className="w-full p-2 pl-10 border border-gray-400 rounded"
+          className="px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] w-full"
         />
-        <span className="absolute left-3 top-2.5 text-gray-500">🔍</span>
+        {filtroTexto && (
+          <button
+            onClick={() => setFiltroTexto("")}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#7f8c8d] hover:text-[#e74c3c] transition-colors text-sm"
+          >
+            ❌
+          </button>
+        )}
       </div>
 
-      <div className="relative max-w-xs">
+      {/* Filtro por trabajo */}
+      <div className="relative">
         <input
           type="text"
-          placeholder="Filtrar por trabajo"
+          placeholder="🛠️ Filtrar por trabajo"
           value={filtroTrabajo}
           onChange={(e) => setFiltroTrabajo(e.target.value)}
-          className="w-full p-2 pl-10 border border-gray-400 rounded"
+          className="px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] w-full"
         />
-        <span className="absolute left-3 top-2.5 text-gray-500">🛠️</span>
+        {filtroTrabajo && (
+          <button
+            onClick={() => setFiltroTrabajo("")}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#7f8c8d] hover:text-[#e74c3c] transition-colors text-sm"
+          >
+            ❌
+          </button>
+        )}
       </div>
-    </div>
+    </>
   );
 }

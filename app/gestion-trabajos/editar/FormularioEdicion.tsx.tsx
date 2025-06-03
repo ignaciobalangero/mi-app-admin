@@ -42,7 +42,6 @@ export default function FormularioEdicion() {
     c.toLowerCase().includes(clienteInput.toLowerCase())
   );  
 
-
   const [formulario, setFormulario] = useState<Trabajo>({
     fecha: "",
     cliente: "",
@@ -114,100 +113,214 @@ export default function FormularioEdicion() {
   return (
     <>
       <Header />
-      <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
-        <h1 className="text-2xl font-bold mb-4">Editar Trabajo</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-          <input
-            type="text"
-            name="fecha"
-            value={formulario.fecha}
-            onChange={handleChange}
-            className="p-2 border rounded"
-            placeholder="Fecha (DD/MM/AAAA)"
-          />
+      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+        <div className="w-full px-6 max-w-[1200px] mx-auto">
+          
+          {/* Header de la página - Estilo GestiOne */}
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                <span className="text-4xl">✏️</span>
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  Editar Trabajo
+                </h1>
+                <p className="text-blue-100 text-lg">
+                  Modifica la información del trabajo seleccionado
+                </p>
+              </div>
+            </div>
+          </div>
 
-<Combobox
-  value={formulario.cliente}
-  onChange={(value) => setFormulario((prev) => ({ ...prev, cliente: value }))}
->
-  <div className="relative">
-    <Combobox.Input
-      className="w-full border p-2 rounded"
-      placeholder="Cliente"
-      displayValue={(value: string) => value}
-      onChange={(e) => setClienteInput(e.target.value)}
-    />
-    <Combobox.Options className="absolute z-10 bg-white border w-full mt-1 rounded shadow max-h-60 overflow-auto">
-      {clientesFiltrados.length === 0 ? (
-        <div className="p-2 text-gray-500">Sin resultados</div>
-      ) : (
-        clientesFiltrados.map((cli, i) => (
-          <Combobox.Option
-            key={i}
-            value={cli}
-            className="p-2 hover:bg-blue-100 cursor-pointer"
-          >
-            {cli}
-          </Combobox.Option>
-        ))
-      )}
-    </Combobox.Options>
-  </div>
-</Combobox>
+          {/* Formulario - Estilo GestiOne */}
+          <div className="bg-white rounded-2xl p-8 shadow-lg border border-[#ecf0f1] mb-8">
+            
+            {/* Header del formulario */}
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 bg-[#f39c12] rounded-xl flex items-center justify-center">
+                <span className="text-white text-2xl">📝</span>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-[#2c3e50]">Información del Trabajo</h2>
+                <p className="text-[#7f8c8d] mt-1">Completa todos los campos necesarios</p>
+              </div>
+            </div>
 
+            {/* Grid del formulario */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Fecha */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  📅 Fecha
+                </label>
+                <input
+                  type="text"
+                  name="fecha"
+                  value={formulario.fecha}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="DD/MM/AAAA"
+                />
+              </div>
 
-          <input
-            name="modelo"
-            value={formulario.modelo}
-            onChange={handleChange}
-            className="p-2 border rounded"
-            placeholder="Modelo"
-          />
-          <input
-            name="trabajo"
-            value={formulario.trabajo}
-            onChange={handleChange}
-            className="p-2 border rounded"
-            placeholder="Trabajo"
-          />
-          <input
-            name="clave"
-            value={formulario.clave}
-            onChange={handleChange}
-            className="p-2 border rounded"
-            placeholder="Clave"
-          />
-          <input
-            type="number"
-            name="precio"
-            value={formulario.precio}
-            onChange={handleChange}
-            className="p-2 border rounded"
-            placeholder="Precio"
-          />
-          <input
-            name="imei"
-            value={formulario.imei}
-            onChange={handleChange}
-            className="p-2 border rounded"
-            placeholder="IMEI"
-          />
-          <textarea
-            name="observaciones"
-            value={formulario.observaciones}
-            onChange={handleChange}
-            className="p-2 border rounded col-span-1 md:col-span-2"
-            placeholder="Observaciones"
-          />
-        </div>
+              {/* Cliente - Combobox */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  👤 Cliente
+                </label>
+                <Combobox
+                  value={formulario.cliente}
+                  onChange={(value) => setFormulario((prev) => ({ ...prev, cliente: value }))}
+                >
+                  <div className="relative">
+                    <Combobox.Input
+                      className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                      placeholder="Seleccionar cliente"
+                      displayValue={(value: string) => value}
+                      onChange={(e) => setClienteInput(e.target.value)}
+                    />
+                    <Combobox.Options className="absolute z-10 w-full bg-white border-2 border-[#bdc3c7] rounded-lg mt-1 max-h-60 overflow-y-auto shadow-lg">
+                      {clientesFiltrados.length === 0 ? (
+                        <div className="px-4 py-3 text-[#7f8c8d] text-center">Sin resultados</div>
+                      ) : (
+                        clientesFiltrados.map((cli, i) => (
+                          <Combobox.Option
+                            key={i}
+                            value={cli}
+                            className={({ active }) =>
+                              `px-4 py-3 cursor-pointer transition-colors duration-200 ${
+                                active ? "bg-[#3498db] text-white" : "text-[#2c3e50] hover:bg-[#ecf0f1]"
+                              }`
+                            }
+                          >
+                            {cli}
+                          </Combobox.Option>
+                        ))
+                      )}
+                    </Combobox.Options>
+                  </div>
+                </Combobox>
+              </div>
 
-        <div className="mt-6 text-center">
-          <button
-            onClick={guardarCambios}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
-          >
-            Guardar cambios
-          </button>
+              {/* Modelo */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  📱 Modelo
+                </label>
+                <input
+                  name="modelo"
+                  value={formulario.modelo}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="Modelo del dispositivo"
+                />
+              </div>
+
+              {/* Trabajo */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  🔧 Trabajo
+                </label>
+                <input
+                  name="trabajo"
+                  value={formulario.trabajo}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="Descripción del trabajo"
+                />
+              </div>
+
+              {/* Clave */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  🔑 Clave
+                </label>
+                <input
+                  name="clave"
+                  value={formulario.clave}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="Clave del dispositivo"
+                />
+              </div>
+
+              {/* Precio */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  💰 Precio
+                </label>
+                <input
+                  type="number"
+                  name="precio"
+                  value={formulario.precio}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* IMEI */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  📲 IMEI
+                </label>
+                <input
+                  name="imei"
+                  value={formulario.imei}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="Número IMEI"
+                />
+              </div>
+
+              {/* Observaciones - Span completo */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  📝 Observaciones
+                </label>
+                <textarea
+                  name="observaciones"
+                  value={formulario.observaciones}
+                  onChange={handleChange}
+                  rows={4}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] resize-none"
+                  placeholder="Observaciones adicionales sobre el trabajo..."
+                />
+              </div>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex gap-4 justify-center mt-8 pt-6 border-t border-[#ecf0f1]">
+              <button
+                onClick={() => router.push("/gestion-trabajos")}
+                className="px-8 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-md"
+              >
+                ❌ Cancelar
+              </button>
+              <button
+                onClick={guardarCambios}
+                className="px-8 py-3 bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg"
+              >
+                💾 Guardar Cambios
+              </button>
+            </div>
+          </div>
+
+          {/* Información adicional */}
+          <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
+            <div className="flex items-center gap-3 text-[#2c3e50]">
+              <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">💡</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  <strong>Tip:</strong> Todos los campos son opcionales excepto el cliente. Los cambios se guardan inmediatamente.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </>

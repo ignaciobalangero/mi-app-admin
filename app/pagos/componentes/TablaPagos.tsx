@@ -12,13 +12,11 @@ import {
 import { db } from "@/lib/firebase";
 import type { PagoConOrigen } from "../page";
 
-
 interface TablaPagosProps {
   negocioID: string;
   pagos: PagoConOrigen[];
   setPagos: React.Dispatch<React.SetStateAction<PagoConOrigen[]>>;
 }
-
 
 export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosProps) {
   const [mensaje, setMensaje] = useState("");
@@ -38,16 +36,16 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       })) as PagoConOrigen[];
 
       const ordenados = pagosCargados
-      .filter((p) => p.fecha)
-      .sort((a, b) => {
-        const [diaA, mesA, anioA] = (a.fecha || "").split("/");
-        const [diaB, mesB, anioB] = (b.fecha || "").split("/");
-    
-        const fechaA = new Date(Number(anioA), Number(mesA) - 1, Number(diaA));
-        const fechaB = new Date(Number(anioB), Number(mesB) - 1, Number(diaB));
-    
-        return fechaB.getTime() - fechaA.getTime(); // 👉 más reciente primero
-      }); 
+        .filter((p) => p.fecha)
+        .sort((a, b) => {
+          const [diaA, mesA, anioA] = (a.fecha || "").split("/");
+          const [diaB, mesB, anioB] = (b.fecha || "").split("/");
+      
+          const fechaA = new Date(Number(anioA), Number(mesA) - 1, Number(diaA));
+          const fechaB = new Date(Number(anioB), Number(mesB) - 1, Number(diaB));
+      
+          return fechaB.getTime() - fechaA.getTime();
+        }); 
 
       setPagos(ordenados);
     } catch (err) {
@@ -124,7 +122,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       }
   
       if (form.fecha) {
-        datosActualizados.fecha = formatearFechaParaGuardar(form.fecha); // 🔁 guarda como DD/MM/AAAA
+        datosActualizados.fecha = formatearFechaParaGuardar(form.fecha);
       }
   
       await updateDoc(ref, datosActualizados);
@@ -137,185 +135,352 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
   };  
 
   return (
-    <>
+    <div className="space-y-6">
+      
+      {/* Mensaje de estado */}
       {mensaje && (
-        <div className="text-green-600 text-center mb-4 font-semibold">{mensaje}</div>
-      )}
-
-{pagoEditando && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-    <div className="bg-white text-black p-6 rounded-xl max-w-md w-full text-center shadow-xl space-y-4">
-      <h2 className="text-lg font-bold">Editar pago</h2>
-
-      <input
-        type="date"
-        value={form.fecha}
-        onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
-        className="w-full border p-2 rounded"
-      />
-
-      <input
-        type="text"
-        value={form.cliente}
-        onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))}
-        className="w-full border p-2 rounded"
-        placeholder="Cliente"
-      />
-
-      <select
-        value={form.moneda}
-        onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
-        className="w-full border p-2 rounded"
-      >
-        <option value="ARS">Pesos</option>
-        <option value="USD">Dólares</option>
-      </select>
-
-      {form.moneda === "USD" ? (
-        <input
-          type="number"
-          value={form.montoUSD}
-          onChange={e => setForm(f => ({ ...f, montoUSD: e.target.value }))}
-          className="w-full border p-2 rounded"
-          placeholder="Monto USD"
-        />
-      ) : (
-        <input
-          type="number"
-          value={form.monto}
-          onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
-          className="w-full border p-2 rounded"
-          placeholder="Monto $"
-        />
-      )}
-
-      <input
-        type="text"
-        value={form.forma}
-        onChange={e => setForm(f => ({ ...f, forma: e.target.value }))}
-        className="w-full border p-2 rounded"
-        placeholder="Forma de pago"
-      />
-
-      <input
-        type="text"
-        value={form.destino}
-        onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
-        className="w-full border p-2 rounded"
-        placeholder="Destino"
-      />
-
-      <input
-        type="number"
-        value={form.cotizacion}
-        onChange={e => setForm(f => ({ ...f, cotizacion: e.target.value }))}
-        className="w-full border p-2 rounded"
-        placeholder="Cotización"
-      />
-
-      <div className="flex justify-end gap-4">
-        <button
-          onClick={() => setPagoEditando(null)}
-          className="px-4 py-2 bg-gray-400 text-white rounded"
-        >
-          Cancelar
-         </button>
-         <button
-          onClick={guardarEdicion}
-          className="px-4 py-2 bg-blue-600 text-white rounded"
-        >
-          Guardar
-          </button>
+        <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] border-2 border-[#27ae60] rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-center gap-3">
+            <div className="w-8 h-8 bg-[#27ae60] rounded-xl flex items-center justify-center">
+              <span className="text-white text-sm font-bold">✓</span>
+            </div>
+            <span className="text-[#27ae60] font-semibold text-lg">{mensaje}</span>
+          </div>
         </div>
-      </div>
-    </div>
-   )} 
+      )}
 
-      <input
-        type="text"
-        placeholder="🔍 Filtrar por cliente"
-        value={filtroCliente}
-        onChange={(e) => setFiltroCliente(e.target.value)}
-        className="mb-4 px-3 py-2 border text-black border-gray-400 rounded w-full max-w-sm"
-      />
-
-      <table className="w-full bg-white text-black border border-gray-300 mt-2">
-        <thead className="bg-gray-300">
-          <tr>
-            <th className="p-2 border border-gray-400">Fecha</th>
-            <th className="p-2 border border-gray-400">Cliente</th>
-            <th className="p-2 border border-gray-400">Monto</th>
-            <th className="p-2 border border-gray-400">Moneda</th>
-            <th className="p-2 border border-gray-400">Forma</th>
-            <th className="p-2 border border-gray-400">Destino</th>
-            <th className="p-2 border border-gray-400">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-  {[...pagos]
-    .sort((a, b) => {
-      const fechaA = a.fecha instanceof Timestamp ? a.fecha.toDate() : new Date(a.fecha);
-      const fechaB = b.fecha instanceof Timestamp ? b.fecha.toDate() : new Date(b.fecha);
-      return fechaB.getTime() - fechaA.getTime(); // más reciente primero
-    })
-    .filter(p => (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase()))
-    .map((pago) => (
-      <tr key={`${pago.id}-${pago.origen}`} className="text-center border-t">
-        <td className="p-2 border border-gray-300">
-      {typeof pago.fecha === "string" ? pago.fecha : "Fecha inválida"}
-        </td>
-
-        <td className="border border-gray-300">{pago.cliente}</td>
-        <td className="border border-gray-300">
-          {pago.moneda === "USD"
-            ? `USD ${pago.montoUSD}`
-            : `$${pago.monto}`}
-        </td>
-        <td className="border border-gray-300">{pago.moneda}</td>
-        <td className="border border-gray-300">{pago.forma}</td>
-        <td className="border border-gray-300">{pago.destino}</td>
-        <td className="border border-gray-300 space-x-2">
-          <button
-            onClick={() => abrirEdicion(pago)}
-            className="text-blue-600 hover:underline"
-          >
-            Editar
-          </button>
-          <button
-            onClick={() =>
-              setPagoAEliminar({ id: pago.id, origen: pago.origen })
-            }
-            className="text-red-600 hover:underline"
-          >
-            Eliminar
-          </button>
-          {pagoAEliminar && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-              <div className="bg-white text-black p-6 rounded-xl max-w-sm w-full text-center shadow-xl space-y-4">
-                <p className="text-lg">¿Confirmás eliminar este pago?</p>
-                <div className="flex justify-center gap-4">
-                  <button
-                    onClick={() => setPagoAEliminar(null)}
-                    className="px-4 py-2 bg-gray-400 text-white rounded"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={confirmarEliminar}
-                    className="px-4 py-2 bg-red-600 text-white rounded"
-                  >
-                    Eliminar
-                  </button>
+      {/* Modal de edición - Estilo GestiOne */}
+      {pagoEditando && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
+            
+            {/* Header del modal */}
+            <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white rounded-t-2xl p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">✏️</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Editar Pago</h2>
+                  <p className="text-blue-100 text-sm mt-1">Modificar información del pago</p>
                 </div>
               </div>
             </div>
-          )}
-        </td>
-      </tr>
-    ))}
-</tbody>
 
-      </table>
-    </>
+            <div className="p-6 space-y-4 bg-[#f8f9fa]">
+              
+              {/* Fecha */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">📅 Fecha</label>
+                <input
+                  type="date"
+                  value={form.fecha}
+                  onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                />
+              </div>
+
+              {/* Cliente */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">👤 Cliente</label>
+                <input
+                  type="text"
+                  value={form.cliente}
+                  onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                  placeholder="Nombre del cliente"
+                />
+              </div>
+
+              {/* Moneda */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">💱 Moneda</label>
+                <select
+                  value={form.moneda}
+                  onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                >
+                  <option value="ARS">🇦🇷 Pesos Argentinos</option>
+                  <option value="USD">🇺🇸 Dólares</option>
+                </select>
+              </div>
+
+              {/* Monto según moneda */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  💵 Monto {form.moneda === "USD" ? "(USD)" : "($)"}
+                </label>
+                {form.moneda === "USD" ? (
+                  <input
+                    type="number"
+                    value={form.montoUSD}
+                    onChange={e => setForm(f => ({ ...f, montoUSD: e.target.value }))}
+                    className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                    placeholder="Monto en USD"
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    value={form.monto}
+                    onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
+                    className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                    placeholder="Monto en pesos"
+                  />
+                )}
+              </div>
+
+              {/* Forma de pago */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">💳 Forma de Pago</label>
+                <input
+                  type="text"
+                  value={form.forma}
+                  onChange={e => setForm(f => ({ ...f, forma: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                  placeholder="Efectivo, Tarjeta, etc."
+                />
+              </div>
+
+              {/* Destino */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">🎯 Destino</label>
+                <input
+                  type="text"
+                  value={form.destino}
+                  onChange={e => setForm(f => ({ ...f, destino: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                  placeholder="Concepto del pago"
+                />
+              </div>
+
+              {/* Cotización */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">📈 Cotización</label>
+                <input
+                  type="number"
+                  value={form.cotizacion}
+                  onChange={e => setForm(f => ({ ...f, cotizacion: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                  placeholder="Cotización USD"
+                />
+              </div>
+
+              {/* Botones */}
+              <div className="flex gap-3 justify-end pt-4">
+                <button
+                  onClick={() => setPagoEditando(null)}
+                  className="px-6 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={guardarEdicion}
+                  className="px-6 py-3 bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                >
+                  💾 Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )} 
+
+      {/* Filtro de búsqueda - Estilo GestiOne */}
+      <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-10 h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
+            <span className="text-white text-lg">🔍</span>
+          </div>
+          <h3 className="text-xl font-bold text-[#2c3e50]">Buscar Pagos</h3>
+        </div>
+        
+        <input
+          type="text"
+          placeholder="🔍 Filtrar por cliente"
+          value={filtroCliente}
+          onChange={(e) => setFiltroCliente(e.target.value)}
+          className="w-full max-w-md px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+        />
+      </div>
+
+      {/* Tabla principal - Estilo GestiOne */}
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+        
+        {/* Header de la tabla */}
+        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">💰</span>
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold">Lista de Pagos</h3>
+              <p className="text-blue-100 mt-1">
+                {pagos.filter(p => (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase())).length} pagos registrados
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabla con scroll */}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] border-collapse border-2 border-black">
+            <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
+              <tr>
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📅</span>
+                    Fecha
+                  </div>
+                </th>
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">👤</span>
+                    Cliente
+                  </div>
+                </th>
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💵</span>
+                    Monto
+                  </div>
+                </th>
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💱</span>
+                    Moneda
+                  </div>
+                </th>
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💳</span>
+                    Forma
+                  </div>
+                </th>
+                <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🎯</span>
+                    Destino
+                  </div>
+                </th>
+                <th className="p-4 text-center text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-base">⚙️</span>
+                    Acciones
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...pagos]
+                .sort((a, b) => {
+                  const fechaA = a.fecha instanceof Timestamp ? a.fecha.toDate() : new Date(a.fecha);
+                  const fechaB = b.fecha instanceof Timestamp ? b.fecha.toDate() : new Date(b.fecha);
+                  return fechaB.getTime() - fechaA.getTime();
+                })
+                .filter(p => (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase()))
+                .map((pago, index) => {
+                  const isEven = index % 2 === 0;
+                  return (
+                    <tr key={`${pago.id}-${pago.origen}`} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
+                      <td className="p-4 border border-black">
+                        <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                          {typeof pago.fecha === "string" ? pago.fecha : "Fecha inválida"}
+                        </span>
+                      </td>
+                      <td className="p-4 border border-black">
+                        <span className="text-sm font-semibold text-[#3498db]">{pago.cliente}</span>
+                      </td>
+                      <td className="p-4 border border-black">
+                        <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
+                          {pago.moneda === "USD"
+                            ? `USD ${pago.montoUSD}`
+                            : `${pago.monto}`}
+                        </span>
+                      </td>
+                      <td className="p-4 border border-black">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
+                          pago.moneda === 'USD' 
+                            ? 'bg-[#27ae60] text-white' 
+                            : 'bg-[#3498db] text-white'
+                        }`}>
+                          {pago.moneda}
+                        </span>
+                      </td>
+                      <td className="p-4 border border-black">
+                        <span className="text-sm text-[#2c3e50]">{pago.forma}</span>
+                      </td>
+                      <td className="p-4 border border-black">
+                        <span className="text-sm text-[#7f8c8d]">{pago.destino}</span>
+                      </td>
+                      <td className="p-4 border border-black">
+                        <div className="flex gap-2 justify-center">
+                          <button
+                            onClick={() => abrirEdicion(pago)}
+                            className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button
+                            onClick={() =>
+                              setPagoAEliminar({ id: pago.id, origen: pago.origen })
+                            }
+                            className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                          >
+                            🗑️ Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal de confirmación de eliminación - Estilo GestiOne */}
+      {pagoAEliminar && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
+            
+            {/* Header del modal */}
+            <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-t-2xl p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Confirmar Eliminación</h2>
+                  <p className="text-red-100 text-sm mt-1">Esta acción no se puede deshacer</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6 bg-[#f8f9fa]">
+              <div className="bg-white border-2 border-[#e74c3c] rounded-xl p-4 shadow-sm">
+                <p className="text-[#2c3e50] font-semibold text-center">
+                  ¿Estás seguro que querés eliminar este pago?
+                </p>
+              </div>
+              
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setPagoAEliminar(null)}
+                  className="px-6 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarEliminar}
+                  className="px-6 py-3 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
+                >
+                  Sí, eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

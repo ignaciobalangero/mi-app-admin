@@ -1,5 +1,3 @@
-// Archivo: /resumen/page.tsx
-
 "use client";
 import { useEffect, useState } from "react";
 import {
@@ -19,7 +17,7 @@ import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
-import ModalRepuestos from "./componentes/ModalRepuestos"; // o ruta que uses
+import ModalRepuestos from "./componentes/ModalRepuestos";
 
 interface Trabajo {
   firebaseId: string;
@@ -102,36 +100,34 @@ export default function ResumenPage() {
     return () => unsubscribe();
   }, [negocioID, mostrarPagados]);
   
-// 👇 A partir de acá pegás esto:
-const recargarTrabajos = async () => {
-  const snap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
-  const lista: Trabajo[] = [];
-  snap.forEach((docSnap) => {
-    const data = docSnap.data();
-    lista.push({
-      firebaseId: docSnap.id,
-      fecha: data.fecha,
-      cliente: data.cliente,
-      modelo: data.modelo,
-      trabajo: data.trabajo,
-      clave: data.clave,
-      observaciones: data.observaciones,
-      estado: data.estado,
-      estadoCuentaCorriente: data.estadoCuentaCorriente,
-      precio: data.precio,
-      costo: data.costo,
+  const recargarTrabajos = async () => {
+    const snap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
+    const lista: Trabajo[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      lista.push({
+        firebaseId: docSnap.id,
+        fecha: data.fecha,
+        cliente: data.cliente,
+        modelo: data.modelo,
+        trabajo: data.trabajo,
+        clave: data.clave,
+        observaciones: data.observaciones,
+        estado: data.estado,
+        estadoCuentaCorriente: data.estadoCuentaCorriente,
+        precio: data.precio,
+        costo: data.costo,
+      });
     });
-  });
 
-  const ordenados = lista.sort((a, b) => {
-    const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
-    const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
-    return fechaB - fechaA;
-  });
+    const ordenados = lista.sort((a, b) => {
+      const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
+      const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
+      return fechaB - fechaA;
+    });
 
-  setTrabajos(ordenados);
-};
-
+    setTrabajos(ordenados);
+  };
 
   const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
     const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
@@ -174,25 +170,24 @@ const recargarTrabajos = async () => {
   };
 
   const trabajosFiltrados = trabajos
-  .filter(
-    (t) =>
-      t.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) &&
-      (
-        t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase()) ||
-        t.trabajo?.toLowerCase().includes(filtroModelo.toLowerCase())
-      )
-  )
-
-  .filter((t) => {
-    if (filtroEstado === "TODOS") return true;
-    if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "PAGADO";
-    return t.estado === filtroEstado;
-  })
-  .sort((a, b) => {
-    const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
-    const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
-    return fechaB - fechaA; // más reciente arriba
-  });  
+    .filter(
+      (t) =>
+        t.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) &&
+        (
+          t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase()) ||
+          t.trabajo?.toLowerCase().includes(filtroModelo.toLowerCase())
+        )
+    )
+    .filter((t) => {
+      if (filtroEstado === "TODOS") return true;
+      if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "PAGADO";
+      return t.estado === filtroEstado;
+    })
+    .sort((a, b) => {
+      const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
+      const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
+      return fechaB - fechaA;
+    });  
 
   const totalPaginas = Math.ceil(trabajosFiltrados.length / ITEMS_POR_PAGINA);
   const trabajosPaginados = trabajosFiltrados.slice(
@@ -203,209 +198,356 @@ const recargarTrabajos = async () => {
   return (
     <RequireAdmin>
       <Header />
-      <main className="pt-20 text-black p-6 min-h-screen bg-gray-100">
-        <h1 className="text-3xl font-bold mb-6 text-center">Resumen de clientes</h1>
-
-        <div className="mb-4 flex flex-wrap gap-4 justify-center">
-          <input
-            type="text"
-            placeholder="Filtrar por cliente"
-            value={filtroCliente}
-            onChange={(e) => setFiltroCliente(e.target.value)}
-            className="bg-white border border-gray-400 p-2 rounded text-black"
-          />
-      
-          <input
-            type="text"
-            placeholder="Filtrar modelo/trabajo"
-            value={filtroModelo}
-            onChange={(e) => setFiltroModelo(e.target.value)}
-            className="bg-white border border-gray-400 p-2 rounded text-black"
-          />
-          <div className="flex gap-2 flex-wrap justify-center">
-  <button
-    onClick={() => setFiltroEstado("TODOS")}
-    className={`px-3 py-1 rounded border ${
-      filtroEstado === "TODOS" ? "bg-blue-600 text-white" : "bg-white"
-    }`}
-  >
-    Todos
-  </button>
-  <button
-    onClick={() => setFiltroEstado("PENDIENTE")}
-    className={`px-3 py-1 rounded border ${
-      filtroEstado === "PENDIENTE" ? "bg-red-400 text-white" : "bg-white"
-    }`}
-  >
-    Pendientes
-  </button>
-  <button
-    onClick={() => setFiltroEstado("REPARADO")}
-    className={`px-3 py-1 rounded border ${
-      filtroEstado === "REPARADO" ? "bg-yellow-400 text-white" : "bg-white"
-    }`}
-  >
-    Reparados
-  </button>
-  <button
-    onClick={() => setFiltroEstado("ENTREGADO")}
-    className={`px-3 py-1 rounded border ${
-      filtroEstado === "ENTREGADO" ? "bg-green-400 text-white" : "bg-white"
-    }`}
-  >
-    Entregados
-  </button>
-  <button
-    onClick={() => setFiltroEstado("PAGADO")}
-    className={`px-3 py-1 rounded border ${
-      filtroEstado === "PAGADO" ? "bg-blue-400 text-white" : "bg-white"
-    }`}
-  >
-    Pagados
-  </button>
-</div>
-
-          <button
-            onClick={exportarCSV}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
-          >
-            Exportar CSV
-          </button>
-
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto border-collapse border border-gray-300 bg-white">
-            <thead>
-              <tr className="bg-gray-300 border border-gray-300">
-                <th className="p-3 border-r border-gray-400 text-left">Fecha</th>
-                <th className="p-3 border-r border-gray-400 text-left">Cliente</th>
-                <th className="p-3 border-r border-gray-400 text-left">Modelo</th>
-                <th className="p-3 border-r border-gray-400 text-left">Trabajo</th>
-                <th className="p-3 border-r border-gray-400 text-left">Clave</th>
-                <th className="p-3 border-r border-gray-400 text-left">Observaciones</th>
-                <th className="p-3 border-r border-gray-400 text-left">Estado</th>
-                <th className="p-3 border-r border-gray-400 text-left">Precio</th>
-                <th className="p-3 border-r border-gray-400 text-left">Costo</th>
-                <th className="p-3 border-r border-gray-400 text-left">Ganancia</th>
-                <th className="p-3 text-left">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {trabajosPaginados.map((t) => {
-                const ganancia = typeof t.precio === "number" && typeof t.costo === "number"
-                  ? t.precio - t.costo
-                  : "";
-
-                return (
-                  <tr
-                    key={t.firebaseId}
-                    className={`border-t border-gray-300 transition ${
-                      t.estado === "PENDIENTE" ? "bg-red-100"
-                      : t.estado === "REPARADO" ? "bg-yellow-100"
-                      : t.estado === "ENTREGADO" ? "bg-green-100"
-                      : t.estadoCuentaCorriente === "PAGADO" ? "bg-blue-100"
-                      : ""
-                    }`}                    
-                  >
-                    <td className="p-2 border-r border-gray-300 w-20">{t.fecha}</td>
-                    <td className="p-2 border-r border-gray-300">{t.cliente}</td>
-                    <td className="p-2 border-r border-gray-300">{t.modelo}</td>
-                    <td className="p-2 border-r border-gray-300">{t.trabajo}</td>
-                    <td className="p-2 border-r border-gray-300">{t.clave}</td>
-                    <td className="p-2 border-r border-gray-300">{t.observaciones}</td>
-                    <td className="p-2 border-r border-gray-300">{t.estado}</td>
-                    <td className="p-2 border-r border-gray-300">
-                      <input
-                        type="number"
-                        defaultValue={typeof t.precio === "number" ? t.precio : ""}
-                        onBlur={(e) => actualizarCampo(t.firebaseId, "precio", Number(e.target.value))}
-                        className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
-                      />
-                    </td>
-                    <td className="p-2 border-r border-gray-300">
-                      <input
-                        type="number"
-                        defaultValue={typeof t.costo === "number" && !isNaN(t.costo) ? t.costo : ""}
-                        onBlur={(e) => actualizarCampo(t.firebaseId, "costo", Number(e.target.value))}
-                        className="w-24 bg-white border border-gray-400 rounded p-1 text-black"
-                      />
-                    </td>
-                    <td className="p-2 border-r border-gray-300">
-                      {typeof ganancia === "number" ? `$${ganancia}` : "—"}
-                    </td>
-                    <td className="p-2 border-r border-gray-300">
-  <div className="flex gap-2">
-  <button
-  onClick={() => {
-    setTrabajoSeleccionado(t.firebaseId);
-    setMostrarModalRepuestos(true);
-  }}
-  className={`text-white px-2 py-1 rounded text-sm ${
-    t.repuestosUsados && t.repuestosUsados.length > 0
-      ? "bg-indigo-500 hover:bg-indigo-600"  // 🔵 ya tiene repuestos
-      : "bg-green-300 hover:bg-green-400"   // 🟢 no tiene
-  }`}
-  
->
-  ➕
-</button>
-
-
-    <button
-      onClick={() => editarTrabajo(t.firebaseId)}
-      className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm"
-    >
-      Editar
-    </button>
-    <button
-      onClick={() => eliminarTrabajo(t.firebaseId)}
-      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
-    >
-      Eliminar
-    </button>
-  </div>
-</td>
-
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {totalPaginas > 1 && (
-          <div className="mt-6 flex justify-center gap-4">
-            <button
-              disabled={paginaActual === 1}
-              onClick={() => setPaginaActual((prev) => Math.max(prev - 1, 1))}
-              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded disabled:opacity-50"
-            >
-              Anterior
-            </button>
-            <span className="px-4 py-2">Página {paginaActual} de {totalPaginas}</span>
-            <button
-              disabled={paginaActual === totalPaginas}
-              onClick={() => setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))}
-              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded disabled:opacity-50"
-            >
-              Siguiente
-            </button>
+      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+        <div className="w-full px-6 max-w-[1800px] mx-auto">
+          
+          {/* Header de la página - Estilo GestiOne */}
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                <span className="text-4xl">📊</span>
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  Resumen de Clientes
+                </h1>
+                <p className="text-blue-100 text-lg">
+                  Gestión completa de trabajos y servicios técnicos
+                </p>
+              </div>
+            </div>
           </div>
-        )}
-       {mostrarModalRepuestos && trabajoSeleccionado && (
-  <ModalRepuestos
-    trabajoID={trabajoSeleccionado}
-    onClose={async () => {
-      setMostrarModalRepuestos(false);
-      setTrabajoSeleccionado(null);
-      await recargarTrabajos(); // ✅ aseguramos la recarga al cerrar
-    }}
-  />
-)}
 
+          {/* Filtros y controles - Estilo GestiOne */}
+          <div className="bg-white rounded-2xl p-6 mb-8 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-10 h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
+                <span className="text-white text-lg">🔍</span>
+              </div>
+              <h2 className="text-2xl font-bold text-[#2c3e50]">Filtros de Búsqueda</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              <input
+                type="text"
+                placeholder="🔍 Filtrar por cliente"
+                value={filtroCliente}
+                onChange={(e) => setFiltroCliente(e.target.value)}
+                className="px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+              />
+              
+              <input
+                type="text"
+                placeholder="📱 Filtrar modelo/trabajo"
+                value={filtroModelo}
+                onChange={(e) => setFiltroModelo(e.target.value)}
+                className="px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+              />
+              
+              <button
+                onClick={exportarCSV}
+                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-md flex items-center gap-2"
+              >
+                📄 Exportar CSV
+              </button>
+            </div>
+
+            {/* Botones de estado - Estilo GestiOne */}
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setFiltroEstado("TODOS")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                  filtroEstado === "TODOS" 
+                    ? "bg-[#3498db] text-white shadow-md" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                }`}
+              >
+                📋 Todos
+              </button>
+              <button
+                onClick={() => setFiltroEstado("PENDIENTE")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                  filtroEstado === "PENDIENTE" 
+                    ? "bg-[#e74c3c] text-white shadow-md" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                }`}
+              >
+                ⏳ Pendientes
+              </button>
+              <button
+                onClick={() => setFiltroEstado("REPARADO")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                  filtroEstado === "REPARADO" 
+                    ? "bg-[#f39c12] text-white shadow-md" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                }`}
+              >
+                🔧 Reparados
+              </button>
+              <button
+                onClick={() => setFiltroEstado("ENTREGADO")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                  filtroEstado === "ENTREGADO" 
+                    ? "bg-[#27ae60] text-white shadow-md" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                }`}
+              >
+                📦 Entregados
+              </button>
+              <button
+                onClick={() => setFiltroEstado("PAGADO")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                  filtroEstado === "PAGADO" 
+                    ? "bg-[#9b59b6] text-white shadow-md" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                }`}
+              >
+                💰 Pagados
+              </button>
+            </div>
+          </div>
+
+          {/* Tabla principal - Estilo GestiOne */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+            
+            {/* Header de la tabla */}
+            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">📋</span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold">Lista de Trabajos</h3>
+                  <p className="text-blue-100 mt-1">
+                    {trabajosFiltrados.length} {trabajosFiltrados.length === 1 ? 'trabajo encontrado' : 'trabajos encontrados'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabla con scroll */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1400px] border-collapse border-2 border-black">
+                <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
+                  <tr>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📅</span>
+                        Fecha
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">👤</span>
+                        Cliente
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📱</span>
+                        Modelo
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🔧</span>
+                        Trabajo
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🔑</span>
+                        Clave
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📝</span>
+                        Observaciones
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🚦</span>
+                        Estado
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">💰</span>
+                        Precio
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">💸</span>
+                        Costo
+                      </div>
+                    </th>
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📈</span>
+                        Ganancia
+                      </div>
+                    </th>
+                    <th className="p-4 text-center text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-base">⚙️</span>
+                        Acciones
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trabajosPaginados.map((t, index) => {
+                    const ganancia = typeof t.precio === "number" && typeof t.costo === "number"
+                      ? t.precio - t.costo
+                      : "";
+                    const isEven = index % 2 === 0;
+
+                    let bgClass = "";
+                    if (t.estado === "PENDIENTE") bgClass = "bg-red-50";
+                    else if (t.estado === "REPARADO") bgClass = "bg-yellow-50";
+                    else if (t.estado === "ENTREGADO") bgClass = "bg-green-50";
+                    else if (t.estadoCuentaCorriente === "PAGADO") bgClass = "bg-blue-50";
+                    else bgClass = isEven ? "bg-white" : "bg-[#f8f9fa]";
+
+                    return (
+                      <tr
+                        key={t.firebaseId}
+                        className={`transition-all duration-200 hover:bg-[#ebf3fd] ${bgClass}`}
+                      >
+                        <td className="p-4 border border-black">
+                          <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                            {t.fecha}
+                          </span>
+                        </td>
+                        <td className="p-4 border border-black">
+                          <span className="text-sm font-semibold text-[#3498db]">{t.cliente}</span>
+                        </td>
+                        <td className="p-4 border border-black">
+                          <span className="text-sm text-[#2c3e50]">{t.modelo}</span>
+                        </td>
+                        <td className="p-4 border border-black">
+                          <span className="text-sm text-[#2c3e50]">{t.trabajo}</span>
+                        </td>
+                        <td className="p-4 border border-black">
+                          <span className="text-sm text-[#2c3e50]">{t.clave}</span>
+                        </td>
+                        <td className="p-4 border border-black">
+                          <span className="text-sm text-[#7f8c8d]">{t.observaciones}</span>
+                        </td>
+                        <td className="p-4 border border-black">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
+                            t.estado === "PENDIENTE" ? "bg-[#e74c3c] text-white" :
+                            t.estado === "REPARADO" ? "bg-[#f39c12] text-white" :
+                            t.estado === "ENTREGADO" ? "bg-[#27ae60] text-white" :
+                            t.estadoCuentaCorriente === "PAGADO" ? "bg-[#9b59b6] text-white" :
+                            "bg-[#95a5a6] text-white"
+                          }`}>
+                            {t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
+                          </span>
+                        </td>
+                        <td className="p-4 border border-black">
+                          <input
+                            type="number"
+                            defaultValue={typeof t.precio === "number" ? t.precio : ""}
+                            onBlur={(e) => actualizarCampo(t.firebaseId, "precio", Number(e.target.value))}
+                            className="w-24 bg-white border-2 border-[#bdc3c7] rounded-lg p-2 text-[#2c3e50] focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all"
+                          />
+                        </td>
+                        <td className="p-4 border border-black">
+                          <input
+                            type="number"
+                            defaultValue={typeof t.costo === "number" && !isNaN(t.costo) ? t.costo : ""}
+                            onBlur={(e) => actualizarCampo(t.firebaseId, "costo", Number(e.target.value))}
+                            className="w-24 bg-white border-2 border-[#bdc3c7] rounded-lg p-2 text-[#2c3e50] focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all"
+                          />
+                        </td>
+                        <td className="p-4 border border-black">
+                          <span className={`font-bold px-3 py-1 rounded-lg ${
+                            typeof ganancia === "number" && ganancia > 0 ? "bg-green-50 text-[#27ae60]" :
+                            typeof ganancia === "number" && ganancia < 0 ? "bg-red-50 text-[#e74c3c]" :
+                            "text-[#7f8c8d]"
+                          }`}>
+                            {typeof ganancia === "number" ? `$${ganancia}` : "—"}
+                          </span>
+                        </td>
+                        <td className="p-4 border border-black">
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              onClick={() => {
+                                setTrabajoSeleccionado(t.firebaseId);
+                                setMostrarModalRepuestos(true);
+                              }}
+                              className={`text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md ${
+                                t.repuestosUsados && t.repuestosUsados.length > 0
+                                  ? "bg-[#9b59b6] hover:bg-[#8e44ad]"
+                                  : "bg-[#27ae60] hover:bg-[#229954]"
+                              }`}
+                            >
+                              ➕ Repuestos
+                            </button>
+                            <button
+                              onClick={() => editarTrabajo(t.firebaseId)}
+                              className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                            >
+                              ✏️ Editar
+                            </button>
+                            <button
+                              onClick={() => eliminarTrabajo(t.firebaseId)}
+                              className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer con paginación - Estilo GestiOne */}
+            {totalPaginas > 1 && (
+              <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] px-6 py-4 border-t-2 border-[#bdc3c7]">
+                <div className="flex justify-center items-center gap-4">
+                  <button
+                    disabled={paginaActual === 1}
+                    onClick={() => setPaginaActual((prev) => Math.max(prev - 1, 1))}
+                    className="px-6 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="px-4 py-2 bg-[#3498db] text-white rounded-lg font-semibold">
+                    Página {paginaActual} de {totalPaginas}
+                  </span>
+                  <button
+                    disabled={paginaActual === totalPaginas}
+                    onClick={() => setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))}
+                    className="px-6 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Modal de repuestos - Estilo GestiOne */}
+        {mostrarModalRepuestos && trabajoSeleccionado && (
+          <ModalRepuestos
+            trabajoID={trabajoSeleccionado}
+            onClose={async () => {
+              setMostrarModalRepuestos(false);
+              setTrabajoSeleccionado(null);
+              await recargarTrabajos();
+            }}
+          />
+        )}
       </main>
     </RequireAdmin>
   );
 }
- 
