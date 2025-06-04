@@ -25,13 +25,15 @@ export default function Configuraciones() {
     tipo: string;
     negocioID: string;
   }  
-  const [rol, setRol] = useState<RolInfo | null>(null); // ✅ ahora sí va a funcionar bien
-  const [textoGarantia, setTextoGarantia] = useState("");
+  const [rol, setRol] = useState<RolInfo | null>(null);
+  const [textoGarantiaServicio, setTextoGarantiaServicio] = useState("");
+  const [textoGarantiaTelefonos, setTextoGarantiaTelefonos] = useState("");
   const [imprimirEtiqueta, setImprimirEtiqueta] = useState(false);
   const [imprimirTicket, setImprimirTicket] = useState(false);
   const [logoUrl, setLogoUrl] = useState("");
   const [nuevoLogo, setNuevoLogo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [pestanaActiva, setPestanaActiva] = useState("general");
 
   const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
   const router = useRouter();
@@ -39,8 +41,7 @@ export default function Configuraciones() {
   useEffect(() => {
     if (user) {
       const cargarConfiguracion = async () => {
-        // Primero obtenemos el negocioID desde la ruta correcta
-        const posiblesNegocios = ["iphonetec", "ignacio", "facu", "loop"]; // si querés podrías traer esto de forma dinámica si fuera necesario
+        const posiblesNegocios = ["iphonetec", "ignacio", "facu", "loop"];
         let negocioID: string | null = null;
   
         for (const id of posiblesNegocios) {
@@ -60,12 +61,12 @@ export default function Configuraciones() {
           throw new Error("No se encontró el negocioID del usuario");
         }
   
-        // Traer configuración desde la nueva ruta
         const ref = doc(db, `negocios/${negocioID}/configuracion/datos`);
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const data = snap.data();
-          setTextoGarantia(data.textoGarantia || "");
+          setTextoGarantiaServicio(data.textoGarantia || ""); // Texto existente va a Servicio
+          setTextoGarantiaTelefonos(data.textoGarantiaTelefonos || "");
           setImprimirEtiqueta(data.imprimirEtiqueta || false);
           setImprimirTicket(data.imprimirTicket || false);
           setLogoUrl(data.logoUrl || "");
@@ -74,7 +75,6 @@ export default function Configuraciones() {
       cargarConfiguracion();
     }
   }, [user]);
-  
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -82,14 +82,12 @@ export default function Configuraciones() {
     }
   };
 
-  
   const guardarConfiguracion = async () => {
     if (!user) return;
     setGuardando(true);
     console.log("✅ Comenzando guardar configuración...");
   
     try {
-      // 🔍 Obtener negocioID desde el usuario
       const negocioID = rol?.negocioID;
       if (!negocioID) throw new Error("No se encontró el negocioID del usuario");      
   
@@ -110,7 +108,8 @@ export default function Configuraciones() {
       await setDoc(
         refDoc,
         {
-          textoGarantia,
+          textoGarantia: textoGarantiaServicio, // Mantenemos compatibilidad
+          textoGarantiaTelefonos: textoGarantiaTelefonos, // Nuevo campo
           imprimirEtiqueta,
           imprimirTicket,
           logoUrl: finalLogoUrl,
@@ -130,118 +129,256 @@ export default function Configuraciones() {
       setGuardando(false);
     }
   };
-  
 
+  const pestanas = [
+    { id: "general", label: "General", icono: "⚙️" },
+    { id: "garantias", label: "Garantías", icono: "🛡️" },
+    { id: "impresion", label: "Impresión", icono: "🖨️" },
+  ];
 
   return (
     <>
       <Header />
-      <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black relative">
-        {user?.uid === SUPER_ADMIN_UID && (
-          <div className="absolute top-28 left-4 flex flex-col gap-2">
-            <button
-              onClick={() => router.push("/admin/super")}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm"
-            >
-              🏢 Crear nuevo negocio
-            </button>
-            <button
-              onClick={() => router.push("/admin/clientes")}
-              className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded text-sm"
-            >
-              🧾 Ver negocios
-            </button>
-          </div>
-        )}
-
-
-        <h1 className="text-4xl font-bold mb-8 text-center text-gray-800">⚙️ Configuraciones</h1>
-
-        <div className="max-w-2xl mx-auto bg-white p-6 rounded-xl shadow space-y-6">
-
-          {rol?.tipo === "admin" && (
-            <div className="text-center mb-6 space-y-3">
-              <button
-                onClick={() => router.push("/configuraciones/crear-usuario")}
-                className="bg-blue-700 hover:bg-blue-800 text-white px-6 py-2 rounded font-semibold"
-              >
-                👤 Crear usuario
-              </button>
-
-              <button
-                onClick={() => router.push("/configuraciones/impresion")}
-                className="bg-purple-700 hover:bg-purple-800 text-white px-6 py-2 rounded font-semibold"
-              >
-                🖨️ Configurar impresión
-              </button>
+      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black">
+        <div className="w-full px-4 max-w-[1200px] mx-auto space-y-6">
+          
+          {user?.uid === SUPER_ADMIN_UID && (
+            <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-2xl p-4 shadow-lg">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => router.push("/admin/super")}
+                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
+                >
+                  🏢 Crear nuevo negocio
+                </button>
+                <button
+                  onClick={() => router.push("/admin/clientes")}
+                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
+                >
+                  🧾 Ver negocios
+                </button>
+              </div>
             </div>
           )}
 
-          <div>
-            <label className="block font-semibold mb-2">📝 Texto fijo para garantía:</label>
-            <textarea
-              value={textoGarantia}
-              onChange={(e) => setTextoGarantia(e.target.value)}
-              className="w-full h-40 p-3 border border-gray-300 rounded focus:outline-blue-500"
-              placeholder="Condiciones de garantía que aparecerán en el ticket"
-            />
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                <span className="text-3xl">⚙️</span>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white mb-1">
+                  Configuraciones del Sistema
+                </h1>
+                <p className="text-blue-100 text-sm">
+                  Administra la configuración general de tu negocio
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-2">
-  <label className="block font-semibold mb-2">🖼️ Logo del sistema (PNG o JPG):</label>
+          {rol?.tipo === "admin" && (
+            <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-[#3498db] rounded-xl flex items-center justify-center">
+                  <span className="text-white text-lg">👤</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-[#2c3e50]">Gestión de Usuarios</h2>
+                  <p className="text-[#7f8c8d] text-xs">Administra usuarios y permisos</p>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => router.push("/configuraciones/crear-usuario")}
+                  className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
+                >
+                  👤 Crear usuario
+                </button>
 
-  {logoUrl && (
-    <img src={logoUrl} alt="Logo actual" className="w-32 h-auto mb-4 mx-auto rounded shadow" />
-  )}
+                <button
+                  onClick={() => router.push("/configuraciones/impresion")}
+                  className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] hover:from-[#8e44ad] hover:to-[#7d3c98] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
+                >
+                  🖨️ Configurar impresión
+                </button>
+              </div>
+            </div>
+          )}
 
-  <div className="flex flex-col items-center space-y-2">
-    <label
-      htmlFor="logoUpload"
-      className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-full shadow text-center"
-    >
-      📤 Seleccionar archivo
-    </label>
-    <input
-      id="logoUpload"
-      type="file"
-      accept="image/png,image/jpeg"
-      onChange={handleLogoChange}
-      className="hidden"
-    />
-    {nuevoLogo && (
-      <span className="text-gray-600 text-sm">{nuevoLogo.name}</span>
-    )}
-  </div>
-</div>
+          <div className="bg-white rounded-2xl shadow-lg border border-[#ecf0f1] overflow-hidden">
+            <div className="border-b border-[#ecf0f1]">
+              <div className="flex overflow-x-auto">
+                {pestanas.map((pestana) => (
+                  <button
+                    key={pestana.id}
+                    onClick={() => setPestanaActiva(pestana.id)}
+                    className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all duration-200 border-b-2 ${
+                      pestanaActiva === pestana.id
+                        ? "border-[#3498db] text-[#3498db] bg-[#ebf3fd]"
+                        : "border-transparent text-[#7f8c8d] hover:text-[#2c3e50] hover:bg-[#f8f9fa]"
+                    }`}
+                  >
+                    <span className="text-lg">{pestana.icono}</span>
+                    {pestana.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
+            <div className="p-6">
+              {pestanaActiva === "general" && (
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">🖼️</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-[#2c3e50]">Logo del Sistema</h3>
+                    </div>
 
-          <div className="flex flex-col gap-3">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={imprimirEtiqueta}
-                onChange={(e) => setImprimirEtiqueta(e.target.checked)}
-              />
-              <span>🟦 Imprimir etiqueta automáticamente al guardar trabajo</span>
-            </label>
+                    {logoUrl && (
+                      <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 mb-4">
+                        <img src={logoUrl} alt="Logo actual" className="w-32 h-auto mx-auto rounded-lg shadow-sm" />
+                      </div>
+                    )}
 
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={imprimirTicket}
-                onChange={(e) => setImprimirTicket(e.target.checked)}
-              />
-              <span>🟥 Imprimir ticket automáticamente al guardar trabajo</span>
-            </label>
+                    <div className="flex flex-col items-center space-y-3">
+                      <label
+                        htmlFor="logoUpload"
+                        className="cursor-pointer bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white font-medium py-2 px-6 rounded-lg shadow transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
+                      >
+                        📤 Seleccionar archivo
+                      </label>
+                      <input
+                        id="logoUpload"
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        onChange={handleLogoChange}
+                        className="hidden"
+                      />
+                      {nuevoLogo && (
+                        <span className="text-[#7f8c8d] text-sm bg-[#f8f9fa] px-3 py-1 rounded-lg">
+                          {nuevoLogo.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <IntegracionGoogleSheet />
+                </div>
+              )}
+
+              {pestanaActiva === "garantias" && (
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-[#27ae60] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">🔧</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-[#2c3e50]">Garantía - Servicio Técnico</h3>
+                    </div>
+                    <textarea
+                      value={textoGarantiaServicio}
+                      onChange={(e) => setTextoGarantiaServicio(e.target.value)}
+                      className="w-full h-32 p-4 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] text-sm"
+                      placeholder="Condiciones de garantía para reparaciones que aparecerán en el ticket..."
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-[#e67e22] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">📱</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-[#2c3e50]">Garantía - Venta de Teléfonos</h3>
+                    </div>
+                    <textarea
+                      value={textoGarantiaTelefonos}
+                      onChange={(e) => setTextoGarantiaTelefonos(e.target.value)}
+                      className="w-full h-32 p-4 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e67e22] focus:border-[#e67e22] transition-all text-[#2c3e50] text-sm"
+                      placeholder="Políticas de garantía para venta de teléfonos que aparecerán en el remito..."
+                    />
+                  </div>
+
+                  <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
+                    <div className="flex items-center gap-3 text-[#2c3e50]">
+                      <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">💡</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          <strong>Tip:</strong> Las garantías aparecerán automáticamente en los documentos correspondientes: servicio técnico en tickets y teléfonos en remitos de venta.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {pestanaActiva === "impresion" && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 bg-[#9b59b6] rounded-lg flex items-center justify-center">
+                      <span className="text-white text-sm">🖨️</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-[#2c3e50]">Configuración de Impresión Automática</h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-[#ebf3fd] to-[#d6eaff] border border-[#3498db] rounded-xl p-4">
+                      <label className="flex items-center space-x-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={imprimirEtiqueta}
+                          onChange={(e) => setImprimirEtiqueta(e.target.checked)}
+                          className="w-5 h-5 text-[#3498db] rounded focus:ring-[#3498db]"
+                        />
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">🟦</span>
+                          <span className="font-medium text-[#2c3e50]">Imprimir etiqueta automáticamente al guardar trabajo</span>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-[#fdebd0] to-[#fadbd8] border border-[#e67e22] rounded-xl p-4">
+                      <label className="flex items-center space-x-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={imprimirTicket}
+                          onChange={(e) => setImprimirTicket(e.target.checked)}
+                          className="w-5 h-5 text-[#e67e22] rounded focus:ring-[#e67e22]"
+                        />
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">🟥</span>
+                          <span className="font-medium text-[#2c3e50]">Imprimir ticket automáticamente al guardar trabajo</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <IntegracionGoogleSheet />
-          <div className="text-center mt-6">
+
+          <div className="flex justify-center">
             <button
               onClick={guardarConfiguracion}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-semibold text-lg shadow"
+              className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-3 rounded-2xl font-bold text-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3"
               disabled={guardando}
             >
-              {guardando ? "Guardando..." : "💾 Guardar configuración"}
+              {guardando ? (
+                <>
+                  <span className="animate-spin text-xl">⏳</span>
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <span className="text-xl">💾</span>
+                  Guardar configuración
+                </>
+              )}
             </button>
           </div>
         </div>

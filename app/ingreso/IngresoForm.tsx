@@ -141,16 +141,16 @@ export default function IngresoForm() {
         <div className="w-full px-6 max-w-[1200px] mx-auto">
           
           {/* Header de la página - Estilo GestiOne */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-3 mb-2 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-6">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                <span className="text-4xl">📝</span>
+                <span className="text-3xl">📝</span>
               </div>
               <div>
-                <h2 className="text-4xl font-bold text-white mb-2">
+                <h2 className="text-3xl font-bold text-white mb-2">
                   Ingreso de Trabajo
                 </h2>
-                <p className="text-blue-100 text-lg">
+                <p className="text-blue-100 text-xm">
                   Registra un nuevo trabajo técnico en el sistema
                 </p>
               </div>
