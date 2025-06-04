@@ -38,43 +38,50 @@ export default function Configuraciones() {
   const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
   const router = useRouter();
 
-  useEffect(() => {
-    if (user) {
-      const cargarConfiguracion = async () => {
-        const posiblesNegocios = ["iphonetec", "ignacio", "facu", "loop"];
-        let negocioID: string | null = null;
-  
-        for (const id of posiblesNegocios) {
-          const snap = await getDoc(doc(db, `negocios/${id}/usuarios/${user.uid}`));
-          if (snap.exists()) {
-            negocioID = id;
-            const data = snap.data();
-            setRol({
-              tipo: data.rol || "sin rol",
-              negocioID,
-            });
-            break;
-          }
+// En configuraciones.tsx, reemplaza este useEffect:
+
+useEffect(() => {
+  if (user) {
+    const cargarConfiguracion = async () => {
+      try {
+        // 🔧 CAMBIO: Usar la misma estructura que crear-usuario
+        const userSnap = await getDoc(doc(db, "usuarios", user.uid));
+        if (!userSnap.exists()) {
+          throw new Error("Usuario no encontrado");
         }
-  
+
+        const userData = userSnap.data();
+        const negocioID = userData.negocioID;
+        const rolUsuario = userData.rol;
+
         if (!negocioID) {
           throw new Error("No se encontró el negocioID del usuario");
         }
-  
-        const ref = doc(db, `negocios/${negocioID}/configuracion/datos`);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          setTextoGarantiaServicio(data.textoGarantia || ""); // Texto existente va a Servicio
+
+        // Establecer el rol usando la estructura correcta
+        setRol({
+          tipo: rolUsuario || "sin rol",
+          negocioID,
+        });
+
+        // Cargar configuración del negocio
+        const configRef = doc(db, `negocios/${negocioID}/configuracion/datos`);
+        const configSnap = await getDoc(configRef);
+        if (configSnap.exists()) {
+          const data = configSnap.data();
+          setTextoGarantiaServicio(data.textoGarantia || "");
           setTextoGarantiaTelefonos(data.textoGarantiaTelefonos || "");
           setImprimirEtiqueta(data.imprimirEtiqueta || false);
           setImprimirTicket(data.imprimirTicket || false);
           setLogoUrl(data.logoUrl || "");
         }
-      };
-      cargarConfiguracion();
-    }
-  }, [user]);
+      } catch (error) {
+        console.error("Error cargando configuración:", error);
+      }
+    };
+    cargarConfiguracion();
+  }
+}, [user]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {

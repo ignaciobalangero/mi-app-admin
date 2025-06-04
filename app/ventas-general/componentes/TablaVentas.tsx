@@ -207,22 +207,22 @@ export default function TablaVentas({ refrescar }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header de filtros y controles - Estilo GestiOne */}
-      <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-6">
-        <div className="flex flex-col lg:flex-row gap-6">
+      {/* Header de filtros y controles - Responsive */}
+      <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 lg:p-6">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
           
           {/* Filtros principales */}
-          <div className="flex flex-col gap-4 min-w-[300px]">
-            {/* Fila 1: Estados */}
+          <div className="flex flex-col gap-4 w-full lg:min-w-[300px]">
+            {/* Estados */}
             <div className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-[#2c3e50] flex items-center gap-2">
                 <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">📊</span>
                 Estado:
               </span>
-              <div className="flex gap-2">
+              <div className="flex gap-1 sm:gap-2">
                 <button
                   onClick={() => setFiltroEstado("todos")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  className={`px-2 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm flex-1 sm:flex-none ${
                     filtroEstado === "todos" 
                       ? "bg-[#3498db] text-white shadow-md" 
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
@@ -232,37 +232,37 @@ export default function TablaVentas({ refrescar }: Props) {
                 </button>
                 <button
                   onClick={() => setFiltroEstado("pendiente")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  className={`px-2 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm flex-1 sm:flex-none ${
                     filtroEstado === "pendiente" 
                       ? "bg-[#f39c12] text-white shadow-md" 
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  Pendientes
+                  Pend.
                 </button>
                 <button
                   onClick={() => setFiltroEstado("pagado")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  className={`px-2 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm flex-1 sm:flex-none ${
                     filtroEstado === "pagado" 
                       ? "bg-[#27ae60] text-white shadow-md" 
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  Pagadas
+                  Pagado
                 </button>
               </div>
             </div>
 
-            {/* Fila 2: Categorías */}
+            {/* Categorías */}
             <div className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-[#2c3e50] flex items-center gap-2">
                 <span className="w-4 h-4 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs">🏷️</span>
                 Categoría:
               </span>
-              <div className="flex gap-2 flex-wrap">
+              <div className="grid grid-cols-2 sm:flex gap-1 sm:gap-2">
                 <button
                   onClick={() => setFiltroCategoria("todas")}
-                  className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  className={`px-2 sm:px-3 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm ${
                     filtroCategoria === "todas" 
                       ? "bg-[#2c3e50] text-white shadow-md" 
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
@@ -272,186 +272,188 @@ export default function TablaVentas({ refrescar }: Props) {
                 </button>
                 <button
                   onClick={() => setFiltroCategoria("telefono")}
-                  className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  className={`px-2 sm:px-3 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm ${
                     filtroCategoria === "telefono" 
                       ? "bg-[#27ae60] text-white shadow-md" 
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  📱 Teléfonos
+                  📱 Tel.
                 </button>
                 <button
                   onClick={() => setFiltroCategoria("accesorio")}
-                  className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  className={`px-2 sm:px-3 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm ${
                     filtroCategoria === "accesorio" 
                       ? "bg-[#3498db] text-white shadow-md" 
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  🔌 Accesorios
+                  🔌 Acc.
                 </button>
                 <button
                   onClick={() => setFiltroCategoria("repuesto")}
-                  className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  className={`px-2 sm:px-3 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm ${
                     filtroCategoria === "repuesto" 
                       ? "bg-[#f39c12] text-white shadow-md" 
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  🔧 Repuestos
+                  🔧 Rep.
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Buscador de cliente - Estilo GestiOne */}
-          <div className="flex-1">
-            <label className="text-xs font-semibold text-[#2c3e50] block mb-3 flex items-center gap-2">
-              <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
-              Buscar cliente:
-            </label>
-            <input
-              type="text"
-              placeholder="🔍 Filtrar por nombre de cliente..."
-              value={filtroCliente}
-              onChange={(e) => setFiltroCliente(e.target.value)}
-              className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-            />
-          </div>
-
-          {/* Control de cotización USD - Estilo GestiOne */}
-          <div className="flex flex-col gap-2 min-w-[200px]">
-            <span className="text-xs font-semibold text-[#2c3e50] flex items-center gap-2">
-              <span className="w-4 h-4 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-xs">💰</span>
-              Cotización USD:
-            </span>
-            <div className="flex items-center gap-2 bg-gradient-to-r from-[#f8f9fa] to-[#ecf0f1] px-3 py-3 rounded-lg border-2 border-[#f39c12]">
-              <span className="text-sm font-medium text-[#2c3e50]">$</span>
+          {/* Buscador y cotización */}
+          <div className="flex flex-col lg:flex-row gap-4 flex-1">
+            {/* Buscador */}
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
+                <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
+                Buscar cliente:
+              </label>
               <input
-                type="number"
-                value={cotizacion}
-                onChange={async (e) => {
-                  const nuevaCotizacion = Number(e.target.value);
-                  actualizarCotizacion(nuevaCotizacion);
-
-                  const snap = await getDocs(
-                    query(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), orderBy("timestamp", "desc"))
-                  );
-
-                  const updates = snap.docs.map(async (docu) => {
-                    const data = docu.data();
-                    if ((data.estado || "pendiente") === "pendiente") {
-                      const productosActualizados = data.productos.map((p: any) => {
-                        const total =
-                          p.moneda?.toUpperCase() === "USD"
-                            ? p.precioUnitario * p.cantidad * nuevaCotizacion
-                            : p.precioUnitario * p.cantidad;
-
-                        return {
-                          ...p,
-                          total,
-                        };
-                      });
-
-                      const totalVenta = productosActualizados.reduce(
-                        (acc: number, p: any) => acc + p.total,
-                        0
-                      );
-
-                      await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${docu.id}`), {
-                        productos: productosActualizados,
-                        total: totalVenta,
-                      });
-                    }
-                  });
-
-                  await Promise.all(updates);
-                }}
-                className="w-20 px-2 py-2 border-2 border-[#f39c12] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-center font-medium text-sm text-[#2c3e50]"
+                type="text"
+                placeholder="🔍 Filtrar por cliente..."
+                value={filtroCliente}
+                onChange={(e) => setFiltroCliente(e.target.value)}
+                className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
               />
-              <div className="text-xs text-[#f39c12]">
-                <div className="font-medium">ARS</div>
-                <div className="text-[#7f8c8d]">(Solo pendientes)</div>
+            </div>
+
+            {/* Cotización USD */}
+            <div className="w-full lg:w-48">
+              <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
+                <span className="w-4 h-4 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-xs">💰</span>
+                Cotización USD:
+              </label>
+              <div className="flex items-center gap-2 bg-gradient-to-r from-[#f8f9fa] to-[#ecf0f1] px-2 sm:px-3 py-2 sm:py-3 rounded-lg border-2 border-[#f39c12]">
+                <span className="text-sm font-medium text-[#2c3e50]">$</span>
+                <input
+                  type="number"
+                  value={cotizacion}
+                  onChange={async (e) => {
+                    const nuevaCotizacion = Number(e.target.value);
+                    actualizarCotizacion(nuevaCotizacion);
+
+                    const snap = await getDocs(
+                      query(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), orderBy("timestamp", "desc"))
+                    );
+
+                    const updates = snap.docs.map(async (docu) => {
+                      const data = docu.data();
+                      if ((data.estado || "pendiente") === "pendiente") {
+                        const productosActualizados = data.productos.map((p: any) => {
+                          const total =
+                            p.moneda?.toUpperCase() === "USD"
+                              ? p.precioUnitario * p.cantidad * nuevaCotizacion
+                              : p.precioUnitario * p.cantidad;
+
+                          return {
+                            ...p,
+                            total,
+                          };
+                        });
+
+                        const totalVenta = productosActualizados.reduce(
+                          (acc: number, p: any) => acc + p.total,
+                          0
+                        );
+
+                        await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${docu.id}`), {
+                          productos: productosActualizados,
+                          total: totalVenta,
+                        });
+                      }
+                    });
+
+                    await Promise.all(updates);
+                  }}
+                  className="flex-1 px-1 sm:px-2 py-1 sm:py-2 border-2 border-[#f39c12] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-center font-medium text-xs sm:text-sm text-[#2c3e50]"
+                />
+                <div className="text-xs text-[#f39c12]">
+                  <div className="font-medium">ARS</div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabla principal - Estilo GestiOne */}
+      {/* Tabla principal - UNA SOLA VISTA RESPONSIVE */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
         
         {/* Header de la tabla */}
-        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">📊</span>
+        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3 sm:p-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <span className="text-lg sm:text-2xl">📊</span>
             </div>
             <div>
-              <h3 className="text-lg font-bold">Ventas Registradas</h3>
-              <p className="text-blue-100 text-sm">
+              <h3 className="text-base sm:text-lg font-bold">Ventas Registradas</h3>
+              <p className="text-blue-100 text-xs sm:text-sm">
                 {ventasFiltradas.length} {ventasFiltradas.length === 1 ? 'venta' : 'ventas'} encontradas
               </p>
             </div>
           </div>
         </div>
 
-        {/* Contenedor con scroll horizontal */}
+        {/* Tabla responsive con scroll horizontal controlado */}
         <div className="overflow-x-auto border border-[#bdc3c7]">
-          <table className="w-full min-w-[1400px] border-collapse">
+          <table className="w-full min-w-[800px] lg:min-w-[1200px] border-collapse">
             <thead className="bg-[#ecf0f1]">
               <tr>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-20">
-                  📋 Nro Venta
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-12 sm:w-16 lg:w-20">
+                  <span className="hidden sm:inline">📋 </span>Nro
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-24">
-                  📅 Fecha
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-16 sm:w-20 lg:w-24">
+                  <span className="hidden sm:inline">📅 </span>Fecha
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  👤 Cliente
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  <span className="hidden sm:inline">👤 </span>Cliente
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  🏷️ Categoría
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  <span className="hidden sm:inline">🏷️ </span>Cat.
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  📱 Producto
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  <span className="hidden sm:inline">📱 </span>Producto
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   🏭 Marca
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   📱 Modelo
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   🎨 Color
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  📦 Cantidad
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-12 sm:w-16">
+                  <span className="hidden sm:inline">📦 </span>Cant.
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-24">
-                  💰 Precio ARS/USD
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell w-20 lg:w-24">
+                  💰 Precio
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  💵 Total
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  <span className="hidden sm:inline">💵 </span>Total
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  ⚙️ Acciones
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-16 sm:w-20 lg:w-24">
+                  <span className="hidden sm:inline">⚙️ </span>Acc.
                 </th>
               </tr>
             </thead>
             <tbody>
               {ventasFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-12 text-center text-[#7f8c8d] border border-[#bdc3c7]">
+                  <td colSpan={12} className="p-8 sm:p-12 text-center text-[#7f8c8d] border border-[#bdc3c7]">
                     <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 bg-[#ecf0f1] rounded-full flex items-center justify-center">
-                        <span className="text-3xl">📊</span>
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#ecf0f1] rounded-full flex items-center justify-center">
+                        <span className="text-2xl sm:text-3xl">📊</span>
                       </div>
                       <div>
-                        <p className="text-lg font-medium text-[#7f8c8d]">
+                        <p className="text-sm sm:text-lg font-medium text-[#7f8c8d]">
                           {ventas.length === 0 ? "No hay ventas registradas" : "No se encontraron resultados"}
                         </p>
-                        <p className="text-sm text-[#bdc3c7]">
+                        <p className="text-xs sm:text-sm text-[#bdc3c7]">
                           {ventas.length === 0 
                             ? "Las ventas aparecerán aquí una vez que registres algunas"
                             : "Intenta ajustar los filtros de búsqueda"
@@ -486,10 +488,10 @@ export default function TablaVentas({ refrescar }: Props) {
                               : ''
                           }`}
                         >
-                          {/* Nro Venta - Solo en la primera fila del grupo */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
+                          {/* Nro Venta */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
                             {esProductoPrincipal ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
+                              <span className="inline-flex items-center px-1 sm:px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
                                 #{venta.nroVenta || venta.id.slice(-6)}
                               </span>
                             ) : (
@@ -497,23 +499,23 @@ export default function TablaVentas({ refrescar }: Props) {
                             )}
                           </td>
                           
-                          {/* Fecha - Solo en la primera fila del grupo */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
+                          {/* Fecha */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
                             {esProductoPrincipal ? (
-                              <span className="text-sm font-medium text-[#2c3e50]">{venta.fecha}</span>
+                              <span className="text-xs sm:text-sm font-medium text-[#2c3e50]">{venta.fecha}</span>
                             ) : ""}
                           </td>
                           
-                          {/* Cliente - Solo en la primera fila del grupo */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
+                          {/* Cliente */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
                             {esProductoPrincipal ? (
-                              <span className="text-sm font-medium text-[#2c3e50]">{venta.cliente}</span>
+                              <span className="text-xs sm:text-sm font-medium text-[#2c3e50]">{venta.cliente}</span>
                             ) : ""}
                           </td>
                           
                           {/* Categoría */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                            <span className={`inline-flex items-center px-1 sm:px-2 py-1 rounded-full text-xs font-medium ${
                               p.categoria === "Teléfono" 
                                 ? 'bg-[#27ae60] text-white'
                                 : p.categoria === "Accesorio"
@@ -522,63 +524,74 @@ export default function TablaVentas({ refrescar }: Props) {
                                 ? 'bg-[#f39c12] text-white'
                                 : 'bg-[#7f8c8d] text-white'
                             }`}>
-                              {p.categoria === "Repuesto" && p.hoja ? p.hoja : p.categoria}
+                              <span className="sm:hidden">
+                                {p.categoria === "Teléfono" ? "📱" : p.categoria === "Accesorio" ? "🔌" : "🔧"}
+                              </span>
+                              <span className="hidden sm:inline">
+                                {p.categoria === "Repuesto" && p.hoja ? p.hoja : p.categoria}
+                              </span>
                             </span>
                           </td>
                           
                           {/* Producto */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
-                            <span className="text-sm text-[#2c3e50]">
-                              {p.producto || p.descripcion || "—"}
-                              {p.hoja ? ` (${p.hoja})` : ""}
-                            </span>
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                            <div className="text-xs sm:text-sm text-[#2c3e50]">
+                              <div className="font-semibold">
+                                {((p.producto || p.descripcion || "—").length > 15 
+                                  ? (p.producto || p.descripcion || "—").substring(0, 15) + "..." 
+                                  : (p.producto || p.descripcion || "—"))}
+                              </div>
+                              <div className="text-xs text-[#7f8c8d] lg:hidden">
+                                {p.marca} {p.modelo} {p.color}
+                              </div>
+                            </div>
                           </td>
                           
-                          {/* Marca */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
+                          {/* Marca - Solo en desktop */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
                             <span className="text-sm text-[#7f8c8d]">{p.marca || "—"}</span>
                           </td>
                           
-                          {/* Modelo */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
+                          {/* Modelo - Solo en desktop */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
                             <span className="text-sm text-[#7f8c8d]">{p.modelo || "—"}</span>
                           </td>
                           
-                          {/* Color */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
+                          {/* Color - Solo en desktop */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#ecf0f1] text-[#2c3e50]">
                               {p.color || "—"}
                             </span>
                           </td>
                           
                           {/* Cantidad */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                            <span className="inline-flex items-center px-1 sm:px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
                               {p.cantidad}
                             </span>
                           </td>
                           
-                          {/* Precio ARS */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
+                          {/* Precio - Solo en desktop */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
                             <span className="text-sm font-medium text-[#2c3e50]">
                               {p.moneda?.toUpperCase() === "USD"
-                                ? `$${(p.precioUnitario * cotizacion).toLocaleString("es-AR")}`
-                                : `$${p.precioUnitario.toLocaleString("es-AR")}`}
+                                ? `${(p.precioUnitario * cotizacion).toLocaleString("es-AR")}`
+                                : `${p.precioUnitario.toLocaleString("es-AR")}`}
                             </span>
                           </td>
 
-                          {/* Total en ARS */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
-                            <span className="text-sm font-bold text-[#27ae60]">
+                          {/* Total */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                            <span className="text-xs sm:text-sm font-bold text-[#27ae60]">
                               {venta.moneda === "USD"
-                                ? `USD $${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-                                : `$${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`}
+                                ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
+                                : `${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`}
                             </span>
                           </td>
 
                           {/* Acciones */}
-                          <td className="p-3 text-center border border-[#bdc3c7]">
-                            <div className="flex flex-col items-center gap-2">
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                            <div className="flex flex-col items-center gap-1">
                               {/* Select de estado - Solo en la primera fila */}
                               {esProductoPrincipal && (
                                 <select
@@ -590,14 +603,14 @@ export default function TablaVentas({ refrescar }: Props) {
                                     });
                                     await refrescarVentas();
                                   }}
-                                  className={`text-xs px-2 py-1 border-2 rounded-lg w-full text-center font-medium transition-all ${
+                                  className={`text-xs px-1 py-1 border-2 rounded text-center font-medium transition-all w-full ${
                                     (venta.estado || "pendiente") === "pagado"
                                       ? "bg-[#27ae60] text-white border-[#27ae60]"
                                       : "bg-[#f39c12] text-white border-[#f39c12]"
                                   }`}
                                 >
-                                  <option value="pendiente">Pendiente</option>
-                                  <option value="pagado">Pagado</option>
+                                  <option value="pendiente">Pend.</option>
+                                  <option value="pagado">Pago</option>
                                 </select>
                               )}
 
@@ -607,9 +620,10 @@ export default function TablaVentas({ refrescar }: Props) {
                                   <>
                                     <button
                                       onClick={() => editarVenta(venta)}
-                                      className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
+                                      className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200"
+                                      title="Editar"
                                     >
-                                      ✏️ Editar
+                                      <span className="hidden sm:inline">✏️ </span>✏️
                                     </button>
                                     
                                     <button
@@ -617,9 +631,10 @@ export default function TablaVentas({ refrescar }: Props) {
                                         setVentaParaRemito(venta);
                                         setMostrarRemito(true);
                                       }}
-                                      className="bg-[#3498db] hover:bg-[#2980b9] text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
+                                      className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200 hidden sm:inline-block"
+                                      title="Remito"
                                     >
-                                      🖨️ Remito
+                                      🖨️
                                     </button>
                                   </>
                                 )}
@@ -627,14 +642,16 @@ export default function TablaVentas({ refrescar }: Props) {
                                 {venta.productos.length > 1 ? (
                                   <button
                                     onClick={() => eliminarProducto(venta.id, i)}
-                                    className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
+                                    className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200"
+                                    title="Eliminar producto"
                                   >
                                     🗑️
                                   </button>
                                 ) : (
                                   <button
                                     onClick={() => pedirConfirmacionEliminar(venta)}
-                                    className="bg-[#c0392b] hover:bg-[#a93226] text-white px-2 py-1 rounded-lg text-xs flex-1 font-medium transition-all duration-200"
+                                    className="bg-[#c0392b] hover:bg-[#a93226] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200"
+                                    title="Eliminar venta"
                                   >
                                     ❌
                                   </button>
@@ -652,21 +669,21 @@ export default function TablaVentas({ refrescar }: Props) {
           </table>
         </div>
 
-        {/* Footer de la tabla - Estilo GestiOne */}
+        {/* Footer de la tabla */}
         {ventasFiltradas.length > 0 && (
-          <div className="bg-[#f8f9fa] px-6 py-4 border-t border-[#bdc3c7]">
-            <div className="flex justify-between items-center text-sm text-[#7f8c8d]">
+          <div className="bg-[#f8f9fa] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#bdc3c7]">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
               <span>
                 Mostrando {ventasFiltradas.length} de {ventas.length} {ventas.length === 1 ? 'venta' : 'ventas'}
               </span>
-              <div className="flex gap-6">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
                 <span>
-                  Total productos: <strong className="text-[#3498db]">
+                  Productos: <strong className="text-[#3498db]">
                     {ventasFiltradas.reduce((sum, v) => sum + v.productos.length, 0)}
                   </strong>
                 </span>
                 <span>
-                  Valor total: <strong className="text-[#27ae60]">
+                  Total: <strong className="text-[#27ae60]">
                     ${ventasFiltradas.reduce((sum, v) => sum + (v.total || 0), 0).toLocaleString("es-AR")}
                   </strong>
                 </span>
@@ -676,31 +693,31 @@ export default function TablaVentas({ refrescar }: Props) {
         )}
       </div>
 
-      {/* Modal de confirmación de eliminación - Estilo GestiOne */}
+      {/* Modal de confirmación de eliminación */}
       {mostrarConfirmarEliminar && ventaAEliminar && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 border-2 border-[#ecf0f1] transform transition-all duration-300">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
             
             {/* Header del modal */}
-            <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-t-2xl p-6">
+            <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-t-2xl p-4 sm:p-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="text-2xl">⚠️</span>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-xl sm:text-2xl">⚠️</span>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold">Confirmar Eliminación</h2>
+                  <h2 className="text-lg sm:text-xl font-bold">Confirmar Eliminación</h2>
                   <p className="text-red-100 text-sm">Esta acción no se puede deshacer</p>
                 </div>
               </div>
             </div>
             
             {/* Contenido del modal */}
-            <div className="p-6 space-y-4">
-              <div className="bg-red-50 border-2 border-[#e74c3c] rounded-lg p-4">
-                <p className="text-[#e74c3c] font-medium">
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="bg-red-50 border-2 border-[#e74c3c] rounded-lg p-3 sm:p-4">
+                <p className="text-[#e74c3c] font-medium text-sm sm:text-base">
                   ¿Estás seguro que querés eliminar esta venta?
                 </p>
-                <div className="mt-2 text-sm text-[#7f8c8d]">
+                <div className="mt-2 text-xs sm:text-sm text-[#7f8c8d]">
                   <strong>Cliente:</strong> {ventaAEliminar.cliente}<br/>
                   <strong>Productos:</strong> {ventaAEliminar.productos.length}
                 </div>
@@ -710,13 +727,13 @@ export default function TablaVentas({ refrescar }: Props) {
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setMostrarConfirmarEliminar(false)}
-                  className="px-6 py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 text-sm"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={eliminarVenta}
-                  className="px-6 py-3 bg-[#e74c3c] hover:bg-[#c0392b] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-[#e74c3c] hover:bg-[#c0392b] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg text-sm"
                 >
                   Sí, eliminar
                 </button>

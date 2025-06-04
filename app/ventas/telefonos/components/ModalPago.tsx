@@ -6,61 +6,76 @@ interface Props {
     formaPago: string;
     destino: string;
     observaciones: string;
-  };
+  } | null;
   onClose: () => void;
   handlePagoChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => void;
-  onGuardar: () => void;
+  onGuardarPago?: (nuevoPago: any) => void; // Para la primera versión
+  onGuardar?: () => void; // Para la segunda versión
   guardadoConExito: boolean;
 }
 
-export default function ModalPago({ mostrar, pago, onClose, handlePagoChange, onGuardar, guardadoConExito }: Props) {
-  if (!mostrar) return null;
+export default function ModalPago({
+  mostrar,
+  pago,
+  onClose,
+  handlePagoChange,
+  onGuardarPago,
+  onGuardar,
+  guardadoConExito,
+}: Props) {
+  if (!mostrar || !pago) return null;
+
+  // Usar la función correcta según la versión
+  const handleGuardar = () => {
+    if (onGuardarPago) {
+      onGuardarPago(pago);
+    } else if (onGuardar) {
+      onGuardar();
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 animate-fade-in border-2 border-[#ecf0f1]">
+    <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div className="w-full h-full sm:h-auto sm:max-w-2xl lg:max-w-3xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
         
-        {/* Header del modal - Estilo GestiOne */}
-        <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white rounded-t-2xl p-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <span className="text-2xl">💳</span>
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold">
-                  Información de Pago
-                </h3>
-                <p className="text-green-100 mt-1">
-                  Registra los detalles del pago recibido
-                </p>
-              </div>
+        {/* Header del Modal - Responsive */}
+        <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-4 sm:p-6 flex justify-between items-center flex-shrink-0 rounded-none sm:rounded-t-2xl">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="w-8 h-8 sm:w-12 sm:h-12 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center">
+              <span className="text-lg sm:text-2xl">💳</span>
             </div>
-            <button
-              onClick={onClose}
-              className="text-green-100 hover:text-white text-2xl font-bold transition-colors duration-200 hover:bg-white/20 rounded-xl w-10 h-10 flex items-center justify-center hover:scale-110"
-            >
-              ×
-            </button>
+            <div>
+              <h3 className="text-lg sm:text-2xl font-bold">Información de Pago</h3>
+              <p className="text-green-100 text-xs sm:text-sm hidden sm:block mt-1">
+                Registra los detalles del pago recibido
+              </p>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl flex items-center justify-center text-white text-lg sm:text-2xl font-bold transition-all duration-200 hover:scale-110"
+          >
+            ×
+          </button>
         </div>
 
-        <div className="p-8 space-y-6 bg-[#f8f9fa]">
+        {/* Contenido del Modal - Scrolleable */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 bg-[#f8f9fa] min-h-0">
           
-          {/* Sección de monto y moneda - Estilo GestiOne */}
-          <div className="bg-white rounded-xl border-2 border-[#3498db] p-6 shadow-sm">
-            <h4 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">💰</span>
+          {/* Sección de Monto y Moneda - Responsive */}
+          <div className="bg-white rounded-xl border-2 border-[#3498db] p-4 sm:p-6 shadow-sm">
+            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs sm:text-sm">💰</span>
               </div>
-              Monto del Pago
+              <span className="text-sm sm:text-base">Monto del Pago</span>
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-[#2c3e50]">
-                  Monto abonado
+                <label className="block text-sm font-semibold text-[#2c3e50]">
+                  Monto abonado:
                 </label>
                 <input
                   type="number"
@@ -68,18 +83,18 @@ export default function ModalPago({ mostrar, pago, onClose, handlePagoChange, on
                   value={pago.monto}
                   onChange={handlePagoChange}
                   placeholder="0.00"
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-lg font-medium text-[#2c3e50] placeholder-[#7f8c8d]"
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-base sm:text-lg font-medium text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-[#2c3e50]">
-                  Moneda
+                <label className="block text-sm font-semibold text-[#2c3e50]">
+                  Moneda:
                 </label>
                 <select
                   name="moneda"
                   value={pago.moneda}
                   onChange={handlePagoChange}
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-sm sm:text-base text-[#2c3e50]"
                 >
                   <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
                   <option value="USD">🇺🇸 Dólares (USD)</option>
@@ -88,93 +103,95 @@ export default function ModalPago({ mostrar, pago, onClose, handlePagoChange, on
             </div>
           </div>
 
-          {/* Sección de método de pago - Estilo GestiOne */}
-          <div className="bg-white rounded-xl border-2 border-[#9b59b6] p-6 shadow-sm">
-            <h4 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#9b59b6] rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">🏦</span>
+          {/* Sección de Método de Pago - Responsive */}
+          <div className="bg-white rounded-xl border-2 border-[#9b59b6] p-4 sm:p-6 shadow-sm">
+            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#9b59b6] rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs sm:text-sm">🏦</span>
               </div>
-              Método de Pago
+              <span className="text-sm sm:text-base">Método de Pago</span>
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-[#2c3e50]">
-                  Forma de pago
+                <label className="block text-sm font-semibold text-[#2c3e50]">
+                  Forma de pago:
                 </label>
                 <input
                   type="text"
                   name="formaPago"
                   value={pago.formaPago}
                   onChange={handlePagoChange}
-                  placeholder="Ej: Efectivo, Transferencia, Mercado Pago..."
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="🔍 Ej: Efectivo, Transferencia..."
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-[#2c3e50]">
-                  Destino (opcional)
+                <label className="block text-sm font-semibold text-[#2c3e50]">
+                  Destino (opcional):
                 </label>
                 <input
                   type="text"
                   name="destino"
                   value={pago.destino}
                   onChange={handlePagoChange}
-                  placeholder="Cuenta bancaria, caja..."
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="🏪 Cuenta bancaria, caja..."
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
               </div>
             </div>
           </div>
 
-          {/* Sección de observaciones - Estilo GestiOne */}
-          <div className="bg-white rounded-xl border-2 border-[#f39c12] p-6 shadow-sm">
-            <h4 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#f39c12] rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">📝</span>
+          {/* Sección de Observaciones - Responsive */}
+          <div className="bg-white rounded-xl border-2 border-[#f39c12] p-4 sm:p-6 shadow-sm">
+            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#f39c12] rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs sm:text-sm">📝</span>
               </div>
-              Observaciones
+              <span className="text-sm sm:text-base">Observaciones</span>
             </h4>
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-[#2c3e50]">
-                Notas adicionales (opcional)
+              <label className="block text-sm font-semibold text-[#2c3e50]">
+                Notas adicionales (opcional):
               </label>
               <textarea
                 name="observaciones"
                 value={pago.observaciones}
                 onChange={handlePagoChange}
-                placeholder="Cualquier información adicional sobre el pago..."
+                placeholder="💭 Cualquier información adicional sobre el pago..."
                 rows={3}
-                className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all resize-none text-[#2c3e50] placeholder-[#7f8c8d]"
+                className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all resize-none text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
               />
             </div>
           </div>
 
-          {/* Mensaje de éxito - Estilo GestiOne */}
+          {/* Mensaje de Éxito - Responsive */}
           {guardadoConExito && (
-            <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] border-2 border-[#27ae60] rounded-xl p-4 animate-pulse">
-              <div className="flex items-center justify-center gap-3">
-                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                  <span className="text-[#27ae60] text-sm font-bold">✓</span>
+            <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] border-2 border-[#27ae60] rounded-xl p-3 sm:p-4 animate-pulse">
+              <div className="flex items-center justify-center gap-2 sm:gap-3">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-white rounded-full flex items-center justify-center">
+                  <span className="text-[#27ae60] text-xs sm:text-sm font-bold">✓</span>
                 </div>
-                <span className="text-white font-semibold text-lg">
+                <span className="text-white font-semibold text-sm sm:text-lg">
                   ¡Pago registrado con éxito!
                 </span>
               </div>
             </div>
           )}
+        </div>
 
-          {/* Botones de acción - Estilo GestiOne */}
-          <div className="flex justify-end gap-4 pt-4 border-t-2 border-[#ecf0f1]">
+        {/* Footer con Botones - Responsive */}
+        <div className="bg-[#ecf0f1] border-t-2 border-[#bdc3c7] p-3 sm:p-6 lg:p-8 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-4 pt-0 sm:pt-4 border-t-0 sm:border-t-2 border-[#ecf0f1]">
             <button
               onClick={onClose}
-              className="px-6 py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 text-sm sm:text-base"
             >
               Cancelar
             </button>
             <button
-              onClick={onGuardar}
+              onClick={handleGuardar}
               disabled={!pago.monto || guardadoConExito}
-              className={`px-8 py-3 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-lg flex items-center gap-2 ${
+              className={`w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base ${
                 !pago.monto || guardadoConExito
                   ? "bg-[#bdc3c7] cursor-not-allowed"
                   : "bg-[#27ae60] hover:bg-[#229954] hover:scale-105"
