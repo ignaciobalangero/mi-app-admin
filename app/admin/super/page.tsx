@@ -155,10 +155,10 @@ export default function SuperAdminPage() {
           
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={() => router.push("/admin/clientes")}
+              onClick={() => router.push("/admin/negocios")}
               className="bg-gradient-to-r from-[#34495e] to-[#2c3e50] hover:from-[#2c3e50] hover:to-[#1a252f] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
             >
-              🧾 Ver todos los negocios
+              🏢 Ver todos los negocios
             </button>
             
             <button
