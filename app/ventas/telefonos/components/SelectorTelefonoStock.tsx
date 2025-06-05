@@ -53,6 +53,7 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
       observaciones: t.observaciones || "",
       precioCosto: t.precioCompra ? Number(t.precioCompra) : "",
       precioVenta: t.precioVenta ? Number(t.precioVenta) : "",
+      precioMayorista: t.precioMayorista ? Number(t.precioMayorista) : "",
       estado: t.estado || "nuevo",
       bateria: t.estado?.toLowerCase() === "usado" ? t.bateria : "",
       moneda: t.moneda || "ARS", 
@@ -88,7 +89,7 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
                   <p className="text-xs text-gray-800">
                      {`Almacenamiento: ${t.gb || "-"} GB | Estado: ${t.estado || "-"} | Serie: ${t.serial || "-"} | Batería: ${t.estado?.toLowerCase() === "usado" ? `${t.bateria || "-"}%` : "-"}`}
                       {rol?.tipo === "admin" && (
-                          <> | Compra: ${t.precioCompra || "-"} | Venta: ${t.precioVenta || "-"}</>
+                          <> | Venta: ${t.precioVenta || "-"} | Mayorista: ${t.precioMayorista || "-"}</>
              )}
                   </p>
                 </div>

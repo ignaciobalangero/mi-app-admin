@@ -45,6 +45,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     serie: "",
     precioCosto: 0,
     precioVenta: 0,
+    tipoPrecio: "venta",
     moneda: "ARS",
     stockID: "",
   });
@@ -100,9 +101,15 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    
     if (name === "modelo") {
       const telefono = stock.find((t) => t.modelo === value);
       if (telefono) {
+        // Determinar precio según el tipo seleccionado
+        const precioSeleccionado = form.tipoPrecio === "mayorista" 
+          ? telefono.precioMayorista 
+          : telefono.precioVenta;
+          
         setForm((prev) => ({
           ...prev,
           modelo: telefono.modelo,
@@ -112,12 +119,25 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
           serie: telefono.serial,
           estado: (telefono.estado || "nuevo").toLowerCase(),
           precioCosto: telefono.precioCompra,
+          precioVenta: precioSeleccionado || 0,
           proveedor: telefono.proveedor || "",
           moneda: telefono.moneda || "USD",
           gb: telefono.gb || "",
+          stockID: telefono.id,
         }));
       }
-    }    
+    }
+    
+    // Si cambia el tipo de precio, actualizar precio
+    if (name === "tipoPrecio" && form.stockID) {
+      const telefono = stock.find((t) => t.id === form.stockID);
+      if (telefono) {
+        const nuevoPrecio = value === "mayorista" 
+          ? telefono.precioMayorista 
+          : telefono.precioVenta;
+        setForm((prev) => ({ ...prev, precioVenta: nuevoPrecio || 0 }));
+      }
+    }
   };
 
   const handlePagoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -153,6 +173,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       serie: form.serie || "",
       precioCosto: form.precioCosto || 0,
       precioVenta: precioFinal,
+      tipoPrecio: form.tipoPrecio,
       ganancia: precioFinal - (form.precioCosto || 0),
       moneda: form.moneda || "ARS",
       stockID: form.stockID || "",
@@ -197,6 +218,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       serie: "",
       precioCosto: 0,
       precioVenta: 0,
+      tipoPrecio: "venta",
       moneda: "ARS",
       stockID: "",
     });
@@ -253,31 +275,58 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
           />
         </div>
 
-        {/* Selector de moneda - Estilo GestiOne */}
+        {/* Selector de tipo de precio y moneda - Estilo GestiOne */}
         <div className="bg-white rounded-xl border-2 border-[#f39c12] p-4 shadow-sm">
-          <h3 className="text-lg font-semibold text-[#2c3e50] mb-1 flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-2">
             <div className="w-8 h-8 bg-[#f39c12] rounded-lg flex items-center justify-center">
               <span className="text-white text-sm">💰</span>
             </div>
-            Configuración de Moneda
+            Configuración de Precios y Moneda
           </h3>
-          <div className="flex items-center gap-4">
-            <label className="text-xsm font-medium text-[#2c3e50]">Moneda de venta:</label>
-            <select
-              name="moneda"
-              value={form.moneda}
-              onChange={handleChange}
-              className="px-2 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50]"
-              disabled={!!form.stockID}
-            >
-              <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
-              <option value="USD">🇺🇸 Dólares (USD)</option>
-            </select>
-            {form.stockID && (
-              <span className="text-xs text-[#f39c12] bg-yellow-100 px-2 py-1 rounded-lg font-medium">
-                Moneda fijada por stock seleccionado
-              </span>
-            )}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Selector de tipo de precio */}
+            <div>
+              <label className="block text-sm font-medium text-[#2c3e50] mb-2">
+                Tipo de precio:
+              </label>
+              <select
+                name="tipoPrecio"
+                value={form.tipoPrecio}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50]"
+              >
+                <option value="venta">💰 Precio de venta</option>
+                <option value="mayorista">🏪 Precio mayorista</option>
+              </select>
+              {form.stockID && (
+                <p className="text-xs text-[#7f8c8d] mt-1">
+                  El precio se actualiza automáticamente según el stock seleccionado
+                </p>
+              )}
+            </div>
+
+            {/* Selector de moneda */}
+            <div>
+              <label className="block text-sm font-medium text-[#2c3e50] mb-2">
+                Moneda de venta:
+              </label>
+              <select
+                name="moneda"
+                value={form.moneda}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50]"
+                disabled={!!form.stockID}
+              >
+                <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
+                <option value="USD">🇺🇸 Dólares (USD)</option>
+              </select>
+              {form.stockID && (
+                <span className="text-xs text-[#f39c12] bg-yellow-100 px-2 py-1 rounded-lg font-medium">
+                  Moneda fijada por stock seleccionado
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

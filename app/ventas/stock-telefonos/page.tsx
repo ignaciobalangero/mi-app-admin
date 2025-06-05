@@ -18,7 +18,12 @@ export default function StockTelefonosPage() {
   const [negocioID, setNegocioID] = useState("");
   const [telefonos, setTelefonos] = useState<any[]>([]);
   const [telefonoAEditar, setTelefonoAEditar] = useState<any | null>(null);
-  const [resumen, setResumen] = useState({ usd: 0, ars: 0 });
+  const [resumen, setResumen] = useState({ 
+    usd: 0, 
+    ars: 0,
+    mayoristaUSD: 0,
+    mayoristaARS: 0
+  });
   const { rol } = useRol();
 
   useEffect(() => {
@@ -41,15 +46,28 @@ export default function StockTelefonosPage() {
     const calcularResumen = () => {
       let totalUSD = 0;
       let totalARS = 0;
+      let mayoristaUSD = 0;
+      let mayoristaARS = 0;
+      
       telefonos.forEach((d) => {
-        const valor = Number(d.precioCompra) || 0;
+        const valorCompra = Number(d.precioCompra) || 0;
+        const valorMayorista = Number(d.precioMayorista) || 0;
+        
         if (d.moneda === "USD") {
-          totalUSD += valor;
+          totalUSD += valorCompra;
+          mayoristaUSD += valorMayorista;
         } else {
-          totalARS += valor;
+          totalARS += valorCompra;
+          mayoristaARS += valorMayorista;
         }
       });
-      setResumen({ usd: totalUSD, ars: totalARS });
+      
+      setResumen({ 
+        usd: totalUSD, 
+        ars: totalARS,
+        mayoristaUSD,
+        mayoristaARS
+      });
     };
     
     calcularResumen();
@@ -89,7 +107,7 @@ export default function StockTelefonosPage() {
           </div>
 
           {/* Tarjetas de resumen financiero */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
             {/* Total Dólares */}
             <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between">
@@ -152,6 +170,36 @@ export default function StockTelefonosPage() {
                     <span className="text-xs text-yellow-600">🔧 Reparación</span>
                     <span className="text-sm font-semibold text-yellow-700">{estadisticas.reparacion}</span>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Mayorista USD */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Mayorista USD</p>
+                  <p className="text-2xl font-bold text-orange-700">
+                    {formatearPrecio(resumen.mayoristaUSD)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🏪</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Mayorista ARS */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Mayorista ARS</p>
+                  <p className="text-2xl font-bold text-cyan-700">
+                    {formatearPrecio(resumen.mayoristaARS)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🏪</span>
                 </div>
               </div>
             </div>
@@ -226,11 +274,17 @@ export default function StockTelefonosPage() {
             <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
               <div className="text-center space-y-4">
                 <h3 className="text-lg font-semibold text-gray-800">📊 Resumen del Inventario</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
                     <p className="text-green-700 font-medium">Valor total de compra</p>
                     <p className="text-xl font-bold text-green-800">
                       USD {formatearPrecio(resumen.usd)} + ARS {formatearPrecio(resumen.ars)}
+                    </p>
+                  </div>
+                  <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg p-4">
+                    <p className="text-orange-700 font-medium">Valor total mayorista</p>
+                    <p className="text-xl font-bold text-orange-800">
+                      USD {formatearPrecio(resumen.mayoristaUSD)} + ARS {formatearPrecio(resumen.mayoristaARS)}
                     </p>
                   </div>
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">

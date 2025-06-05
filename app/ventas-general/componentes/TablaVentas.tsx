@@ -238,7 +238,7 @@ export default function TablaVentas({ refrescar }: Props) {
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  Pend.
+                  Pendiente
                 </button>
                 <button
                   onClick={() => setFiltroEstado("pagado")}
@@ -278,7 +278,7 @@ export default function TablaVentas({ refrescar }: Props) {
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  📱 Tel.
+                  📱 Telefonos
                 </button>
                 <button
                   onClick={() => setFiltroCategoria("accesorio")}
@@ -288,7 +288,7 @@ export default function TablaVentas({ refrescar }: Props) {
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  🔌 Acc.
+                  🔌 Accesorios
                 </button>
                 <button
                   onClick={() => setFiltroCategoria("repuesto")}
@@ -298,7 +298,7 @@ export default function TablaVentas({ refrescar }: Props) {
                       : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
                   }`}
                 >
-                  🔧 Rep.
+                  🔧 Repuestos
                 </button>
               </div>
             </div>
@@ -307,7 +307,7 @@ export default function TablaVentas({ refrescar }: Props) {
           {/* Buscador y cotización */}
           <div className="flex flex-col lg:flex-row gap-4 flex-1">
             {/* Buscador */}
-            <div className="flex-1">
+            <div className="w-full lg:w-52">
               <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
                 <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
                 Buscar cliente:
@@ -321,8 +321,8 @@ export default function TablaVentas({ refrescar }: Props) {
               />
             </div>
 
-            {/* Cotización USD */}
-            <div className="w-full lg:w-48">
+            {/* Cotización USD - CORREGIDA */}
+            <div className="w-full lg:w-52">
               <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
                 <span className="w-4 h-4 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-xs">💰</span>
                 Cotización USD:
@@ -369,9 +369,9 @@ export default function TablaVentas({ refrescar }: Props) {
 
                     await Promise.all(updates);
                   }}
-                  className="flex-1 px-1 sm:px-2 py-1 sm:py-2 border-2 border-[#f39c12] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-center font-medium text-xs sm:text-sm text-[#2c3e50]"
+                  className="flex-1 px-2 py-2 border-2 border-[#f39c12] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-center font-medium text-sm text-[#2c3e50] min-w-0"
                 />
-                <div className="text-xs text-[#f39c12]">
+                <div className="text-xs text-[#f39c12] whitespace-nowrap">
                   <div className="font-medium">ARS</div>
                 </div>
               </div>
@@ -424,7 +424,7 @@ export default function TablaVentas({ refrescar }: Props) {
                 <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   📱 Modelo
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell w-16 lg:w-20">
                   🎨 Color
                 </th>
                 <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-12 sm:w-16">
@@ -436,8 +436,8 @@ export default function TablaVentas({ refrescar }: Props) {
                 <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   <span className="hidden sm:inline">💵 </span>Total
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-16 sm:w-20 lg:w-24">
-                  <span className="hidden sm:inline">⚙️ </span>Acc.
+                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-20 sm:w-24 lg:w-32">
+                  <span className="hidden sm:inline">⚙️ </span>Accesorios
                 </th>
               </tr>
             </thead>
@@ -557,9 +557,9 @@ export default function TablaVentas({ refrescar }: Props) {
                             <span className="text-sm text-[#7f8c8d]">{p.modelo || "—"}</span>
                           </td>
                           
-                          {/* Color - Solo en desktop */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#ecf0f1] text-[#2c3e50]">
+                          {/* Color - Solo en desktop - CORREGIDA */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell w-16 lg:w-20">
+                            <span className="inline-flex items-center px-1 py-1 rounded-full text-xs font-medium bg-[#ecf0f1] text-[#2c3e50] truncate">
                               {p.color || "—"}
                             </span>
                           </td>
@@ -589,8 +589,8 @@ export default function TablaVentas({ refrescar }: Props) {
                             </span>
                           </td>
 
-                          {/* Acciones */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                          {/* Acciones - CORREGIDA */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] w-20 sm:w-24 lg:w-32">
                             <div className="flex flex-col items-center gap-1">
                               {/* Select de estado - Solo en la primera fila */}
                               {esProductoPrincipal && (
@@ -614,7 +614,7 @@ export default function TablaVentas({ refrescar }: Props) {
                                 </select>
                               )}
 
-                              {/* Botones */}
+                              {/* Botones - SIN ICONOS DUPLICADOS */}
                               <div className="flex gap-1 w-full">
                                 {esProductoPrincipal && (
                                   <>
@@ -623,7 +623,7 @@ export default function TablaVentas({ refrescar }: Props) {
                                       className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200"
                                       title="Editar"
                                     >
-                                      <span className="hidden sm:inline">✏️ </span>✏️
+                                      ✏️
                                     </button>
                                     
                                     <button

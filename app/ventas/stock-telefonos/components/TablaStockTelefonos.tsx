@@ -68,6 +68,7 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
       Serial: t.serial,
       Compra: t.precioCompra,
       Venta: t.precioVenta,
+      PrecioMayorista: t.precioMayorista,
       Moneda: t.moneda,
       Observaciones: t.observaciones,
     }));
@@ -285,6 +286,9 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
                 <th className="p-3 text-right text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
                   💰 Venta
                 </th>
+                <th className="p-3 text-right text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
+                  🏪 Mayorista
+                </th>
                 <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200">
                   💱 Moneda
                 </th>
@@ -300,7 +304,7 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
               {filtrados.length === 0 ? (
                 <tr>
                   <td 
-                    colSpan={rol?.tipo === "admin" ? 15 : 14}
+                    colSpan={rol?.tipo === "admin" ? 16 : 15}
                     className="p-12 text-center text-gray-500 border border-gray-300"
                   >
                     <div className="flex flex-col items-center gap-4">
@@ -394,6 +398,11 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
                           {formatearPrecio(t.precioVenta)}
                         </span>
                       </td>
+                      <td className="p-3 border border-gray-300 text-right">
+                        <span className="text-sm font-semibold text-blue-700">
+                          {formatearPrecio(t.precioMayorista)}
+                        </span>
+                      </td>
                       <td className="p-3 border border-gray-300 text-center">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                           t.moneda === 'USD' 
@@ -451,6 +460,11 @@ export default function TablaStockTelefonos({ negocioID, filtroProveedor = false
                   <span>
                     Valor total (venta): <strong className="text-green-700">
                       {formatearPrecio(filtrados.reduce((sum, t) => sum + (t.precioVenta || 0), 0))}
+                    </strong>
+                  </span>
+                  <span>
+                    Valor total (mayorista): <strong className="text-blue-700">
+                      {formatearPrecio(filtrados.reduce((sum, t) => sum + (t.precioMayorista || 0), 0))}
                     </strong>
                   </span>
                 </div>

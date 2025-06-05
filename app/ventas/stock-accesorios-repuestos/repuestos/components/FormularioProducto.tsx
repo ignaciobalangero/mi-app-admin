@@ -241,7 +241,7 @@ export default function FormularioProducto({
               <span className="text-white text-xs">💰</span>
             </div>
             <span className="text-[#27ae60] font-bold text-sm">
-              Precio en pesos: ${precioCostoPesos.toLocaleString("es-AR")}
+            Precio en pesos: ${(precioCostoPesos || 0).toLocaleString("es-AR")}
             </span>
           </div>
         </div>

@@ -32,7 +32,7 @@ export default function FormularioAgregarProducto({
   const [precio1, setPrecio1] = useState("");
   const [precio2, setPrecio2] = useState("");
   const [precio3, setPrecio3] = useState("");
-  
+  const [cargando, setCargando] = useState(false);
 
   useEffect(() => {
     const obtenerConfiguracion = async () => {
@@ -55,9 +55,11 @@ export default function FormularioAgregarProducto({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje("");
+    setCargando(true);
 
     if (!sheetID || !producto.trim() || !categoria.trim()) {
       setMensaje("⚠️ Completá categoría y producto.");
+      setCargando(false);
       return;
     }
 
@@ -67,32 +69,34 @@ export default function FormularioAgregarProducto({
 
     if (isNaN(cantidad) || cantidad < 0) {
       setMensaje("⚠️ El stock debe ser un número válido.");
+      setCargando(false);
       return;
     }
 
     const letra = categoria.trim().charAt(0).toUpperCase();
     const numero = Math.floor(1000 + Math.random() * 9000);
     const codigo = `${letra}-${numero}`;
-    const cotizacionFinal =
-    usarDolarManual && dolarManual ? dolarManual : cotizacion || 0;
+    const cotizacionFinal = usarDolarManual && dolarManual ? dolarManual : cotizacion || 0;
   
-  const precio1Num = Number(precio1);
-  const precio2Num = Number(precio2);
-  const precio3Num = Number(precio3);
+    const precio1Num = Number(precio1);
+    const precio2Num = Number(precio2);
+    const precio3Num = Number(precio3);
   
-  const precio1Pesos = Math.round(precio1Num * cotizacionFinal);
-  const precio2Pesos = Math.round(precio2Num * cotizacionFinal);
-  const precio3Pesos = Math.round(precio3Num * cotizacionFinal);
+    const precio1Pesos = Math.round(precio1Num * cotizacionFinal);
+    const precio2Pesos = Math.round(precio2Num * cotizacionFinal);
+    const precio3Pesos = Math.round(precio3Num * cotizacionFinal);
+    const precioCostoPesos = Math.round(costoNum * cotizacionFinal);
     
-  const nuevoProducto = {
+    const nuevoProducto = {
       codigo,
       categoria,
       producto,
       cantidad,
-      precio: Number(precio1) * cotizacionFinal, // compatible con lo anterior
+      precio: Number(precio1) * cotizacionFinal,
       precioUSD: Number(precio1),
       cotizacion: cotizacionFinal,
       precioCosto: costoNum,
+      precioCostoPesos,
       proveedor: proveedor.trim(),
       negocioID: String(rol?.negocioID || ""),
       mostrar: mostrar ? "si" : "no",
@@ -114,7 +118,7 @@ export default function FormularioAgregarProducto({
           sheetID,
           hoja,
           producto: nuevoProducto,
-          negocioID: rol?.negocioID, // ✅ necesario para que no falle
+          negocioID: rol?.negocioID,
         }),
       });      
 
@@ -124,6 +128,7 @@ export default function FormularioAgregarProducto({
       const extraData = {
         codigo,
         precioCosto: costoNum,
+        precioCostoPesos,
         proveedor: proveedor.trim(),
         negocioID: String(rol?.negocioID || ""),
         precio1: precio1Num,
@@ -132,7 +137,6 @@ export default function FormularioAgregarProducto({
         precio1Pesos,
         precio2Pesos,
         precio3Pesos,
-        
       };      
 
       console.log("📦 Enviando a /api/stock-extra:", extraData);
@@ -150,6 +154,7 @@ export default function FormularioAgregarProducto({
           precioUSD: Number(precio1),
           cotizacion: cotizacionFinal,
           precioCosto: costoNum,
+          precioCostoPesos,
           proveedor: proveedor.trim(),
           negocioID: rol.negocioID,
           hoja,
@@ -159,129 +164,270 @@ export default function FormularioAgregarProducto({
           precio1Pesos,
           precio2Pesos,
           precio3Pesos,
-          
         });        
-        
       }
 
       setMensaje("✅ Producto agregado correctamente");
       if (onProductoAgregado) onProductoAgregado();
 
+      // Limpiar formulario
       setCategoria("");
       setProducto("");
       setStock("");
       setPrecioUSD("");
       setCosto("");
       setProveedor("");
+      setPrecio1("");
+      setPrecio2("");
+      setPrecio3("");
+      setStockMinimo(0);
+      setStockIdeal(0);
       setMostrar(true);
     } catch (err) {
       console.error("❌ Error al guardar:", err);
       setMensaje("❌ Error inesperado al guardar. Revisá consola.");
+    } finally {
+      setCargando(false);
     }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4 bg-white p-4 rounded shadow max-w-xl mx-auto mt-8"
-    >
-      <h2 className="text-xl font-bold">➕ Agregar producto al stock</h2>
+    <div className="bg-white max-w-4xl mx-auto">
+      <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
+        
+        {/* Información básica del producto */}
+        <div className="space-y-4">
+          <h3 className="text-sm lg:text-base font-semibold text-[#2c3e50] flex items-center gap-2 border-b border-[#ecf0f1] pb-2">
+            <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">📦</span>
+            Información del Producto
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-[#2c3e50] block mb-2">
+                Categoría *
+              </label>
+              <input
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                placeholder="Ej: Módulos, Baterías, Cables..."
+                className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="text-xs font-semibold text-[#2c3e50] block mb-2">
+                Nombre del Producto *
+              </label>
+              <input
+                value={producto}
+                onChange={(e) => setProducto(e.target.value)}
+                placeholder="Descripción detallada del producto"
+                className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+                required
+              />
+            </div>
+          </div>
 
-      <input
-        value={categoria}
-        onChange={(e) => setCategoria(e.target.value)}
-        placeholder="Categoría (Ej: Módulos, Baterías...)"
-        className="w-full p-2 border rounded"
-        required
-      />
-      <input
-        value={producto}
-        onChange={(e) => setProducto(e.target.value)}
-        placeholder="Nombre del producto"
-        className="w-full p-2 border rounded"
-        required
-      />
-      <input
-        value={stock}
-        onChange={(e) => setStock(e.target.value)}
-        type="number"
-        placeholder="Stock"
-        className="w-full p-2 border rounded"
-      />
-  
-       <input
-        type="number"
-       value={stockMinimo === 0 ? "" : stockMinimo}
-        onChange={(e) => setStockMinimo(Number(e.target.value))}
-       placeholder="Stock mínimo"
-       className="w-full p-2 border rounded"
-      />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-[#2c3e50] block mb-2">
+                Stock Inicial
+              </label>
+              <input
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                type="number"
+                min="0"
+                placeholder="0"
+                className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+              />
+            </div>
+            
+            <div>
+              <label className="text-xs font-semibold text-[#2c3e50] block mb-2">
+                Stock Mínimo
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={stockMinimo === 0 ? "" : stockMinimo}
+                onChange={(e) => setStockMinimo(Number(e.target.value))}
+                placeholder="0"
+                className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+              />
+            </div>
 
-      <input
-       type="number"
-       value={stockIdeal === 0 ? "" : stockIdeal}
-       onChange={(e) => setStockIdeal(Number(e.target.value))}
-       placeholder="Stock ideal"
-       className="w-full p-2 border rounded"
-        />
+            <div>
+              <label className="text-xs font-semibold text-[#2c3e50] block mb-2">
+                Stock Ideal
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={stockIdeal === 0 ? "" : stockIdeal}
+                onChange={(e) => setStockIdeal(Number(e.target.value))}
+                placeholder="0"
+                className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+              />
+            </div>
+          </div>
+        </div>
 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-<input
-        value={costo}
-        onChange={(e) => setCosto(e.target.value)}
-        type="number"
-        placeholder="Precio de costo"
-        className="w-full p-2 border rounded"
-      />
-  
-  <input
-    value={precio1}
-    onChange={(e) => setPrecio1(e.target.value)}
-    type="number"
-    placeholder="Precio 1 (USD)"
-    className="w-full p-2 border rounded"
-  />
+        {/* Precios */}
+        <div className="space-y-4">
+          <h3 className="text-sm lg:text-base font-semibold text-[#2c3e50] flex items-center gap-2 border-b border-[#ecf0f1] pb-2">
+            <span className="w-4 h-4 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-xs">💰</span>
+            Precios y Costos
+          </h3>
+          
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-[#e74c3c] block mb-2">
+                💸 Precio de Costo
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#e74c3c] font-medium text-sm">$</span>
+                <input
+                  value={costo}
+                  onChange={(e) => setCosto(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full pl-6 pr-3 py-2 sm:py-3 border-2 border-[#e74c3c] rounded-lg bg-white focus:ring-2 focus:ring-[#e74c3c] focus:border-[#e74c3c] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+                />
+              </div>
+            </div>
 
-  <input
-    value={precio2}
-    onChange={(e) => setPrecio2(e.target.value)}
-    type="number"
-    placeholder="Precio 2 (USD)"
-    className="w-full p-2 border rounded"
-  />
+            <div>
+              <label className="text-xs font-semibold text-[#3498db] block mb-2">
+                💵 Precio 1 (USD)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#3498db] font-medium text-sm">$</span>
+                <input
+                  value={precio1}
+                  onChange={(e) => setPrecio1(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full pl-6 pr-3 py-2 sm:py-3 border-2 border-[#3498db] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+                />
+              </div>
+            </div>
 
-  <input
-    value={precio3}
-    onChange={(e) => setPrecio3(e.target.value)}
-    type="number"
-    placeholder="Precio 3 (USD)"
-    className="w-full p-2 border rounded"
-  />
+            <div>
+              <label className="text-xs font-semibold text-[#9b59b6] block mb-2">
+                💎 Precio 2 (USD)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#9b59b6] font-medium text-sm">$</span>
+                <input
+                  value={precio2}
+                  onChange={(e) => setPrecio2(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full pl-6 pr-3 py-2 sm:py-3 border-2 border-[#9b59b6] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+                />
+              </div>
+            </div>
 
-</div>
-      <input
-        value={proveedor}
-        onChange={(e) => setProveedor(e.target.value)}
-        placeholder="Proveedor"
-        className="w-full p-2 border rounded"
-      />
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={mostrar}
-          onChange={() => setMostrar(!mostrar)}
-        />
-        Mostrar al cliente
-      </label>
+            <div>
+              <label className="text-xs font-semibold text-[#e67e22] block mb-2">
+                🏆 Precio 3 (USD)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#e67e22] font-medium text-sm">$</span>
+                <input
+                  value={precio3}
+                  onChange={(e) => setPrecio3(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full pl-6 pr-3 py-2 sm:py-3 border-2 border-[#e67e22] rounded-lg bg-white focus:ring-2 focus:ring-[#e67e22] focus:border-[#e67e22] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <button
-        type="submit"
-        className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded"
-      >
-        Guardar producto
-      </button>
+        {/* Información adicional */}
+        <div className="space-y-4">
+          <h3 className="text-sm lg:text-base font-semibold text-[#2c3e50] flex items-center gap-2 border-b border-[#ecf0f1] pb-2">
+            <span className="w-4 h-4 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs">🏭</span>
+            Información Adicional
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-[#2c3e50] block mb-2">
+                Proveedor
+              </label>
+              <input
+                value={proveedor}
+                onChange={(e) => setProveedor(e.target.value)}
+                placeholder="Nombre del proveedor o distribuidor"
+                className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+              />
+            </div>
 
-      {mensaje && <p className="text-sm mt-2 text-center">{mensaje}</p>}
-    </form>
+            <div className="flex items-end">
+              <label className="flex items-center gap-3 bg-gradient-to-r from-[#ecf0f1] to-[#f8f9fa] p-3 rounded-lg border-2 border-[#bdc3c7] cursor-pointer hover:from-[#d5dbdb] hover:to-[#ecf0f1] transition-all">
+                <input
+                  type="checkbox"
+                  checked={mostrar}
+                  onChange={() => setMostrar(!mostrar)}
+                  className="w-4 h-4 text-[#27ae60] bg-white border-2 border-[#bdc3c7] rounded focus:ring-[#27ae60] focus:ring-2"
+                />
+                <div>
+                  <span className="text-sm font-semibold text-[#2c3e50]">👁️ Mostrar al cliente</span>
+                  <p className="text-xs text-[#7f8c8d]">El producto será visible en catálogos</p>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Mensaje de estado */}
+        {mensaje && (
+          <div className={`p-3 rounded-lg border-2 text-center font-medium text-sm ${
+            mensaje.includes("✅") 
+              ? "bg-green-50 border-[#27ae60] text-[#27ae60]"
+              : "bg-red-50 border-[#e74c3c] text-[#e74c3c]"
+          }`}>
+            {mensaje}
+          </div>
+        )}
+
+        {/* Botón de envío */}
+        <div className="flex justify-center pt-4">
+          <button
+            type="submit"
+            disabled={cargando}
+            className={`bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white py-3 px-6 lg:px-8 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 text-sm lg:text-base ${
+              cargando ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            {cargando ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Guardando...</span>
+              </>
+            ) : (
+              <>
+                <span className="text-lg">💾</span>
+                <span>Guardar Producto</span>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
