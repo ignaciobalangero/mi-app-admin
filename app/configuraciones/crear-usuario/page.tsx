@@ -63,12 +63,25 @@ export default function CrearUsuarioPage() {
       const userCredential = await createUserWithEmailAndPassword(authAdmin, email, password);
       const nuevoUID = userCredential.user.uid;
 
-      await setDoc(doc(db, "usuarios", nuevoUID), {
+      // 📋 Datos del usuario a crear
+      const datosUsuario = {
         email: email.toLowerCase(),
         negocioID,
         rol,
         nombre: nombre.trim().toLowerCase(),
+      };
+
+      // ✅ 1. Crear en la colección principal "usuarios" (estructura plana)
+      await setDoc(doc(db, "usuarios", nuevoUID), datosUsuario);
+      console.log("✅ Usuario creado en /usuarios/");
+
+      // ✅ 2. NUEVO: Crear también en la estructura anidada del negocio
+      await setDoc(doc(db, "negocios", negocioID, "usuarios", nuevoUID), {
+        ...datosUsuario,
+        fechaCreacion: new Date().toISOString(),
+        creadoPor: user?.email || "admin"
       });
+      console.log("✅ Usuario creado en /negocios/{negocioID}/usuarios/");
 
       // 🔧 Crear configuración automáticamente si no existe
       const configRef = doc(db, "configuracion", negocioID);
@@ -83,7 +96,7 @@ export default function CrearUsuarioPage() {
         console.log("ℹ️ Configuración ya existente");
       }
 
-      setMensaje("✅ Usuario creado correctamente.");
+      setMensaje("✅ Usuario creado correctamente en ambas ubicaciones.");
       setResumenCreado({ email, rol, negocioID });
       setEmail("");
       setPassword("");
@@ -146,7 +159,8 @@ export default function CrearUsuarioPage() {
           <div className="mt-4 text-sm text-green-700 text-center">
             <p>
               Usuario creado: <strong>{resumenCreado.email}</strong> ({resumenCreado.rol})<br />
-              Asociado a: <strong>{resumenCreado.negocioID}</strong>
+              Asociado a: <strong>{resumenCreado.negocioID}</strong><br />
+              📍 Creado en ambas ubicaciones ✅
             </p>
           </div>
         )}

@@ -172,7 +172,7 @@ const verificarSuscripcionPropia = async (userData: any): Promise<EstadoCuenta> 
   };
 };
 
-// 🏢 FUNCIÓN: Verificar suscripción por negocio (para empleados y clientes)
+// 🏢 FUNCIÓN: Verificar suscripción por negocio (CORREGIDA - verifica exento Y suscripción)
 const verificarSuscripcionPorNegocio = async (negocioID: string, userData: any): Promise<EstadoCuenta> => {
   try {
     console.log(`🔍 Buscando admin del negocio: ${negocioID}`);
@@ -203,8 +203,28 @@ const verificarSuscripcionPorNegocio = async (negocioID: string, userData: any):
     const adminData = adminDoc.data();
     
     console.log(`👨‍💼 Admin encontrado: ${adminData.email || adminDoc.id}`);
+    console.log(`📋 Datos del admin:`, {
+      esExento: adminData.esExento,
+      planActivo: adminData.planActivo,
+      fechaVencimiento: adminData.fechaVencimiento
+    });
 
-    // Verificar suscripción del admin
+    // ✅ PRIMERO: Verificar si el admin es exento
+    if (adminData.esExento === true) {
+      console.log('🎉 ADMIN ES EXENTO - Empleado hereda acceso total');
+      return {
+        activa: true,
+        diasRestantes: 999,
+        fechaVencimiento: null,
+        planActivo: 'exento_admin',
+        razonBloqueo: null,
+        dependeDeNegocio: true,
+        adminDelNegocio: adminData.email || adminDoc.id
+      };
+    }
+
+    // ✅ SEGUNDO: Si no es exento, verificar su suscripción normal
+    console.log('🔍 Admin no es exento, verificando su suscripción...');
     const estadoAdmin = await verificarSuscripcionPropia(adminData);
 
     // El empleado/cliente hereda el estado del admin

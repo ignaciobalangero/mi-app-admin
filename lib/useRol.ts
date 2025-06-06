@@ -33,33 +33,27 @@ export function useRol() {
       console.log("🔍 Buscando usuario con UID:", user.uid);
 
       try {
-        // ✅ Leer primero desde la colección global "usuarios" para obtener el negocioID
-        const globalRef = doc(db, `usuarios/${user.uid}`);
-        const globalSnap = await getDoc(globalRef);
+        // ✅ CORREGIDO: Leer desde la colección plana "usuarios"
+        const userRef = doc(db, `usuarios/${user.uid}`);
+        const userSnap = await getDoc(userRef);
 
-        if (!globalSnap.exists()) {
+        if (!userSnap.exists()) {
           console.warn("⛔ No se encontró el usuario en /usuarios/");
           return;
         }
 
-        const { negocioID } = globalSnap.data();
+        const userData = userSnap.data();
+        const { negocioID, rol: tipoRol } = userData;
 
         if (!negocioID) {
-          console.warn("⛔ El documento global no tiene negocioID");
+          console.warn("⛔ El usuario no tiene negocioID");
           return;
         }
 
-        // ✅ Luego buscamos el documento dentro del negocio para saber el rol
-        const negocioRef = doc(db, `negocios/${negocioID}/usuarios/${user.uid}`);
-        const snap = await getDoc(negocioRef);
-
-        if (!snap.exists()) {
-          console.warn("⛔ No se encontró el usuario dentro del negocio");
+        if (!tipoRol) {
+          console.warn("⛔ El usuario no tiene rol definido");
           return;
         }
-
-        const data = snap.data();
-        const tipoRol = data.rol || "sin rol";
 
         setRol({
           tipo: tipoRol,
@@ -68,9 +62,9 @@ export function useRol() {
 
         console.log("✅ Rol obtenido:", tipoRol, "| Negocio:", negocioID);
 
-        // 🆕 NUEVO: Calcular suscripción según rol
+        // 🆕 CORREGIDO: Calcular suscripción según rol usando misma lógica que verificarEstadoCuenta
         if (tipoRol === "admin") {
-          await calcularSuscripcion(user.uid);
+          await calcularSuscripcionPropia(userData);
         } else {
           // Si es empleado, buscar admin del negocio y usar su suscripción
           await buscarSuscripcionDelAdmin(negocioID);
@@ -81,34 +75,28 @@ export function useRol() {
       }
     };
 
-    const calcularSuscripcion = async (userId: string) => {
+    const calcularSuscripcionPropia = async (userData: any) => {
       try {
-        console.log("🔍 Buscando suscripción para usuario:", userId);
+        console.log("🔍 Calculando suscripción propia para:", userData.email);
         
-        // 🔧 CORREGIDO: Leer del documento principal del usuario
-        const userRef = doc(db, `usuarios/${userId}`);
-        const userSnap = await getDoc(userRef);
-        
-        if (!userSnap.exists()) {
-          console.warn("⛔ No se encontró usuario");
+        // ✅ VERIFICAR SI ES EXENTO
+        if (userData.esExento === true) {
+          console.log("✅ Usuario exento - acceso total");
           setSuscripcion({
-            diasRestantes: null,
-            planActual: "gratuito",
-            suscripcionActiva: false,
-            fechaVencimiento: null
+            diasRestantes: 999,
+            planActual: "exento",
+            suscripcionActiva: true,
+            fechaVencimiento: "Sin vencimiento"
           });
           return;
         }
-
-        const userData = userSnap.data();
         
-        // 🔧 CORREGIDO: Leer campos del documento principal
         const planActivo = userData.planActivo;
         const fechaVencimiento = userData.fechaVencimiento?.toDate();
         const estado = userData.estado;
         
-        if (!planActivo || estado !== "activo") {
-          console.warn("⛔ No hay plan activo o estado no es activo");
+        if (!planActivo || estado === "suspendida") {
+          console.warn("⛔ No hay plan activo o cuenta suspendida");
           setSuscripcion({
             diasRestantes: null,
             planActual: "gratuito",
@@ -133,16 +121,14 @@ export function useRol() {
           fechaVencimiento: fechaVencimiento?.toLocaleDateString() || null
         });
 
-        console.log("✅ Suscripción encontrada:", {
+        console.log("✅ Suscripción propia:", {
           activa: suscripcionActiva,
           días: diasRestantes,
-          plan: planActivo,
-          vencimiento: fechaVencimiento?.toLocaleDateString()
+          plan: planActivo
         });
 
       } catch (error) {
-        console.error("❌ Error al calcular suscripción:", error);
-        // En caso de error, usar datos por defecto
+        console.error("❌ Error al calcular suscripción propia:", error);
         setSuscripcion({
           diasRestantes: null,
           planActual: "gratuito",
@@ -156,43 +142,51 @@ export function useRol() {
       try {
         console.log("🔍 Buscando admin del negocio:", negocioID);
         
-        // Buscar admin del negocio
-        const usuariosQuery = query(
+        // ✅ CORREGIDO: Buscar admin usando misma query que verificarEstadoCuenta
+        const adminQuery = query(
           collection(db, "usuarios"),
-          where("negocioID", "==", negocioID)
+          where("negocioID", "==", negocioID),
+          where("rol", "==", "admin")
         );
 
-        const usuariosSnap = await getDocs(usuariosQuery);
+        const adminSnap = await getDocs(adminQuery);
         
-        if (usuariosSnap.empty) {
-          console.warn("⛔ No se encontraron usuarios del negocio");
-          return;
-        }
-
-        // Buscar el admin entre los usuarios
-        let adminUID = null;
-        for (const userDoc of usuariosSnap.docs) {
-          const userData = userDoc.data();
-          if (userData.rol === "admin") {
-            adminUID = userDoc.id;
-            console.log("👑 Admin encontrado:", userData.email);
-            break;
-          }
-        }
-
-        if (!adminUID) {
+        if (adminSnap.empty) {
           console.warn("⛔ No se encontró admin del negocio");
+          setSuscripcion({
+            diasRestantes: null,
+            planActual: "sin_admin",
+            suscripcionActiva: false,
+            fechaVencimiento: null
+          });
+          return;
+        }
+
+        const adminDoc = adminSnap.docs[0];
+        const adminData = adminDoc.data();
+        
+        console.log("👑 Admin encontrado:", adminData.email);
+
+        // ✅ VERIFICAR SI EL ADMIN ES EXENTO
+        if (adminData.esExento === true) {
+          console.log("🎉 Admin es exento - empleado hereda acceso");
+          setSuscripcion({
+            diasRestantes: 999,
+            planActual: "exento_admin",
+            suscripcionActiva: true,
+            fechaVencimiento: "Sin vencimiento (hereda de admin)"
+          });
           return;
         }
         
-        // Obtener suscripción del admin
-        await calcularSuscripcion(adminUID);
+        // Si admin no es exento, usar su suscripción
+        await calcularSuscripcionPropia(adminData);
 
       } catch (error) {
         console.error("❌ Error al buscar suscripción del admin:", error);
         setSuscripcion({
           diasRestantes: null,
-          planActual: "gratuito",
+          planActual: "error",
           suscripcionActiva: false,
           fechaVencimiento: null
         });
