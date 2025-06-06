@@ -22,10 +22,9 @@ export async function POST(request: NextRequest) {
     
     // ✅ DEFINIR PRECIOS
     const planes = {
-      basico: { precio: 15, nombre: 'Plan Básico' },
-      pro: { precio: 25, nombre: 'Plan Pro' }
-    };
-
+        basico: { precio: 100, nombre: 'Plan Básico' },  // ← Cambiar de 45000 a 100
+        pro: { precio: 200, nombre: 'Plan Pro' }         // ← Cambiar de 85000 a 200
+      };
     const planSeleccionado = planes[plan as keyof typeof planes];
     
     if (!planSeleccionado) {

@@ -5,7 +5,8 @@ import { db, storage } from "@/lib/firebase";
 import Link from "next/link";
 import Header from "../Header";
 import IntegracionGoogleSheet from "./components/IntegracionGoogleSheet";
-import PanelUsuariosExentos from "./components/PanelUsuariosExentos"; // ✅ NUEVO IMPORT
+import PanelUsuariosExentos from "./components/PanelUsuariosExentos";
+import GestionSuscripcion from "./components/GestionSuscripcion"; // ✅ NUEVO IMPORT
 import {
   doc,
   getDoc,
@@ -35,12 +36,10 @@ export default function Configuraciones() {
   const [nuevoLogo, setNuevoLogo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [pestanaActiva, setPestanaActiva] = useState("general");
-  const [mostrarPanelExentos, setMostrarPanelExentos] = useState(false); // ✅ NUEVO ESTADO
+  const [mostrarPanelExentos, setMostrarPanelExentos] = useState(false);
 
   const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
   const router = useRouter();
-
-// En configuraciones.tsx, reemplaza este useEffect:
 
 useEffect(() => {
   if (user) {
@@ -117,8 +116,8 @@ useEffect(() => {
       await setDoc(
         refDoc,
         {
-          textoGarantia: textoGarantiaServicio, // Mantenemos compatibilidad
-          textoGarantiaTelefonos: textoGarantiaTelefonos, // Nuevo campo
+          textoGarantia: textoGarantiaServicio,
+          textoGarantiaTelefonos: textoGarantiaTelefonos,
           imprimirEtiqueta,
           imprimirTicket,
           logoUrl: finalLogoUrl,
@@ -139,10 +138,12 @@ useEffect(() => {
     }
   };
 
+  // ✅ PESTAÑAS ACTUALIZADAS CON SUSCRIPCIÓN
   const pestanas = [
     { id: "general", label: "General", icono: "⚙️" },
     { id: "garantias", label: "Garantías", icono: "🛡️" },
     { id: "impresion", label: "Impresión", icono: "🖨️" },
+    { id: "suscripcion", label: "Suscripción", icono: "💳" }, // ← NUEVA PESTAÑA
   ];
 
   // ✅ MOSTRAR PANEL DE USUARIOS EXENTOS SI ESTÁ ACTIVO
@@ -192,7 +193,6 @@ useEffect(() => {
                 >
                   🧾 Ver negocios
                 </button>
-                {/* ✅ NUEVO BOTÓN PARA GESTIONAR USUARIOS EXENTOS */}
                 <button
                   onClick={() => setMostrarPanelExentos(true)}
                   className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
@@ -401,28 +401,36 @@ useEffect(() => {
                   </div>
                 </div>
               )}
+
+              {/* ✅ NUEVA PESTAÑA DE SUSCRIPCIÓN */}
+              {pestanaActiva === "suscripcion" && (
+                <GestionSuscripcion />
+              )}
             </div>
           </div>
 
-          <div className="flex justify-center">
-            <button
-              onClick={guardarConfiguracion}
-              className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-3 rounded-2xl font-bold text-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3"
-              disabled={guardando}
-            >
-              {guardando ? (
-                <>
-                  <span className="animate-spin text-xl">⏳</span>
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <span className="text-xl">💾</span>
-                  Guardar configuración
-                </>
-              )}
-            </button>
-          </div>
+          {/* Solo mostrar botón guardar para pestañas que no sean suscripción */}
+          {pestanaActiva !== "suscripcion" && (
+            <div className="flex justify-center">
+              <button
+                onClick={guardarConfiguracion}
+                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-3 rounded-2xl font-bold text-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3"
+                disabled={guardando}
+              >
+                {guardando ? (
+                  <>
+                    <span className="animate-spin text-xl">⏳</span>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xl">💾</span>
+                    Guardar configuración
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </>

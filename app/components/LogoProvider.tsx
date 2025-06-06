@@ -37,11 +37,11 @@ export function LogoProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log("🔍 Cargando logo para negocio:", negocioID);
         
-        // 🔧 RUTAS CORREGIDAS - Probar diferentes posibles ubicaciones
+        // 🔧 RUTAS CORREGIDAS - En el orden correcto
         const posiblesRutas = [
-          `negocios/${negocioID}/configuracion/general`,
-          `negocios/${negocioID}/configuracion/datos/general`,
-          `negocios/${negocioID}/configuracion/logo`
+          `negocios/${negocioID}/configuracion/datos`,      // ✅ PRIMERA - Es la correcta
+          `negocios/${negocioID}/configuracion/general`,     // Fallback 1
+          `negocios/${negocioID}/configuracion/logo`         // Fallback 2
         ];
 
         let logoEncontrado = false;
