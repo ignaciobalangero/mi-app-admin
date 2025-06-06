@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LogoProvider } from "./components/LogoProvider";
-import AppLayoutWrapper from "./components/AppLayoutWrapper"; // ✅ nuevo wrapper
+import AppLayoutWrapper from "./components/AppLayoutWrapper";
+import AppWrapper from "./components/AppWrapper"; // ✅ AGREGAR ESTA LÍNEA
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +34,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <LogoProvider>
-          <AppLayoutWrapper>{children}</AppLayoutWrapper>
+          {/* ✅ ENVOLVER CON AppWrapper PARA VERIFICACIÓN DE CUENTA */}
+          <AppWrapper>
+            <AppLayoutWrapper>{children}</AppLayoutWrapper>
+          </AppWrapper>
         </LogoProvider>
       </body>
     </html>

@@ -1,5 +1,8 @@
+// lib/firebaseAdmin.ts - REEMPLAZA tu contenido con esto:
+
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getAuth as adminGetAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore"; // ✅ AGREGAR ESTA LÍNEA
 
 if (!getApps().length) {
   initializeApp({
@@ -11,4 +14,5 @@ if (!getApps().length) {
   });
 }
 
-export const getAuth = adminGetAuth;
+export const auth = adminGetAuth(); // ✅ CAMBIAR NOMBRE
+export const db = getFirestore();   // ✅ AGREGAR ESTA LÍNEA

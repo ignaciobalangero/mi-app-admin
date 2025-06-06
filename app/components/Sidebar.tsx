@@ -24,6 +24,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
     { label: "Gestion de Pagos", icono: "💳", href: "/pagos" },
     { label: "Resumen de cuenta", icono: "📈", href: "/resumen-cuenta" },
+    { label: "Venta de teléfonos", icono: "📱", href: "/ventas/telefonos" },
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },
     { label: "Stock Gral", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
     { label: "Stock Repuestos (Sheet)", icono: "📋", href: "/integracion-sheet/stock-sheet" },

@@ -5,6 +5,7 @@ import { db, storage } from "@/lib/firebase";
 import Link from "next/link";
 import Header from "../Header";
 import IntegracionGoogleSheet from "./components/IntegracionGoogleSheet";
+import PanelUsuariosExentos from "./components/PanelUsuariosExentos"; // ✅ NUEVO IMPORT
 import {
   doc,
   getDoc,
@@ -34,6 +35,7 @@ export default function Configuraciones() {
   const [nuevoLogo, setNuevoLogo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [pestanaActiva, setPestanaActiva] = useState("general");
+  const [mostrarPanelExentos, setMostrarPanelExentos] = useState(false); // ✅ NUEVO ESTADO
 
   const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
   const router = useRouter();
@@ -143,6 +145,32 @@ useEffect(() => {
     { id: "impresion", label: "Impresión", icono: "🖨️" },
   ];
 
+  // ✅ MOSTRAR PANEL DE USUARIOS EXENTOS SI ESTÁ ACTIVO
+  if (mostrarPanelExentos) {
+    return (
+      <>
+        <Header />
+        <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black">
+          <div className="w-full px-4 max-w-[1200px] mx-auto space-y-6">
+            
+            {/* Botón para volver */}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setMostrarPanelExentos(false)}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2"
+              >
+                ← Volver a Configuraciones
+              </button>
+            </div>
+
+            {/* Panel de usuarios exentos */}
+            <PanelUsuariosExentos />
+          </div>
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <Header />
@@ -163,6 +191,13 @@ useEffect(() => {
                   className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
                 >
                   🧾 Ver negocios
+                </button>
+                {/* ✅ NUEVO BOTÓN PARA GESTIONAR USUARIOS EXENTOS */}
+                <button
+                  onClick={() => setMostrarPanelExentos(true)}
+                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
+                >
+                  👑 Gestionar usuarios exentos
                 </button>
               </div>
             </div>
