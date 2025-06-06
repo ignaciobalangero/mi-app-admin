@@ -75,29 +75,38 @@ export async function POST(request: NextRequest) {
       console.log('📋 Body type:', body?.type);
     }
 
-    // ✅ SIEMPRE RESPONDER 200 OK
-    return NextResponse.json({ 
-      received: true,
-      processed: true,
-      timestamp: new Date().toISOString()
-    }, { 
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
+    // ✅ CAMBIO PRINCIPAL: usar Response directa
+    return new Response(
+      JSON.stringify({ 
+        received: true,
+        processed: true,
+        timestamp: new Date().toISOString()
+      }), 
+      { 
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        }
       }
-    });
+    );
 
   } catch (error) {
     console.error('❌ Error procesando webhook:', error);
     
     // ✅ INCLUSO CON ERROR, RESPONDER 200
-    return NextResponse.json(
-      { 
+    return new Response(
+      JSON.stringify({ 
         received: true, 
         error: error instanceof Error ? error.message : 'Error desconocido',
         timestamp: new Date().toISOString()
-      }, 
-      { status: 200 }
+      }), 
+      { 
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
     );
   }
 }
@@ -110,10 +119,18 @@ export async function GET(request: NextRequest) {
   
   console.log('🔍 GET recibido:', { topic, id });
   
-  return NextResponse.json({ 
-    status: 'Webhook MercadoPago activo',
-    timestamp: new Date().toISOString(),
-    method: 'GET',
-    params: { topic, id }
-  }, { status: 200 });
+  return new Response(
+    JSON.stringify({ 
+      status: 'Webhook MercadoPago activo',
+      timestamp: new Date().toISOString(),
+      method: 'GET',
+      params: { topic, id }
+    }), 
+    { 
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    }
+  );
 }
