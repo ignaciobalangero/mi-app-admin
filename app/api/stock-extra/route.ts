@@ -3,7 +3,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
-import { getAuth } from "@/lib/firebaseAdmin";
+import { getAuth } from "firebase-admin/auth";
+import "@/lib/firebaseAdmin";
 import { headers } from "next/headers";
 
 export async function POST(req: Request) {
