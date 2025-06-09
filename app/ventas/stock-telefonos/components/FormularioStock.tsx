@@ -242,16 +242,16 @@ export default function FormularioStock({
             className="p-2 border rounded"
           />
           <div className="flex gap-2">
-          {rol?.tipo === "admin" && (
+          
          <input
            type="number"
            name="precioCompra"
            value={form.precioCompra}
            onChange={handleChange}
-           placeholder="Precio compra"
+           placeholder="Precio $"
            className="p-2 border rounded w-full"
             />
-             )}
+             
             <select
               name="moneda"
               value={form.moneda}
@@ -262,6 +262,7 @@ export default function FormularioStock({
               <option value="ARS">ARS</option>
             </select>
           </div>
+          {rol?.tipo === "admin" && (
           <input
             type="number"
             name="precioVenta"
@@ -270,6 +271,8 @@ export default function FormularioStock({
             placeholder="Precio venta"
             className="p-2 border rounded"
           />
+        )}
+         {rol?.tipo === "admin" && (
               <input
             type="number"
             name="precioMayorista"
@@ -278,6 +281,7 @@ export default function FormularioStock({
             placeholder="Precio mayorista"
             className="p-2 border rounded"
           />
+        )}
           <textarea
             name="observaciones"
             value={form.observaciones}

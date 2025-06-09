@@ -159,7 +159,7 @@ export default function SelectorProductoVentaGeneral({
           }}
           onFocus={() => setMostrar(true)}
           onBlur={() => setTimeout(() => setMostrar(false), 200)}
-          placeholder="🔍 Buscar por nombre, marca, color, modelo, categoría..."
+          placeholder="Buscar por nombre, marca, color, modelo, categoría..."
           className="w-full p-4 pl-12 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-lg"
         />
         <div className="absolute left-4 top-1/2 transform -translate-y-1/2">

@@ -61,6 +61,21 @@ export default function ModalVenta({
   const [queryCliente, setQueryCliente] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
 
+  // ✅ FUNCIÓN PARA LIMPIAR DATOS TEMPORALES
+  const limpiarDatosTemporales = () => {
+    console.log('🧹 Limpiando datos temporales...');
+    
+    // Limpiar todos los datos temporales de ventas
+    localStorage.removeItem("ventaTelefonoPendiente");
+    localStorage.removeItem("pagoTelefonoPendiente");
+    localStorage.removeItem("clienteDesdeTelefono");
+    localStorage.removeItem("telefonoComoPago");
+    localStorage.removeItem("productoDesdeTelefono");
+    localStorage.removeItem("pagoDesdeTelefono");
+    
+    console.log('✅ Datos temporales limpiados');
+  };
+
   useEffect(() => {
     const clienteDesdeTelefono = localStorage.getItem("clienteDesdeTelefono");
     if (clienteDesdeTelefono) {
@@ -177,7 +192,9 @@ export default function ModalVenta({
   }, 0);
 
   // Calcular descuentos
-  const descuentoPago = pago && pago.monto ? Number(pago.monto) : 0;
+  const descuentoPago = pago.moneda === "USD" 
+    ? Number(pago.montoUSD || 0) 
+    : Number(pago.monto || 0);
   const descuentoTelefono = telefonoComoPago ? Number(telefonoComoPago.valorPago || 0) : 0;
   const totalDescuentos = descuentoPago + descuentoTelefono;
 
@@ -211,7 +228,11 @@ export default function ModalVenta({
               <p className="font-medium">{new Date().toLocaleDateString("es-AR")}</p>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => {
+                // ✅ LIMPIAR DATOS ANTES DE CERRAR
+                limpiarDatosTemporales();
+                onClose?.();
+              }}
               className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white text-lg sm:text-xl font-bold transition-all duration-200 hover:scale-105"
             >
               ×
@@ -474,14 +495,14 @@ export default function ModalVenta({
           </div>
 
           {/* Sección de Pagos y Descuentos - Responsive */}
-          {(pago.monto || telefonoComoPago) && (
+          {((pago.monto && pago.monto > 0) || (pago.montoUSD && pago.montoUSD > 0) || telefonoComoPago) && (
             <div className="bg-gradient-to-r from-[#ecf0f1] to-white rounded-xl border border-[#3498db] p-4 sm:p-6">
               <h3 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2">
                 <span className="w-6 h-6 sm:w-8 sm:h-8 bg-[#3498db] rounded-lg flex items-center justify-center text-white text-sm">💳</span>
                 <span className="text-sm sm:text-base">Pagos Registrados</span>
               </h3>
               <div className="space-y-3">
-                {pago.monto && (
+                {((pago.monto && pago.monto > 0) || (pago.montoUSD && pago.montoUSD > 0)) && (
                   <div className="bg-white rounded-lg p-3 sm:p-4 border border-[#ecf0f1] shadow-sm">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2 sm:gap-3">
@@ -492,7 +513,10 @@ export default function ModalVenta({
                         </div>
                       </div>
                       <span className="text-base sm:text-lg font-bold text-[#27ae60]">
-                        ${Number(pago.monto).toLocaleString("es-AR")} {pago.moneda}
+                        {pago.moneda === "USD" 
+                          ? `USD ${Number(pago.montoUSD || 0).toLocaleString("es-AR")}`
+                          : `${Number(pago.monto || 0).toLocaleString("es-AR")} ARS`
+                        }
                       </span>
                     </div>
                   </div>
@@ -509,7 +533,8 @@ export default function ModalVenta({
                         </div>
                       </div>
                       <span className="text-base sm:text-lg font-bold text-[#3498db]">
-                        ${Number(telefonoComoPago.valorPago).toLocaleString("es-AR")}
+                        {telefonoComoPago.moneda === "USD" ? "USD $" : "$"}
+                        {Number(telefonoComoPago.valorPago).toLocaleString("es-AR")}
                       </span>
                     </div>
                   </div>
@@ -567,6 +592,19 @@ export default function ModalVenta({
           <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
             <button
               onClick={() => {
+                const confirmar = window.confirm('¿Estás seguro de cancelar esta venta? Se perderán todos los datos.');
+                if (confirmar) {
+                  limpiarDatosTemporales();
+                  onClose?.();
+                }
+              }}
+              className="w-full sm:w-auto bg-[#e74c3c] hover:bg-[#c0392b] text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base"
+            >
+              ❌ Cancelar Venta
+            </button>
+
+            <button
+              onClick={() => {
                 console.log("COBRAR PRESIONADO");
                 setModalPagoAbierto(true);
               }}
@@ -583,6 +621,8 @@ export default function ModalVenta({
               pago={pago}
               moneda={hayTelefono ? "USD" : "ARS"}
               onGuardar={() => {
+                // ✅ LIMPIAR DATOS DESPUÉS DE GUARDAR EXITOSAMENTE
+                limpiarDatosTemporales();
                 setRefrescar(prev => !prev);
                 onClose?.();
               }}
@@ -590,48 +630,49 @@ export default function ModalVenta({
           </div>
         </div>
 
-        {/* Modal de pago */}
-        {modalPagoAbierto && (
-          <ModalPago
-            mostrar={modalPagoAbierto}
-            pago={pago}
-            onClose={() => setModalPagoAbierto(false)}
-            handlePagoChange={(e) => {
-              const { name, value } = e.target;
-              setPago((prev) => ({
-                ...prev,
-                [name]: value,
-              }));
-            }}
-            onGuardarPago={async (nuevoPago) => {
-              if (!rol?.negocioID) return;
+        // 🔧 REEMPLAZAR la sección del ModalPago en ModalVenta (líneas 675-690 aprox):
 
-              const nuevoPagoFirebase = {
-                ...nuevoPago,
-                cliente,
-                fecha: new Date().toLocaleDateString("es-AR"),
-                moneda: nuevoPago.moneda || "ARS",
-                forma: nuevoPago.formaPago || "",
-                observaciones: nuevoPago.observaciones || "",
-              };
-
-              try {
-                await addDoc(
-                  collection(db, `negocios/${rol.negocioID}/pagos`),
-                  nuevoPagoFirebase
-                );
-
-                setPago(nuevoPago);
-                setGuardadoConExito(true);
-                setTimeout(() => setGuardadoConExito(false), 2000);
-                setModalPagoAbierto(false);
-              } catch (err) {
-                console.error("Error al guardar pago:", err);
-              }
-            }}
-            guardadoConExito={guardadoConExito}
-          />
-        )}
+{/* Modal de pago */}
+{modalPagoAbierto && (
+  <ModalPago
+    mostrar={modalPagoAbierto}
+    pago={pago}
+    onClose={() => setModalPagoAbierto(false)}
+    handlePagoChange={(e) => {
+      const { name, value } = e.target;
+      setPago((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }}
+    onGuardarPago={(nuevoPago) => {
+      console.log('💰 Pago recibido del ModalPago:', nuevoPago);
+      
+      const pagoConvertido = {
+        monto: nuevoPago.moneda === "ARS" ? (nuevoPago.monto || "") : "",
+        montoUSD: nuevoPago.moneda === "USD" ? (nuevoPago.montoUSD || "") : "",
+        moneda: nuevoPago.moneda || "ARS",
+        formaPago: nuevoPago.formaPago || "",
+        destino: nuevoPago.destino || "",
+        observaciones: nuevoPago.observaciones || "",
+      };
+      console.log('🔄 Pago convertido para ModalVenta:', pagoConvertido);
+      
+      // ✅ ACTUALIZAR ESTADO LOCAL
+      setPago(pagoConvertido);
+      
+      // ✅ MOSTRAR FEEDBACK VISUAL
+      setGuardadoConExito(true);
+      setTimeout(() => setGuardadoConExito(false), 2000);
+      
+      // ✅ CERRAR MODAL
+      setModalPagoAbierto(false);
+      
+      console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
+    }}
+    guardadoConExito={guardadoConExito}
+  />
+)}
       </div>
     </div>
   );

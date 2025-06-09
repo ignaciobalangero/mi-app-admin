@@ -1,5 +1,7 @@
 "use client";
 
+import { useRol } from "@/lib/useRol"; 
+
 interface Producto {
   id: string;
   codigo: string;
@@ -26,12 +28,13 @@ interface Props {
 }
 
 export default function TablaProductos({ productos, editarProducto, eliminarProducto, cotizacion, verPreciosConvertidos }: Props) {
+  const { rol } = useRol();
   const verMas = (p: Producto) => {
     if (cotizacion === null) {
       alert("No se pudo obtener la cotización del dólar.");
       return;
     }
-
+   
     const convertir = (precio: number) =>
       p.moneda === "USD" ? `$${(precio * cotizacion).toLocaleString("es-AR")} ARS` : `$${precio.toLocaleString("es-AR")} ARS`;
 
@@ -76,15 +79,19 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
               <th className="px-2 py-2 border border-[#bdc3c7] text-xs font-semibold text-[#2c3e50] text-left w-[80px]">
                 🎨 Color
               </th>
+              {rol?.tipo === "admin" && (
               <th className="px-2 py-2 border border-[#bdc3c7] text-xs font-semibold text-[#2c3e50] text-right w-[80px]">
                 💸 Costo
               </th>
+              )}
               <th className="px-2 py-2 border border-[#bdc3c7] text-xs font-semibold text-[#2c3e50] text-center w-[60px]">
                 📊 Cant.
               </th>
+              {rol?.tipo === "admin" && (
               <th className="px-2 py-2 border border-[#bdc3c7] text-xs font-semibold text-[#2c3e50] text-center w-[140px]">
                 ⚙️ Acciones
               </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -149,6 +156,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
                         {p.color}
                       </span>
                     </td>
+                    {rol?.tipo === "admin" && (
                     <td className="p-1.5 border border-[#bdc3c7] text-right">
                       <span className={`text-xs font-semibold ${
                         p.moneda === 'USD' ? 'text-[#3498db]' : 'text-[#27ae60]'
@@ -156,6 +164,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
                         {p.moneda} ${p.precioCosto}
                       </span>
                     </td>
+                    )}
                     <td className="p-1.5 border border-[#bdc3c7] text-center">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${
                         p.cantidad === 0 
@@ -167,6 +176,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
                         {p.cantidad}
                       </span>
                     </td>
+                    {rol?.tipo === "admin" && (
                     <td className="p-1.5 border border-[#bdc3c7] text-center">
                       <div className="flex gap-1 justify-center flex-wrap">
                         <button
@@ -189,6 +199,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
                         </button>
                       </div>
                     </td>
+                    )}
                   </tr>
                 );
               })

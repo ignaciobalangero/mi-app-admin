@@ -27,6 +27,26 @@ export default function ModalPago({
 }: Props) {
   if (!mostrar || !pago) return null;
 
+  // ✅ FUNCIÓN PARA FORMATEAR PAGO ANTES DE ENVIARLO AL MODAL VENTA
+  const handleGuardarPago = () => {
+    const montoNumerico = parseFloat(pago.monto);
+    
+    // ✅ ESTRUCTURA CORRECTA PARA QUE NO APAREZCA "INVALID"
+    const pagoFormateado = {
+      // ✅ SEPARAR MONTO SEGÚN MONEDA (igual que FormularioPago)
+      monto: pago.moneda === "USD" ? null : montoNumerico,
+      montoUSD: pago.moneda === "USD" ? montoNumerico : null,
+      moneda: pago.moneda,
+      formaPago: pago.formaPago,
+      destino: pago.destino,
+      observaciones: pago.observaciones,
+      // ✅ El ModalVenta agregará fecha cuando guarde en Firebase
+    };
+
+    console.log('🎯 Pago enviado al ModalVenta:', pagoFormateado);
+    onGuardarPago(pagoFormateado);
+  };
+
   return (
     <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
       <div className="w-full h-full sm:h-auto sm:max-w-2xl lg:max-w-3xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
@@ -68,12 +88,22 @@ export default function ModalPago({
                 </label>
                 <input
                   type="number"
+                  step="0.01"
                   name="monto"
                   value={pago.monto}
                   onChange={handlePagoChange}
-                  placeholder="0.00"
+                  placeholder={pago.moneda === "USD" ? "0.00" : "0"}
                   className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-base sm:text-lg font-medium text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
+                {/* ✅ PREVIEW DEL MONTO SEGÚN MONEDA */}
+                {pago.monto && parseFloat(pago.monto) > 0 && (
+                  <div className="text-xs text-[#7f8c8d] mt-1">
+                    {pago.moneda === "USD" 
+                      ? `💵 USD $${parseFloat(pago.monto).toFixed(2)}`
+                      : `💰 ARS $${parseFloat(pago.monto).toLocaleString()}`
+                    }
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#2c3e50]">
@@ -178,7 +208,7 @@ export default function ModalPago({
               Cancelar
             </button>
             <button
-              onClick={() => onGuardarPago(pago)}
+              onClick={handleGuardarPago}
               disabled={!pago.monto || guardadoConExito}
               className={`w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium text-white transition-all duration-200 transform shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base ${
                 !pago.monto || guardadoConExito

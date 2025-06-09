@@ -109,6 +109,7 @@ export default function StockTelefonosPage() {
           {/* Tarjetas de resumen financiero */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
             {/* Total Dólares */}
+            {rol?.tipo === "admin" && (
             <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between">
                 <div>
@@ -122,8 +123,10 @@ export default function StockTelefonosPage() {
                 </div>
               </div>
             </div>
-
+            )}
+           
             {/* Total Pesos */}
+            {rol?.tipo === "admin" && (
             <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between">
                 <div>
@@ -137,6 +140,7 @@ export default function StockTelefonosPage() {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Cantidad total */}
             <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
@@ -175,7 +179,9 @@ export default function StockTelefonosPage() {
             </div>
 
             {/* Total Mayorista USD */}
+            {rol?.tipo === "admin" && (
             <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+           
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Mayorista USD</p>
@@ -188,8 +194,10 @@ export default function StockTelefonosPage() {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Total Mayorista ARS */}
+            {rol?.tipo === "admin" && (
             <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between">
                 <div>
@@ -203,6 +211,7 @@ export default function StockTelefonosPage() {
                 </div>
               </div>
             </div>
+            )}
           </div>
 
           {negocioID && (
@@ -270,8 +279,10 @@ export default function StockTelefonosPage() {
           )}
 
           {/* Footer con información adicional */}
+          
           {negocioID && telefonos.length > 0 && (
             <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
+              {rol?.tipo === "admin" && (
               <div className="text-center space-y-4">
                 <h3 className="text-lg font-semibold text-gray-800">📊 Resumen del Inventario</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
@@ -303,8 +314,9 @@ export default function StockTelefonosPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+              )}
+            </div>          
+          )}       
         </div>
       </main>
     </>

@@ -198,6 +198,23 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     localStorage.setItem("pagoTelefonoPendiente", JSON.stringify(pagoTelefono));
     localStorage.setItem("clienteDesdeTelefono", form.cliente);
     
+    // ✅ SI HAY TELÉFONO COMO PARTE DE PAGO, GUARDARLO EN LOCALSTORAGE
+    if (telefonoRecibido) {
+      const telefonoComoPago = {
+        marca: telefonoRecibido.marca || '',
+        modelo: telefonoRecibido.modelo || '',
+        valorPago: telefonoRecibido.precioCompra || telefonoRecibido.precioEstimado || 0,
+        moneda: telefonoRecibido.moneda || 'ARS', // ✅ AGREGAR MONEDA DEL TELÉFONO
+        color: telefonoRecibido.color || '',
+        estado: telefonoRecibido.estado || '',
+        imei: telefonoRecibido.imei || '',
+        observaciones: `Teléfono recibido: ${telefonoRecibido.marca} ${telefonoRecibido.modelo}`
+      };
+      
+      localStorage.setItem("telefonoComoPago", JSON.stringify(telefonoComoPago));
+      console.log('📱 Teléfono guardado para ModalVenta:', telefonoComoPago);
+    }
+    
     router.push("/ventas-general?desdeTelefono=1");
   
     setForm({
@@ -395,12 +412,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                 📦 Teléfono como parte de pago
               </button>
               
-              <button
-                onClick={() => setMostrarPagoModal(true)}
-                className="bg-[#27ae60] hover:bg-[#229954] text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md flex items-center gap-2"
-              >
-                💳 Agregar Pago
-              </button>
+            
             </div>
 
             <button
@@ -412,7 +424,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                   : "bg-[#3498db] hover:bg-[#2980b9] hover:scale-105"
               }`}
             >
-              {editandoId ? "✏️ Actualizar Venta" : "💾 Guardar Venta"}
+              {editandoId ? "✏️ Actualizar Venta" : "💾 Continuar Venta"}
             </button>
           </div>
         </div>
@@ -464,7 +476,26 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                 negocioID={negocioID}
                 placeholderProveedor="Cliente que entregó el teléfono"
                 onGuardado={(datos) => {
+                  console.log('📱 Teléfono registrado como parte de pago:', datos);
+                  
+                  // ✅ GUARDAR EN STATE LOCAL
                   setTelefonoRecibido(datos);
+                  
+                  // ✅ TAMBIÉN GUARDAR EN LOCALSTORAGE PARA EL MODALVENTA
+                  const telefonoComoPago = {
+                    marca: datos.marca || '',
+                    modelo: datos.modelo || '',
+                    valorPago: datos.precioCompra || datos.precioEstimado || 0, // El valor que recibís el teléfono
+                    moneda: datos.moneda || 'ARS', // ✅ AGREGAR MONEDA DEL TELÉFONO
+                    color: datos.color || '',
+                    estado: datos.estado || '',
+                    imei: datos.imei || '',
+                    observaciones: `Teléfono recibido como parte de pago: ${datos.marca} ${datos.modelo}`
+                  };
+                  
+                  console.log('💾 Guardando en localStorage:', telefonoComoPago);
+                  localStorage.setItem("telefonoComoPago", JSON.stringify(telefonoComoPago));
+                  
                   setMostrarModalTelefono(false);
                 }}
               />

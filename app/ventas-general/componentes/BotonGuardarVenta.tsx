@@ -117,7 +117,24 @@ export default function BotonGuardarVenta({
     }
 
     // 5. Registrar el pago si existe
-    const montoPagado = Number(pagoTelefono.monto || 0);
+// 🔧 AGREGAR ESTOS CONSOLE.LOG EN BotonGuardarVenta.tsx
+// En la función guardarVentaTelefono(), antes de calcular montoPagado:
+
+console.log('🐛 DEBUG VENTA TELEFONO:');
+console.log('📱 datosVentaTelefono:', datosVentaTelefono);
+console.log('💰 pagoTelefono completo:', pagoTelefono);
+console.log('💵 pagoTelefono.monto:', pagoTelefono.monto);
+console.log('💲 pagoTelefono.montoUSD:', pagoTelefono.montoUSD);
+console.log('🪙 pagoTelefono.moneda:', pagoTelefono.moneda);
+
+// ANTES de esta línea:
+const montoPagado = pagoTelefono.moneda === "USD" 
+  ? Number(pagoTelefono.montoUSD || 0)
+  : Number(pagoTelefono.monto || 0);
+
+console.log('💎 montoPagado calculado:', montoPagado);
+console.log('📱 valorTelefonoEntregado:', Number(datosVentaTelefono.telefonoRecibido?.precioCompra || 0));
+console.log('💯 totalPagado final:', montoPagado + Number(datosVentaTelefono.telefonoRecibido?.precioCompra || 0));
     const valorTelefonoEntregado = Number(datosVentaTelefono.telefonoRecibido?.precioCompra || 0);
     const totalPagado = montoPagado + valorTelefonoEntregado;
 
@@ -141,90 +158,118 @@ export default function BotonGuardarVenta({
     return ventaTelefonosRef.id;
   };
 
-  const guardarVentaNormal = async () => {
-    if (!rol?.negocioID) return;
+// 🔧 REEMPLAZAR COMPLETAMENTE la función guardarVentaNormal en tu BotonGuardarVenta:
 
-    const nroVenta = await obtenerYSumarNumeroVenta(rol.negocioID);
+const guardarVentaNormal = async () => {
+  if (!rol?.negocioID) return;
 
-    const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
-    const snap = await getDoc(configRef);
-    const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
+  const nroVenta = await obtenerYSumarNumeroVenta(rol.negocioID);
 
-    const productosConCodigo = productos.map((p) => ({
-      ...p,
-      codigo: p.codigo || p.id || "",
-    }));
+  const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
+  const snap = await getDoc(configRef);
+  const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
 
-    // Descontar del stock para accesorios y repuestos
-    for (const producto of productosConCodigo) {
-      const codigo = producto.codigo;
-      if (!codigo) continue;
+  const productosConCodigo = productos.map((p) => ({
+    ...p,
+    codigo: p.codigo || p.id || "",
+  }));
 
-      if (producto.tipo === "accesorio") {
-        await descontarAccesorioDelStock(rol.negocioID, codigo, producto.cantidad);
-      }
+  // Descontar del stock para accesorios y repuestos
+  for (const producto of productosConCodigo) {
+    const codigo = producto.codigo;
+    if (!codigo) continue;
 
-      if (producto.tipo === "repuesto") {
-        await descontarRepuestoDelStock(rol.negocioID, codigo, producto.cantidad);
-
-        const hojaFirebase = producto.hoja;
-        const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);
-
-        if (sheetConfig?.id) {
-          await fetch("/api/actualizar-stock-sheet", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sheetID: sheetConfig.id,
-              hoja: hojaFirebase,
-              codigo,
-              cantidadVendida: producto.cantidad,
-            }),
-          });
-        }
-      }
+    if (producto.tipo === "accesorio") {
+      await descontarAccesorioDelStock(rol.negocioID, codigo, producto.cantidad);
     }
 
-    const pagoLimpio = {
-      monto: pago?.monto || 0,
-      moneda: pago?.moneda || "ARS",
-      forma: pago?.formaPago || "",
-      destino: pago?.destino || "",
-      observaciones: pago?.observaciones || "",
-    };
+    if (producto.tipo === "repuesto") {
+      await descontarRepuestoDelStock(rol.negocioID, codigo, producto.cantidad);
 
-    const total = productosConCodigo.reduce((acc, p) => acc + (p.precioUnitario * p.cantidad), 0);
+      const hojaFirebase = producto.hoja;
+      const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);
 
-    const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
-      productos: productosConCodigo,
-      cliente,
-      fecha,
-      observaciones,
-      pago: pagoLimpio,
-      moneda,
-      estado: "pendiente",
-      nroVenta,
-      total, // 🔥 AGREGAR: Total calculado
-      timestamp: serverTimestamp(),
+      if (sheetConfig?.id) {
+        await fetch("/api/actualizar-stock-sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sheetID: sheetConfig.id,
+            hoja: hojaFirebase,
+            codigo,
+            cantidadVendida: producto.cantidad,
+          }),
+        });
+      }
+    }
+  }
+
+  // ✅ PREPARAR PAGO CON ESTRUCTURA CORRECTA
+  const pagoLimpio = {
+    monto: pago?.moneda === "USD" ? null : (pago?.monto || pago?.montoUSD || 0),
+    montoUSD: pago?.moneda === "USD" ? (pago?.montoUSD || pago?.monto || 0) : null,
+    moneda: pago?.moneda || "ARS",
+    forma: pago?.formaPago || "",
+    destino: pago?.destino || "",
+    observaciones: pago?.observaciones || "",
+  };
+
+  const total = productosConCodigo.reduce((acc, p) => acc + (p.precioUnitario * p.cantidad), 0);
+
+  // ✅ CREAR LA VENTA
+  const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
+    productos: productosConCodigo,
+    cliente,
+    fecha,
+    observaciones,
+    pago: pagoLimpio,
+    moneda,
+    estado: "pendiente",
+    nroVenta,
+    total,
+    timestamp: serverTimestamp(),
+  });
+
+  // ✅ GUARDAR EL PAGO SI EXISTE
+  const montoAGuardar = pago?.moneda === "USD" 
+    ? Number(pago?.montoUSD || 0) 
+    : Number(pago?.monto || 0);
+
+  console.log('🔍 Debug pago:', {
+    moneda: pago?.moneda,
+    monto: pago?.monto,
+    montoUSD: pago?.montoUSD,
+    montoFinal: montoAGuardar
+  });
+
+  if (montoAGuardar > 0) {
+    console.log('💾 Guardando pago en Firebase...', {
+      monto: pago?.moneda === "USD" ? null : montoAGuardar,
+      montoUSD: pago?.moneda === "USD" ? montoAGuardar : null,
+      moneda: pago?.moneda || "ARS"
     });
 
-    if (pagoLimpio.monto > 0) {
-      await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-        cliente,
-        fecha,
-        monto: Number(pagoLimpio.monto),
-        moneda: pagoLimpio.moneda,
-        forma: pagoLimpio.forma,
-        destino: pagoLimpio.destino,
-        observaciones: pagoLimpio.observaciones,
-        timestamp: serverTimestamp(),
-        // 🔥 AGREGAR: Número de venta en el pago
-        nroVenta: nroVenta,
-      });
-    }
+    await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+      cliente,
+      fecha,
+      monto: pago?.moneda === "USD" ? null : montoAGuardar,
+      montoUSD: pago?.moneda === "USD" ? montoAGuardar : null,
+      moneda: pago?.moneda || "ARS",
+      forma: pago?.formaPago || "Efectivo",
+      destino: pago?.destino || "",
+      observaciones: pago?.observaciones || "",
+      cotizacion: 1000,
+      timestamp: serverTimestamp(),
+      nroVenta: nroVenta,
+    });
 
-    return ventaRef.id;
-  };
+    console.log('✅ Pago guardado exitosamente');
+  } else {
+    console.log('❌ No se guarda pago. Monto calculado:', montoAGuardar);
+  }
+
+  return ventaRef.id;
+};
 
   const guardarVenta = async () => {
     if (!rol?.negocioID || productos.length === 0 || !cliente) return;
@@ -238,8 +283,7 @@ export default function BotonGuardarVenta({
       if (ventaTelefonoPendiente && desdeTelefono) {
         // Es una venta de teléfono, pero también puede tener otros productos
         const datosVentaTelefono = JSON.parse(ventaTelefonoPendiente);
-        const pagoTelefono = pagoTelefonoPendiente ? JSON.parse(pagoTelefonoPendiente) : {};
-        
+        const pagoTelefono = pago || {};         
         // Separar el teléfono de otros productos
         const telefono = productos.find(p => p.categoria === "Teléfono");
         const otrosProductos = productos.filter(p => p.categoria !== "Teléfono");
@@ -335,8 +379,6 @@ export default function BotonGuardarVenta({
   return (
     <div className="mt-6">
       <div className="flex justify-end gap-4">
-       
-
         {/* Botón Guardar Venta - Estilo GestiOne */}
         <button
           onClick={guardarVenta}
