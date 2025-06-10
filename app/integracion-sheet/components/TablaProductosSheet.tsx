@@ -202,8 +202,11 @@ export default function TablaProductosSheet({
           });
 
           const resultadoFinal = [...combinados, ...soloFirestore];
-          resultadoFinal.sort((a, b) => a.codigo.localeCompare(b.codigo));
-           setDatos(resultadoFinal);
+          const resultadoSeguro = resultadoFinal
+          .filter(item => item && item.codigo && typeof item.codigo === 'string' && item.codigo.trim() !== '')
+          .sort((a, b) => a.codigo.localeCompare(b.codigo));
+        
+        setDatos(resultadoSeguro);
            
 const sugerencias = resultadoFinal.filter((p) => {
   return typeof p.stockIdeal === "number" &&

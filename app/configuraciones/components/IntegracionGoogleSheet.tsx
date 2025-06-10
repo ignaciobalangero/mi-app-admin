@@ -47,7 +47,7 @@ export default function IntegracionGoogleSheet() {
               </h3>
               <ol className="list-decimal pl-5 space-y-1 text-gray-700 text-sm">
                 <li>Entrá a <strong>Google Sheets</strong> y creá una hoja nueva o abrí una existente.</li>
-                <li>Compartila con este correo: <code>integracionsheet@ingresos-trabajos.iam.gserviceaccount.com
+                <li>Compartila con este correo: <code>firebase-adminsdk-fbsvc@ingresos-trabajos.iam.gserviceaccount.com
                 </code> con permiso de editor.</li>
                 <li>Copiá el ID de la URL: todo lo que está entre <code>/d/</code> y <code>/edit</code>.</li>
                 <li>Pegalo en la sección <strong>“Agregar Google Sheet”</strong> de esta app.</li>
