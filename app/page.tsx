@@ -58,110 +58,184 @@ function Home() {
     cargarTrabajosDelMes();
   }, [rol]);
 
-  useEffect(() => {
-    const cargarVentasDelMes = async () => {
-      if (!rol?.negocioID) return;
+// Fragmento corregido para Home.tsx - Solo las funciones que cargan las ventas
 
-      const ref = collection(db, `negocios/${rol.negocioID}/ventasGeneral`);
-      const snap = await getDocs(ref);
+useEffect(() => {
+  const cargarVentasDelMes = async () => {
+    if (!rol?.negocioID) return;
 
-      const hoy = new Date();
-      const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
-      const anioActual = hoy.getFullYear().toString();
-      const mesAnioActual = `${mesActual}/${anioActual}`;
+    console.log("🔄 Cargando ventas del mes desde ventasGeneral...");
 
-      let accesoriosYRepuestos = 0;
-      let telefonos = 0;
+    const ref = collection(db, `negocios/${rol.negocioID}/ventasGeneral`);
+    const snap = await getDocs(ref);
 
-      snap.forEach((doc) => {
-        const data = doc.data();
-        const fecha = data.fecha || "";
-        if (!fecha.endsWith(mesAnioActual)) return;
+    const hoy = new Date();
+    const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
+    const anioActual = hoy.getFullYear().toString();
+    const mesAnioActual = `${mesActual}/${anioActual}`;
 
-        const productos = data.productos || [];
-        productos.forEach((p: any) => {
-          if (p.categoria === "Teléfono") {
-            telefonos += 1;
-          } else {
-            accesoriosYRepuestos += Number(p.cantidad || 0);
-          }
-        });
+    console.log("📅 Buscando ventas del mes:", mesAnioActual);
+
+    let accesoriosYRepuestos = 0;
+    let telefonos = 0;
+
+    snap.forEach((doc) => {
+      const data = doc.data();
+      const fecha = data.fecha || "";
+      
+      console.log("📋 Procesando venta:", {
+        id: doc.id,
+        fecha,
+        productos: data.productos?.length || 0
       });
 
-      setAccesoriosVendidos(accesoriosYRepuestos);
-      setTelefonosVendidos(telefonos);
-    };
-
-    cargarVentasDelMes();
-  }, [rol]);
-
-  useEffect(() => {
-    const cargarResumenMensual = async () => {
-      if (!rol?.negocioID) return;
-
-      const refTrabajos = collection(db, `negocios/${rol.negocioID}/trabajos`);
-      const refVentas = collection(db, `negocios/${rol.negocioID}/ventasGeneral`);
-      const [trabajosSnap, ventasSnap] = await Promise.all([
-        getDocs(refTrabajos),
-        getDocs(refVentas),
-      ]);
-
-      const hoy = new Date();
-      const resumen: Record<string, any> = {};
-      let cajaHoy = 0;
-
-      for (let i = 0; i < 6; i++) {
-        const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-        const key = `${String(fecha.getMonth() + 1).padStart(2, "0")}/${fecha.getFullYear()}`;
-        resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0 };
+      // ✅ VERIFICAR FORMATO DE FECHA - ARREGLADO
+      // Extraer mes y año de fechas como "4/6/2025" o "10/6/2025"
+      const parteFecha = fecha.split('/');
+      if (parteFecha.length !== 3) {
+        console.log("⏭️ Formato de fecha incorrecto:", fecha);
+        return;
       }
+      
+      const diaVenta = parteFecha[0];
+      const mesVenta = String(parteFecha[1]).padStart(2, "0"); // Convertir 6 → 06
+      const anioVenta = parteFecha[2];
+      const mesAnioVenta = `${mesVenta}/${anioVenta}`;
+      
+      if (mesAnioVenta !== mesAnioActual) {
+        console.log("⏭️ Fecha no coincide:", mesAnioVenta, "vs", mesAnioActual);
+        return;
+      }
+      
+      console.log("✅ Fecha coincide:", mesAnioVenta);
 
-      trabajosSnap.forEach((doc) => {
-        const d = doc.data();
-        const fecha = d.fecha || "";
-        const estado = d.estado || "";
-        Object.keys(resumen).forEach((key) => {
-          if ((estado === "ENTREGADO" || estado === "PAGADO") && fecha.endsWith(key)) {
-            resumen[key].trabajos += 1;
-          }
+      const productos = data.productos || [];
+      
+      productos.forEach((p: any) => {
+        console.log("🏷️ Producto:", {
+          categoria: p.categoria,
+          cantidad: p.cantidad,
+          producto: p.producto || p.descripcion
         });
+
+        // 📱 TELÉFONOS - Exactamente como está en la tabla
+        if (p.categoria === "Teléfono") {
+          telefonos += 1; // Un teléfono por producto
+          console.log("📱 Teléfono encontrado, total:", telefonos);
+        } 
+        // 🔌🔧 ACCESORIOS Y REPUESTOS - Por cantidad
+        else if (p.categoria === "Accesorio" || p.categoria === "Repuesto") {
+          const cantidad = Number(p.cantidad || 0);
+          accesoriosYRepuestos += cantidad;
+          console.log(`${p.categoria === "Accesorio" ? "🔌" : "🔧"} ${p.categoria} +${cantidad}, total:`, accesoriosYRepuestos);
+        }
       });
+    });
 
-      ventasSnap.forEach((doc) => {
-        const d = doc.data();
-        const fecha = d.fecha || "";
-        const productos = d.productos || [];
+    console.log("✅ Resumen del mes:", {
+      accesoriosYRepuestos,
+      telefonos,
+      totalVentas: snap.size
+    });
 
-        const hoyStr = new Date().toLocaleDateString("es-AR");
+    setAccesoriosVendidos(accesoriosYRepuestos);
+    setTelefonosVendidos(telefonos);
+  };
 
-        productos.forEach((p: any) => {
-          const total = Number(p.total || 0);
+  cargarVentasDelMes();
+}, [rol]);
 
-          Object.keys(resumen).forEach((key) => {
-            if (fecha.endsWith(key)) {
+useEffect(() => {
+  const cargarResumenMensual = async () => {
+    if (!rol?.negocioID) return;
+
+    console.log("📊 Cargando resumen mensual...");
+
+    // 🔄 SOLO USAR ventasGeneral AHORA
+    const refVentas = collection(db, `negocios/${rol.negocioID}/ventasGeneral`);
+    const refTrabajos = collection(db, `negocios/${rol.negocioID}/trabajos`);
+    
+    const [ventasSnap, trabajosSnap] = await Promise.all([
+      getDocs(refVentas),
+      getDocs(refTrabajos),
+    ]);
+
+    const hoy = new Date();
+    const resumen: Record<string, any> = {};
+    let cajaHoy = 0;
+
+    // Inicializar últimos 6 meses
+    for (let i = 0; i < 6; i++) {
+      const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      const key = `${String(fecha.getMonth() + 1).padStart(2, "0")}/${fecha.getFullYear()}`;
+      resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0 };
+    }
+
+    // ✅ TRABAJOS - NO CAMBIAR (funciona bien)
+    trabajosSnap.forEach((doc) => {
+      const d = doc.data();
+      const fecha = d.fecha || "";
+      const estado = d.estado || "";
+      
+      Object.keys(resumen).forEach((key) => {
+        if ((estado === "ENTREGADO" || estado === "PAGADO") && fecha.endsWith(key)) {
+          resumen[key].trabajos += 1;
+        }
+      });
+    });
+
+    // 🔄 VENTAS - USAR ventasGeneral CON CATEGORÍAS CORRECTAS
+    ventasSnap.forEach((doc) => {
+      const d = doc.data();
+      const fecha = d.fecha || "";
+      const productos = d.productos || [];
+
+      const hoyStr = new Date().toLocaleDateString("es-AR");
+
+      productos.forEach((p: any) => {
+        const total = Number(p.total || 0);
+
+        Object.keys(resumen).forEach((key) => {
+          // Extraer mes y año de la fecha de la venta
+          const parteFecha = fecha.split('/');
+          if (parteFecha.length === 3) {
+            const mesVenta = String(parteFecha[1]).padStart(2, "0");
+            const anioVenta = parteFecha[2]; 
+            const mesAnioVenta = `${mesVenta}/${anioVenta}`;
+            
+            if (mesAnioVenta === key) {
+              // 📱 TELÉFONOS
               if (p.categoria === "Teléfono") {
                 resumen[key].telefonos += 1;
-              } else {
+              } 
+              // 🔌🔧 ACCESORIOS Y REPUESTOS
+              else if (p.categoria === "Accesorio" || p.categoria === "Repuesto") {
                 resumen[key].accesorios += Number(p.cantidad || 0);
               }
             }
-          });
-
-          if (fecha === hoyStr) {
-            cajaHoy += total;
           }
         });
-      });
 
-      const datosOrdenados = Object.values(resumen)
+        // 💰 CAJA DEL DÍA
+        if (fecha === hoyStr) {
+          cajaHoy += total;
+        }
+      });
+    });
+
+    const datosOrdenados = Object.values(resumen)
       .filter((item) => item.trabajos > 0 || item.accesorios > 0 || item.telefonos > 0)
       .reverse();
-      setDatosGrafico(datosOrdenados);
-      setTotalCajaHoy(cajaHoy);
-    };
+    
+    console.log("📈 Datos del gráfico:", datosOrdenados);
+    console.log("💰 Caja hoy:", cajaHoy);
+    
+    setDatosGrafico(datosOrdenados);
+    setTotalCajaHoy(cajaHoy);
+  };
 
-    cargarResumenMensual();
-  }, [rol]);
+  cargarResumenMensual();
+}, [rol]);
 
   if (!rol || !rol.tipo) {
     return (

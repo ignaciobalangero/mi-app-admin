@@ -13,6 +13,12 @@ interface ExtraData {
   precio3Pesos?: number;
   cantidad?: number;
   stockIdeal?: number;
+  modelo?: string;
+  producto?: string;
+  categoria?: string;
+  precioUSD?: number;
+  precioARS?: number;
+  ganancia?: number;
 }
 
 import { useEffect, useState } from "react";
@@ -213,51 +219,118 @@ export default function TablaProductosSheet({
     const fetchSoloFirebase = async () => {
       if (!rol?.negocioID) return;
       setCargando(true);
+      console.log("🔄 Cargando datos desde Firebase...");
+      
       try {
         const extraSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));
-        const firestoreData: ExtraData[] = extraSnap.docs
+        
+        console.log(`📊 Total documentos en Firebase: ${extraSnap.docs.length}`);
+        
+        const firestoreData = extraSnap.docs
           .map((doc) => {
-            const data = doc.data() as ExtraData;
-            return { codigo: doc.id, ...data };
+            const data = doc.data();
+            
+            // 🛡️ LECTURA SUPER TOLERANTE - Manejar cualquier estructura
+            const producto = {
+              codigo: doc.id,
+              // Manejar campo hoja con múltiples posibilidades
+              hoja: data.hoja || data.hojaOriginal || '',
+              // Manejar producto/modelo con múltiples posibilidades  
+              modelo: data.modelo || data.producto || data.nombre || '',
+              categoria: data.categoria || data.cat || '',
+              proveedor: data.proveedor || '',
+              // Precios - manejar múltiples formatos
+              precio1: Number(data.precio1 || data.precio || data.precioUSD || 0),
+              precio1Pesos: Number(data.precio1Pesos || data.precioARS || data.precioPesos || 0),
+              precioCosto: Number(data.precioCosto || data.costo || 0),
+              // Cantidades
+              cantidad: Number(data.cantidad || data.stock || 0),
+              stockIdeal: Number(data.stockIdeal || data.stockMinimo || 0),
+              // Preservar TODOS los datos originales
+              ...data
+            };
+            
+            console.log(`📋 Documento ${doc.id}:`, {
+              hoja: producto.hoja,
+              modelo: producto.modelo,
+              tieneProducto: !!data.producto,
+              tieneModelo: !!data.modelo,
+              camposOriginales: Object.keys(data).length
+            });
+            
+            return producto;
           })
-          .filter((prod) => prod.hoja === hoja);
-  
+          .filter((prod) => {
+            // 🔍 FILTRO MÁS FLEXIBLE
+            const tieneHoja = prod.hoja && prod.hoja.toString().toLowerCase().includes(hoja.toLowerCase());
+            const tieneNombre = prod.modelo && prod.modelo.toString().trim() !== '';
+            
+            console.log(`🔍 Producto ${prod.codigo}:`, {
+              hoja: prod.hoja,
+              objetivo: hoja,
+              tieneHoja,
+              tieneNombre,
+              pasa: tieneHoja && tieneNombre
+            });
+            
+            return tieneHoja && tieneNombre;
+          });
+
+        console.log(`✅ Productos filtrados por hoja "${hoja}": ${firestoreData.length}`);
+
         const resultadoFinal = firestoreData.map((p) => {
           const precioUSD = Number(p.precio1) || 0;
           const precioCosto = Number(p.precioCosto) || 0;
           const ganancia = precioUSD - precioCosto;
           const precioARS = Number(p.precio1Pesos) || Math.round(precioUSD * (dolarManual || cotizacionFinal || 1000));
-  
+
           return {
             ...p,
             precioARS,
             ganancia,
           };
         });
-  
+
+        console.log(`💰 Productos con precios calculados: ${resultadoFinal.length}`);
+
+        // 🔧 FILTRO MÍNIMO - Solo verificar que existe
         const resultadoSeguro = resultadoFinal
-          .filter(item => item && item.codigo && typeof item.codigo === 'string' && item.codigo.trim() !== '')
-          .sort((a, b) => a.codigo.localeCompare(b.codigo));
-  
+          .filter(item => item && item.codigo)
+          .sort((a, b) => {
+            const codigoA = a.codigo?.toString() || '';
+            const codigoB = b.codigo?.toString() || '';
+            return codigoA.localeCompare(codigoB);
+          });
+
+        console.log(`✅ Productos finales: ${resultadoSeguro.length}`);
+        console.log(`📝 Primeros 5 productos:`, resultadoSeguro.slice(0, 5).map(p => ({
+          codigo: p.codigo,
+          modelo: p.modelo,
+          hoja: p.hoja,
+          estructura: Object.keys(p).length + ' campos'
+        })));
+
         setDatos(resultadoSeguro);
-  
+
+        // Cálculo de sugerencias
         const sugerencias = resultadoSeguro.filter((p) =>
           typeof p.stockIdeal === "number" &&
           typeof p.cantidad === "number" &&
           p.stockIdeal > p.cantidad
         );
-  
+
+        console.log(`💡 Sugerencias de pedidos: ${sugerencias.length}`);
         setProductosAPedir(sugerencias);
+        
       } catch (err) {
         console.error("❌ Error cargando datos desde Firebase:", err);
       } finally {
         setCargando(false);
       }
     };
-  
+
     fetchSoloFirebase();
   }, [sheetID, hoja, recarga, rol?.negocioID, cotizacionFinal, dolarManual]);
-  
 
   const totalCosto = datos.reduce((acc, fila) => {
     if (typeof fila.precioCosto === "number" && typeof fila.cantidad === "number") {

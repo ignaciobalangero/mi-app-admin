@@ -10,6 +10,31 @@ const RETRY_DELAY = 1000; // 1 segundo
 // ⏱️ Función para delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// 🧹 Función para sanitizar valores antes de escribir al Sheet
+function sanitizarValorParaSheet(valor: any): string {
+  if (!valor) return "";
+  
+  return valor.toString()
+    .replace(/\//g, '-')          // / → -
+    .replace(/"/g, '')            // Remover comillas dobles
+    .replace(/'/g, '')            // Remover comillas simples  
+    .replace(/&/g, 'y')           // & → y
+    .replace(/\\/g, '-')          // \ → -
+    .replace(/\|/g, '-')          // | → -
+    .replace(/\*/g, '')           // Remover asteriscos
+    .replace(/\?/g, '')           // Remover signos de pregunta
+    .replace(/</g, '')            // Remover menor que
+    .replace(/>/g, '')            // Remover mayor que
+    .replace(/:/g, '-')           // : → -
+    .replace(/;/g, '-')           // ; → -
+    .replace(/\[/g, '(')          // [ → (
+    .replace(/\]/g, ')')          // ] → )
+    .replace(/\{/g, '(')          // { → (
+    .replace(/\}/g, ')')          // } → )
+    .replace(/\s+/g, ' ')         // Múltiples espacios → uno solo
+    .trim();
+}
+
 // 🔐 Función para crear cliente autenticado
 function createSheetsClient() {
   try {
@@ -441,33 +466,64 @@ export async function actualizarPreciosEnSheet(
   }
 }
 
-// 🔧 Función para completar códigos faltantes (existente)
+// 🔧 Función para completar códigos faltantes MEJORADA CON SANITIZACIÓN
 export async function completarCodigosFaltantes(sheetID: string, hoja: string) {
   const sheets = createSheetsClient();
   
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: sheetID,
-    range: `${hoja}!A2:Z`,
-  });
-  
-  const filas = res.data.values || [];
-  const letra = hoja.trim().charAt(0).toUpperCase();
-  let contador = 1001;
-  const updates: { range: string; values: string[][] }[] = [];
-  
-  filas.forEach((fila, i) => {
-    const codigoActual = fila[0];
-    if (!codigoActual || codigoActual.trim() === "") {
-      const nuevoCodigo = `${letra}-${contador}`;
-      updates.push({ range: `${hoja}!A${i + 2}`, values: [[nuevoCodigo]] });
-      contador++;
+  try {
+    console.log("🔧 Completando códigos faltantes con sanitización...");
+    
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetID,
+      range: `${hoja}!A2:Z`,
+    });
+    
+    const filas = res.data.values || [];
+    const letra = hoja.trim().charAt(0).toUpperCase();
+    let contador = 1001;
+    const updates: { range: string; values: string[][] }[] = [];
+    
+    filas.forEach((fila, i) => {
+      const codigoActual = fila[0];
+      if (!codigoActual || codigoActual.trim() === "") {
+        const nuevoCodigo = `${letra}-${contador}`;
+        
+        // 🧹 SANITIZAR TODA LA FILA antes de actualizar
+        const filaSanitizada = fila.map(valor => sanitizarValorParaSheet(valor));
+        filaSanitizada[0] = nuevoCodigo; // Asignar el nuevo código
+        
+        updates.push({ 
+          range: `${hoja}!A${i + 2}:${String.fromCharCode(65 + filaSanitizada.length - 1)}${i + 2}`, 
+          values: [filaSanitizada] 
+        });
+        contador++;
+      }
+    });
+    
+    if (updates.length === 0) {
+      console.log("✅ No hay códigos para completar");
+      return { success: true, mensaje: "No hay códigos para completar" };
     }
-  });
-  
-  if (updates.length === 0) return;
-  
-  await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId: sheetID,
-    requestBody: { data: updates, valueInputOption: "USER_ENTERED" },
-  });
+    
+    console.log(`🔄 Actualizando ${updates.length} filas con códigos sanitizados...`);
+    
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: sheetID,
+      requestBody: { 
+        data: updates, 
+        valueInputOption: "USER_ENTERED" 
+      },
+    });
+    
+    console.log(`✅ ${updates.length} códigos completados y sanitizados`);
+    return { 
+      success: true, 
+      completados: updates.length,
+      mensaje: `${updates.length} códigos completados exitosamente` 
+    };
+    
+  } catch (error: any) {
+    console.error("❌ Error completando códigos:", error);
+    throw new Error(`Error al completar códigos: ${error.message}`);
+  }
 }
