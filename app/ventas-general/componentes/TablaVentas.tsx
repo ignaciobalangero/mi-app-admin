@@ -48,7 +48,7 @@ export default function TablaVentas({ refrescar }: Props) {
     setMostrarConfirmarEliminar(true);
   };
 
-  // Función para eliminar un producto individual de una venta
+  // 🔧 FUNCIÓN CORREGIDA - Eliminar un producto individual de una venta
   const eliminarProducto = async (ventaId: string, productoIndex: number) => {
     if (!rol?.negocioID) return;
 
@@ -58,14 +58,19 @@ export default function TablaVentas({ refrescar }: Props) {
     const productoEliminado = venta.productos[productoIndex];
     const nuevosProductos = venta.productos.filter((_: any, idx: number) => idx !== productoIndex);
 
-    // Reponer al stock según el tipo de producto
+    // 🔥 REPONER AL STOCK SEGÚN EL TIPO CORRECTO
     if (productoEliminado.codigo) {
       if (productoEliminado.tipo === "accesorio" || productoEliminado.categoria === "Accesorio") {
         await reponerAccesoriosAlStock({
           productos: [productoEliminado],
           negocioID: rol.negocioID,
         });
-      } else if (productoEliminado.tipo === "repuesto" || productoEliminado.categoria === "Repuesto") {
+      } else if (
+        productoEliminado.tipo === "repuesto" || 
+        productoEliminado.tipo === "general" ||
+        productoEliminado.categoria === "Repuesto" ||
+        productoEliminado.hoja  // 👈 AGREGAR ESTO
+      ) {
         await reponerRepuestosAlStock({
           productos: [productoEliminado],
           negocioID: rol.negocioID,
@@ -95,30 +100,41 @@ export default function TablaVentas({ refrescar }: Props) {
     await refrescarVentas();
   };
 
-  // Función para eliminar una venta completa
+  // 🔧 FUNCIÓN CORREGIDA - Eliminar una venta completa
   const eliminarVentaCompleta = async (venta: any) => {
     if (!rol?.negocioID) return;
 
+    // ✅ FILTRO ACCESORIOS - Mantener como está (funciona bien)
     const accesorios = venta.productos.filter(
       (p: any) => (p.tipo === "accesorio" || p.categoria === "Accesorio") && p.codigo
     );
     
+    // 🔥 FILTRO CORREGIDO - Incluir productos de stockExtra (tipo "general")
     const repuestos = venta.productos.filter(
-      (p: any) => (p.tipo === "repuesto" || p.categoria === "Repuesto") && p.codigo
+      (p: any) => (
+        p.tipo === "repuesto" || 
+        p.tipo === "general" ||
+        p.categoria === "Repuesto" ||
+        p.hoja  // 👈 AGREGAR ESTO
+      ) && p.codigo
     );
     
     // Reponer accesorios y repuestos
-    await reponerAccesoriosAlStock({
-      productos: accesorios,
-      negocioID: rol.negocioID,
-    });
+    if (accesorios.length > 0) {
+      await reponerAccesoriosAlStock({
+        productos: accesorios,
+        negocioID: rol.negocioID,
+      });
+    }
 
-    await reponerRepuestosAlStock({
-      productos: repuestos,
-      negocioID: rol.negocioID,
-    });
+    if (repuestos.length > 0) {
+      await reponerRepuestosAlStock({
+        productos: repuestos,
+        negocioID: rol.negocioID,
+      });
+    }
 
-    // Si es una venta de teléfono, reponerlo al stock
+    // ✅ LÓGICA TELÉFONOS - Mantener como está (funciona bien)
     const telefono = venta.productos.find((p: any) => p.categoria === "Teléfono");
 
     if (telefono) {
@@ -437,7 +453,7 @@ export default function TablaVentas({ refrescar }: Props) {
                   <span className="hidden sm:inline">💵 </span>Total
                 </th>
                 <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-20 sm:w-24 lg:w-32">
-                  <span className="hidden sm:inline">⚙️ </span>Accesorios
+                  <span className="hidden sm:inline">⚙️ </span>Acciones
                 </th>
               </tr>
             </thead>
@@ -573,21 +589,61 @@ export default function TablaVentas({ refrescar }: Props) {
                           
                           {/* Precio - Solo en desktop */}
                           <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-sm font-medium text-[#2c3e50]">
-                              {p.moneda?.toUpperCase() === "USD"
-                                ? `${(p.precioUnitario * cotizacion).toLocaleString("es-AR")}`
-                                : `${p.precioUnitario.toLocaleString("es-AR")}`}
-                            </span>
-                          </td>
+  <span className="text-sm font-medium text-[#2c3e50]">
+    {(() => {
+      // ✅ DETECTAR SI HAY TELÉFONO EN LA VENTA
+      const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
+      
+      if (hayTelefono) {
+        // 📱 CON TELÉFONO: Mostrar precio × cotización (referencia ARS)
+       // NUEVO: Mostrar moneda original cuando hay teléfono
+if (p.categoria === "Teléfono") {
+  return `USD ${p.precioUnitario.toLocaleString("es-AR")}`;
+} else {
+  return p.moneda?.toUpperCase() === "USD"
+    ? `USD ${p.precioUnitario.toLocaleString("es-AR")}`
+    : `${p.precioUnitario.toLocaleString("es-AR")}`;
+}
+      } else {
+        // 🛍️ SIN TELÉFONO: Mostrar precio convertido dinámicamente
+        if (p.moneda?.toUpperCase() === "USD") {
+          return `${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
+        } else {
+          return `${p.precioUnitario.toLocaleString("es-AR")}`;
+        }
+      }
+    })()}
+  </span>
+</td>
 
-                          {/* Total */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
-                            <span className="text-xs sm:text-sm font-bold text-[#27ae60]">
-                              {venta.moneda === "USD"
-                                ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-                                : `${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`}
-                            </span>
-                          </td>
+               {/* Total */}
+<td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+  <span className="text-xs sm:text-sm font-bold text-[#27ae60]">
+    {(() => {
+      // ✅ DETECTAR SI HAY TELÉFONO EN LA VENTA
+      const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
+      
+      if (hayTelefono) {
+        // 📱 CON TELÉFONO: Mostrar moneda original
+        if (p.categoria === "Teléfono") {
+          return `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
+        } else {
+          // Accesorio/Repuesto: Mostrar según su moneda original
+          return p.moneda?.toUpperCase() === "USD"
+            ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
+            : `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
+        }
+      } else {
+        // 🛍️ SIN TELÉFONO: Conversión dinámica (NO CAMBIAR)
+        if (p.moneda?.toUpperCase() === "USD") {
+          return `$ ${((p.precioUSD || p.precioUnitario) * p.cantidad * cotizacion).toLocaleString("es-AR")}`;
+        } else {
+          return `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
+        }
+      }
+    })()}
+  </span>
+</td>
 
                           {/* Acciones - CORREGIDA */}
                           <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] w-20 sm:w-24 lg:w-32">

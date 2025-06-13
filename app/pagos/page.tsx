@@ -40,7 +40,7 @@ export default function PagosPage() {
                 <h1 className="text-2xl font-bold text-white mb-2">
                   Gestión de Pagos
                 </h1>
-                <p className="text-blue-100 text-sm">
+                <p className="text-blue-100 text-">
                   Administra todos los pagos y cobros de tu negocio
                 </p>
               </div>

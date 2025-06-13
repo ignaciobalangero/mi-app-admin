@@ -1,16 +1,19 @@
+// SelectorProductoVentaGeneral.jsx - CORRECCIÓN COMPLETA para manejar precios USD/ARS
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
+import useCotizacion from "@/lib/hooks/useCotizacion";
 
 interface ProductoStock {
   id: string;
   codigo?: string;
   producto: string;
+  modelo: string;
   marca?: string;
-  modelo?: string;
   categoria?: string;
   color?: string;
   precio1: number;
@@ -21,7 +24,7 @@ interface ProductoStock {
   precio3Pesos?: number;
   moneda: "ARS" | "USD";
   cantidad?: number;
-  tipo: "accesorio" | "repuesto";
+  tipo: "accesorio" | "repuesto" | "general";
   hoja?: string;
   precioUnitario?: number;
   precioARS?: number | null;
@@ -42,15 +45,16 @@ interface Props {
   setMoneda: (valor: "ARS" | "USD") => void;
   filtroTexto: string;
   setFiltroTexto: React.Dispatch<React.SetStateAction<string>>;
-  hayTelefono?: boolean; 
+  hayTelefono?: boolean; // ✅ PARÁMETRO CLAVE PARA LÓGICA USD/ARS
 }
 
 export default function SelectorProductoVentaGeneral({
   productos,
   setProductos,
-  hayTelefono = false,
+  hayTelefono = false, // ✅ RECIBIR hayTelefono
 }: Props) {
   const { rol } = useRol();
+  const { cotizacion } = useCotizacion(rol?.negocioID || "");
   const [busqueda, setBusqueda] = useState("");
   const [todos, setTodos] = useState<ProductoStock[]>([]);
   const [mostrar, setMostrar] = useState(false);
@@ -63,59 +67,114 @@ export default function SelectorProductoVentaGeneral({
       if (!rol?.negocioID) return;
 
       const accSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockAccesorios`));
-      const repSnap = await getDocs(
-        collection(db, `negocios/${rol.negocioID}/stockExtra`)
-      );      
+      const repSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));      
 
-      const accesorios: ProductoStock[] = accSnap.docs.map(doc => ({
-        id: doc.id,
-        producto: doc.data().producto,
-        marca: doc.data().marca || "",
-        modelo: doc.data().modelo || "",
-        categoria: doc.data().categoria || "",
-        color: doc.data().color || "",
-        precio1: doc.data().precio1 || 0,
-        precio2: doc.data().precio2 || 0,
-        precio3: doc.data().precio3 || 0,
-        precio1Pesos: doc.data().precio1Pesos || 0,
-        precio2Pesos: doc.data().precio2Pesos || 0,
-        precio3Pesos: doc.data().precio3Pesos || 0,
-        moneda: "ARS",
-        cantidad: doc.data().cantidad || 0,
-        tipo: "accesorio",
-      }));
+      // ACCESORIOS - Nueva lógica (detectar USD vs ARS nativos)
+      const accesorios: ProductoStock[] = accSnap.docs.map(doc => {
+        const data = doc.data();
+        
+        // DETECTAR si es USD o ARS nativo
+        const esUSD = (data.precio1Pesos && data.precio1Pesos > 0) || 
+                      (data.precio2Pesos && data.precio2Pesos > 0) || 
+                      (data.precio3Pesos && data.precio3Pesos > 0);
+        
+        if (esUSD) {
+          // ACCESORIO USD - Convertir a ARS para display
+          const precio1USD = data.precio1 || 0;
+          const precio2USD = data.precio2 || 0;
+          const precio3USD = data.precio3 || 0;
+          
+          return {
+            id: doc.id,
+            producto: data.modelo || data.producto || "",
+            modelo: data.modelo || data.producto || "",
+            marca: data.marca || "",
+            categoria: data.categoria || "",
+            color: data.color || "",
+            
+            // PRECIOS ORIGINALES EN USD
+            precio1: precio1USD,
+            precio2: precio2USD,
+            precio3: precio3USD,
+            
+            // PRECIOS CONVERTIDOS A ARS (actualizable)
+            precio1Pesos: precio1USD * cotizacion,
+            precio2Pesos: precio2USD * cotizacion,
+            precio3Pesos: precio3USD * cotizacion,
+            
+            moneda: "USD",
+            cantidad: data.cantidad || 0,
+            tipo: "accesorio",
+          };
+        } else {
+          // ACCESORIO ARS NATIVO - Mantener precios fijos
+          return {
+            id: doc.id,
+            producto: data.modelo || data.producto || "",
+            modelo: data.modelo || data.producto || "",
+            marca: data.marca || "",
+            categoria: data.categoria || "",
+            color: data.color || "",
+            precio1: data.precio1 || 0,
+            precio2: data.precio2 || 0,
+            precio3: data.precio3 || 0,
+            precio1Pesos: data.precio1 || 0,
+            precio2Pesos: data.precio2 || 0,
+            precio3Pesos: data.precio3 || 0,
+            moneda: "ARS",
+            cantidad: data.cantidad || 0,
+            tipo: "accesorio",
+          };
+        }
+      });
       
-      const repuestos: ProductoStock[] = repSnap.docs.map(doc => ({
-        id: doc.id,
-        producto: doc.data().producto,
-        marca: doc.data().marca || "",
-        modelo: doc.data().modelo || "",
-        categoria: doc.data().hoja || doc.data().categoria || "",
-        color: doc.data().color || "",
-        precio1: doc.data().precio1 || 0,
-        precio2: doc.data().precio2 || 0,
-        precio3: doc.data().precio3 || 0,
-        precio1Pesos: doc.data().precio1Pesos || 0,
-        precio2Pesos: doc.data().precio2Pesos || 0,
-        precio3Pesos: doc.data().precio3Pesos || 0,
-        moneda: "ARS",
-        cantidad: doc.data().cantidad || 0,
-        tipo: "repuesto",
-        hoja: doc.data().hoja || "",
-      }));
+      // STOCKEXTRA - Nueva lógica (USD convertido a ARS para display)
+      const stockExtra: ProductoStock[] = repSnap.docs.map(doc => {
+        const data = doc.data();
+        
+        // Precios base en USD
+        const precio1USD = data.precio1 || data.precioUSD || 0;
+        const precio2USD = data.precio2 || 0;
+        const precio3USD = data.precio3 || 0;
+        
+        return {
+          id: doc.id,
+          codigo: doc.id,
+          producto: data.modelo || data.producto || "",
+          modelo: data.modelo || data.producto || "",
+          marca: data.marca || "",
+          categoria: data.hoja || data.categoria || "",
+          color: data.color || "",
+          
+          // PRECIOS ORIGINALES EN USD (para Firebase)
+          precio1: precio1USD,
+          precio2: precio2USD, 
+          precio3: precio3USD,
+          
+          // PRECIOS CONVERTIDOS A ARS (para display)
+          precio1Pesos: precio1USD * cotizacion,
+          precio2Pesos: precio2USD * cotizacion,
+          precio3Pesos: precio3USD * cotizacion,
+          
+          moneda: "USD",
+          cantidad: data.cantidad || 0,
+          tipo: "general",
+          hoja: data.hoja || "",
+        };
+      });
 
-      setTodos([...accesorios, ...repuestos]);
+      setTodos([...accesorios, ...stockExtra]);
     };
 
     cargar();
-  }, [rol?.negocioID]);
+  }, [rol?.negocioID, cotizacion]);
 
   const normalizar = (texto: string) =>
     texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   
   const filtrados = todos.filter(p => {
     const textoProducto = normalizar(
-      `${p.categoria} ${p.producto} ${p.marca} ${p.modelo} ${p.color} ${p.hoja || ""}`
+      `${p.categoria} ${p.modelo} ${p.marca} ${p.color} ${p.hoja || ""}`
     );
   
     return normalizar(busqueda)
@@ -127,18 +186,60 @@ export default function SelectorProductoVentaGeneral({
     if (!productoSeleccionado) return;
     const yaExiste = productos.find(p => p.id === productoSeleccionado.id);
     if (yaExiste) return;
+    
+    // 🔥 LÓGICA CORREGIDA - PROBLEMA PRINCIPAL SOLUCIONADO
+    const esProductoUSD = productoSeleccionado.moneda === "USD";
+    
+    // ✅ CORRECCIÓN: Determinar precioUnitario según contexto de venta
+    let precioUnitarioFinal: number;
+    let precioARS: number | null = null;
+    let precioUSD: number | null = null;
+    
+    if (hayTelefono) {
+      // 🔥 CON TELÉFONO: Todo en USD
+      if (esProductoUSD) {
+        // Producto USD: convertir el precio ARS elegido de vuelta a USD
+        precioUnitarioFinal = precioElegido / cotizacion;
+        precioUSD = precioUnitarioFinal;
+      } else {
+        // Producto ARS: convertir a USD
+        precioUnitarioFinal = precioElegido / cotizacion;
+        precioUSD = precioUnitarioFinal;
+        precioARS = precioElegido; // Mantener referencia ARS
+      }
+    } else {
+      // 🔥 SIN TELÉFONO: Todo en ARS
+      if (esProductoUSD) {
+        // Producto USD: usar el precio ARS convertido
+        precioUnitarioFinal = precioElegido;
+        precioARS = precioElegido;
+        precioUSD = precioElegido / cotizacion; // Mantener referencia USD
+      } else {
+        // Producto ARS: usar precio ARS directo
+        precioUnitarioFinal = precioElegido;
+        precioARS = precioElegido;
+      }
+    }
+    
     setProductos([
       ...productos,
       {
         ...productoSeleccionado,
         cantidad,
-        codigo: productoSeleccionado.id, 
-        precioUnitario: precioElegido,
-        precioARS: hayTelefono ? null : precioElegido,
-        precioUSD: hayTelefono ? precioElegido : null,
-        moneda: hayTelefono ? "USD" : "ARS",
+        codigo: productoSeleccionado.tipo === "general" 
+          ? (productoSeleccionado.codigo || productoSeleccionado.id)
+          : productoSeleccionado.id,
+        
+        // ✅ PRECIO UNITARIO CORREGIDO según contexto
+        precioUnitario: precioUnitarioFinal,
+        
+        // ✅ CAMPOS AUXILIARES para referencia
+        precioARS,
+        precioUSD,
+        moneda: productoSeleccionado.moneda,
       },
     ]);
+    
     setProductoSeleccionado(null);
     setCantidad(1);
     setPrecioElegido(0);
@@ -148,7 +249,7 @@ export default function SelectorProductoVentaGeneral({
 
   return (
     <div className="relative w-full">
-      {/* Input de búsqueda - Estilo GestiOne */}
+      {/* Input de búsqueda */}
       <div className="relative">
         <input
           type="text"
@@ -167,7 +268,24 @@ export default function SelectorProductoVentaGeneral({
         </div>
       </div>
 
-      {/* Lista de resultados - Estilo GestiOne */}
+      {/* 🔥 INDICADOR DE MODO DE VENTA */}
+      {mostrar && (
+        <div className={`mt-2 p-2 rounded-lg text-xs font-medium ${
+          hayTelefono 
+            ? 'bg-[#f39c12] text-white' 
+            : 'bg-[#27ae60] text-white'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span>{hayTelefono ? '💱' : '💰'}</span>
+            {hayTelefono 
+              ? 'MODO USD: Todos los precios se guardarán en dólares'
+              : 'MODO ARS: Todos los precios se guardarán en pesos'
+            }
+          </div>
+        </div>
+      )}
+
+      {/* Lista de resultados */}
       {mostrar && filtrados.length > 0 && (
         <div className="absolute z-50 w-full bg-white border-2 border-[#3498db] rounded-lg shadow-2xl max-h-80 overflow-auto text-sm mt-2">
           {filtrados.map((p, i) => (
@@ -175,15 +293,15 @@ export default function SelectorProductoVentaGeneral({
               key={i}
               onClick={() => {
                 setProductoSeleccionado(p);
-                setPrecioElegido(p.precio1);
+                setPrecioElegido(p.moneda === "USD" ? p.precio1Pesos || 0 : p.precio1);
               }}
               className="p-4 hover:bg-[#ecf0f1] cursor-pointer border-b border-[#ecf0f1] last:border-b-0 transition-all duration-200 hover:shadow-sm"
             >
-              {/* Línea principal del producto */}
+              {/* Línea principal del modelo */}
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[#2c3e50]">
-                  <strong className="text-[#2c3e50] text-base">{p.producto}</strong>
-                  <span className="text-[#7f8c8d] ml-2">— {p.marca} {p.modelo}</span>
+                  <strong className="text-[#2c3e50] text-base">{p.modelo}</strong>
+                  <span className="text-[#7f8c8d] ml-2">— {p.marca}</span>
                 </div>
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#ecf0f1] text-[#2c3e50]">
                   {p.color}
@@ -195,12 +313,19 @@ export default function SelectorProductoVentaGeneral({
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     p.tipo === "accesorio" 
-                      ? 'bg-[#3498db] text-white'
+                      ? (p.moneda === "USD" ? 'bg-[#3498db] text-white' : 'bg-[#95a5a6] text-white')
+                      : p.tipo === "general"
+                      ? 'bg-[#9b59b6] text-white'
                       : 'bg-[#f39c12] text-white'
                   }`}>
-                    {p.tipo.toUpperCase()}
+                    {p.tipo === "general" ? "STOCK" : p.tipo.toUpperCase()}
                   </span>
                   <span className="text-[#7f8c8d] text-xs">{p.categoria}</span>
+                  {p.moneda === "USD" && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#f39c12] text-white">
+                      USD→ARS
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="w-4 h-4 bg-[#27ae60] rounded-full flex items-center justify-center">
@@ -213,21 +338,22 @@ export default function SelectorProductoVentaGeneral({
               {/* Precios */}
               <div className="grid grid-cols-3 gap-2">
                 {[1, 2, 3].map((nivel) => {
-                  const keyUSD = `precio${nivel}` as keyof ProductoStock;
-                  const keyPesos = `precio${nivel}Pesos` as keyof ProductoStock;
-                  const precio = hayTelefono 
-                    ? p[keyUSD]
-                    : p[keyPesos];
+                  const precio = p.moneda === "USD" 
+                    ? p[`precio${nivel}Pesos` as keyof ProductoStock]
+                    : p[`precio${nivel}` as keyof ProductoStock];
 
-                  if (typeof precio !== "number") return null;
+                  if (typeof precio !== "number" || precio === 0) return null;
 
                   return (
                     <div key={nivel} className="bg-[#f8f9fa] rounded-lg p-2 text-center">
                       <div className="text-[#7f8c8d] text-xs">Precio {nivel}</div>
                       <div className="text-[#27ae60] font-bold text-sm">
-                        {hayTelefono 
-                          ? `USD $${precio.toLocaleString("es-AR")}`
-                          : `$${precio.toLocaleString("es-AR")}`}
+                        ${precio.toLocaleString("es-AR")}
+                        {p.moneda === "USD" && (
+                          <div className="text-[#7f8c8d] text-xs">
+                            (USD ${p[`precio${nivel}` as keyof ProductoStock]})
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -238,38 +364,58 @@ export default function SelectorProductoVentaGeneral({
         </div>
       )}
 
-      {/* Modal de selección - Estilo GestiOne */}
+      {/* Modal de selección */}
       {productoSeleccionado && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 border-2 border-[#ecf0f1] overflow-hidden">
             
-            {/* Header del modal - Estilo GestiOne */}
-            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
+            {/* Header del modal */}
+            <div className={`bg-gradient-to-r text-white p-6 ${
+              hayTelefono 
+                ? 'from-[#f39c12] to-[#e67e22]' 
+                : 'from-[#2c3e50] to-[#3498db]'
+            }`}>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="text-2xl">🛍️</span>
+                  <span className="text-2xl">{hayTelefono ? '💱' : '🛍️'}</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">{productoSeleccionado.producto}</h3>
-                  <p className="text-blue-100 text-sm">
-                    {productoSeleccionado.marca} {productoSeleccionado.modelo}
+                  <h3 className="text-xl font-bold">{productoSeleccionado.modelo}</h3>
+                  <p className={`text-sm ${hayTelefono ? 'text-orange-100' : 'text-blue-100'}`}>
+                    {productoSeleccionado.marca}
+                    {productoSeleccionado.moneda === "USD" && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-white/20">
+                        💱 USD→ARS
+                      </span>
+                    )}
                   </p>
                 </div>
+              </div>
+              
+              {/* 🔥 INDICADOR DE MODO EN MODAL */}
+              <div className="mt-3 p-2 bg-white/10 rounded-lg text-sm">
+                {hayTelefono 
+                  ? '💱 Se guardará en USD para esta venta con teléfono'
+                  : '💰 Se guardará en ARS para esta venta sin teléfono'
+                }
               </div>
             </div>
 
             {/* Contenido del modal */}
             <div className="p-6 space-y-6">
               
-              {/* Información del producto */}
+              {/* Información del modelo */}
               <div className="bg-[#f8f9fa] rounded-lg p-4 border border-[#ecf0f1]">
                 <div className="flex items-center justify-between mb-2">
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                     productoSeleccionado.tipo === "accesorio" 
-                      ? 'bg-[#3498db] text-white'
+                      ? (productoSeleccionado.moneda === "USD" ? 'bg-[#3498db] text-white' : 'bg-[#95a5a6] text-white')
+                      : productoSeleccionado.tipo === "general"
+                      ? 'bg-[#9b59b6] text-white'
                       : 'bg-[#f39c12] text-white'
                   }`}>
-                    {productoSeleccionado.tipo.toUpperCase()}
+                    {productoSeleccionado.tipo === "general" ? "STOCK EXTRA" : productoSeleccionado.tipo.toUpperCase()}
+                    {productoSeleccionado.moneda === "USD" && productoSeleccionado.tipo === "accesorio" && " (USD)"}
                   </span>
                   <span className="text-[#27ae60] font-medium text-sm">
                     Stock disponible: {productoSeleccionado.cantidad}
@@ -278,6 +424,11 @@ export default function SelectorProductoVentaGeneral({
                 <div className="text-[#7f8c8d] text-sm">
                   Categoría: {productoSeleccionado.categoria} • Color: {productoSeleccionado.color}
                 </div>
+                {productoSeleccionado.moneda === "USD" && (
+                  <div className="mt-2 p-2 bg-[#fff3cd] border border-[#f39c12] rounded text-xs text-[#856404]">
+                    💡 Precios convertidos automáticamente de USD a ARS (cotización: ${cotizacion})
+                  </div>
+                )}
               </div>
 
               {/* Cantidad */}
@@ -304,14 +455,11 @@ export default function SelectorProductoVentaGeneral({
                 </label>
                 <div className="grid grid-cols-1 gap-3">
                   {[1, 2, 3].map((nivel) => {
-                    const keyUSD = `precio${nivel}` as keyof ProductoStock;
-                    const keyPesos = `precio${nivel}Pesos` as keyof ProductoStock;
+                    const precio = productoSeleccionado.moneda === "USD" 
+                      ? productoSeleccionado[`precio${nivel}Pesos` as keyof ProductoStock]
+                      : productoSeleccionado[`precio${nivel}` as keyof ProductoStock];
 
-                    const precio = hayTelefono 
-                      ? productoSeleccionado[keyUSD]
-                      : productoSeleccionado[keyPesos];
-
-                    if (typeof precio !== "number") return null;
+                    if (typeof precio !== "number" || precio === 0) return null;
 
                     return (
                       <button
@@ -332,11 +480,16 @@ export default function SelectorProductoVentaGeneral({
                             </span>
                             Precio {nivel}
                           </span>
-                          <span className="font-bold text-lg">
-                            {hayTelefono 
-                              ? `USD $${precio.toLocaleString("es-AR")}`
-                              : `$${precio.toLocaleString("es-AR")}`}
-                          </span>
+                          <div className="text-right">
+                            <span className="font-bold text-lg">
+                              ${precio.toLocaleString("es-AR")}
+                            </span>
+                            {productoSeleccionado.moneda === "USD" && (
+                              <div className="text-xs text-[#7f8c8d]">
+                                USD ${productoSeleccionado[`precio${nivel}` as keyof ProductoStock]}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </button>
                     );
@@ -344,25 +497,36 @@ export default function SelectorProductoVentaGeneral({
                 </div>
               </div>
 
-              {/* Total */}
+              {/* Total con indicador de conversión */}
               {precioElegido > 0 && (
-                <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-lg p-4 text-white">
+                <div className={`bg-gradient-to-r rounded-lg p-4 text-white ${
+                  hayTelefono 
+                    ? 'from-[#f39c12] to-[#e67e22]' 
+                    : 'from-[#27ae60] to-[#2ecc71]'
+                }`}>
                   <div className="flex justify-between items-center">
                     <span className="font-medium flex items-center gap-2">
-                      <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">💵</span>
-                      Total:
+                      <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                        {hayTelefono ? '💱' : '💵'}
+                      </span>
+                      Total {hayTelefono ? '(se guardará en USD)' : '(se guardará en ARS)'}:
                     </span>
-                    <span className="font-bold text-2xl">
-                      {hayTelefono 
-                        ? `USD $${(precioElegido * cantidad).toLocaleString("es-AR")}`
-                        : `$${(precioElegido * cantidad).toLocaleString("es-AR")}`}
-                    </span>
+                    <div className="text-right">
+                      <span className="font-bold text-2xl">
+                        ${(precioElegido * cantidad).toLocaleString("es-AR")}
+                      </span>
+                      {hayTelefono && (
+                        <div className="text-sm opacity-80">
+                          Se guardará: USD ${((precioElegido / cotizacion) * cantidad).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Footer con botones - Estilo GestiOne */}
+            {/* Footer con botones */}
             <div className="bg-[#f8f9fa] px-6 py-4 flex justify-end gap-3 border-t border-[#ecf0f1]">
               <button
                 onClick={() => setProductoSeleccionado(null)}

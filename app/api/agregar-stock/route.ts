@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const fila = [
       producto.codigo || "",
       producto.categoria || "",
-      producto.producto || "",
+      producto.modelo || "",
       producto.cantidad || 0,
       precioARS,
       precioUSD,

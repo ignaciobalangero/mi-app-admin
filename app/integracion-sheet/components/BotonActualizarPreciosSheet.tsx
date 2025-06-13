@@ -1,4 +1,4 @@
-// Botón para actualizar precios ARS en el Sheet desde Firebase
+// Botón para actualizar precios ARS en el Sheet desde Firebase - VERSIÓN MEJORADA
 "use client";
 
 import { useState } from "react";
@@ -21,16 +21,57 @@ export default function BotonActualizarPreciosSheet({
   const { rol } = useRol();
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [paso, setPaso] = useState<string>("");
+
+  // 🧹 Función para limpiar modelos fantasma del localStorage
+  const limpiarModelosFantasma = async () => {
+    if (!rol?.negocioID) return 0;
+
+    try {
+      console.log("🧹 Iniciando limpieza de modelos fantasma...");
+      setPaso("Limpiando modelos fantasma...");
+
+      // Limpiar cualquier clave temporal del localStorage
+      const claves = Object.keys(localStorage);
+      let limpiados = 0;
+
+      claves.forEach(clave => {
+        if (
+          clave.includes('TEMP_') || 
+          clave.includes(`importado_${rol.negocioID}`) ||
+          clave.includes('modelo_temp_')
+        ) {
+          localStorage.removeItem(clave);
+          limpiados++;
+        }
+      });
+
+      console.log(`🧹 ${limpiados} elementos temporales limpiados del localStorage`);
+      return limpiados;
+
+    } catch (error) {
+      console.error("❌ Error limpiando localStorage:", error);
+      return 0;
+    }
+  };
 
   const actualizarPrecios = async () => {
     if (!rol?.negocioID || !sheetID || !hoja) return;
     setCargando(true);
     setMensaje(null);
+    setPaso("");
 
     try {
+      // 🧹 PASO 1: Limpiar modelos fantasma
+      const fantasmasLimpiados = await limpiarModelosFantasma();
+      if (fantasmasLimpiados > 0) {
+        console.log(`✅ ${fantasmasLimpiados} elementos temporales limpiados`);
+      }
+
+      // 💰 PASO 2: Obtener cotización
+      setPaso("Obteniendo cotización...");
       let cotizacion = 1000;
 
-      // Obtener cotización desde configuración manual
       const configSnap = await getDoc(
         doc(db, `negocios/${rol.negocioID}/configuracion/moneda`)
       );
@@ -39,30 +80,51 @@ export default function BotonActualizarPreciosSheet({
         cotizacion = Number(data.dolarManual) || 1000;
       }
 
-      // Obtener productos desde Firebase
+      console.log("💰 Cotización obtenida:", cotizacion);
+
+      // 📦 PASO 3: Obtener modelos desde Firebase
+      setPaso("Obteniendo modelos de Firebase...");
       const snap = await getDocs(
         collection(db, `negocios/${rol.negocioID}/stockExtra`)
       );
       const productos = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-      // Formar filas solo con los datos disponibles
-      const filas = productos.map((p: any) => {
-        const precioUSD = Number(p.precioUSD) || 0;
+      console.log(`📦 ${productos.length} modelos obtenidos de Firebase`);
+
+      // 🚫 PASO 4: Filtrar modelos válidos (sin temporales)
+      const productosValidos = productos.filter((p: any) => 
+        p.id && 
+        !p.id.startsWith('TEMP_') && 
+        !p.id.includes('temp') &&
+        p.id.length > 3 // Evitar códigos muy cortos sospechosos
+      );
+
+      console.log(`✅ ${productosValidos.length} modelos válidos después del filtrado`);
+
+      if (productosValidos.length === 0) {
+        throw new Error("No hay modelos válidos para actualizar");
+      }
+
+      // 📊 PASO 5: Formar filas para el Sheet
+      setPaso("Preparando datos para el Sheet...");
+      const filas = productosValidos.map((p: any) => {
+        const precioUSD = Number(p.precioUSD) || Number(p.precio1) || 0;
         const precioARS = Number((precioUSD * cotizacion).toFixed(2));
 
         return {
           codigo: p.id,
           categoria: p.categoria || "",
-          producto: p.producto || "",
+          modelo: p.modelo || "",
           cantidad: p.cantidad || "",
           precioARS,
           precioUSD,
         };
       });
 
-      console.log("🧾 Filas a enviar:", filas);
+      console.log("🧾 Filas preparadas para enviar:", filas.length);
 
-      // Enviar a la API
+      // 🔄 PASO 6: Enviar a la API
+      setPaso("Actualizando precios en Google Sheets...");
       const res = await fetch("/api/actualizar-precios-sheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,20 +132,36 @@ export default function BotonActualizarPreciosSheet({
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error desconocido");
+      
+      if (!res.ok) {
+        throw new Error(json.error || json.detalles || "Error desconocido");
+      }
 
-      setMensaje("✅ Precios actualizados en el Sheet correctamente");
+      // ✅ ÉXITO
+      const mensajeExito = fantasmasLimpiados > 0 
+        ? `✅ Precios actualizados correctamente (${fantasmasLimpiados} elementos temporales limpiados)`
+        : "✅ Precios actualizados en el Sheet correctamente";
+
+      setMensaje(mensajeExito);
+      console.log("🎉 Actualización completada exitosamente");
       
-      // Limpiar mensaje después de 3 segundos
-      setTimeout(() => setMensaje(null), 3000);
-    } catch (err) {
-      console.error("❌ Error actualizando precios en el Sheet:", err);
-      setMensaje("❌ Hubo un problema al actualizar los precios en el Sheet");
+      // Limpiar mensaje después de 4 segundos
+      setTimeout(() => setMensaje(null), 4000);
+
+    } catch (err: any) {
+      console.error("❌ Error actualizando precios:", err);
       
-      // Limpiar mensaje de error después de 5 segundos
-      setTimeout(() => setMensaje(null), 5000);
+      const mensajeError = err.message?.includes("modelos válidos") 
+        ? "❌ No hay modelos válidos para actualizar (solo modelos temporales encontrados)"
+        : `❌ Error al actualizar precios: ${err.message}`;
+      
+      setMensaje(mensajeError);
+      
+      // Limpiar mensaje de error después de 6 segundos
+      setTimeout(() => setMensaje(null), 6000);
     } finally {
       setCargando(false);
+      setPaso("");
     }
   };
 
@@ -111,7 +189,7 @@ export default function BotonActualizarPreciosSheet({
           </div>
           <div className="space-y-2">
             <p className="text-sm font-semibold text-[#2c3e50]">
-              Esta función actualiza los precios en ARS basados en:
+              Esta función actualiza los precios en ARS y limpia automáticamente:
             </p>
             <ul className="text-xs text-[#7f8c8d] space-y-1">
               <li className="flex items-center gap-2">
@@ -121,6 +199,10 @@ export default function BotonActualizarPreciosSheet({
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-[#9b59b6] rounded-full"></span>
                 Sincronización automática con Google Sheets
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#e74c3c] rounded-full"></span>
+                🆕 Elimina modelos temporales automáticamente
               </li>
             </ul>
           </div>
@@ -144,7 +226,7 @@ export default function BotonActualizarPreciosSheet({
           ) : (
             <>
               <span className="text-lg">🔄</span>
-              <span>Actualizar precios en Sheet</span>
+              <span>Actualizar precios + Limpiar</span>
             </>
           )}
         </button>
@@ -172,17 +254,34 @@ export default function BotonActualizarPreciosSheet({
         </div>
       )}
 
-      {/* Información adicional cuando está cargando */}
-      {cargando && (
+      {/* Información del paso actual cuando está cargando */}
+      {cargando && paso && (
         <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-[#3498db] rounded-lg p-3 lg:p-4">
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 bg-[#3498db] rounded-full flex items-center justify-center animate-pulse">
               <span className="text-white text-xs">⚡</span>
             </div>
             <div>
-              <p className="text-sm font-semibold text-[#2c3e50]">Procesando actualización...</p>
+              <p className="text-sm font-semibold text-[#2c3e50]">{paso}</p>
               <p className="text-xs text-[#7f8c8d]">
-                Obteniendo datos de Firebase y sincronizando con Google Sheets
+                Procesando actualización completa con limpieza automática
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Información adicional cuando está cargando sin paso específico */}
+      {cargando && !paso && (
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-[#3498db] rounded-lg p-3 lg:p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-[#3498db] rounded-full flex items-center justify-center animate-pulse">
+              <span className="text-white text-xs">⚡</span>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#2c3e50]">Iniciando proceso...</p>
+              <p className="text-xs text-[#7f8c8d]">
+                Preparando actualización y limpieza de datos
               </p>
             </div>
           </div>

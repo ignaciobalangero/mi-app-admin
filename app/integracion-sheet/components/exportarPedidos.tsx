@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 
 interface Producto {
-  producto: string;
+  modelo: string;
   cantidad: number;
   stockIdeal: number;
 }
@@ -10,7 +10,7 @@ export function exportarPedidosAExcel(productos: Producto[]) {
   if (productos.length === 0) return;
 
   const datos = productos.map((p) => ({
-    Producto: p.producto,
+    Modelo: p.modelo,
     "Cantidad actual": p.cantidad,
     "Stock ideal": p.stockIdeal,
     "Faltan": p.stockIdeal - p.cantidad,

@@ -75,31 +75,48 @@ export default function CuentaCorrientePage() {
       });
 
       // Procesar ventas de ventasGeneral
-      ventasSnap.forEach((doc) => {
-        const data = doc.data();
-        const cliente = data.cliente;
-        const total = Number(data.total || 0);
-        const productos = data.productos || [];
 
-        if (!cliente || productos.length === 0) return;
+// Procesar ventas de ventasGeneral
+ventasSnap.forEach((doc) => {
+  const data = doc.data();
+  const cliente = data.cliente;
+  const productos = data.productos || [];
 
-        if (!cuentasMap[cliente]) {
-          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0 };
-        }
+  if (!cliente || productos.length === 0) return;
 
-        const primerTelefono = productos.find((p: any) => p.categoria === "Teléfono");
+  if (!cuentasMap[cliente]) {
+    cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0 };
+  }
 
-        if (primerTelefono) {
-          const moneda = (primerTelefono.moneda || "ARS").toUpperCase();
-          if (moneda === "USD") {
-            cuentasMap[cliente].saldoUSD += total;
-          } else {
-            cuentasMap[cliente].saldoPesos += total;
-          }
+  // ✅ LEER EXACTAMENTE COMO MUESTRA LA TABLA DE VENTAS
+  const hayTelefono = productos.some((prod: any) => prod.categoria === "Teléfono");
+
+  let totalVentaPesos = 0;
+  let totalVentaUSD = 0;
+
+  productos.forEach((p: any) => {
+    if (hayTelefono) {
+      // CON TELÉFONO: Mostrar moneda original
+      if (p.categoria === "Teléfono") {
+        totalVentaUSD += p.precioUnitario * p.cantidad;
+      } else {
+        // Accesorio/Repuesto: Según su moneda original
+        if (p.moneda?.toUpperCase() === "USD") {
+          totalVentaUSD += p.precioUnitario * p.cantidad;
         } else {
-          cuentasMap[cliente].saldoPesos += total;
+          totalVentaPesos += p.precioUnitario * p.cantidad;
         }
-      });
+      }
+    } else {
+      // SIN TELÉFONO: TODO en pesos (no usar cotización aquí)
+      totalVentaPesos += p.precioUnitario * p.cantidad;
+    }
+  });
+
+  // Sumar a la cuenta del cliente
+  cuentasMap[cliente].saldoPesos += totalVentaPesos;
+  cuentasMap[cliente].saldoUSD += totalVentaUSD;
+});
 
       // Procesar pagos
       pagosSnap.forEach((doc) => {
@@ -158,174 +175,209 @@ export default function CuentaCorrientePage() {
   return (
     <RequireAdmin>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
-        <div className="w-full px-4 max-w-[1200px] mx-auto space-y-4">
+      <main className="pt-20 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-4 sm:p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                <span className="text-3xl">📊</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white mb-1">
-                  Cuenta Corriente
-                </h1>
-                <p className="text-blue-100 text-sm">
-                  Control de saldos y deudas por cliente
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-[#e74c3c] rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg">💰</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-[#2c3e50]">Resumen Total</h3>
-                <p className="text-[#7f8c8d] text-xs">Deuda acumulada de todos los clientes</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gradient-to-r from-[#fadbd8] to-[#f5b7b1] rounded-xl p-4 border-2 border-[#e74c3c]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-[#e74c3c]">Deuda Total en Pesos</p>
-                    <p className="text-xl font-bold text-[#e74c3c]">
-                      {formatPesos(totalPesos)}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 bg-[#e74c3c]/20 rounded-full flex items-center justify-center">
-                    <span className="text-lg">🇦🇷</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-[#fadbd8] to-[#f5b7b1] rounded-xl p-4 border-2 border-[#e74c3c]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-[#e74c3c]">Deuda Total en USD</p>
-                    <p className="text-xl font-bold text-[#e74c3c]">
-                      {formatUSD(totalUSD)}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 bg-[#e74c3c]/20 rounded-full flex items-center justify-center">
-                    <span className="text-lg">🇺🇸</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
-            <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+          {/* Header principal */}
+          <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm">🔍</span>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-xl flex items-center justify-center">
+                  <span className="text-xl sm:text-2xl text-white">💳</span>
                 </div>
-                <input
-                  type="text"
-                  placeholder="🔍 Filtrar por cliente..."
-                  value={filtroCliente}
-                  onChange={(e) => setFiltroCliente(e.target.value)}
-                  className="p-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-sm placeholder-[#7f8c8d] w-64"
-                />
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-[#2c3e50]">Cuenta Corriente</h1>
+                  <p className="text-sm sm:text-base text-[#7f8c8d]">Gestión de saldos y deudas</p>
+                </div>
               </div>
               
               <Link
                 href="/pagos"
-                className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#3f51b5] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
+                className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
               >
-                💳 Ir a Pagos
+                <span>💰</span>
+                Ir a Pagos
               </Link>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
-            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-4">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                📊 Detalle por Cliente
-              </h3>
-              <p className="text-blue-100 mt-1 text-xs">
-                {cuentasFiltradas.length} clientes con saldos pendientes
-              </p>
+          {/* Resumen de totales */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] rounded-xl shadow-lg p-4 sm:p-6 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-xl">💵</span>
+                </div>
+                <div>
+                  <p className="text-sm text-red-100">Deuda Total ARS</p>
+                  <p className="text-lg sm:text-xl font-bold">{formatPesos(totalPesos)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-[#f39c12] to-[#e67e22] rounded-xl shadow-lg p-4 sm:p-6 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-xl">💲</span>
+                </div>
+                <div>
+                  <p className="text-sm text-orange-100">Deuda Total USD</p>
+                  <p className="text-lg sm:text-xl font-bold">{formatUSD(totalUSD)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-[#27ae60] to-[#229954] rounded-xl shadow-lg p-4 sm:p-6 text-white sm:col-span-2 lg:col-span-1">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-xl">👥</span>
+                </div>
+                <div>
+                  <p className="text-sm text-green-100">Total Clientes</p>
+                  <p className="text-lg sm:text-xl font-bold">{cuentasFiltradas.length}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Filtros */}
+          <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <label className="text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
+                <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
+                Buscar cliente:
+              </label>
+              <input
+                type="text"
+                placeholder="🔍 Filtrar por cliente..."
+                value={filtroCliente}
+                onChange={(e) => setFiltroCliente(e.target.value)}
+                className="flex-1 max-w-md p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+              />
+            </div>
+          </div>
+
+          {/* Tabla principal */}
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+            
+            {/* Header de la tabla */}
+            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-lg sm:text-2xl">💳</span>
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold">Saldos por Cliente</h3>
+                  <p className="text-blue-100 text-xs sm:text-sm">
+                    {cuentasFiltradas.length} {cuentasFiltradas.length === 1 ? 'cliente' : 'clientes'} con saldo
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="overflow-x-auto border border-[#bdc3c7]">
+            {/* Tabla responsive */}
+            <div className="overflow-x-auto">
               <table className="w-full min-w-[600px] border-collapse">
-                <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
+                <thead className="bg-[#ecf0f1]">
                   <tr>
-                    <th className="p-3 border border-[#bdc3c7] text-sm font-semibold text-[#2c3e50] text-left">
-                      👤 Cliente
+                    <th className="p-3 sm:p-4 text-left text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                      <span className="flex items-center gap-2">
+                        <span>👤</span>
+                        Cliente
+                      </span>
                     </th>
-                    <th className="p-3 border border-[#bdc3c7] text-sm font-semibold text-[#2c3e50] text-center">
-                      🇦🇷 Saldo Pesos
+                    <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                      <span className="flex items-center justify-center gap-2">
+                        <span>💵</span>
+                        Saldo ARS
+                      </span>
                     </th>
-                    <th className="p-3 border border-[#bdc3c7] text-sm font-semibold text-[#2c3e50] text-center">
-                      🇺🇸 Saldo USD
+                    <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                      <span className="flex items-center justify-center gap-2">
+                        <span>💲</span>
+                        Saldo USD
+                      </span>
+                    </th>
+                    <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                      <span className="flex items-center justify-center gap-2">
+                        <span>📊</span>
+                        Estado
+                      </span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {cuentasFiltradas.length === 0 ? (
                     <tr>
-                      <td 
-                        colSpan={3}
-                        className="p-8 text-center text-[#7f8c8d] border border-[#bdc3c7]"
-                      >
-                        <div className="flex flex-col items-center gap-3">
-                          <div className="w-12 h-12 bg-[#ecf0f1] rounded-full flex items-center justify-center">
-                            <span className="text-2xl">📊</span>
+                      <td colSpan={4} className="p-8 sm:p-12 text-center text-[#7f8c8d] border border-[#bdc3c7]">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#ecf0f1] rounded-full flex items-center justify-center">
+                            <span className="text-2xl sm:text-3xl">💳</span>
                           </div>
                           <div>
-                            <p className="text-md font-medium text-[#7f8c8d]">
-                              No hay cuentas pendientes
+                            <p className="text-sm sm:text-lg font-medium text-[#7f8c8d]">
+                              {cuentas.length === 0 ? "No hay cuentas con saldo" : "No se encontraron resultados"}
                             </p>
-                            <p className="text-xs text-[#bdc3c7]">
-                              Todos los clientes están al día con sus pagos
+                            <p className="text-xs sm:text-sm text-[#bdc3c7]">
+                              {cuentas.length === 0 
+                                ? "Las cuentas aparecerán aquí cuando haya saldos pendientes"
+                                : "Intenta ajustar el filtro de búsqueda"
+                              }
                             </p>
                           </div>
                         </div>
                       </td>
                     </tr>
                   ) : (
-                    cuentasFiltradas.map((c, index) => {
-                      const isEven = index % 2 === 0;
-                      const isDeudor = c.saldoPesos > 0 || c.saldoUSD > 0;
-                      const isAcreedor = c.saldoPesos < 0 || c.saldoUSD < 0;
+                    cuentasFiltradas.map((cuenta, index) => {
+                      const tieneDeuda = cuenta.saldoPesos > 0 || cuenta.saldoUSD > 0;
+                      const tieneFavor = cuenta.saldoPesos < 0 || cuenta.saldoUSD < 0;
                       
-                      let bgColor = isEven ? "bg-white" : "bg-[#f8f9fa]";
-                      
-                      if (isAcreedor) {
-                        bgColor = "bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca]";
-                      } else if (isDeudor) {
-                        bgColor = "bg-gradient-to-r from-[#fadbd8] to-[#f5b7b1]";
-                      }
-
                       return (
                         <tr
-                          key={c.cliente}
-                          className={`transition-colors duration-200 hover:bg-[#ebf3fd] ${bgColor}`}
+                          key={cuenta.cliente}
+                          className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
+                            tieneFavor ? "bg-green-50" : tieneDeuda ? "bg-red-50" : "bg-white"
+                          }`}
                         >
-                          <td className="p-3 border border-[#bdc3c7]">
-                            <span className="text-sm font-medium text-[#2c3e50]">{c.cliente}</span>
+                          <td className="p-3 sm:p-4 border border-[#bdc3c7]">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                                tieneFavor ? "bg-[#27ae60]" : tieneDeuda ? "bg-[#e74c3c]" : "bg-[#7f8c8d]"
+                              }`}>
+                                {cuenta.cliente.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-sm sm:text-base font-medium text-[#2c3e50]">
+                                {cuenta.cliente}
+                              </span>
+                            </div>
                           </td>
-                          <td className="p-3 border border-[#bdc3c7] text-center">
-                            <span className={`text-sm font-bold ${
-                              c.saldoPesos > 0 ? 'text-[#e74c3c]' : 
-                              c.saldoPesos < 0 ? 'text-[#27ae60]' : 'text-[#7f8c8d]'
+                          
+                          <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
+                            <span className={`text-sm sm:text-base font-bold ${
+                              cuenta.saldoPesos > 0 ? "text-[#e74c3c]" : cuenta.saldoPesos < 0 ? "text-[#27ae60]" : "text-[#7f8c8d]"
                             }`}>
-                              {formatPesos(c.saldoPesos)}
+                              {formatPesos(cuenta.saldoPesos)}
                             </span>
                           </td>
-                          <td className="p-3 border border-[#bdc3c7] text-center">
-                            <span className={`text-sm font-bold ${
-                              c.saldoUSD > 0 ? 'text-[#e74c3c]' : 
-                              c.saldoUSD < 0 ? 'text-[#27ae60]' : 'text-[#7f8c8d]'
+                          
+                          <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
+                            <span className={`text-sm sm:text-base font-bold ${
+                              cuenta.saldoUSD > 0 ? "text-[#e74c3c]" : cuenta.saldoUSD < 0 ? "text-[#27ae60]" : "text-[#7f8c8d]"
                             }`}>
-                              {formatUSD(c.saldoUSD)}
+                              {formatUSD(cuenta.saldoUSD)}
+                            </span>
+                          </td>
+                          
+                          <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
+                            <span className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
+                              tieneFavor 
+                                ? "bg-[#27ae60] text-white"
+                                : tieneDeuda
+                                ? "bg-[#e74c3c] text-white"
+                                : "bg-[#7f8c8d] text-white"
+                            }`}>
+                              {tieneFavor ? "💚 A Favor" : tieneDeuda ? "🔴 Debe" : "⚪ Sin Saldo"}
                             </span>
                           </td>
                         </tr>
@@ -336,38 +388,28 @@ export default function CuentaCorrientePage() {
               </table>
             </div>
 
+            {/* Footer de la tabla */}
             {cuentasFiltradas.length > 0 && (
-              <div className="bg-[#f8f9fa] px-4 py-3 border-t border-[#bdc3c7]">
-                <div className="flex justify-between items-center text-xs text-[#7f8c8d]">
+              <div className="bg-[#f8f9fa] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#bdc3c7]">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
                   <span>
-                    Mostrando {cuentasFiltradas.length} clientes
+                    Mostrando {cuentasFiltradas.length} de {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
                   </span>
-                  <div className="flex gap-4">
-                    <span className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-[#e74c3c] rounded-full"></div>
-                      Debe dinero
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
+                    <span>
+                      Deudores: <strong className="text-[#e74c3c]">
+                        {cuentasFiltradas.filter(c => c.saldoPesos > 0 || c.saldoUSD > 0).length}
+                      </strong>
                     </span>
-                    <span className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-[#27ae60] rounded-full"></div>
-                      A favor
+                    <span>
+                      A Favor: <strong className="text-[#27ae60]">
+                        {cuentasFiltradas.filter(c => c.saldoPesos < 0 || c.saldoUSD < 0).length}
+                      </strong>
                     </span>
                   </div>
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
-            <div className="flex items-center gap-3 text-[#2c3e50]">
-              <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">💡</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">
-                  <strong>Tip:</strong> Los saldos rojos indican dinero que te deben, los verdes son saldos a favor del cliente.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </main>

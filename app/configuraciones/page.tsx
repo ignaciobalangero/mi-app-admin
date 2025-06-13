@@ -5,7 +5,7 @@ import { db, storage } from "@/lib/firebase";
 import Link from "next/link";
 import Header from "../Header";
 import IntegracionGoogleSheet from "./components/IntegracionGoogleSheet";
-import PanelUsuariosExentos from "./components/PanelUsuariosExentos";
+//import PanelUsuariosExentos from "./components/PanelUsuariosExentos";
 import GestionSuscripcion from "./components/GestionSuscripcion"; // ✅ NUEVO IMPORT
 import {
   doc,
@@ -165,7 +165,7 @@ useEffect(() => {
             </div>
 
             {/* Panel de usuarios exentos */}
-            <PanelUsuariosExentos />
+          
           </div>
         </main>
       </>

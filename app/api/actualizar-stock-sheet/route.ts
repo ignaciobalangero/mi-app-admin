@@ -1,52 +1,52 @@
+// /app/api/actualizar-precios-sheet/route.ts
 import { NextResponse } from "next/server";
-import { google } from "googleapis";
-import { auth } from "../lib/googleAuth";
+import { actualizarPreciosEnSheet, obtenerDatosDesdeSheet } from "@/app/api/lib/googleSheets";
 
-// Espera recibir: sheetID, hoja, codigo, cantidadVendida
 export async function POST(req: Request) {
   try {
-    const { sheetID, hoja, codigo, cantidadVendida } = await req.json();
+    const { sheetID, hoja, filas } = await req.json();
 
-    if (!sheetID || !hoja || !codigo || !cantidadVendida) {
+    if (!sheetID || !hoja || !Array.isArray(filas)) {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
     }
 
-    const authClient = await auth();
-    const sheets = google.sheets({ version: "v4", auth: authClient });
+    console.log("🔄 Iniciando actualización de precios...");
+    console.log("📊 SheetID:", sheetID);
+    console.log("📋 Hoja:", hoja);
+    console.log("📦 Modelos a actualizar:", filas.length);
 
-    // Traer los datos actuales desde la hoja
-    const rango = `${hoja}!A2:F`;
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetID,
-      range: rango,
+    // ✅ Traer los datos actuales del Sheet para conservar lo que no venga desde Firebase
+    const datosSheet = await obtenerDatosDesdeSheet(sheetID, `${hoja}!A2:F1000`);
+
+    const valores = filas.map((fila: any) => {
+      const filaExistente = datosSheet.find((f) => f[0] === fila.codigo);
+
+      return {
+        codigo: fila.codigo,
+        categoria: fila.categoria || filaExistente?.[1] || "",
+        modelo: fila.modelo || filaExistente?.[2] || "",
+        cantidad: fila.cantidad || filaExistente?.[3] || "",
+        precioARS: fila.precioARS,
+        precioUSD: fila.precioUSD ?? (filaExistente?.[5] || 0),
+      };
     });
 
-    const valores = res.data.values || [];
+    // ✅ CORRECCIÓN: Pasar los 3 parámetros separados
+    const resultado = await actualizarPreciosEnSheet(sheetID, hoja, valores);
 
-    // Buscar la fila del producto según su código
-    const filaIndex = valores.findIndex((fila) => fila[0] === codigo);
-    if (filaIndex === -1) {
-      return NextResponse.json({ error: "Producto no encontrado en el Sheet" }, { status: 404 });
-    }
+    console.log("✅ Actualización completada:", resultado);
 
-    const fila = valores[filaIndex];
-    const stockActual = parseInt(fila[3] || "0");
-    const stockNuevo = Math.max(0, stockActual - cantidadVendida);
-
-    // Actualizar el stock en la hoja
-    const updateRange = `${hoja}!D${filaIndex + 2}`; // Columna D = stock
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: sheetID,
-      range: updateRange,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[stockNuevo]],
-      },
+    return NextResponse.json({ 
+      ok: true, 
+      mensaje: resultado.mensaje,
+      actualizados: resultado.actualizados
     });
 
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error("❌ Error al actualizar stock en sheet:", err);
-    return NextResponse.json({ error: "Error al actualizar stock" }, { status: 500 });
+  } catch (err: any) {
+    console.error("❌ Error en actualizar-precios-sheet:", err);
+    return NextResponse.json({ 
+      error: "Error al actualizar precios",
+      detalles: err.message 
+    }, { status: 500 });
   }
 }

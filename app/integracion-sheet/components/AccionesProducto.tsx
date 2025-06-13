@@ -1,22 +1,23 @@
-// Componente con botones Editar y Eliminar producto
+// Componente con botones Editar y Eliminar modelo - CORREGIDO
 "use client";
 
 import { useState } from "react";
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { useRol } from "@/lib/useRol";
-import ModalAdvertencia from "./ModalAdvertencia"; // o la ruta correcta según dónde lo tengas
+import ModalAdvertencia from "./ModalAdvertencia";
 
-export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }: {
+export default function AccionesProducto({ producto, sheetID, hoja, cotizacion = 1200, onRecargar }: {
   producto: any;
   sheetID: string;
   hoja: string;
+  cotizacion?: number;
   onRecargar: () => void;
 }) {
   const { rol } = useRol();
   const [editando, setEditando] = useState(false);
   const [formData, setFormData] = useState({
-    producto: producto.producto || "",
+    modelo: producto.modelo || "",
     cantidad: producto.cantidad || 0,
     proveedor: producto.proveedor || "",
     precioCosto: producto.precioCosto || 0,
@@ -32,20 +33,31 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
   const [mensajeAdvertencia, setMensajeAdvertencia] = useState("");
   const [cargando, setCargando] = useState(false);
 
+  // ✅ FUNCIÓN CORREGIDA - guardarCambios
   const guardarCambios = async () => {
     setCargando(true);
     try {
+      console.log(`🔧 Editando modelo ${producto.codigo}:`, formData);
+      console.log(`💰 Usando cotización: ${cotizacion}`);
+      console.log(`🏪 NegocioID: ${rol.negocioID}, Hoja: ${hoja}`);
+      
       const ref = doc(db, `negocios/${rol.negocioID}/stockExtra/${producto.codigo}`);
       const { precio1, precio2, precio3, precioCosto } = formData;
-      const cotizacion = 1000;
       
       const precio1Pesos = Math.round(precio1 * cotizacion);
       const precio2Pesos = Math.round(precio2 * cotizacion);
       const precio3Pesos = Math.round(precio3 * cotizacion);
+      const precioCostoPesos = Math.round(precioCosto * cotizacion);
       const ganancia = precio1 - precioCosto;
       
-      await updateDoc(ref, {
+      // ✅ DATOS CORREGIDOS - Agregar negocioID y hoja
+      const datosActualizados = {
         ...formData,
+        // ✅ CAMPOS ESENCIALES QUE FALTABAN:
+        negocioID: rol.negocioID, // 🎯 ESTE FALTABA
+        hoja: hoja, // 🎯 ESTE FALTABA
+        categoria: producto.categoria || "Baterias", // 🎯 ESTE TAMBIÉN
+        // Precios
         precioUSD: precio1,
         precio1,
         precio2,
@@ -53,14 +65,34 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
         precio1Pesos,
         precio2Pesos,
         precio3Pesos,
+        precioCostoPesos,
+        cotizacion,
         ganancia,
-      });
+        // Metadatos
+        fechaActualizacion: new Date(),
+        codigo: producto.codigo,
+        activo: true, // 🎯 AGREGAR ESTE CAMPO
+        origenSincronizacion: 'Manual' // 🎯 IDENTIFICAR ORIGEN
+      };
 
-      await fetch("/api/actualizar-precios-sheet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sheetID, hoja }),
-      });
+      console.log('📦 Datos que se van a guardar:', datosActualizados);
+
+      // ✅ CAMBIO PRINCIPAL: setDoc con merge
+      await setDoc(ref, datosActualizados, { merge: true });
+
+      console.log(`✅ Modelo ${producto.codigo} actualizado en Firebase`);
+
+      // Actualizar precios en Sheet
+      try {
+        await fetch("/api/actualizar-precios-sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sheetID, hoja }),
+        });
+        console.log("✅ Precios actualizados en Google Sheets");
+      } catch (sheetError) {
+        console.warn("⚠️ Error actualizando Sheet (modelo guardado en Firebase):", sheetError);
+      }
 
       setMensaje("✅ Guardado exitosamente");
       setTimeout(() => {
@@ -68,54 +100,83 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
         setEditando(false);
         onRecargar();
       }, 1000);
-    } catch (err) {
+      
+    } catch (err: any) {
       console.error("❌ Error al guardar cambios:", err);
-      setMensaje("❌ Error al guardar");
+      setMensaje("❌ Error al guardar: " + err.message);
     } finally {
       setCargando(false);
     }
   };
 
+  // ✅ FUNCIÓN ELIMINAR CORREGIDA
   const eliminarProducto = async () => {
     setCargando(true);
     try {
+      console.log("🗑️ Iniciando eliminación de:", producto.codigo);
+      console.log(`🏪 NegocioID: ${rol.negocioID}, Hoja: ${hoja}`);
+
+      // PASO 1: Eliminar de Firebase
       const ref = doc(db, `negocios/${rol.negocioID}/stockExtra/${producto.codigo}`);
-      await deleteDoc(ref);
-  
-      const res = await fetch("/api/eliminar-del-sheet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sheetID, hoja, codigo: producto.codigo }),
-      });
-  
-      const data = await res.json();
-  
-      if (!res.ok) {
-        if (data.error?.includes("no se encontró el código")) {
-          setMensajeAdvertencia("Este producto fue eliminado de Firebase, pero no se encontró en el Sheet.");
-          setMostrarAdvertencia(true);
-          return;
-        } else {
-          setMensajeAdvertencia("Ocurrió un error inesperado al intentar eliminar el producto del Sheet.");
-          setMostrarAdvertencia(true);
-          return;
-        }
+      
+      try {
+        await deleteDoc(ref);
+        console.log("✅ Eliminado de Firebase exitosamente");
+      } catch (fbError: any) {
+        console.warn("⚠️ Error eliminando de Firebase (puede que no exista):", fbError.message);
       }
-  
-      setMensaje("🗑️ Eliminado");
+
+      // PASO 2: Eliminar del Sheet
+      try {
+        console.log("🔄 Intentando eliminar del Sheet...");
+        const res = await fetch("/api/eliminar-del-sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            sheetID, 
+            hoja, 
+            codigo: producto.codigo 
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.warn("⚠️ Error en API del Sheet:", data);
+          
+          if (
+            data.error?.includes("no encontrado") ||
+            data.error?.includes("No se encontró el código") ||
+            res.status === 404
+          ) {
+            console.log("ℹ️ Modelo no estaba en el Sheet, pero se eliminó de Firebase");
+          } else {
+            setMensajeAdvertencia(`Modelo eliminado de Firebase, pero hubo un problema con el Sheet: ${data.error}`);
+            setMostrarAdvertencia(true);
+          }
+        } else {
+          console.log("✅ Eliminado del Sheet exitosamente");
+        }
+
+      } catch (sheetError: any) {
+        console.warn("⚠️ Error de conexión con API del Sheet:", sheetError.message);
+      }
+
+      setMensaje("✅ Modelo eliminado");
       setTimeout(() => {
         setMensaje("");
         onRecargar();
       }, 1000);
-    } catch (err) {
-      console.error("❌ Error al eliminar:", err);
+
+    } catch (err: any) {
+      console.error("❌ Error general en eliminación:", err);
       setMensaje("❌ Error al eliminar");
     } finally {
       setCargando(false);
       setConfirmarEliminar(false);
     }
-  };  
-
+  };
+  
   return (
     <>
       {/* Botones de acciones */}
@@ -148,8 +209,8 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
                   <span className="text-xl lg:text-2xl">✏️</span>
                 </div>
                 <div>
-                  <h2 className="text-lg lg:text-xl font-bold">Editar Producto</h2>
-                  <p className="text-orange-100 text-sm">Código: {producto.codigo}</p>
+                  <h2 className="text-lg lg:text-xl font-bold">Editar Modelo</h2>
+                  <p className="text-orange-100 text-sm">Código: {producto.codigo} • Hoja: {hoja}</p>
                 </div>
               </div>
             </div>
@@ -161,19 +222,19 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
               <div className="space-y-4">
                 <h3 className="text-sm lg:text-base font-semibold text-[#2c3e50] flex items-center gap-2 border-b border-[#ecf0f1] pb-2">
                   <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">📦</span>
-                  Información del Producto
+                  Información del Modelo
                 </h3>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-[#2c3e50] block mb-2">
-                      Nombre del Producto
+                      Nombre del Modelo
                     </label>
                     <input
-                      value={formData.producto}
-                      onChange={(e) => setFormData({ ...formData, producto: e.target.value })}
+                      value={formData.modelo}
+                      onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
                       className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-sm"
-                      placeholder="Nombre del producto"
+                      placeholder="Nombre del modelo"
                     />
                   </div>
                   
@@ -376,11 +437,11 @@ export default function AccionesProducto({ producto, sheetID, hoja, onRecargar }
             <div className="p-4 sm:p-6 space-y-4">
               <div className="bg-red-50 border-2 border-[#e74c3c] rounded-lg p-3 sm:p-4">
                 <p className="text-[#e74c3c] font-medium text-sm sm:text-base">
-                  ¿Estás seguro que querés eliminar este producto?
+                  ¿Estás seguro que querés eliminar este modelo?
                 </p>
                 <div className="mt-2 text-xs sm:text-sm text-[#7f8c8d]">
                   <strong>Código:</strong> {producto.codigo}<br/>
-                  <strong>Producto:</strong> {producto.producto}
+                  <strong>Modelo:</strong> {producto.modelo}
                 </div>
               </div>
               

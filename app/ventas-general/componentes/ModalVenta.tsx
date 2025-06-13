@@ -183,12 +183,18 @@ export default function ModalVenta({
   
   const hayTelefono = productos.some((p) => p.categoria === "Teléfono");
 
-  // Calcular subtotal
+  // 🔧 CORRECCIÓN 3: Cálculo del subtotal
   const subtotal = productos.reduce((acc, p) => {
-    const precio = hayTelefono
-      ? p.precioUSD || p.precioUnitario
-      : p.precioARS || p.precioUnitario;
-    return acc + (precio * p.cantidad);
+    if (hayTelefono) {
+      // 📱 CON TELÉFONO: Usar precio USD
+      const precioUSD = p.categoria === "Teléfono" 
+        ? p.precioUnitario 
+        : (p.precioUSD || p.precioUnitario);
+      return acc + (precioUSD * p.cantidad);
+    } else {
+      // 🛍️ SIN TELÉFONO: Usar precio ARS
+      return acc + (p.precioUnitario * p.cantidad);
+    }
   }, 0);
 
   // Calcular descuentos
@@ -330,8 +336,6 @@ export default function ModalVenta({
                 <tbody>
                   {productos.length > 0 ? (
                     productos.map((p, i) => {
-                      const precioMostrar = hayTelefono ? p.precioUSD || p.precioUnitario : p.precioARS || p.precioUnitario;
-                      const monedaProducto = hayTelefono ? "USD" : "ARS";
                       const isEven = i % 2 === 0;
 
                       return (
@@ -357,10 +361,18 @@ export default function ModalVenta({
                               {p.color}
                             </span>
                           </td>
+                          {/* 🔧 CORRECCIÓN 1: Mostrar precios correctos - PRECIO */}
                           <td className="p-2 sm:p-3 border border-[#bdc3c7] text-right font-medium">
                             <span className="text-[#27ae60] font-semibold text-xs sm:text-sm">
-                              {monedaProducto === "USD" ? "USD $" : "$"}{" "}
-                              {Number(precioMostrar).toLocaleString("es-AR")}
+                              {hayTelefono ? (
+                                // 📱 CON TELÉFONO: Todo en USD
+                                p.categoria === "Teléfono" 
+                                  ? `USD $${Number(p.precioUnitario).toLocaleString("es-AR")}`
+                                  : `USD $${Number(p.precioUSD || p.precioUnitario).toLocaleString("es-AR")}`
+                              ) : (
+                                // 🛍️ SIN TELÉFONO: Todo en ARS
+                                `$${Number(p.precioUnitario).toLocaleString("es-AR")}`
+                              )}
                             </span>
                           </td>
                           <td className="p-2 sm:p-3 border border-[#bdc3c7] text-right">
@@ -368,8 +380,17 @@ export default function ModalVenta({
                               {p.cantidad}
                             </span>
                           </td>
+                          {/* 🔧 CORRECCIÓN 1: Mostrar precios correctos - TOTAL */}
                           <td className="p-2 sm:p-3 border border-[#bdc3c7] text-right font-bold text-[#27ae60] text-xs sm:text-sm">
-                            ${(precioMostrar * p.cantidad).toLocaleString("es-AR")}
+                            {hayTelefono ? (
+                              // 📱 CON TELÉFONO: Todo en USD
+                              p.categoria === "Teléfono"
+                                ? `USD $${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
+                                : `USD $${((p.precioUSD || p.precioUnitario) * p.cantidad).toLocaleString("es-AR")}`  
+                            ) : (
+                              // 🛍️ SIN TELÉFONO: Todo en ARS
+                              `$${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
+                            )}
                           </td>
                           <td className="p-2 sm:p-3 border border-[#bdc3c7] text-center">
                             <button
@@ -409,9 +430,6 @@ export default function ModalVenta({
             <div className="lg:hidden p-3 sm:p-4 space-y-3">
               {productos.length > 0 ? (
                 productos.map((p, i) => {
-                  const precioMostrar = hayTelefono ? p.precioUSD || p.precioUnitario : p.precioARS || p.precioUnitario;
-                  const monedaProducto = hayTelefono ? "USD" : "ARS";
-
                   return (
                     <div key={i} className="bg-[#f8f9fa] rounded-lg border border-[#ecf0f1] p-3 sm:p-4">
                       <div className="flex justify-between items-start mb-3">
@@ -465,15 +483,33 @@ export default function ModalVenta({
                         
                         <div className="flex justify-between items-center pt-2 border-t border-[#ecf0f1]">
                           <span className="text-[#7f8c8d] text-xs sm:text-sm">Precio unitario:</span>
+                          {/* 🔧 CORRECCIÓN 2: Vista móvil - PRECIO */}
                           <span className="text-[#27ae60] font-semibold text-sm sm:text-base">
-                            {monedaProducto === "USD" ? "USD $" : "$"}{Number(precioMostrar).toLocaleString("es-AR")}
+                            {hayTelefono ? (
+                              // 📱 CON TELÉFONO: Todo en USD
+                              p.categoria === "Teléfono"
+                                ? `USD $${Number(p.precioUnitario).toLocaleString("es-AR")}`
+                                : `USD $${Number(p.precioUSD || p.precioUnitario).toLocaleString("es-AR")}`
+                            ) : (
+                              // 🛍️ SIN TELÉFONO: Todo en ARS
+                              `$${Number(p.precioUnitario).toLocaleString("es-AR")}`
+                            )}
                           </span>
                         </div>
                         
                         <div className="flex justify-between items-center font-bold">
                           <span className="text-[#2c3e50] text-sm sm:text-base">Total:</span>
+                          {/* 🔧 CORRECCIÓN 2: Vista móvil - TOTAL */}
                           <span className="text-[#27ae60] text-base sm:text-lg">
-                            ${(precioMostrar * p.cantidad).toLocaleString("es-AR")}
+                            {hayTelefono ? (
+                              // 📱 CON TELÉFONO: Todo en USD
+                              p.categoria === "Teléfono"
+                                ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
+                                : `USD ${((p.precioUSD || p.precioUnitario) * p.cantidad).toLocaleString("es-AR")}`
+                            ) : (
+                              // 🛍️ SIN TELÉFONO: Todo en ARS
+                              `${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
+                            )}
                           </span>
                         </div>
                       </div>
@@ -630,49 +666,47 @@ export default function ModalVenta({
           </div>
         </div>
 
-        // 🔧 REEMPLAZAR la sección del ModalPago en ModalVenta (líneas 675-690 aprox):
-
-{/* Modal de pago */}
-{modalPagoAbierto && (
-  <ModalPago
-    mostrar={modalPagoAbierto}
-    pago={pago}
-    onClose={() => setModalPagoAbierto(false)}
-    handlePagoChange={(e) => {
-      const { name, value } = e.target;
-      setPago((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
-    }}
-    onGuardarPago={(nuevoPago) => {
-      console.log('💰 Pago recibido del ModalPago:', nuevoPago);
-      
-      const pagoConvertido = {
-        monto: nuevoPago.moneda === "ARS" ? (nuevoPago.monto || "") : "",
-        montoUSD: nuevoPago.moneda === "USD" ? (nuevoPago.montoUSD || "") : "",
-        moneda: nuevoPago.moneda || "ARS",
-        formaPago: nuevoPago.formaPago || "",
-        destino: nuevoPago.destino || "",
-        observaciones: nuevoPago.observaciones || "",
-      };
-      console.log('🔄 Pago convertido para ModalVenta:', pagoConvertido);
-      
-      // ✅ ACTUALIZAR ESTADO LOCAL
-      setPago(pagoConvertido);
-      
-      // ✅ MOSTRAR FEEDBACK VISUAL
-      setGuardadoConExito(true);
-      setTimeout(() => setGuardadoConExito(false), 2000);
-      
-      // ✅ CERRAR MODAL
-      setModalPagoAbierto(false);
-      
-      console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
-    }}
-    guardadoConExito={guardadoConExito}
-  />
-)}
+        {/* Modal de pago */}
+        {modalPagoAbierto && (
+          <ModalPago
+            mostrar={modalPagoAbierto}
+            pago={pago}
+            onClose={() => setModalPagoAbierto(false)}
+            handlePagoChange={(e) => {
+              const { name, value } = e.target;
+              setPago((prev) => ({
+                ...prev,
+                [name]: value,
+              }));
+            }}
+            onGuardarPago={(nuevoPago) => {
+              console.log('💰 Pago recibido del ModalPago:', nuevoPago);
+              
+              const pagoConvertido = {
+                monto: nuevoPago.moneda === "ARS" ? (nuevoPago.monto || "") : "",
+                montoUSD: nuevoPago.moneda === "USD" ? (nuevoPago.montoUSD || "") : "",
+                moneda: nuevoPago.moneda || "ARS",
+                formaPago: nuevoPago.formaPago || "",
+                destino: nuevoPago.destino || "",
+                observaciones: nuevoPago.observaciones || "",
+              };
+              console.log('🔄 Pago convertido para ModalVenta:', pagoConvertido);
+              
+              // ✅ ACTUALIZAR ESTADO LOCAL
+              setPago(pagoConvertido);
+              
+              // ✅ MOSTRAR FEEDBACK VISUAL
+              setGuardadoConExito(true);
+              setTimeout(() => setGuardadoConExito(false), 2000);
+              
+              // ✅ CERRAR MODAL
+              setModalPagoAbierto(false);
+              
+              console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
+            }}
+            guardadoConExito={guardadoConExito}
+          />
+        )}
       </div>
     </div>
   );

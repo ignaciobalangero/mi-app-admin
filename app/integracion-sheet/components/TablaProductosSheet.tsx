@@ -11,6 +11,8 @@ interface ExtraData {
   precio1Pesos?: number;
   precio2Pesos?: number;
   precio3Pesos?: number;
+  cantidad?: number;
+  stockIdeal?: number;
 }
 
 import { useEffect, useState } from "react";
@@ -46,6 +48,58 @@ export default function TablaProductosSheet({
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [cargandoActualizar, setCargandoActualizar] = useState(false);
 
+  // 🔥 NUEVA FUNCIÓN: Actualizar precios ARS en Firebase
+  const actualizarPreciosFirebase = async (nuevoDolar: number) => {
+    if (!rol?.negocioID) return;
+    
+    console.log(`🔄 Actualizando precios ARS en Firebase con dólar: $${nuevoDolar}`);
+    
+    try {
+      // Obtener todos los productos de Firebase de esta hoja
+      const coleccion = collection(db, `negocios/${rol.negocioID}/stockExtra`);
+      const snapshot = await getDocs(coleccion);
+      
+      const actualizaciones = [];
+      
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        
+        // Solo actualizar productos de la hoja actual
+        if (data.hoja === hoja) {
+          const precioUSD = Number(data.precioUSD || data.precio1) || 0;
+          const nuevoPrecioARS = Math.round(precioUSD * nuevoDolar);
+          
+          // Solo actualizar si el precio cambió
+          if (data.precioARS !== nuevoPrecioARS || data.precio1Pesos !== nuevoPrecioARS) {
+            actualizaciones.push(
+              setDoc(doc.ref, {
+                ...data,
+                precioARS: nuevoPrecioARS,
+                precio1Pesos: nuevoPrecioARS, // Asegurar consistencia
+                cotizacion: nuevoDolar,
+                ultimaActualizacion: new Date().toISOString()
+              }, { merge: true })
+            );
+          }
+        }
+      });
+      
+      // Ejecutar todas las actualizaciones
+      if (actualizaciones.length > 0) {
+        await Promise.all(actualizaciones);
+        console.log(`✅ ${actualizaciones.length} productos actualizados en Firebase`);
+        
+        // Recargar datos para reflejar cambios
+        setRecarga((prev) => prev + 1);
+      } else {
+        console.log('ℹ️ No hay productos que actualizar');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error actualizando precios en Firebase:', error);
+    }
+  };
+
   const actualizarPrecios = async () => {
     if (!rol?.negocioID || !sheetID || !hoja) return;
     setCargandoActualizar(true);
@@ -69,20 +123,22 @@ export default function TablaProductosSheet({
       );
       const productos = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-      // Formar filas solo con los datos disponibles
-      const filas = productos.map((p: any) => {
-        const precioUSD = Number(p.precioUSD) || 0;
-        const precioARS = Number((precioUSD * cotizacion).toFixed(2));
+      // Formar filas solo con los datos disponibles DE ESTA HOJA
+      const filas = productos
+        .filter((p: any) => p.hoja === hoja)  // 👈 FILTRAR POR HOJA
+        .map((p: any) => {
+          const precioUSD = Number(p.precioUSD) || 0;
+          const precioARS = Number((precioUSD * cotizacion).toFixed(2));
 
-        return {
-          codigo: p.id,
-          categoria: p.categoria || "",
-          producto: p.producto || "",
-          cantidad: p.cantidad || "",
-          precioARS,
-          precioUSD,
-        };
-      });
+          return {
+            codigo: p.id,
+            categoria: p.categoria || "",
+            modelo: p.modelo || p.producto || "",
+            cantidad: p.cantidad || "",
+            precioARS,
+            precioUSD,
+          };
+        });
 
       // Enviar a la API
       const res = await fetch("/api/actualizar-precios-sheet", {
@@ -92,7 +148,12 @@ export default function TablaProductosSheet({
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error desconocido");
+      console.log("🔍 Respuesta de la API:", json); // 👈 AGREGADO PARA DEBUGGING
+
+      if (!res.ok) {
+        console.error("❌ Error de la API:", json);
+        throw new Error(json.error || json.detalles || `Error ${res.status}: ${res.statusText}`);
+      }
 
       setMensaje("✅ Precios actualizados en el Sheet correctamente");
       
@@ -149,81 +210,54 @@ export default function TablaProductosSheet({
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!sheetID || !rol?.negocioID) return;
+    const fetchSoloFirebase = async () => {
+      if (!rol?.negocioID) return;
       setCargando(true);
       try {
-        const res = await fetch("/api/leer-stock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sheetID, hoja, negocioID: rol.negocioID }),
-        });
-        const sheetRes = await res.json();
-        const sheetData = sheetRes.datos || [];
-
         const extraSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));
         const firestoreData: ExtraData[] = extraSnap.docs
-         .map((doc) => {
-       const data = doc.data() as ExtraData;
-       return { codigo: doc.id, ...data };
-       })
-        .filter((prod) => prod.hoja === hoja);
-
-        const codigosSheet = sheetData.map((p: any) => p.codigo);
-        const combinados = sheetData.map((producto: any) => {
-          const extra = firestoreData.find((e: any) => e.codigo === producto.codigo);
-
-          const precioUSD = Number(extra?.precio1) || Number(producto.precio1) || 0;
-          const precioARS = Number(extra?.precio1Pesos) || 0;
-          const precioCosto = Number(extra?.precioCosto) || 0;
-          const ganancia = precioUSD - precioCosto;          
-
+          .map((doc) => {
+            const data = doc.data() as ExtraData;
+            return { codigo: doc.id, ...data };
+          })
+          .filter((prod) => prod.hoja === hoja);
+  
+        const resultadoFinal = firestoreData.map((p) => {
+          const precioUSD = Number(p.precio1) || 0;
+          const precioCosto = Number(p.precioCosto) || 0;
+          const ganancia = precioUSD - precioCosto;
+          const precioARS = Number(p.precio1Pesos) || Math.round(precioUSD * (dolarManual || cotizacionFinal || 1000));
+  
           return {
-            ...producto,
-            ...extra,
+            ...p,
             precioARS,
             ganancia,
           };
         });
-
-        const soloFirestore = firestoreData
-          .filter((p: any) => !codigosSheet.includes(p.codigo))
-          .map((p: any) => {
-            const precioUSD = Number(p.precioUSD) || 0;
-            const precioCosto = Number(p.precioCosto) || 0;
-            const ganancia = precioUSD - precioCosto;
-            const precioARSCalculado = Math.round(precioUSD * cotizacionFinal);
-
-            return {
-              ...p,
-              precioARS: precioARSCalculado,
-              ganancia,
-            };
-          });
-
-          const resultadoFinal = [...combinados, ...soloFirestore];
-          const resultadoSeguro = resultadoFinal
+  
+        const resultadoSeguro = resultadoFinal
           .filter(item => item && item.codigo && typeof item.codigo === 'string' && item.codigo.trim() !== '')
           .sort((a, b) => a.codigo.localeCompare(b.codigo));
-        
+  
         setDatos(resultadoSeguro);
-           
-const sugerencias = resultadoFinal.filter((p) => {
-  return typeof p.stockIdeal === "number" &&
-         typeof p.cantidad === "number" &&
-         p.stockIdeal > p.cantidad;
-});
-setProductosAPedir(sugerencias);
-          
+  
+        const sugerencias = resultadoSeguro.filter((p) =>
+          typeof p.stockIdeal === "number" &&
+          typeof p.cantidad === "number" &&
+          p.stockIdeal > p.cantidad
+        );
+  
+        setProductosAPedir(sugerencias);
       } catch (err) {
-        console.error("❌ Error cargando datos:", err);
+        console.error("❌ Error cargando datos desde Firebase:", err);
       } finally {
         setCargando(false);
       }
     };
-
-    fetchData();
+  
+    fetchSoloFirebase();
   }, [sheetID, hoja, recarga, rol?.negocioID, cotizacionFinal, dolarManual]);
+  
 
   const totalCosto = datos.reduce((acc, fila) => {
     if (typeof fila.precioCosto === "number" && typeof fila.cantidad === "number") {
@@ -233,7 +267,7 @@ setProductosAPedir(sugerencias);
   }, 0);
 
   const datosFiltrados = datos.filter((fila) =>
-    fila.producto?.toLowerCase().includes(filtroTexto.toLowerCase())
+    (fila.modelo || fila.producto)?.toLowerCase().includes(filtroTexto.toLowerCase())
   );
   
   return (
@@ -254,10 +288,15 @@ setProductosAPedir(sugerencias);
               <input
                 type="number"
                 value={dolarManual ?? ""}
-                onChange={(e) => {
+                onChange={async (e) => {
                   const nuevoValor = Number(e.target.value);
                   setDolarManual(nuevoValor);
                   guardarConfiguracion(true, nuevoValor);
+                  
+                  // 🆕 AGREGAR: Actualizar precios en Firebase
+                  if (nuevoValor > 0) {
+                    await actualizarPreciosFirebase(nuevoValor);
+                  }
                 }}
                 placeholder="Ej: 1100"
                 className="flex-1 px-2 py-1 border-2 border-[#f39c12] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-center font-medium text-sm text-[#2c3e50] min-w-0"
@@ -298,13 +337,13 @@ setProductosAPedir(sugerencias);
           <div className="flex-1">
             <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
               <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
-              Buscar producto:
+              Buscar modelo:
             </label>
             <input
               type="text"
               value={filtroTexto}
               onChange={(e) => setFiltroTexto(e.target.value)}
-              placeholder="🔍 Filtrar por producto..."
+              placeholder="🔍 Filtrar por modelo..."
               className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
             />
           </div>
@@ -374,9 +413,9 @@ setProductosAPedir(sugerencias);
                 <span className="text-lg sm:text-2xl">📋</span>
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-bold">Productos del Inventario</h3>
+                <h3 className="text-base sm:text-lg font-bold">Modelos del Inventario</h3>
                 <p className="text-gray-200 text-xs sm:text-sm">
-                  {datosFiltrados.length} {datosFiltrados.length === 1 ? 'producto' : 'productos'} encontrados
+                  {datosFiltrados.length} {datosFiltrados.length === 1 ? 'modelo' : 'modelos'} encontrados
                 </p>
               </div>
             </div>
@@ -394,7 +433,7 @@ setProductosAPedir(sugerencias);
                     <span className="hidden sm:inline">📂 </span>Cat.
                   </th>
                   <th className="p-1 sm:p-2 lg:p-3 text-left text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                    <span className="hidden sm:inline">📱 </span>Producto
+                    <span className="hidden sm:inline">📱 </span>Modelo
                   </th>
                   <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-[6%]">
                     <span className="hidden sm:inline">📦 </span>Cant.
@@ -432,11 +471,11 @@ setProductosAPedir(sugerencias);
                         </div>
                         <div>
                           <p className="text-sm sm:text-lg font-medium text-[#7f8c8d]">
-                            {datos.length === 0 ? "No hay productos registrados" : "No se encontraron resultados"}
+                            {datos.length === 0 ? "No hay modelos registrados" : "No se encontraron resultados"}
                           </p>
                           <p className="text-xs sm:text-sm text-[#bdc3c7]">
                             {datos.length === 0 
-                              ? "Los productos aparecerán aquí una vez sincronizados"
+                              ? "Los modelos aparecerán aquí una vez sincronizados"
                               : "Intenta ajustar el filtro de búsqueda"
                             }
                           </p>
@@ -475,11 +514,11 @@ setProductosAPedir(sugerencias);
                           </span>
                         </td>
                         
-                        {/* Producto */}
+                        {/* Modelo */}
                         <td className="p-1 sm:p-2 lg:p-3 border border-[#bdc3c7]">
                           <div className="text-xs sm:text-sm text-[#2c3e50]">
                             <div className="font-semibold truncate">
-                              {fila.producto || "Sin nombre"}
+                              {fila.modelo || fila.producto || "Sin nombre"}
                             </div>
                             <div className="text-xs text-[#7f8c8d] lg:hidden mt-1">
                               Costo: ${typeof fila.precioCosto === "number" ? fila.precioCosto.toLocaleString("es-AR") : "—"} | 
@@ -551,6 +590,7 @@ setProductosAPedir(sugerencias);
                             producto={fila}
                             sheetID={sheetID}
                             hoja={hoja}
+                            cotizacion={cotizacionFinal}
                             onRecargar={() => setRecarga((prev) => prev + 1)}
                           />
                         </td>
@@ -567,7 +607,7 @@ setProductosAPedir(sugerencias);
             <div className="bg-[#f8f9fa] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#bdc3c7]">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
                 <span>
-                  Mostrando {datosFiltrados.length} de {datos.length} {datos.length === 1 ? 'producto' : 'productos'}
+                  Mostrando {datosFiltrados.length} de {datos.length} {datos.length === 1 ? 'modelo' : 'modelos'}
                 </span>
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
                   <span>

@@ -6,7 +6,7 @@ export default function StockRepuestosSheet() {
   const [datos, setDatos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [filtroProducto, setFiltroProducto] = useState("");
+  const [filtroModelo, setFiltroModelo] = useState("");
   const [filtroCodigo, setFiltroCodigo] = useState("");
   const [mostrarSinStock, setMostrarSinStock] = useState(true);
 
@@ -32,11 +32,11 @@ export default function StockRepuestosSheet() {
 
   // Filtrar datos
   const datosFiltrados = datos.filter((item) => {
-    const cumpleFiltroProducto = item.producto?.toLowerCase().includes(filtroProducto.toLowerCase());
+    const cumpleFiltroModelo = item.producto?.toLowerCase().includes(filtroModelo.toLowerCase());
     const cumpleFiltroCodigo = item.codigo?.toLowerCase().includes(filtroCodigo.toLowerCase());
     const cumpleFiltroStock = mostrarSinStock ? true : (item.cantidad > 0);
     
-    return cumpleFiltroProducto && cumpleFiltroCodigo && cumpleFiltroStock;
+    return cumpleFiltroModelo && cumpleFiltroCodigo && cumpleFiltroStock;
   });
 
   // Estados de carga y error mejorados
@@ -117,7 +117,7 @@ export default function StockRepuestosSheet() {
             <div className="flex flex-wrap gap-3 lg:gap-4">
               <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white px-3 lg:px-4 py-2 rounded-lg shadow-md">
                 <div className="text-center">
-                  <p className="text-xs lg:text-sm font-medium opacity-90">Total productos</p>
+                  <p className="text-xs lg:text-sm font-medium opacity-90">Total modelos</p>
                   <p className="text-lg lg:text-xl font-bold">{datos.length}</p>
                 </div>
               </div>
@@ -141,17 +141,17 @@ export default function StockRepuestosSheet() {
         <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 lg:p-6">
           <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
             
-            {/* Filtro por producto */}
+            {/* Filtro por modelo */}
             <div className="flex-1">
               <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
                 <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
-                Buscar producto:
+                Buscar modelo:
               </label>
               <input
                 type="text"
-                placeholder="🔍 Filtrar por nombre de producto..."
-                value={filtroProducto}
-                onChange={(e) => setFiltroProducto(e.target.value)}
+                placeholder="🔍 Filtrar por nombre de modelo..."
+                value={filtroModelo}
+                onChange={(e) => setFiltroModelo(e.target.value)}
                 className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
               />
             </div>
@@ -185,13 +185,13 @@ export default function StockRepuestosSheet() {
                     : "bg-[#e74c3c] text-white shadow-md"
                 } hover:shadow-lg transform hover:scale-105`}
               >
-                {mostrarSinStock ? "📦 Todos los productos" : "✅ Solo con stock"}
+                {mostrarSinStock ? "📦 Todos los modelos" : "✅ Solo con stock"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Tabla de productos */}
+        {/* Tabla de modelos */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
           
           {/* Header de la tabla */}
@@ -203,7 +203,7 @@ export default function StockRepuestosSheet() {
               <div>
                 <h3 className="text-base sm:text-lg font-bold">Inventario de Repuestos</h3>
                 <p className="text-gray-200 text-xs sm:text-sm">
-                  {datosFiltrados.length} {datosFiltrados.length === 1 ? 'producto' : 'productos'} encontrados
+                  {datosFiltrados.length} {datosFiltrados.length === 1 ? 'modelo' : 'modelos'} encontrados
                 </p>
               </div>
             </div>
@@ -218,7 +218,7 @@ export default function StockRepuestosSheet() {
                     <span className="hidden sm:inline">🏷️ </span>Código
                   </th>
                   <th className="p-2 sm:p-3 text-left text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                    <span className="hidden sm:inline">📱 </span>Producto
+                    <span className="hidden sm:inline">📱 </span>Modelo
                   </th>
                   <th className="p-2 sm:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-16 sm:w-20">
                     <span className="hidden sm:inline">📦 </span>Stock
@@ -238,11 +238,11 @@ export default function StockRepuestosSheet() {
                         </div>
                         <div>
                           <p className="text-sm sm:text-lg font-medium text-[#7f8c8d]">
-                            {datos.length === 0 ? "No hay productos registrados" : "No se encontraron resultados"}
+                            {datos.length === 0 ? "No hay modelos registrados" : "No se encontraron resultados"}
                           </p>
                           <p className="text-xs sm:text-sm text-[#bdc3c7]">
                             {datos.length === 0 
-                              ? "Los productos aparecerán aquí una vez que se sincronicen desde Google Sheets"
+                              ? "Los modelos aparecerán aquí una vez que se sincronicen desde Google Sheets"
                               : "Intenta ajustar los filtros de búsqueda"
                             }
                           </p>
@@ -273,7 +273,7 @@ export default function StockRepuestosSheet() {
                           </span>
                         </td>
                         
-                        {/* Producto */}
+                        {/* Modelo */}
                         <td className="p-2 sm:p-3 border border-[#bdc3c7]">
                           <div className="text-xs sm:text-sm text-[#2c3e50]">
                             <div className="font-semibold">
@@ -314,7 +314,7 @@ export default function StockRepuestosSheet() {
             <div className="bg-[#f8f9fa] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#bdc3c7]">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
                 <span>
-                  Mostrando {datosFiltrados.length} de {datos.length} {datos.length === 1 ? 'producto' : 'productos'}
+                  Mostrando {datosFiltrados.length} de {datos.length} {datos.length === 1 ? 'modelo' : 'modelos'}
                 </span>
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
                   <span>

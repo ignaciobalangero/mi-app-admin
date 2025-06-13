@@ -16,7 +16,7 @@ export default function FormularioAgregarProducto({
   onProductoAgregado?: () => void;
 }) {
   const [categoria, setCategoria] = useState("");
-  const [producto, setProducto] = useState("");
+  const [modelo, setModelo] = useState("");
   const [stock, setStock] = useState("");
   const [precioUSD, setPrecioUSD] = useState("");
   const [costo, setCosto] = useState("");
@@ -57,8 +57,8 @@ export default function FormularioAgregarProducto({
     setMensaje("");
     setCargando(true);
 
-    if (!sheetID || !producto.trim() || !categoria.trim()) {
-      setMensaje("⚠️ Completá categoría y producto.");
+    if (!sheetID || !modelo.trim() || !categoria.trim()) {
+      setMensaje("⚠️ Completá categoría y modelo.");
       setCargando(false);
       return;
     }
@@ -90,7 +90,7 @@ export default function FormularioAgregarProducto({
     const nuevoProducto = {
       codigo,
       categoria,
-      producto,
+      modelo,
       cantidad,
       precio: Number(precio1) * cotizacionFinal,
       precioUSD: Number(precio1),
@@ -149,7 +149,7 @@ export default function FormularioAgregarProducto({
         await setDoc(doc(db, `negocios/${rol.negocioID}/stockExtra/${codigo}`), {
           codigo,
           categoria,
-          producto,
+          modelo,
           cantidad,
           precioUSD: Number(precio1),
           cotizacion: cotizacionFinal,
@@ -167,12 +167,12 @@ export default function FormularioAgregarProducto({
         });        
       }
 
-      setMensaje("✅ Producto agregado correctamente");
+      setMensaje("✅ Modelo agregado correctamente");
       if (onProductoAgregado) onProductoAgregado();
 
       // Limpiar formulario
       setCategoria("");
-      setProducto("");
+      setModelo("");
       setStock("");
       setPrecioUSD("");
       setCosto("");
@@ -195,11 +195,11 @@ export default function FormularioAgregarProducto({
     <div className="bg-white max-w-4xl mx-auto">
       <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
         
-        {/* Información básica del producto */}
+        {/* Información básica del modelo */}
         <div className="space-y-4">
           <h3 className="text-sm lg:text-base font-semibold text-[#2c3e50] flex items-center gap-2 border-b border-[#ecf0f1] pb-2">
             <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">📦</span>
-            Información del Producto
+            Información del Modelo
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -218,12 +218,12 @@ export default function FormularioAgregarProducto({
             
             <div>
               <label className="text-xs font-semibold text-[#2c3e50] block mb-2">
-                Nombre del Producto *
+                Nombre del Modelo *
               </label>
               <input
-                value={producto}
-                onChange={(e) => setProducto(e.target.value)}
-                placeholder="Descripción detallada del producto"
+                value={modelo}
+                onChange={(e) => setModelo(e.target.value)}
+                placeholder="Descripción detallada del modelo"
                 className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
                 required
               />
@@ -387,7 +387,7 @@ export default function FormularioAgregarProducto({
                 />
                 <div>
                   <span className="text-sm font-semibold text-[#2c3e50]">👁️ Mostrar al cliente</span>
-                  <p className="text-xs text-[#7f8c8d]">El producto será visible en catálogos</p>
+                  <p className="text-xs text-[#7f8c8d]">El modelo será visible en catálogos</p>
                 </div>
               </label>
             </div>
@@ -422,7 +422,7 @@ export default function FormularioAgregarProducto({
             ) : (
               <>
                 <span className="text-lg">💾</span>
-                <span>Guardar Producto</span>
+                <span>Guardar Modelo</span>
               </>
             )}
           </button>

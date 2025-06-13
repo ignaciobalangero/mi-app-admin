@@ -63,12 +63,24 @@ export default function IntegracionGoogleSheetPage() {
       const configData = configSnap.exists() ? configSnap.data() : {};
       const hojasActuales = configData.googleSheets || [];
 
+      // 🔧 CORRECCIÓN: Solo verificar la combinación exacta (ID + nombre de hoja)
+      // Permite mismo SheetID con diferentes pestañas
       const yaExiste = hojasActuales.some(
-        (h: any) => h.hoja === nombreHoja || h.id === sheetIDLimpio
+        (h: any) => h.hoja === nombreHoja && h.id === sheetIDLimpio
       );
       
       if (yaExiste) {
-        setMensaje("⚠️ Esa hoja o Sheet ID ya está vinculado");
+        setMensaje("⚠️ Esta combinación de Sheet ID y nombre de pestaña ya existe");
+        return;
+      }
+
+      // Verificar solo si el nombre de hoja ya existe (independiente del ID)
+      const nombreDuplicado = hojasActuales.some(
+        (h: any) => h.hoja === nombreHoja
+      );
+      
+      if (nombreDuplicado) {
+        setMensaje("⚠️ Ya existe una hoja con ese nombre. Usa un nombre diferente.");
         return;
       }
 
@@ -138,6 +150,15 @@ export default function IntegracionGoogleSheetPage() {
     }
   };
 
+  // 🆕 Función para agrupar hojas por SheetID
+  const hojasAgrupadas = hojasVinculadas.reduce((grupos, hoja) => {
+    if (!grupos[hoja.id]) {
+      grupos[hoja.id] = [];
+    }
+    grupos[hoja.id].push(hoja);
+    return grupos;
+  }, {} as Record<string, typeof hojasVinculadas>);
+
   return (
     <main className="pt-24 px-4 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
       <div className="max-w-4xl mx-auto">
@@ -170,7 +191,7 @@ export default function IntegracionGoogleSheetPage() {
                 value={nombreHoja}
                 onChange={(e) => setNombreHoja(e.target.value)}
                 placeholder="ej: Pantallas, Fundas, Accesorios..."
-                className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-gray-900 placeholder-gray-500"
               />
             </div>
 
@@ -183,9 +204,9 @@ export default function IntegracionGoogleSheetPage() {
                 value={sheetID}
                 onChange={(e) => setSheetID(e.target.value)}
                 placeholder="Pega la URL completa o solo el ID del Sheet"
-                className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-gray-900 placeholder-gray-500"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-600 mt-1 font-medium">
                 💡 Podés pegar la URL completa del Sheet, se extraerá el ID automáticamente
               </p>
             </div>
@@ -223,7 +244,7 @@ export default function IntegracionGoogleSheetPage() {
           )}
         </div>
 
-        {/* Lista de hojas vinculadas */}
+        {/* Lista de hojas vinculadas - AGRUPADAS POR SHEET */}
         {hojasVinculadas.length > 0 ? (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6">
@@ -234,51 +255,68 @@ export default function IntegracionGoogleSheetPage() {
                 <div>
                   <h2 className="text-xl font-bold">Hojas vinculadas</h2>
                   <p className="text-blue-100 text-sm">
-                    {hojasVinculadas.length} {hojasVinculadas.length === 1 ? 'hoja conectada' : 'hojas conectadas'}
+                    {hojasVinculadas.length} {hojasVinculadas.length === 1 ? 'hoja conectada' : 'hojas conectadas'} en {Object.keys(hojasAgrupadas).length} {Object.keys(hojasAgrupadas).length === 1 ? 'documento' : 'documentos'}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="divide-y divide-gray-100">
-              {hojasVinculadas.map((hoja, i) => (
-                <div key={i} className="p-6 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
+              {Object.entries(hojasAgrupadas).map(([sheetID, hojas]) => (
+                <div key={sheetID} className="p-6">
+                  {/* Header del Sheet */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <span className="text-blue-600 font-bold text-sm">📊</span>
+                    </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <span className="text-blue-600 font-bold text-sm">📊</span>
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-800">{hoja.hoja}</h3>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="font-mono bg-gray-100 px-2 py-1 rounded">
-                          {hoja.id}
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono bg-gray-200 px-3 py-1 rounded text-sm font-medium text-gray-800">
+                          {sheetID}
                         </span>
                         <a
-                          href={`https://docs.google.com/spreadsheets/d/${hoja.id}`}
+                          href={`https://docs.google.com/spreadsheets/d/${sheetID}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline"
+                          className="text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline text-sm font-medium"
                         >
                           <ExternalLink className="w-3 h-3" />
                           <span>Abrir Sheet</span>
                         </a>
                       </div>
+                      <p className="text-sm text-gray-600 mt-1 font-medium">
+                        {hojas.length} {hojas.length === 1 ? 'pestaña' : 'pestañas'} configuradas
+                      </p>
                     </div>
+                  </div>
 
-                    <button
-                      onClick={() => confirmarEliminacion(i)}
-                      disabled={eliminando === hoja.hoja}
-                      className="bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 p-3 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                      title={`Eliminar hoja ${hoja.hoja}`}
-                    >
-                      {eliminando === hoja.hoja ? (
-                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </button>
+                  {/* Lista de pestañas */}
+                  <div className="space-y-2 ml-11">
+                    {hojas.map((hoja, hojaIndex) => {
+                      const indiceGlobal = hojasVinculadas.findIndex(h => h.hoja === hoja.hoja && h.id === hoja.id);
+                      return (
+                        <div key={`${hoja.id}-${hoja.hoja}`} className="flex items-center justify-between p-3 bg-gray-100 rounded-lg border border-gray-200">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-green-200 rounded flex items-center justify-center">
+                              <span className="text-green-700 text-xs">📋</span>
+                            </div>
+                            <span className="font-semibold text-gray-900">{hoja.hoja}</span>
+                          </div>
+                          <button
+                            onClick={() => confirmarEliminacion(indiceGlobal)}
+                            disabled={eliminando === hoja.hoja}
+                            className="bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 p-2 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                            title={`Eliminar pestaña ${hoja.hoja}`}
+                          >
+                            {eliminando === hoja.hoja ? (
+                              <div className="w-3 h-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Trash2 className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -289,10 +327,10 @@ export default function IntegracionGoogleSheetPage() {
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-lg font-medium text-gray-600 mb-2">
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">
               No hay hojas vinculadas
             </h3>
-            <p className="text-gray-500">
+            <p className="text-gray-600 font-medium">
               Agrega tu primera hoja de Google Sheets para comenzar
             </p>
           </div>
@@ -305,12 +343,13 @@ export default function IntegracionGoogleSheetPage() {
               <span className="text-blue-600 text-sm">💡</span>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-blue-800 mb-2">Instrucciones</h3>
-              <ul className="text-blue-700 space-y-1 text-sm">
-                <li>• El nombre debe coincidir exactamente con la pestaña del Sheet</li>
-                <li>• Asegurate de que el Sheet sea público o compartido con permisos de lectura</li>
-                <li>• Podés eliminar hojas haciendo clic en el ícono de basura</li>
-                <li>• Los cambios se sincronizan automáticamente</li>
+              <h3 className="text-lg font-bold text-blue-900 mb-2">Instrucciones</h3>
+              <ul className="text-blue-800 space-y-1 text-sm leading-relaxed">
+                <li className="font-medium">• El nombre debe coincidir exactamente con la pestaña del Sheet</li>
+                <li className="font-medium">• <span className="font-bold text-blue-900">Podés usar el mismo SheetID para múltiples pestañas</span></li>
+                <li className="font-medium">• Cada nombre de pestaña debe ser único (no importa el SheetID)</li>
+                <li className="font-medium">• Asegurate de que el Sheet sea público o compartido con permisos de lectura</li>
+                <li className="font-medium">• Los cambios se sincronizan automáticamente</li>
               </ul>
             </div>
           </div>

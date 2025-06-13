@@ -1,5 +1,4 @@
-// app/api/insertar-producto/route.ts
-
+// /app/api/insertar-producto/route.ts
 import { NextResponse } from "next/server";
 import { insertarProductoOrdenado } from "@/app/api/lib/googleSheets";
 
@@ -11,11 +10,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
     }
 
-    await insertarProductoOrdenado({ sheetID, hoja, producto });
+    console.log("➕ Insertando modelo ordenado:", producto.codigo);
 
-    return NextResponse.json({ ok: true });
-  } catch (error) {
+    // ✅ CORRECCIÓN: Pasar los 3 parámetros separados
+    const resultado = await insertarProductoOrdenado(sheetID, hoja, producto);
+
+    console.log("✅ Modelo insertado exitosamente:", resultado);
+
+    return NextResponse.json({ 
+      ok: true,
+      mensaje: "Modelo insertado correctamente",
+      fila: resultado.fila
+    });
+
+  } catch (error: any) {
     console.error("❌ Error en insertar-producto:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return NextResponse.json({ 
+      error: "Error interno",
+      detalles: error.message 
+    }, { status: 500 });
   }
 }

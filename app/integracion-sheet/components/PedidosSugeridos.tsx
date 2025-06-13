@@ -2,7 +2,7 @@
 
 interface Producto {
   id: string;
-  producto: string;
+  modelo: string;
   cantidad: number;
   stockIdeal: number;
 }
@@ -20,7 +20,7 @@ export default function PedidosSugeridos({ productosAPedir }: Props) {
       <ul className="list-disc pl-6">
       {productosAPedir.map((p) => (
   <li key={p.id}>
-    {p.producto} → Faltan {p.stockIdeal - p.cantidad} unidades para alcanzar stock ideal ({p.stockIdeal})
+    {p.modelo} → Faltan {p.stockIdeal - p.cantidad} unidades para alcanzar stock ideal ({p.stockIdeal})
   </li>
 ))}
 
