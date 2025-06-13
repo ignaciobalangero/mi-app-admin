@@ -196,7 +196,7 @@ export async function testConectividad(sheetID: string, nombreHoja: string) {
     return {
       exito: false,
       error: error.message,
-      mensaje: "Falla en conectividad"
+      mensaje: "Falla in conectividad"
     };
   }
 }
@@ -218,6 +218,44 @@ export async function agregarProductoASheet(
       values: [fila],
     },
   });
+}
+
+// 🆕 FUNCIÓN AGREGADA: actualizarFilaEnSheet
+export async function actualizarFilaEnSheet({
+  sheetID,
+  hoja,
+  filaIndex,
+  valores,
+}: {
+  sheetID: string;
+  hoja: string;
+  filaIndex: number;
+  valores: string[];
+}) {
+  const sheets = createSheetsClient();
+  
+  try {
+    console.log(`🔄 Actualizando fila ${filaIndex} en hoja ${hoja}`);
+    
+    // El rango será desde la columna A hasta la F (o las que necesites)
+    const rango = `${hoja}!A${filaIndex}:F${filaIndex}`;
+
+    const response = await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetID,
+      range: rango,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [valores], // Array de valores para la fila
+      },
+    });
+
+    console.log(`✅ Fila ${filaIndex} actualizada exitosamente en ${hoja}`);
+    return response.data;
+    
+  } catch (error: any) {
+    console.error(`❌ Error al actualizar fila ${filaIndex} en Sheet:`, error.message);
+    throw new Error(`Error actualizando fila: ${error.message}`);
+  }
 }
 
 // 🆕 FUNCIÓN FALTANTE: insertarProductoOrdenado
