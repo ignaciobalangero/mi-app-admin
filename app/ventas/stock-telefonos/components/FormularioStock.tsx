@@ -242,7 +242,7 @@ export default function FormularioStock({
             className="p-2 border rounded"
           />
           <div className="flex gap-2">
-          
+          {rol?.tipo === "admin" && (
          <input
            type="number"
            name="precioCompra"
@@ -251,6 +251,7 @@ export default function FormularioStock({
            placeholder="Precio $"
            className="p-2 border rounded w-full"
             />
+          )}
              
             <select
               name="moneda"
@@ -262,7 +263,7 @@ export default function FormularioStock({
               <option value="ARS">ARS</option>
             </select>
           </div>
-          {rol?.tipo === "admin" && (
+          
           <input
             type="number"
             name="precioVenta"
@@ -271,7 +272,7 @@ export default function FormularioStock({
             placeholder="Precio venta"
             className="p-2 border rounded"
           />
-        )}
+        
          {rol?.tipo === "admin" && (
               <input
             type="number"

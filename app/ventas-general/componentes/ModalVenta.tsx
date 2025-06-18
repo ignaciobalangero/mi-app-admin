@@ -10,6 +10,7 @@ import SelectorProductoVentaGeneral from "./SelectorProductoVentaGeneral";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs } from "firebase/firestore";
 import { Combobox } from "@headlessui/react";
+import useCotizacion from "@/lib/hooks/useCotizacion";
 
 export default function ModalVenta({
   clienteInicial = "",
@@ -42,6 +43,7 @@ export default function ModalVenta({
   const [codigo, setCodigo] = useState("");
   const [precio, setPrecio] = useState(0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+  const { cotizacion } = useCotizacion(rol?.negocioID || "");
 
   // Estado para el teléfono como parte de pago
   const [telefonoComoPago, setTelefonoComoPago] = useState<any>(null);
