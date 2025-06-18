@@ -300,11 +300,14 @@ export default function AccionesProducto({ producto, sheetID, hoja, cotizacion =
                   Precios y Costos
                 </h3>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">               
                   <div>
+                  {rol?.tipo === "admin" && (
                     <label className="text-xs font-semibold text-[#e74c3c] block mb-2">
                       💸 Precio de Costo
                     </label>
+                  )}
+                  {rol?.tipo === "admin" && (
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#e74c3c] font-medium text-sm">$</span>
                       <input
@@ -316,6 +319,7 @@ export default function AccionesProducto({ producto, sheetID, hoja, cotizacion =
                         className="w-full pl-6 pr-3 py-2 sm:py-3 border-2 border-[#e74c3c] rounded-lg bg-white focus:ring-2 focus:ring-[#e74c3c] focus:border-[#e74c3c] transition-all text-[#2c3e50] text-sm"
                       />
                     </div>
+                  )}
                   </div>
 
                   <div>
