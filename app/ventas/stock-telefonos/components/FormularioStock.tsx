@@ -272,8 +272,7 @@ export default function FormularioStock({
             placeholder="Precio venta"
             className="p-2 border rounded"
           />
-        
-         {rol?.tipo === "admin" && (
+                
               <input
             type="number"
             name="precioMayorista"
@@ -282,7 +281,7 @@ export default function FormularioStock({
             placeholder="Precio mayorista"
             className="p-2 border rounded"
           />
-        )}
+        
           <textarea
             name="observaciones"
             value={form.observaciones}
