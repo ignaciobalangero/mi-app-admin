@@ -15,6 +15,8 @@ interface ResumenMensual {
   trabajos: number;
   accesorios: number;
   telefonos: number;
+  telefonosUSD: number;
+  telefonosARS: number;
 }
 
 export default function ResumenCuenta() {
@@ -77,7 +79,7 @@ export default function ResumenCuenta() {
           d.precio != null &&
           key
         ) {
-          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0 };
+          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
         
           resumen[key].trabajos += Number(d.precio) - Number(d.costo || 0);
         }
@@ -87,18 +89,39 @@ export default function ResumenCuenta() {
         const d = doc.data();
         const key = obtenerMesAnio(d.fecha);
         if (d.total && d.precioUnitario && d.cantidad && d.cotizacion && key) {
-          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0 };
+          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
           const costoTotal = d.precioUnitario * d.cantidad * (d.moneda === "USD" ? d.cotizacion : 1);
           resumen[key].accesorios += d.total - costoTotal;
         }
       });
 
+      // SECCIÓN MEJORADA PARA TELÉFONOS CON SEPARACIÓN POR MONEDA
       telefonosSnap.forEach((doc) => {
         const d = doc.data();
         const key = obtenerMesAnio(d.fecha);
+        
         if (d.precioVenta && d.precioCosto && key) {
-          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0 };
-          resumen[key].telefonos += Number(d.precioVenta) - Number(d.precioCosto);
+          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
+          
+          const ganancia = Number(d.precioVenta) - Number(d.precioCosto);
+          
+          if (d.moneda === "USD") {
+            // Guardar ganancia en USD
+            resumen[key].telefonosUSD += ganancia;
+            
+            // También convertir a pesos para el total general (si hay cotización)
+            if (d.cotizacion) {
+              const gananciaPesos = ganancia * Number(d.cotizacion);
+              resumen[key].telefonos += gananciaPesos;
+            } else {
+              // Si no hay cotización, asumir que está ya en pesos
+              resumen[key].telefonos += ganancia;
+            }
+          } else {
+            // Ganancia en ARS
+            resumen[key].telefonosARS += ganancia;
+            resumen[key].telefonos += ganancia;
+          }
         }
       });
 
@@ -115,7 +138,9 @@ export default function ResumenCuenta() {
       Mes: r.mes,
       "Ganancia Trabajos": r.trabajos,
       "Ganancia Accesorios": r.accesorios,
-      "Ganancia Teléfonos": r.telefonos,
+      "Ganancia Teléfonos (Total ARS)": r.telefonos,
+      "Ganancia Teléfonos USD": r.telefonosUSD,
+      "Ganancia Teléfonos ARS": r.telefonosARS,
     }));
     const ws = XLSX.utils.json_to_sheet(datos);
     const wb = XLSX.utils.book_new();
@@ -125,6 +150,15 @@ export default function ResumenCuenta() {
 
   const seleccionado = resumenMensual.find((r) => r.mes === mesSeleccionado);
   const totalMes = seleccionado ? seleccionado.trabajos + seleccionado.accesorios + seleccionado.telefonos : 0;
+  const totalMesUSD = seleccionado ? seleccionado.telefonosUSD : 0;
+
+  // Datos para el gráfico con formato mejorado
+  const datosGrafico = seleccionado ? [{
+    mes: seleccionado.mes,
+    Trabajos: Math.round(seleccionado.trabajos),
+    Accesorios: Math.round(seleccionado.accesorios), 
+    Teléfonos: Math.round(seleccionado.telefonos || 0)
+  }] : [];
 
   return (
     <>
@@ -185,7 +219,7 @@ export default function ResumenCuenta() {
               </div>
 
               {seleccionado && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-2xl p-4 border-2 border-[#27ae60] shadow-lg">
                     <div className="flex items-center justify-between">
                       <div>
@@ -214,56 +248,114 @@ export default function ResumenCuenta() {
                     </div>
                   </div>
 
+                  {/* TARJETA DE TELÉFONOS MEJORADA CON SEPARACIÓN POR MONEDA */}
                   <div className="bg-gradient-to-r from-[#fdebd0] to-[#fadbd8] rounded-2xl p-4 border-2 border-[#e67e22] shadow-lg">
                     <div className="flex items-center justify-between">
-                      <div>
+                      <div className="flex-1">
                         <p className="text-xs font-semibold text-[#e67e22]">Teléfonos</p>
-                        <p className="text-lg font-bold text-[#e67e22]">
-                          ${seleccionado.telefonos.toLocaleString("es-AR")}
-                        </p>
+                        
+                        {/* Si hay ganancias en USD, mostrar USD */}
+                        {seleccionado.telefonosUSD > 0 && (
+                          <p className="text-xl font-bold text-[#e67e22]">
+                            USD ${seleccionado.telefonosUSD.toLocaleString("es-AR")}
+                          </p>
+                        )}
+                        
+                        {/* Si hay ganancias en ARS, mostrar ARS */}
+                        {seleccionado.telefonosARS > 0 && (
+                          <p className="text-xl font-bold text-[#e67e22]">
+                            ARS ${seleccionado.telefonosARS.toLocaleString("es-AR")}
+                          </p>
+                        )}
+                        
+                        {/* Si no hay ninguna ganancia, mostrar $0 */}
+                        {seleccionado.telefonosUSD === 0 && seleccionado.telefonosARS === 0 && (
+                          <p className="text-xl font-bold text-[#e67e22]">
+                            $0
+                          </p>
+                        )}
                       </div>
                       <div className="w-10 h-10 bg-[#e67e22]/20 rounded-full flex items-center justify-center">
                         <span className="text-lg">📱</span>
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
 
+              {/* TARJETAS DE TOTAL */}
+              {seleccionado && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-gradient-to-r from-[#f8f9fa] to-[#ecf0f1] rounded-2xl p-4 border-2 border-[#7f8c8d] shadow-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs font-semibold text-[#7f8c8d]">TOTAL MES</p>
-                        <p className="text-lg font-bold text-[#2c3e50]">
+                        <p className="text-sm font-semibold text-[#7f8c8d]">TOTAL MES (en pesos)</p>
+                        <p className="text-xl font-bold text-[#2c3e50]">
                           ${totalMes.toLocaleString("es-AR")}
                         </p>
                       </div>
-                      <div className="w-10 h-10 bg-[#7f8c8d]/20 rounded-full flex items-center justify-center">
-                        <span className="text-lg">💰</span>
+                      <div className="w-12 h-12 bg-[#7f8c8d]/20 rounded-full flex items-center justify-center">
+                        <span className="text-xl">💰</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* TARJETA TOTAL EN USD */}
+                  <div className="bg-gradient-to-r from-[#fff9e6] to-[#fff2cc] rounded-2xl p-4 border-2 border-[#f39c12] shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-[#f39c12]">TOTAL MES (en USD)</p>
+                        <p className="text-xl font-bold text-[#e67e22]">
+                          USD ${totalMesUSD.toLocaleString("es-AR")}
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 bg-[#f39c12]/20 rounded-full flex items-center justify-center">
+                        <span className="text-xl">💵</span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
-                <div className="flex items-center gap-3 mb-4">
+              {/* SOLO EL GRÁFICO */}
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
+                <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-[#9b59b6] rounded-xl flex items-center justify-center">
                     <span className="text-white text-lg">📈</span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-[#2c3e50]">Gráfico Comparativo</h3>
-                    <p className="text-[#7f8c8d] text-xs">Distribución de ganancias por categoría</p>
+                    <h3 className="text-xl font-bold text-[#2c3e50]">Distribución de Ganancias</h3>
+                    <p className="text-[#7f8c8d] text-sm">Comparación por categoría del mes {mesSeleccionado}</p>
                   </div>
                 </div>
 
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={resumenMensual.filter((r) => r.mes === mesSeleccionado)}>
-                    <XAxis dataKey="mes" fontSize={12} />
-                    <YAxis fontSize={12} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="trabajos" name="Trabajos" fill="#27ae60" />
-                    <Bar dataKey="accesorios" name="Accesorios" fill="#3498db" />
-                    <Bar dataKey="telefonos" name="Teléfonos" fill="#e67e22" />
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={datosGrafico} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <XAxis 
+                      dataKey="mes" 
+                      fontSize={12}
+                      tick={{ fill: '#2c3e50' }}
+                      axisLine={{ stroke: '#bdc3c7' }}
+                    />
+                    <YAxis 
+                      fontSize={12}
+                      tick={{ fill: '#2c3e50' }}
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      axisLine={{ stroke: '#bdc3c7' }}
+                    />
+                    <Tooltip 
+                      formatter={(value, name) => [`$${Number(value).toLocaleString("es-AR")}`, name]}
+                      labelStyle={{ color: '#2c3e50', fontWeight: 'bold' }}
+                      contentStyle={{ 
+                        backgroundColor: 'white', 
+                        border: '2px solid #bdc3c7',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                      }}
+                    />
+                    <Bar dataKey="Trabajos" name="Trabajos" fill="#27ae60" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="Accesorios" name="Accesorios" fill="#3498db" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="Teléfonos" name="Teléfonos" fill="#e67e22" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -275,7 +367,7 @@ export default function ResumenCuenta() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">
-                      <strong>Tip:</strong> Las ganancias se calculan restando el costo del precio de venta. Solo se incluyen trabajos entregados o pagados.
+                      <strong>Tip:</strong> Las ganancias se calculan restando el costo del precio de venta. Los teléfonos muestran valores separados por moneda (USD/ARS). El gráfico y total general están expresados en pesos argentinos.
                     </p>
                   </div>
                 </div>

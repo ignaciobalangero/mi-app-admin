@@ -517,18 +517,26 @@ export default function TablaProductosSheet({
                   <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-[8%]">
                     <span className="hidden sm:inline">💵 </span>USD
                   </th>
+                  {rol?.tipo === "admin" && (
                   <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-[10%] hidden lg:table-cell">
                     💸 Costo
                   </th>
+                  )}
+                  {rol?.tipo === "admin" && (
                   <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                     🏭 Proveedor
                   </th>
+                  )}
+                  {rol?.tipo === "admin" && (
                   <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-[10%] hidden lg:table-cell">
                     📈 Ganancia
                   </th>
+                  )}
+                  {rol?.tipo === "admin" && (
                   <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-[12%] hidden lg:table-cell">
                     💎 Total costo
                   </th>
+                  )}
                   <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-[10%]">
                     <span className="hidden sm:inline">⚙️ </span>Acc.
                   </th>
@@ -628,27 +636,34 @@ export default function TablaProductosSheet({
                         </td>
                         
                         {/* Precio Costo - Solo desktop */}
+                        {rol?.tipo === "admin" && (
                         <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
                           <span className="text-sm font-medium text-[#e74c3c]">
                             ${typeof fila.precioCosto === "number" ? fila.precioCosto.toLocaleString("es-AR") : "—"}
                           </span>
                         </td>
+                        )}
                         
                         {/* Proveedor - Solo desktop */}
+                        {rol?.tipo === "admin" && (
                         <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
                           <span className="text-sm text-[#7f8c8d] truncate block">
                             {fila.proveedor || "—"}
                           </span>
                         </td>
+                        )}
                         
                         {/* Ganancia - Solo desktop */}
+                        {rol?.tipo === "admin" && (
                         <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
                           <span className={`text-sm font-bold ${gananciaPositiva ? "text-[#27ae60]" : "text-[#e74c3c]"}`}>
                             ${typeof fila.ganancia === "number" ? fila.ganancia.toFixed(2) : "—"}
                           </span>
                         </td>
+                        )}
                         
                         {/* Total costo - Solo desktop */}
+                        {rol?.tipo === "admin" && (
                         <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
                           <span className="text-sm font-bold text-[#f39c12]">
                             ${typeof fila.precioCosto === "number" && typeof fila.cantidad === "number"
@@ -656,7 +671,7 @@ export default function TablaProductosSheet({
                               : "—"}
                           </span>
                         </td>
-                        
+                        )}         
                         {/* Acciones */}
                         <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
                           <AccionesProducto

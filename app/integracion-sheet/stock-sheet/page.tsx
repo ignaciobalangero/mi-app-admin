@@ -126,7 +126,8 @@ export default function StockSheetPage() {
         </div>
 
         {/* Dashboard de Sincronización - SIN ESPACIOS EXTRA */}
-        {hojasVinculadas.length > 0 && rol?.negocioID && (
+        
+        {hojasVinculadas.length > 0 && rol?.tipo === "admin" && (
           <div className="-mt-1"> {/* Margen negativo para acercar más */}
             <DashboardSincronizacion 
               negocioID={rol.negocioID} 
@@ -134,6 +135,7 @@ export default function StockSheetPage() {
               nombreHoja={nombreHoja || undefined}
             />
           </div>
+          
         )}
 
         {/* Debug section - MÁS COMPACTA */}

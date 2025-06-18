@@ -37,6 +37,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Ingreso de trabajo", icono: "📝", href: "/ingreso" },
     { label: "Ventas General", icono: "💰", href: "/ventas-general" },
     { label: "Gestión de Trabajos", icono: "🔧", href: "/gestion-trabajos" },
+    { label: "Stock Repuestos (Sheet)", icono: "📋", href: "/integracion-sheet/stock-sheet" },
     { label: "Venta de teléfonos", icono: "📱", href: "/ventas/telefonos" },
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },
     { label: "Stock Grl", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },

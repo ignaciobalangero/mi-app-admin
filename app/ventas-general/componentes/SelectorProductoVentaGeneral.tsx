@@ -86,6 +86,7 @@ export default function SelectorProductoVentaGeneral({
           
           return {
             id: doc.id,
+            codigo: data.codigo || doc.id, // 🔥 CORRECCIÓN: Agregar campo codigo
             producto: data.modelo || data.producto || "",
             modelo: data.modelo || data.producto || "",
             marca: data.marca || "",
@@ -110,6 +111,7 @@ export default function SelectorProductoVentaGeneral({
           // ACCESORIO ARS NATIVO - Mantener precios fijos
           return {
             id: doc.id,
+            codigo: data.codigo || doc.id, // 🔥 CORRECCIÓN: Agregar campo codigo
             producto: data.modelo || data.producto || "",
             modelo: data.modelo || data.producto || "",
             marca: data.marca || "",
@@ -139,7 +141,7 @@ export default function SelectorProductoVentaGeneral({
         
         return {
           id: doc.id,
-          codigo: doc.id,
+          codigo: doc.id, // ✅ Para repuestos mantener doc.id como código
           producto: data.modelo || data.producto || "",
           modelo: data.modelo || data.producto || "",
           marca: data.marca || "",
@@ -226,9 +228,7 @@ export default function SelectorProductoVentaGeneral({
       {
         ...productoSeleccionado,
         cantidad,
-        codigo: productoSeleccionado.tipo === "general" 
-          ? (productoSeleccionado.codigo || productoSeleccionado.id)
-          : productoSeleccionado.id,
+        codigo: productoSeleccionado.codigo || productoSeleccionado.id, // 🔥 CORRECCIÓN: Usar código real
         
         // ✅ PRECIO UNITARIO CORREGIDO según contexto
         precioUnitario: precioUnitarioFinal,

@@ -11,6 +11,7 @@ import {
   updateDoc,
   setDoc,
   Timestamp,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -59,6 +60,92 @@ export default function BotonGuardarVenta({
         return acc + (p.precioUnitario * p.cantidad);
       }
     }, 0);
+  };
+
+  // 🔥 NUEVA FUNCIÓN: Obtener datos con costos y ganancias
+  const obtenerDatosConCostos = async (productos: any[]) => {
+    if (!rol?.negocioID) return productos;
+
+    // Obtener stock de accesorios para los costos
+    const stockAccesoriosSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockAccesorios`));
+    
+    // Crear mapa de costos por código
+    const mapaStock: Record<string, any> = {};
+    stockAccesoriosSnap.forEach((doc) => {
+      const data = doc.data();
+      if (data.codigo) {
+        mapaStock[data.codigo] = {
+          costo: Number(data.precioCosto || 0), // 🔥 CORREGIDO: Usar precioCosto
+          precio1: Number(data.precio2 || 0),   // 🔥 CORREGIDO: precio2 es USD
+          precio2: Number(data.precio1Pesos || 0), // 🔥 CORREGIDO: precio1Pesos es ARS
+          precio3: Number(data.precio2Pesos || 0), // 🔥 CORREGIDO: precio2Pesos es ARS
+          cotizacion: Number(data.cotizacion || 1000), // 🔥 NUEVO: Cotización del producto
+        };
+      }
+    });
+
+    console.log('🔍 Mapa de stock creado:', mapaStock); // DEBUG
+
+    // Detectar si hay teléfono en la venta
+    const hayTelefono = productos.some(p => p.categoria === "Teléfono");
+
+    return productos.map(producto => {
+      const cantidad = producto.cantidad || 1;
+      let precioVenta = producto.precioUnitario || 0;
+      let costo = 0;
+      let monedaProducto = "ARS";
+
+      console.log('🔍 Procesando producto:', {
+        codigo: producto.codigo,
+        categoria: producto.categoria,
+        hayTelefono
+      }); // DEBUG
+
+      if (producto.categoria === "Teléfono" || producto.tipo === "telefono") {
+        // 📱 TELÉFONO
+        precioVenta = producto.precioUnitario || 0;
+        costo = producto.precioCosto || 0;
+        monedaProducto = producto.moneda || "ARS";
+      } else {
+        // 🔌 ACCESORIO
+        const stockData = mapaStock[producto.codigo];
+        
+        console.log('🔍 Stock data encontrado:', stockData); // DEBUG
+        
+        if (stockData) {
+          costo = stockData.costo;
+          
+          if (hayTelefono) {
+            // Con teléfono: usar precio USD (precio2)
+            precioVenta = stockData.precio1 || producto.precioUnitario;
+            monedaProducto = "USD";
+          } else {
+            // Solo accesorio: usar precio ARS (precio1Pesos o precio2Pesos)
+            precioVenta = producto.precioUnitario;
+            monedaProducto = "ARS";
+          }
+        } else {
+          console.log('❌ No se encontró stock data para código:', producto.codigo); // DEBUG
+        }
+      }
+
+      const ganancia = (precioVenta - costo) * cantidad;
+
+      console.log('🔍 Resultado producto:', {
+        precioVenta,
+        costo,
+        ganancia,
+        monedaProducto
+      }); // DEBUG
+
+      return {
+        ...producto,
+        precioVenta,
+        costo,
+        ganancia,
+        moneda: monedaProducto,
+      };
+    });
   };
 
   const guardarVentaTelefono = async (datosVentaTelefono: any, pagoTelefono: any) => {
@@ -113,6 +200,9 @@ export default function BotonGuardarVenta({
           color: datosVentaTelefono.color || "—",
           cantidad: 1,
           precioUnitario: datosVentaTelefono.precioVenta,
+          precioVenta: datosVentaTelefono.precioVenta, // 🔥 NUEVO
+          costo: datosVentaTelefono.precioCosto || 0,  // 🔥 NUEVO
+          ganancia: datosVentaTelefono.ganancia || 0,  // 🔥 NUEVO
           moneda: datosVentaTelefono.moneda,
           gb: datosVentaTelefono.gb || "",
           codigo: datosVentaTelefono.stockID || datosVentaTelefono.modelo,
@@ -120,6 +210,7 @@ export default function BotonGuardarVenta({
         },
       ],
       total: datosVentaTelefono.precioVenta,
+      gananciaTotal: datosVentaTelefono.ganancia || 0, // 🔥 NUEVO
       tipo: "telefono",
       observaciones: pagoTelefono.observaciones || observaciones || "",
       timestamp: serverTimestamp(),
@@ -187,10 +278,11 @@ export default function BotonGuardarVenta({
     const snap = await getDoc(configRef);
     const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
 
-    const productosConCodigo = productos.map((p) => ({
+    // 🔥 MODIFICADO: Obtener productos con costos y ganancias
+    const productosConCodigo = await obtenerDatosConCostos(productos.map((p) => ({
       ...p,
       codigo: p.codigo || p.id || "",
-    }));
+    })));
 
     // Descontar del stock para accesorios y repuestos
     for (const producto of productosConCodigo) {
@@ -230,22 +322,50 @@ export default function BotonGuardarVenta({
       forma: pago?.formaPago || "",
       destino: pago?.destino || "",
       observaciones: pago?.observaciones || "",
+      cotizacion: pago?.cotizacion || null, // 🔥 CORREGIDO: No usar 1000 fijo
     };
 
-    // 🔧 CORRECCIÓN 2: Usar calcularTotalCorrect en lugar del reduce simple
-    const total = calcularTotalCorrect(productosConCodigo);
+    // 🔥 NUEVO: Calcular total correcto con precios de venta reales
+    const total = productosConCodigo.reduce((acc, p) => {
+      return acc + (p.precioVenta * p.cantidad);
+    }, 0);
+
+    // 🔥 NUEVO: Calcular ganancia total
+    const gananciaTotal = productosConCodigo.reduce((acc, p) => {
+      return acc + p.ganancia;
+    }, 0);
+
+    // 🔥 NUEVO: Determinar moneda principal de la venta
+    const hayTelefono = productosConCodigo.some(p => p.categoria === "Teléfono");
+    const monedaPrincipal = hayTelefono ? "USD" : "ARS";
 
     // ✅ CREAR LA VENTA
     const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
-      productos: productosConCodigo,
+      productos: productosConCodigo.map(p => ({
+        categoria: p.categoria,
+        descripcion: p.producto || p.descripcion,
+        marca: p.marca || "—",
+        modelo: p.modelo || "—", 
+        color: p.color || "—",
+        cantidad: p.cantidad,
+        precioUnitario: p.precioUnitario,
+        precioVenta: p.precioVenta,     // 🔥 NUEVO
+        costo: p.costo,                 // 🔥 NUEVO
+        ganancia: p.ganancia,           // 🔥 NUEVO
+        moneda: p.moneda,               // 🔥 NUEVO
+        codigo: p.codigo || p.id || "",
+        tipo: p.tipo,
+        hoja: p.hoja || "",
+      })),
       cliente,
       fecha,
       observaciones,
       pago: pagoLimpio,
-      moneda,
+      moneda: monedaPrincipal, // 🔥 CORREGIDO: Usar moneda principal
       estado: "pendiente",
       nroVenta,
-      total,
+      total, // 🔥 CORREGIDO: Total calculado correctamente
+      gananciaTotal, // 🔥 NUEVO: Ganancia total de la venta
       timestamp: serverTimestamp(),
     });
 
@@ -277,7 +397,7 @@ export default function BotonGuardarVenta({
         forma: pago?.formaPago || "Efectivo",
         destino: pago?.destino || "",
         observaciones: pago?.observaciones || "",
-        cotizacion: 1000,
+        cotizacion: pago?.cotizacion || null, // 🔥 CORREGIDO: No usar 1000 fijo
         timestamp: serverTimestamp(),
         nroVenta: nroVenta,
       });
@@ -312,12 +432,15 @@ export default function BotonGuardarVenta({
         
         // Si hay otros productos (accesorios/repuestos), agregarlos a la venta
         if (otrosProductos.length > 0) {
+          // 🔥 OBTENER DATOS CON COSTOS PARA OTROS PRODUCTOS
+          const otrosProductosConDatos = await obtenerDatosConCostos(otrosProductos);
+          
           // Descontar del stock para accesorios y repuestos
           const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
           const snap = await getDoc(configRef);
           const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
           
-          for (const producto of otrosProductos) {
+          for (const producto of otrosProductosConDatos) {
             const codigo = producto.codigo;
             if (!codigo) continue;
 
@@ -353,7 +476,7 @@ export default function BotonGuardarVenta({
             const datosExistentes = ventaExistente.data();
             const productosCompletos = [
               ...datosExistentes.productos,
-              ...otrosProductos.map(p => ({
+              ...otrosProductosConDatos.map(p => ({
                 categoria: p.categoria,
                 descripcion: p.producto,
                 marca: p.marca || "—",
@@ -361,19 +484,29 @@ export default function BotonGuardarVenta({
                 color: p.color || "—",
                 cantidad: p.cantidad,
                 precioUnitario: p.precioUnitario,
-                moneda: p.moneda,
+                precioVenta: p.precioVenta,   // 🔥 NUEVO
+                costo: p.costo,               // 🔥 NUEVO
+                ganancia: p.ganancia,         // 🔥 NUEVO
+                moneda: p.moneda,             // 🔥 NUEVO
                 codigo: p.codigo,
                 tipo: p.tipo,
                 hoja: p.hoja || "",
               }))
             ];
             
-            // 🔧 CORRECCIÓN 3: Usar calcularTotalCorrect para ventas mixtas
-            const nuevoTotal = calcularTotalCorrect(productosCompletos);
+            // 🔥 CALCULAR NUEVO TOTAL Y GANANCIA TOTAL
+            const nuevoTotal = productosCompletos.reduce((acc, p) => {
+              return acc + (p.precioVenta * p.cantidad);
+            }, 0);
+            
+            const nuevaGananciaTotal = productosCompletos.reduce((acc, p) => {
+              return acc + p.ganancia;
+            }, 0);
             
             await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${telefonoID}`), {
               productos: productosCompletos,
               total: nuevoTotal,
+              gananciaTotal: nuevaGananciaTotal, // 🔥 NUEVO
             });
           }
         }
