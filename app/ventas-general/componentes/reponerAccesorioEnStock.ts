@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc } from "firebase/firestore";
 
 export const reponerAccesoriosAlStock = async ({
   productos,
@@ -15,23 +15,30 @@ export const reponerAccesoriosAlStock = async ({
       console.log("❌ Producto inválido:", producto);
       continue;
     }
-  
-    const ref = doc(db, `negocios/${negocioID}/stockAccesorios/${producto.codigo}`);
-    const snap = await getDoc(ref);
-  
-    if (!snap.exists()) {
+
+    console.log('🔍 Buscando accesorio para reponer con código:', producto.codigo);
+
+    // ✅ QUERY OPTIMIZADO - Solo busca documentos con este código específico
+    const stockRef = collection(db, `negocios/${negocioID}/stockAccesorios`);
+    const q = query(stockRef, where("codigo", "==", producto.codigo));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
       console.log("❌ No existe en stock:", producto.codigo);
       continue;
     }
-  
-    const data = snap.data();
+
+    // Tomar el primer documento encontrado
+    const documentoEncontrado = snapshot.docs[0];
+    const data = documentoEncontrado.data();
+
     const nuevaCantidad = (data.cantidad || 0) + producto.cantidad;
-  
+
     console.log(`✅ Sumando ${producto.cantidad} a ${producto.codigo}, nueva cantidad: ${nuevaCantidad}`);
-  
-    await updateDoc(ref, {
+
+    // Actualizar usando la referencia del documento encontrado
+    await updateDoc(documentoEncontrado.ref, {
       cantidad: nuevaCantidad,
     });
   }
-  
 };

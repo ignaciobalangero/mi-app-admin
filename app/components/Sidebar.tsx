@@ -29,6 +29,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Stock Gral", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
     { label: "Stock Repuestos (Sheet)", icono: "📋", href: "/integracion-sheet/stock-sheet" },
     { label: "Clientes", icono: "👥", href: "/clientes" },
+    { label: "Caja Diaria", icono: "🏦", href: "/CajaDiaria" },
     { label: "Configuraciones", icono: "⚙️", href: "/configuraciones" },
   ];
  

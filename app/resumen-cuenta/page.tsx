@@ -64,12 +64,13 @@ export default function ResumenCuenta() {
     const fetchDatos = async () => {
       if (!negocioID || rol?.tipo !== "admin") return;
 
+      // 🔥 CAMBIAR SOLO PARA AGREGAR COLECCIÓN DE VENTAS UNIFICADAS
       const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
-      const accesoriosSnap = await getDocs(collection(db, `negocios/${negocioID}/ventaAccesorios`));
-      const telefonosSnap = await getDocs(collection(db, `negocios/${negocioID}/ventaTelefonos`));
+      const ventasSnap = await getDocs(collection(db, `negocios/${negocioID}/ventasGeneral`));
 
       const resumen: Record<string, ResumenMensual> = {};
 
+      // ✅ TRABAJOS - Sin cambios
       trabajosSnap.forEach((doc) => {
         const d = doc.data();
         const key = obtenerMesAnio(d.fecha);
@@ -85,17 +86,9 @@ export default function ResumenCuenta() {
         }
       });
 
-      accesoriosSnap.forEach((doc) => {
-        const d = doc.data();
-        const key = obtenerMesAnio(d.fecha);
-        if (d.total && d.precioUnitario && d.cantidad && d.cotizacion && key) {
-          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
-          const costoTotal = d.precioUnitario * d.cantidad * (d.moneda === "USD" ? d.cotizacion : 1);
-          resumen[key].accesorios += d.total - costoTotal;
-        }
-      });
-
-      // SECCIÓN MEJORADA PARA TELÉFONOS CON SEPARACIÓN POR MONEDA
+      // ✅ MANTENER LÓGICA ORIGINAL DE TELÉFONOS (que funcionaba bien)
+      const telefonosSnap = await getDocs(collection(db, `negocios/${negocioID}/ventaTelefonos`));
+      
       telefonosSnap.forEach((doc) => {
         const d = doc.data();
         const key = obtenerMesAnio(d.fecha);
@@ -123,6 +116,33 @@ export default function ResumenCuenta() {
             resumen[key].telefonos += ganancia;
           }
         }
+      });
+
+      // 🔥 NUEVA LÓGICA SOLO PARA ACCESORIOS/REPUESTOS DE VENTAS UNIFICADAS
+      ventasSnap.forEach((doc) => {
+        const d = doc.data();
+        const key = obtenerMesAnio(d.fecha);
+        
+        if (!d.productos || !Array.isArray(d.productos) || !key) return;
+
+        // Procesar cada producto de la venta
+        d.productos.forEach((producto: any) => {
+          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
+          
+          // Solo procesar productos que tengan ganancia calculada
+          if (producto.ganancia !== undefined && producto.ganancia !== null) {
+            const ganancia = Number(producto.ganancia);
+            
+            // 🎧 SOLO CLASIFICAR ACCESORIOS/REPUESTOS (NO TELÉFONOS)
+            const esTeléfono = producto.categoria === "Teléfono" || producto.tipo === "telefono";
+            
+            if (!esTeléfono) {
+              // Es un accesorio/repuesto - sumarlo a accesorios
+              resumen[key].accesorios += ganancia;
+            }
+            // Los teléfonos se ignoran aquí porque se procesan arriba con la lógica original
+          }
+        });
       });
 
       const resultado = Object.values(resumen).sort((a, b) => a.mes.localeCompare(b.mes));
@@ -367,7 +387,7 @@ export default function ResumenCuenta() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">
-                      <strong>Tip:</strong> Las ganancias se calculan restando el costo del precio de venta. Los teléfonos muestran valores separados por moneda (USD/ARS). El gráfico y total general están expresados en pesos argentinos.
+                      <strong>Tip:</strong> Las ganancias se calculan restando el costo del precio de venta. Los teléfonos muestran valores separados por moneda (USD/ARS). El gráfico y total general están expresados en pesos argentinos. Los datos se obtienen de la colección unificada de ventas.
                     </p>
                   </div>
                 </div>

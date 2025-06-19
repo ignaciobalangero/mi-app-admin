@@ -37,7 +37,7 @@ export default function StockProductosPage() {
   const [stockBajo, setStockBajo] = useState(3);
   const [productos, setProductos] = useState<any[]>([]);
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [mostrarSugerencias, setMostrarSugerencias] = useState(true);
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [filtroTexto, setFiltroTexto] = useState("");
 

@@ -20,6 +20,7 @@ import { descontarAccesorioDelStock } from "@/app/ventas-general/componentes/des
 import { descontarRepuestoDelStock } from "@/app/ventas-general/componentes/descontarRepuestoDelStock";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 
+// 🔥 INTERFAZ CORREGIDA: Agregar cotización
 export default function BotonGuardarVenta({
   cliente,
   productos,
@@ -27,6 +28,7 @@ export default function BotonGuardarVenta({
   observaciones,
   pago,
   moneda,
+  cotizacion, // 🔥 NUEVO: Cotización manual
   onGuardar,
 }: {
   cliente: string;
@@ -35,6 +37,7 @@ export default function BotonGuardarVenta({
   observaciones: string;
   pago: any;
   moneda: "ARS" | "USD";
+  cotizacion: number; // 🔥 NUEVO: Tipo para cotización
   onGuardar?: () => void;
 }) {
   const router = useRouter();
@@ -62,29 +65,50 @@ export default function BotonGuardarVenta({
     }, 0);
   };
 
-  // 🔥 NUEVA FUNCIÓN: Obtener datos con costos y ganancias
+  // 🔥 FUNCIÓN CORREGIDA: Obtener datos con costos y ganancias CON COTIZACIÓN MANUAL
   const obtenerDatosConCostos = async (productos: any[]) => {
     if (!rol?.negocioID) return productos;
+
+    // 🔥 USAR LA COTIZACIÓN PASADA COMO PROP (no buscar en Firebase)
+    const cotizacionActual = cotizacion || 1000;
+    console.log('💰 Cotización manual recibida:', cotizacionActual);
 
     // Obtener stock de accesorios para los costos
     const stockAccesoriosSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockAccesorios`));
     
-    // Crear mapa de costos por código
+    // 🔥 TAMBIÉN OBTENER STOCK EXTRA (repuestos)
+    const stockExtraSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));
+    
+    // Crear mapa de costos por código - ACCESORIOS
     const mapaStock: Record<string, any> = {};
     stockAccesoriosSnap.forEach((doc) => {
       const data = doc.data();
       if (data.codigo) {
         mapaStock[data.codigo] = {
-          costo: Number(data.precioCosto || 0), // 🔥 CORREGIDO: Usar precioCosto
-          precio1: Number(data.precio2 || 0),   // 🔥 CORREGIDO: precio2 es USD
-          precio2: Number(data.precio1Pesos || 0), // 🔥 CORREGIDO: precio1Pesos es ARS
-          precio3: Number(data.precio2Pesos || 0), // 🔥 CORREGIDO: precio2Pesos es ARS
-          cotizacion: Number(data.cotizacion || 1000), // 🔥 NUEVO: Cotización del producto
+          costo: Number(data.precioCosto || 0),
+          precio1: Number(data.precio2 || 0),        // USD
+          precio2: Number(data.precio1Pesos || 0),   // ARS
+          precio3: Number(data.precio2Pesos || 0),   // ARS
+          tipo: "accesorio"
         };
       }
     });
 
-    console.log('🔍 Mapa de stock creado:', mapaStock); // DEBUG
+    // 🔥 AGREGAR STOCK EXTRA (repuestos) AL MISMO MAPA
+    stockExtraSnap.forEach((doc) => {
+      const data = doc.data();
+      if (data.codigo) {
+        mapaStock[data.codigo] = {
+          costo: Number(data.precioCosto || 0),
+          precio1: Number(data.precio1 || 0),        // Precio 1
+          precio2: Number(data.precio2 || 0),        // Precio 2
+          precio3: Number(data.precio3 || 0),        // Precio 3
+          tipo: "repuesto"
+        };
+      }
+    });
+
+    console.log('🔍 Mapa de stock completo creado:', mapaStock);
 
     // Detectar si hay teléfono en la venta
     const hayTelefono = productos.some(p => p.categoria === "Teléfono");
@@ -98,45 +122,71 @@ export default function BotonGuardarVenta({
       console.log('🔍 Procesando producto:', {
         codigo: producto.codigo,
         categoria: producto.categoria,
+        tipo: producto.tipo,
         hayTelefono
-      }); // DEBUG
+      });
 
       if (producto.categoria === "Teléfono" || producto.tipo === "telefono") {
-        // 📱 TELÉFONO
+        // 📱 TELÉFONO - NO TOCAR (funciona bien)
         precioVenta = producto.precioUnitario || 0;
         costo = producto.precioCosto || 0;
         monedaProducto = producto.moneda || "ARS";
       } else {
-        // 🔌 ACCESORIO
+        // 🔌 ACCESORIO/REPUESTO - AQUÍ ESTÁ LA CORRECCIÓN
         const stockData = mapaStock[producto.codigo];
         
-        console.log('🔍 Stock data encontrado:', stockData); // DEBUG
+        console.log('🔍 Stock data encontrado:', stockData);
         
         if (stockData) {
+          // 🔥 COSTO SIEMPRE EN USD desde stockAccesorios/stockExtra
           costo = stockData.costo;
           
           if (hayTelefono) {
-            // Con teléfono: usar precio USD (precio2)
-            precioVenta = stockData.precio1 || producto.precioUnitario;
+            // Con teléfono: usar precio USD
+            if (stockData.tipo === "accesorio") {
+              precioVenta = stockData.precio1 || producto.precioUnitario; // precio2 (USD)
+            } else {
+              precioVenta = producto.precioUnitario; // Para repuestos, usar el precio que viene
+            }
             monedaProducto = "USD";
           } else {
-            // Solo accesorio: usar precio ARS (precio1Pesos o precio2Pesos)
+            // Solo accesorio/repuesto: usar precio ARS
             precioVenta = producto.precioUnitario;
             monedaProducto = "ARS";
           }
         } else {
-          console.log('❌ No se encontró stock data para código:', producto.codigo); // DEBUG
+          console.log('❌ No se encontró stock data para código:', producto.codigo);
         }
       }
 
-      const ganancia = (precioVenta - costo) * cantidad;
+      // 🚀 CÁLCULO CORREGIDO DE GANANCIA CON COTIZACIÓN MANUAL
+      let ganancia;
+      
+      if (producto.categoria === "Teléfono") {
+        // 📱 TELÉFONO: NO TOCAR (funciona bien)
+        ganancia = (precioVenta - costo) * cantidad;
+      } else {
+        // 🔌 ACCESORIO/REPUESTO: APLICAR COTIZACIÓN
+        if (hayTelefono) {
+          // ✅ CON TELÉFONO: Todo en USD - costo ya está en USD
+          ganancia = (precioVenta - costo) * cantidad;
+        } else {
+          // ✅ SIN TELÉFONO: Precio en ARS, costo en USD
+          // Convertir costo USD a ARS usando cotización MANUAL
+          const costoEnARS = costo * cotizacionActual;
+          ganancia = (precioVenta - costoEnARS) * cantidad;
+        }
+      }
 
       console.log('🔍 Resultado producto:', {
+        producto: producto.producto || producto.codigo,
         precioVenta,
         costo,
+        costoConvertido: hayTelefono ? costo : costo * cotizacionActual,
         ganancia,
-        monedaProducto
-      }); // DEBUG
+        monedaProducto,
+        cotizacionManualUsada: cotizacionActual
+      });
 
       return {
         ...producto,
@@ -144,6 +194,7 @@ export default function BotonGuardarVenta({
         costo,
         ganancia,
         moneda: monedaProducto,
+        cotizacionUsada: cotizacionActual, // Para debug
       };
     });
   };

@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useRol } from "@/lib/useRol";
 
 const FormularioStock = dynamic(() => import("./components/FormularioStock"), { ssr: false });
-const TablaStockTelefonos = dynamic(() => import("./components/TablaStockTelefonos"), { ssr: false });
+const TablaStockTelefonos = dynamic(() => import("./components/TablaStockTelefonos-Simplificada"), { ssr: false });
 
 export default function StockTelefonosPage() {
   const [user] = useAuthState(auth);

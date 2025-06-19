@@ -38,6 +38,10 @@ export default function TablaVentas({ refrescar }: Props) {
   const [ventaParaRemito, setVentaParaRemito] = useState<any | null>(null);
   const [mostrarRemito, setMostrarRemito] = useState(false);
 
+  // 🆕 NUEVOS ESTADOS PARA ELIMINACIÓN DE PRODUCTOS
+  const [productoAEliminar, setProductoAEliminar] = useState<{venta: any, producto: any, index: number} | null>(null);
+  const [mostrarConfirmarEliminarProducto, setMostrarConfirmarEliminarProducto] = useState(false);
+
   const editarVenta = (venta: any) => {
     setVentaSeleccionada(venta);
     setMostrarModal(true);
@@ -46,6 +50,21 @@ export default function TablaVentas({ refrescar }: Props) {
   const pedirConfirmacionEliminar = (venta: any) => {
     setVentaAEliminar(venta);
     setMostrarConfirmarEliminar(true);
+  };
+
+  // 🆕 NUEVA FUNCIÓN PARA CONFIRMAR ELIMINACIÓN DE PRODUCTO
+  const confirmarEliminarProducto = () => {
+    if (productoAEliminar) {
+      eliminarProducto(productoAEliminar.venta.id, productoAEliminar.index);
+      setMostrarConfirmarEliminarProducto(false);
+      setProductoAEliminar(null);
+    }
+  };
+
+  // 🆕 NUEVA FUNCIÓN PARA ABRIR MODAL DE CONFIRMACIÓN DE PRODUCTO
+  const pedirConfirmacionEliminarProducto = (venta: any, producto: any, index: number) => {
+    setProductoAEliminar({ venta, producto, index });
+    setMostrarConfirmarEliminarProducto(true);
   };
 
   // 🔧 FUNCIÓN CORREGIDA - Eliminar un producto individual de una venta
@@ -589,61 +608,61 @@ export default function TablaVentas({ refrescar }: Props) {
                           
                           {/* Precio - Solo en desktop */}
                           <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
-  <span className="text-sm font-medium text-[#2c3e50]">
-    {(() => {
-      // ✅ DETECTAR SI HAY TELÉFONO EN LA VENTA
-      const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
-      
-      if (hayTelefono) {
-        // 📱 CON TELÉFONO: Mostrar precio × cotización (referencia ARS)
-       // NUEVO: Mostrar moneda original cuando hay teléfono
-if (p.categoria === "Teléfono") {
-  return `USD ${p.precioUnitario.toLocaleString("es-AR")}`;
-} else {
-  return p.moneda?.toUpperCase() === "USD"
-    ? `USD ${p.precioUnitario.toLocaleString("es-AR")}`
-    : `${p.precioUnitario.toLocaleString("es-AR")}`;
-}
-      } else {
-        // 🛍️ SIN TELÉFONO: Mostrar precio convertido dinámicamente
-        if (p.moneda?.toUpperCase() === "USD") {
-          return `${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
-        } else {
-          return `${p.precioUnitario.toLocaleString("es-AR")}`;
-        }
-      }
-    })()}
-  </span>
-</td>
+                            <span className="text-sm font-medium text-[#2c3e50]">
+                              {(() => {
+                                // ✅ DETECTAR SI HAY TELÉFONO EN LA VENTA
+                                const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
+                                
+                                if (hayTelefono) {
+                                  // 📱 CON TELÉFONO: Mostrar precio × cotización (referencia ARS)
+                                 // NUEVO: Mostrar moneda original cuando hay teléfono
+                              if (p.categoria === "Teléfono") {
+                                return `USD ${p.precioUnitario.toLocaleString("es-AR")}`;
+                              } else {
+                                return p.moneda?.toUpperCase() === "USD"
+                                  ? `USD ${p.precioUnitario.toLocaleString("es-AR")}`
+                                  : `${p.precioUnitario.toLocaleString("es-AR")}`;
+                              }
+                                } else {
+                                  // 🛍️ SIN TELÉFONO: Mostrar precio convertido dinámicamente
+                                  if (p.moneda?.toUpperCase() === "USD") {
+                                    return `${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
+                                  } else {
+                                    return `${p.precioUnitario.toLocaleString("es-AR")}`;
+                                  }
+                                }
+                              })()}
+                            </span>
+                          </td>
 
-               {/* Total */}
-<td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
-  <span className="text-xs sm:text-sm font-bold text-[#27ae60]">
-    {(() => {
-      // ✅ DETECTAR SI HAY TELÉFONO EN LA VENTA
-      const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
-      
-      if (hayTelefono) {
-        // 📱 CON TELÉFONO: Mostrar moneda original
-        if (p.categoria === "Teléfono") {
-          return `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-        } else {
-          // Accesorio/Repuesto: Mostrar según su moneda original
-          return p.moneda?.toUpperCase() === "USD"
-            ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-            : `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-        }
-      } else {
-        // 🛍️ SIN TELÉFONO: Conversión dinámica (NO CAMBIAR)
-        if (p.moneda?.toUpperCase() === "USD") {
-          return `$ ${((p.precioUSD || p.precioUnitario) * p.cantidad * cotizacion).toLocaleString("es-AR")}`;
-        } else {
-          return `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-        }
-      }
-    })()}
-  </span>
-</td>
+                           {/* Total */}
+                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                            <span className="text-xs sm:text-sm font-bold text-[#27ae60]">
+                              {(() => {
+                                // ✅ DETECTAR SI HAY TELÉFONO EN LA VENTA
+                                const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
+                                
+                                if (hayTelefono) {
+                                  // 📱 CON TELÉFONO: Mostrar moneda original
+                                  if (p.categoria === "Teléfono") {
+                                    return `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
+                                  } else {
+                                    // Accesorio/Repuesto: Mostrar según su moneda original
+                                    return p.moneda?.toUpperCase() === "USD"
+                                      ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
+                                      : `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
+                                  }
+                                } else {
+                                  // 🛍️ SIN TELÉFONO: Conversión dinámica (NO CAMBIAR)
+                                  if (p.moneda?.toUpperCase() === "USD") {
+                                    return `$ ${((p.precioUSD || p.precioUnitario) * p.cantidad * cotizacion).toLocaleString("es-AR")}`;
+                                  } else {
+                                    return `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
+                                  }
+                                }
+                              })()}
+                            </span>
+                          </td>
 
                           {/* Acciones - CORREGIDA */}
                           <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] w-20 sm:w-24 lg:w-32">
@@ -695,23 +714,18 @@ if (p.categoria === "Teléfono") {
                                   </>
                                 )}
 
-                                {venta.productos.length > 1 ? (
-                                  <button
-                                    onClick={() => eliminarProducto(venta.id, i)}
-                                    className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200"
-                                    title="Eliminar producto"
-                                  >
-                                    🗑️
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => pedirConfirmacionEliminar(venta)}
-                                    className="bg-[#c0392b] hover:bg-[#a93226] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200"
-                                    title="Eliminar venta"
-                                  >
-                                    ❌
-                                  </button>
-                                )}
+                                {/* 🔧 BOTÓN CORREGIDO - SIEMPRE usa el nuevo modal para productos */}
+                                <button
+                                  onClick={() => pedirConfirmacionEliminarProducto(venta, p, i)}
+                                  className={`hover:bg-[#c0392b] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200 ${
+                                    venta.productos.length > 1 
+                                      ? "bg-[#e74c3c]" 
+                                      : "bg-[#c0392b]"
+                                  }`}
+                                  title={venta.productos.length > 1 ? "Eliminar producto" : "Eliminar venta"}
+                                >
+                                  {venta.productos.length > 1 ? "🗑️" : "❌"}
+                                </button>
                               </div>
                             </div>
                           </td>
@@ -749,7 +763,7 @@ if (p.categoria === "Teléfono") {
         )}
       </div>
 
-      {/* Modal de confirmación de eliminación */}
+      {/* Modal de confirmación de eliminación DE VENTA COMPLETA */}
       {mostrarConfirmarEliminar && ventaAEliminar && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
@@ -792,6 +806,102 @@ if (p.categoria === "Teléfono") {
                   className="px-4 sm:px-6 py-2 sm:py-3 bg-[#e74c3c] hover:bg-[#c0392b] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg text-sm"
                 >
                   Sí, eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 Modal de confirmación de eliminación DE PRODUCTO INDIVIDUAL */}
+      {mostrarConfirmarEliminarProducto && productoAEliminar && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
+            
+            {/* Header del modal */}
+            <div className={`text-white rounded-t-2xl p-4 sm:p-6 ${
+              productoAEliminar.venta.productos.length > 1 
+                ? "bg-gradient-to-r from-[#f39c12] to-[#e67e22]" 
+                : "bg-gradient-to-r from-[#e74c3c] to-[#c0392b]"
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-xl sm:text-2xl">
+                    {productoAEliminar.venta.productos.length > 1 ? "🗑️" : "⚠️"}
+                  </span>
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold">
+                    {productoAEliminar.venta.productos.length > 1 ? "Eliminar Producto" : "Eliminar Venta"}
+                  </h2>
+                  <p className={`text-sm ${
+                    productoAEliminar.venta.productos.length > 1 ? "text-orange-100" : "text-red-100"
+                  }`}>
+                    {productoAEliminar.venta.productos.length > 1 
+                      ? "¿Confirmar eliminación del producto?" 
+                      : "Esta acción eliminará toda la venta"
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Contenido del modal */}
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className={`border-2 rounded-lg p-3 sm:p-4 ${
+                productoAEliminar.venta.productos.length > 1 
+                  ? "bg-orange-50 border-[#f39c12]" 
+                  : "bg-red-50 border-[#e74c3c]"
+              }`}>
+                <p className={`font-medium text-sm sm:text-base ${
+                  productoAEliminar.venta.productos.length > 1 ? "text-[#f39c12]" : "text-[#e74c3c]"
+                }`}>
+                  {productoAEliminar.venta.productos.length > 1 
+                    ? "¿Estás seguro que querés eliminar este producto de la venta?"
+                    : "¿Estás seguro que querés eliminar esta venta completa?"
+                  }
+                </p>
+                <div className="mt-2 text-xs sm:text-sm text-[#7f8c8d]">
+                  <strong>Cliente:</strong> {productoAEliminar.venta.cliente}<br/>
+                  <strong>Producto:</strong> {productoAEliminar.producto.producto || productoAEliminar.producto.descripcion}<br/>
+                  <strong>Cantidad:</strong> {productoAEliminar.producto.cantidad}<br/>
+                  <strong>Categoría:</strong> {productoAEliminar.producto.categoria}
+                  {productoAEliminar.venta.productos.length === 1 && (
+                    <>
+                      <br/><strong>⚠️ Es el último producto de la venta</strong>
+                    </>
+                  )}
+                </div>
+                <div className="mt-2 p-2 bg-white rounded border border-gray-200">
+                  <p className="text-xs text-[#7f8c8d]">
+                    <strong>📦 El producto será repuesto al stock automáticamente</strong>
+                  </p>
+                </div>
+              </div>
+              
+              {/* Botones */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setMostrarConfirmarEliminarProducto(false);
+                    setProductoAEliminar(null);
+                  }}
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarEliminarProducto}
+                  className={`px-4 sm:px-6 py-2 sm:py-3 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg text-sm ${
+                    productoAEliminar.venta.productos.length > 1 
+                      ? "bg-[#f39c12] hover:bg-[#e67e22]" 
+                      : "bg-[#e74c3c] hover:bg-[#c0392b]"
+                  }`}
+                >
+                  {productoAEliminar.venta.productos.length > 1 
+                    ? "Sí, eliminar producto" 
+                    : "Sí, eliminar venta"
+                  }
                 </button>
               </div>
             </div>
