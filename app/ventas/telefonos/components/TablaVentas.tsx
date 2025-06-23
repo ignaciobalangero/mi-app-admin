@@ -17,7 +17,82 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
   const [ventaAEliminar, setVentaAEliminar] = useState<any | null>(null);
   const [ventaDetalle, setVentaDetalle] = useState<any | null>(null);
   const [mensaje, setMensaje] = useState("");
+  const [filtro, setFiltro] = useState("");
   const { rol } = useRol();
+
+  // 🔄 Función para ordenar ventas por fecha (más recientes primero)
+  const ordenarVentasPorFecha = (ventasArray: any[]) => {
+    return [...ventasArray].sort((a, b) => {
+      const fechaA = new Date(a.fecha.split('/').reverse().join('-')); // DD/MM/YYYY -> YYYY-MM-DD
+      const fechaB = new Date(b.fecha.split('/').reverse().join('-'));
+      return fechaB.getTime() - fechaA.getTime(); // Más recientes primero
+    });
+  };
+
+  // 🔍 Función para filtrar ventas - CORREGIDA SIN ERRORES
+  const filtrarVentas = (ventasArray: any[]) => {
+    if (!filtro.trim()) return ventasArray;
+    
+    const filtroLower = filtro.toLowerCase().trim();
+    
+    return ventasArray.filter((venta) => {
+      // 📱 Campos principales para búsqueda exacta
+      const camposPrincipales = [
+        venta.cliente || "",
+        venta.modelo || "", 
+        venta.marca || "",
+        venta.color || "",
+        venta.proveedor || ""
+      ].map(campo => (campo || "").toString().toLowerCase());
+      
+      // 🔍 Campos técnicos (IMEI, serie) para búsqueda exacta
+      const camposTecnicos = [
+        venta.imei || "",
+        venta.serie || "",
+        venta.gb || "",
+        venta.bateria || "",
+        venta.fecha || ""
+      ].map(campo => (campo || "").toString().toLowerCase());
+      
+      // 🎯 Combinaciones inteligentes para modelos
+      const combinacionesModelo = [
+        `${venta.marca || ""} ${venta.modelo || ""}`.trim().toLowerCase(),
+        `${venta.modelo || ""} ${venta.gb || ""}`.trim().toLowerCase(),
+        `${venta.modelo || ""} ${venta.color || ""}`.trim().toLowerCase(),
+        `${venta.marca || ""} ${venta.modelo || ""} ${venta.gb || ""}`.trim().toLowerCase()
+      ].filter(combo => combo.length > 0);
+      
+      // 🔍 Dividir filtro en palabras
+      const palabrasFiltro = filtroLower.split(/\s+/).filter(palabra => palabra.length > 0);
+      
+      // ✅ Verificar si el filtro coincide
+      return palabrasFiltro.every(palabra => {
+        // 1️⃣ Búsqueda en campos principales (cliente, modelo, marca, color)
+        const enCamposPrincipales = camposPrincipales.some(campo => campo.includes(palabra));
+        
+        // 2️⃣ Búsqueda en combinaciones de modelo (para "iphone 13", "samsung s21", etc.)
+        const enCombinaciones = combinacionesModelo.some(combo => combo.includes(palabra));
+        
+        // 3️⃣ Búsqueda exacta en campos técnicos (solo si coincide exactamente)
+        const enCamposTecnicos = camposTecnicos.some(campo => {
+          // Para números cortos como "13", "14", "128", etc.
+          if (/^\d{1,4}$/.test(palabra)) {
+            // Solo buscar en GB y batería para números cortos
+            const esBusquedaGB = ((venta.gb || "").toString().toLowerCase() === palabra);
+            const esBusquedaBateria = ((venta.bateria || "").toString().toLowerCase().includes(palabra));
+            return esBusquedaGB || esBusquedaBateria;
+          }
+          // Para números largos (IMEI, serie), búsqueda normal
+          return campo.includes(palabra);
+        });
+        
+        return enCamposPrincipales || enCombinaciones || enCamposTecnicos;
+      });
+    });
+  };
+
+  // 📊 Ventas procesadas (filtradas y ordenadas)
+  const ventasProcesadas = ordenarVentasPorFecha(filtrarVentas(ventas));
 
   const confirmarEliminacion = async () => {
     if (!ventaAEliminar) return;
@@ -358,6 +433,76 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
         </div>
       )}
 
+      {/* 🔍 BARRA DE FILTRO PROFESIONAL */}
+      <div className="bg-white rounded-2xl shadow-lg border border-[#ecf0f1] overflow-hidden">
+        <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] p-4">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">🔍</span>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-white mb-1">Filtro de Búsqueda</h3>
+              <p className="text-blue-100 text-sm">Buscar por cliente, modelo, marca, color, batería, GB, IMEI, serie o fecha</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="p-6">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-[#7f8c8d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+              placeholder="🔍 Escriba aquí para filtrar ventas... (cliente, modelo, color, etc.)"
+              className="w-full pl-12 pr-4 py-4 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] placeholder-[#7f8c8d] bg-gradient-to-r from-white to-[#f8f9fa] font-medium shadow-sm"
+            />
+            {filtro && (
+              <button
+                onClick={() => setFiltro("")}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-[#7f8c8d] hover:text-[#e74c3c] transition-colors duration-200"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          
+          {/* Estadísticas del filtro */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-[#3498db] rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs font-bold">📊</span>
+              </div>
+              <span className="text-sm text-[#2c3e50]">
+                {filtro ? (
+                  <>
+                    Mostrando <strong className="text-[#3498db]">{ventasProcesadas.length}</strong> de {ventas.length} ventas
+                    {ventasProcesadas.length === 0 && <span className="text-[#e74c3c] ml-2">• Sin coincidencias</span>}
+                  </>
+                ) : (
+                  <>Total: <strong className="text-[#27ae60]">{ventasProcesadas.length}</strong> ventas (ordenadas por fecha)</>
+                )}
+              </span>
+            </div>
+            
+            {filtro && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#7f8c8d]">Filtro activo:</span>
+                <span className="bg-[#3498db] text-white px-3 py-1 rounded-lg text-xs font-medium">
+                  "{filtro}"
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Contenedor principal de la tabla - Estilo GestiOne */}
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
         
@@ -370,7 +515,8 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
             <div>
               <h3 className="text-2xl font-bold">Historial de Ventas</h3>
               <p className="text-blue-100 mt-1">
-                {ventas.length} {ventas.length === 1 ? 'venta registrada' : 'ventas registradas'}
+                {ventasProcesadas.length} {ventasProcesadas.length === 1 ? 'venta' : 'ventas'}
+                {filtro && ` • Filtradas de ${ventas.length} totales`}
               </p>
             </div>
           </div>
@@ -450,7 +596,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
               </tr>
             </thead>
             <tbody>
-              {ventas.length === 0 ? (
+              {ventasProcesadas.length === 0 ? (
                 <tr>
                   <td 
                     colSpan={11}
@@ -458,17 +604,38 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                   >
                     <div className="flex flex-col items-center gap-6">
                       <div className="w-20 h-20 bg-[#ecf0f1] rounded-2xl flex items-center justify-center">
-                        <span className="text-4xl">📱</span>
+                        <span className="text-4xl">
+                          {filtro ? "🔍" : "📱"}
+                        </span>
                       </div>
                       <div>
-                        <p className="text-xl font-semibold text-[#2c3e50] mb-2">No hay ventas registradas</p>
-                        <p className="text-sm text-[#7f8c8d]">Las ventas aparecerán aquí una vez que comiences a registrarlas</p>
+                        {filtro ? (
+                          <>
+                            <p className="text-xl font-semibold text-[#2c3e50] mb-2">
+                              No se encontraron resultados
+                            </p>
+                            <p className="text-sm text-[#7f8c8d] mb-4">
+                              No hay ventas que coincidan con "{filtro}"
+                            </p>
+                            <button
+                              onClick={() => setFiltro("")}
+                              className="bg-[#3498db] hover:bg-[#2980b9] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+                            >
+                              Limpiar filtro
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xl font-semibold text-[#2c3e50] mb-2">No hay ventas registradas</p>
+                            <p className="text-sm text-[#7f8c8d]">Las ventas aparecerán aquí una vez que comiences a registrarlas</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </td>
                 </tr>
               ) : (
-                ventas.map((v, index) => {
+                ventasProcesadas.map((v, index) => {
                   const isEven = index % 2 === 0;
                   
                   return (
@@ -559,18 +726,39 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
 
         {/* Vista Móvil/Tablet - Cards */}
         <div className="lg:hidden p-4 space-y-4">
-          {ventas.length === 0 ? (
+          {ventasProcesadas.length === 0 ? (
             <div className="flex flex-col items-center gap-6 py-12">
               <div className="w-20 h-20 bg-[#ecf0f1] rounded-2xl flex items-center justify-center">
-                <span className="text-4xl">📱</span>
+                <span className="text-4xl">
+                  {filtro ? "🔍" : "📱"}
+                </span>
               </div>
               <div className="text-center">
-                <p className="text-xl font-semibold text-[#2c3e50] mb-2">No hay ventas registradas</p>
-                <p className="text-sm text-[#7f8c8d]">Las ventas aparecerán aquí una vez que comiences a registrarlas</p>
+                {filtro ? (
+                  <>
+                    <p className="text-xl font-semibold text-[#2c3e50] mb-2">
+                      No se encontraron resultados
+                    </p>
+                    <p className="text-sm text-[#7f8c8d] mb-4">
+                      No hay ventas que coincidan con "{filtro}"
+                    </p>
+                    <button
+                      onClick={() => setFiltro("")}
+                      className="bg-[#3498db] hover:bg-[#2980b9] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+                    >
+                      Limpiar filtro
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xl font-semibold text-[#2c3e50] mb-2">No hay ventas registradas</p>
+                    <p className="text-sm text-[#7f8c8d]">Las ventas aparecerán aquí una vez que comiences a registrarlas</p>
+                  </>
+                )}
               </div>
             </div>
           ) : (
-            ventas.map((v, index) => (
+            ventasProcesadas.map((v, index) => (
               <div key={v.id} className="bg-[#f8f9fa] rounded-xl border border-[#ecf0f1] p-4 shadow-sm">
                 {/* Header de la card */}
                 <div className="flex justify-between items-start mb-4">
@@ -634,7 +822,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
         </div>
 
         {/* Footer de la tabla - Estilo GestiOne */}
-        {ventas.length > 0 && (
+        {ventasProcesadas.length > 0 && (
           <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] px-6 py-4 border-t-2 border-[#bdc3c7]">
             <div className="flex flex-wrap justify-between items-center gap-4">
               <div className="flex items-center gap-3">
@@ -642,7 +830,8 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                   <span className="text-white text-sm font-bold">📊</span>
                 </div>
                 <span className="text-sm font-semibold text-[#2c3e50]">
-                  Mostrando {ventas.length} {ventas.length === 1 ? 'venta' : 'ventas'}
+                  Mostrando {ventasProcesadas.length} {ventasProcesadas.length === 1 ? 'venta' : 'ventas'}
+                  {filtro && ` de ${ventas.length} totales`}
                 </span>
               </div>
               
@@ -654,7 +843,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                     </div>
                     <span className="text-sm text-[#2c3e50]">
                       Total vendido: <strong className="text-[#27ae60] font-bold">
-                        {formatearPrecio(ventas.reduce((sum, v) => sum + (v.precioVenta || 0), 0))}
+                        {formatearPrecio(ventasProcesadas.reduce((sum, v) => sum + (v.precioVenta || 0), 0))}
                       </strong>
                     </span>
                   </div>
@@ -665,7 +854,7 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                     </div>
                     <span className="text-sm text-[#2c3e50]">
                       Ganancia total: <strong className="text-[#f39c12] font-bold">
-                        {formatearPrecio(ventas.reduce((sum, v) => sum + ((v.precioVenta || 0) - (v.precioCosto || 0)), 0))}
+                        {formatearPrecio(ventasProcesadas.reduce((sum, v) => sum + ((v.precioVenta || 0) - (v.precioCosto || 0)), 0))}
                       </strong>
                     </span>
                   </div>

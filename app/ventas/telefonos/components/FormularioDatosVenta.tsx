@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 import { useEffect, useState } from "react";
 import { Timestamp, collection, getDocs, addDoc, setDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -204,7 +206,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
         marca: telefonoRecibido.marca || '',
         modelo: telefonoRecibido.modelo || '',
         valorPago: telefonoRecibido.precioCompra || telefonoRecibido.precioEstimado || 0,
-        moneda: telefonoRecibido.moneda || 'ARS', // ✅ AGREGAR MONEDA DEL TELÉFONO
+        moneda: telefonoRecibido.moneda || 'ARS',
         color: telefonoRecibido.color || '',
         estado: telefonoRecibido.estado || '',
         imei: telefonoRecibido.imei || '',
@@ -254,183 +256,438 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   const hayPagos = pago.monto || telefonoRecibido?.precioCompra;
 
   return (
-    <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
-      
-      {/* Header del formulario - Estilo GestiOne */}
-      <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-8 bg-white/20 rounded-xl flex items-center justify-center">
-            <span className="text-2xl">📱</span>
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">
-              {editandoId ? "Editar Venta de Teléfono" : "Nueva Venta de Teléfono"}
-            </h2>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-8 space-y-8 bg-[#f8f9fa]">
+    <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] via-[#ecf0f1] to-[#dfe6e9]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Formulario principal - Estilo GestiOne */}
-        <div className="bg-white rounded-xl border border-[#ecf0f1] p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm">📋</span>
-            </div>
-            Datos del Teléfono
-          </h3>
-          <FormularioCamposVenta
-            form={form}
-            setForm={setForm}
-            clientes={clientes}
-            stock={stock}
-            setStock={setStock}
-            handleChange={handleChange}
-            rol={rol}
-            onAgregarCliente={() => router.push("/clientes/agregar?origen=ventas-telefonos")}
-          />
-        </div>
-
-        {/* Selector de tipo de precio y moneda - Estilo GestiOne */}
-        <div className="bg-white rounded-xl border-2 border-[#f39c12] p-4 shadow-sm">
-          <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#f39c12] rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm">💰</span>
-            </div>
-            Configuración de Precios y Moneda
-          </h3>
+        {/* 🎨 HEADER PRINCIPAL - Colores GestiOne */}
+        <div className="relative mb-8">
+          {/* Decoración de fondo */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#3498db] to-[#2c3e50] rounded-3xl transform rotate-1 opacity-20 blur-sm"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#27ae60] to-[#3498db] rounded-3xl transform -rotate-1 opacity-10 blur-lg"></div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Selector de tipo de precio */}
-            <div>
-              <label className="block text-sm font-medium text-[#2c3e50] mb-2">
-                Tipo de precio:
-              </label>
-              <select
-                name="tipoPrecio"
-                value={form.tipoPrecio}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50]"
-              >
-                <option value="venta">💰 Precio de venta</option>
-                <option value="mayorista">🏪 Precio mayorista</option>
-              </select>
-              {form.stockID && (
-                <p className="text-xs text-[#7f8c8d] mt-1">
-                  El precio se actualiza automáticamente según el stock seleccionado
-                </p>
-              )}
-            </div>
-
-            {/* Selector de moneda */}
-            <div>
-              <label className="block text-sm font-medium text-[#2c3e50] mb-2">
-                Moneda de venta:
-              </label>
-              <select
-                name="moneda"
-                value={form.moneda}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50]"
-                disabled={!!form.stockID}
-              >
-                <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
-                <option value="USD">🇺🇸 Dólares (USD)</option>
-              </select>
-              {form.stockID && (
-                <span className="text-xs text-[#f39c12] bg-yellow-100 px-2 py-1 rounded-lg font-medium">
-                  Moneda fijada por stock seleccionado
-                </span>
-              )}
+          {/* Contenido del header */}
+          <div className="relative bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-3xl shadow-2xl border border-white/20 backdrop-blur-xl">
+            <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent rounded-3xl"></div>
+            <div className="relative p-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-6">
+                  {/* Logo animado */}
+                  <div className="relative">
+                    <div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center shadow-xl border border-white/30 transform hover:scale-110 transition-all duration-300">
+                      <span className="text-3xl animate-pulse">📱</span>
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-[#f39c12] to-[#e67e22] rounded-full animate-bounce shadow-lg flex items-center justify-center">
+                      <span className="text-xs">✨</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h1 className="text-3xl sm:text-4xl font-black text-white mb-2 tracking-tight">
+                      {editandoId ? "✏️ Editar Venta" : "🚀 Nueva Venta"}
+                    </h1>
+                    <p className="text-blue-100 text-lg font-medium">
+                      Gestión profesional de ventas de teléfonos
+                    </p>
+                    <div className="flex items-center mt-3 space-x-4">
+                      <div className="flex items-center space-x-2 bg-white/20 rounded-full px-3 py-1">
+                        <div className="w-2 h-2 bg-[#27ae60] rounded-full animate-pulse"></div>
+                        <span className="text-white/90 text-sm font-medium">Sistema activo</span>
+                      </div>
+                      <div className="text-white/70 text-sm">
+                        📅 {new Date().toLocaleDateString("es-AR", { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Indicadores de estado */}
+                <div className="hidden sm:flex flex-col items-end space-y-2">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-white/20 backdrop-blur-xl rounded-xl p-3 border border-white/30">
+                      <div className="text-white/90 text-sm font-medium">Clientes</div>
+                      <div className="text-white text-2xl font-bold">{clientes.length}</div>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur-xl rounded-xl p-3 border border-white/30">
+                      <div className="text-white/90 text-sm font-medium">Stock</div>
+                      <div className="text-white text-2xl font-bold">{stock.length}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Resumen de pagos - Estilo GestiOne */}
-        {hayPagos && (
-          <div className="bg-white rounded-xl border-2 border-[#27ae60] p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-[#2c3e50] mb-4 flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#27ae60] rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">💳</span>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          
+          {/* 📋 COLUMNA PRINCIPAL - FORMULARIO */}
+          <div className="xl:col-span-2 space-y-6">
+            
+            {/* Datos del Teléfono */}
+            <div className="group bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-[#ecf0f1]/50 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:bg-white/90">
+              <div className="relative bg-gradient-to-r from-[#3498db] to-[#2980b9] p-6">
+                <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent"></div>
+                <div className="relative flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-xl rounded-xl flex items-center justify-center shadow-lg border border-white/30 group-hover:scale-110 transition-transform duration-300">
+                    <span className="text-white text-xl">📋</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1">Información del Dispositivo</h3>
+                    <p className="text-white/80 text-sm">Complete los datos técnicos del teléfono</p>
+                  </div>
+                </div>
               </div>
-              Resumen de Pagos
-            </h3>
-            <div className="space-y-3">
-              {telefonoRecibido?.precioCompra && (
-                <div className="flex items-center justify-between bg-[#f8f9fa] rounded-lg p-4 border border-[#ecf0f1]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-[#27ae60] rounded-full"></div>
-                    <span className="font-medium text-[#2c3e50]">
-                      📱 Equipo recibido: {telefonoRecibido.modelo}
-                    </span>
-                  </div>
-                  <span className="font-bold text-[#27ae60]">
-                    ${Number(telefonoRecibido.precioCompra).toLocaleString("es-AR")}
-                  </span>
-                </div>
-              )}
               
-              {pago.monto && !isNaN(Number(pago.monto)) && (
-                <div className="flex items-center justify-between bg-[#f8f9fa] rounded-lg p-4 border border-[#ecf0f1]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-[#3498db] rounded-full"></div>
-                    <span className="font-medium text-[#2c3e50]">
-                      💰 Monto abonado ({pago.formaPago || "Efectivo"})
-                    </span>
-                  </div>
-                  <span className="font-bold text-[#3498db]">
-                    {pago.moneda} ${Number(pago.monto).toLocaleString("es-AR")}
-                  </span>
-                </div>
-              )}
+              <div className="p-8">
+                <FormularioCamposVenta
+                  form={form}
+                  setForm={setForm}
+                  clientes={clientes}
+                  stock={stock}
+                  setStock={setStock}
+                  handleChange={handleChange}
+                  rol={rol}
+                  onAgregarCliente={() => router.push("/clientes/agregar?origen=ventas-telefonos")}
+                />
+              </div>
+            </div>
 
-              {form.precioVenta > 0 && (
-                <div className="border-t border-[#ecf0f1] pt-4">
-                  <div className="flex items-center justify-between bg-red-50 rounded-lg p-4 border-2 border-[#e74c3c]">
-                    <span className="font-semibold text-[#e74c3c]">
-                      📊 Resta pagar:
-                    </span>
-                    <span className="text-xl font-bold text-[#e74c3c]">
-                      ${calcularRestaPagar().toLocaleString("es-AR")}
+            {/* Configuración de Precios */}
+            <div className="group bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-[#ecf0f1]/50 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:bg-white/90">
+              <div className="relative bg-gradient-to-r from-[#f39c12] to-[#e67e22] p-6">
+                <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent"></div>
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-xl rounded-xl flex items-center justify-center shadow-lg border border-white/30 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-white text-xl">💰</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-1">Configuración Comercial</h3>
+                      <p className="text-white/80 text-sm">Defina precios y moneda de la operación</p>
+                    </div>
+                  </div>
+                  
+                  {/* Badge de moneda */}
+                  <div className="bg-white/20 backdrop-blur-xl rounded-full px-4 py-2 border border-white/30">
+                    <span className="text-white font-bold">
+                      {form.moneda === "USD" ? "🇺🇸 USD" : "🇦🇷 ARS"}
                     </span>
                   </div>
                 </div>
-              )}
+              </div>
+              
+              <div className="p-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Tipo de precio */}
+                  <div className="space-y-3">
+                    <label className="block text-sm font-bold text-[#2c3e50] mb-2">
+                      🏷️ Tipo de precio
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="tipoPrecio"
+                        value={form.tipoPrecio}
+                        onChange={handleChange}
+                        className="w-full px-4 py-4 bg-gradient-to-r from-white to-[#f8f9fa] border-2 border-[#bdc3c7] rounded-2xl focus:ring-4 focus:ring-[#f39c12]/20 focus:border-[#f39c12] transition-all duration-300 text-[#2c3e50] font-medium shadow-lg hover:shadow-xl appearance-none"
+                      >
+                        <option value="venta">💰 Precio de venta público</option>
+                        <option value="mayorista">🏪 Precio mayorista</option>
+                      </select>
+                      <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <svg className="w-5 h-5 text-[#7f8c8d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                    {form.stockID && (
+                      <div className="bg-[#fff3cd] border border-[#ffeaa7] rounded-xl p-3">
+                        <p className="text-xs text-[#6c5700] font-medium">
+                          ℹ️ El precio se actualiza automáticamente según el stock seleccionado
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Moneda */}
+                  <div className="space-y-3">
+                    <label className="block text-sm font-bold text-[#2c3e50] mb-2">
+                      💱 Moneda de operación
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="moneda"
+                        value={form.moneda}
+                        onChange={handleChange}
+                        className={`w-full px-4 py-4 bg-gradient-to-r from-white to-[#f8f9fa] border-2 rounded-2xl transition-all duration-300 font-medium shadow-lg appearance-none ${
+                          form.stockID 
+                            ? 'border-[#bdc3c7] bg-[#ecf0f1] cursor-not-allowed text-[#7f8c8d]' 
+                            : 'border-[#bdc3c7] hover:shadow-xl focus:ring-4 focus:ring-[#f39c12]/20 focus:border-[#f39c12] text-[#2c3e50]'
+                        }`}
+                        disabled={!!form.stockID}
+                      >
+                        <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
+                        <option value="USD">🇺🇸 Dólares Estadounidenses (USD)</option>
+                      </select>
+                      <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                        <svg className="w-5 h-5 text-[#7f8c8d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                    {form.stockID && (
+                      <div className="bg-[#d1ecf1] border border-[#bee5eb] rounded-xl p-3">
+                        <span className="text-xs text-[#0c5460] font-bold bg-[#b8daff] px-2 py-1 rounded-lg">
+                          🔒 Moneda fijada por el stock seleccionado
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mostrar precio actual si hay */}
+                {form.precioVenta > 0 && (
+                  <div className="mt-6 bg-gradient-to-r from-[#d4edda] to-[#c3e6cb] border-2 border-[#27ae60] rounded-2xl p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-[#27ae60] rounded-xl flex items-center justify-center shadow-lg">
+                          <span className="text-white font-bold">💵</span>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-[#155724]">Precio establecido</h4>
+                          <p className="text-[#27ae60] text-sm">Precio {form.tipoPrecio === "mayorista" ? "mayorista" : "de venta"}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-black text-[#155724]">
+                          {form.moneda} ${Number(form.precioVenta).toLocaleString("es-AR")}
+                        </div>
+                        {rol?.tipo === "admin" && form.precioCosto > 0 && (
+                          <div className="text-sm text-[#27ae60] font-medium">
+                            Ganancia: ${(form.precioVenta - form.precioCosto).toLocaleString("es-AR")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Botones de acción - Estilo GestiOne */}
-        <div className="bg-white rounded-xl border border-[#ecf0f1] p-6 shadow-sm">
-          <div className="flex flex-wrap gap-4 justify-between items-center">
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => setMostrarModalTelefono(true)}
-                className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md flex items-center gap-2"
-              >
-                📦 Teléfono como parte de pago
-              </button>
-              
+          {/* 📊 COLUMNA LATERAL - RESUMEN Y ACCIONES */}
+          <div className="space-y-6">
             
+            {/* Resumen de Pagos */}
+            {hayPagos && (
+              <div className="group bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-[#ecf0f1]/50 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:bg-white/90">
+                <div className="relative bg-gradient-to-r from-[#27ae60] to-[#229954] p-6">
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent"></div>
+                  <div className="relative flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-xl rounded-xl flex items-center justify-center shadow-lg border border-white/30 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-white text-xl">💳</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-1">Resumen de Pagos</h3>
+                      <p className="text-white/80 text-sm">Montos registrados</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-4">
+                  {telefonoRecibido?.precioCompra && (
+                    <div className="bg-gradient-to-r from-[#d1ecf1] to-[#bee5eb] border-2 border-[#3498db] rounded-2xl p-4 transform hover:scale-105 transition-all duration-300 shadow-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-[#3498db] rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-white">📱</span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-[#2c3e50]">Equipo recibido</div>
+                            <div className="text-[#3498db] text-sm font-medium">{telefonoRecibido.modelo}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xl font-black text-[#2c3e50]">
+                            ${Number(telefonoRecibido.precioCompra).toLocaleString("es-AR")}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {pago.monto && !isNaN(Number(pago.monto)) && (
+                    <div className="bg-gradient-to-r from-[#d4edda] to-[#c3e6cb] border-2 border-[#27ae60] rounded-2xl p-4 transform hover:scale-105 transition-all duration-300 shadow-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-[#27ae60] rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-white">💰</span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-[#155724]">Pago recibido</div>
+                            <div className="text-[#27ae60] text-sm font-medium">{pago.formaPago || "Efectivo"}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xl font-black text-[#155724]">
+                            {pago.moneda} ${Number(pago.monto).toLocaleString("es-AR")}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Total pendiente */}
+                  {form.precioVenta > 0 && (
+                    <div className="bg-gradient-to-r from-[#f8d7da] to-[#f5c6cb] border-2 border-[#e74c3c] rounded-2xl p-4 shadow-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-[#e74c3c] rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-white">⏳</span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-[#721c24]">Resta pagar</div>
+                            <div className="text-[#e74c3c] text-sm font-medium">Saldo pendiente</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-black text-[#721c24]">
+                            ${calcularRestaPagar().toLocaleString("es-AR")}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Panel de Acciones */}
+            <div className="group bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-[#ecf0f1]/50 overflow-hidden hover:shadow-2xl transition-all duration-500 hover:bg-white/90">
+              <div className="relative bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] p-6">
+                <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent"></div>
+                <div className="relative flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-xl rounded-xl flex items-center justify-center shadow-lg border border-white/30 group-hover:scale-110 transition-transform duration-300">
+                    <span className="text-white text-xl">⚡</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1">Acciones Rápidas</h3>
+                    <p className="text-white/80 text-sm">Gestione la venta</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                
+                {/* Botón Teléfono como parte de pago */}
+                <button
+                  onClick={() => setMostrarModalTelefono(true)}
+                  className="w-full group/btn bg-gradient-to-r from-[#f39c12] to-[#e67e22] hover:from-[#e67e22] hover:to-[#d35400] text-white p-4 rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 shadow-xl hover:shadow-2xl border border-[#f39c12]/30"
+                >
+                  <div className="flex items-center justify-center space-x-3">
+                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center group-hover/btn:scale-110 transition-transform duration-300">
+                      <span className="text-lg">📦</span>
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold">Agregar Dispositivo</div>
+                      <div className="text-white/90 text-sm">Como parte de pago</div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Separador */}
+                <div className="flex items-center my-6">
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#bdc3c7] to-transparent"></div>
+                  <span className="px-4 text-[#7f8c8d] text-sm font-medium">Finalizar</span>
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#bdc3c7] to-transparent"></div>
+                </div>
+
+                {/* Botón Principal - Continuar/Guardar */}
+                <button
+                  onClick={guardar}
+                  disabled={!form.cliente?.trim()}
+                  className={`w-full p-6 rounded-2xl font-black text-lg transition-all duration-300 transform shadow-xl border-2 ${
+                    !form.cliente?.trim()
+                      ? "bg-[#ecf0f1] text-[#7f8c8d] cursor-not-allowed border-[#bdc3c7]"
+                      : "bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#1f4e79] text-white hover:scale-105 hover:shadow-2xl border-[#3498db]/30 hover:border-[#2980b9]/50"
+                  }`}
+                >
+                  <div className="flex items-center justify-center space-x-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                      !form.cliente?.trim() 
+                        ? "bg-[#bdc3c7]" 
+                        : "bg-white/20 group-hover:scale-110"
+                    }`}>
+                      <span className="text-2xl">
+                        {editandoId ? "✏️" : "🚀"}
+                      </span>
+                    </div>
+                    <div className="text-center">
+                      <div>{editandoId ? "Actualizar Venta" : "Continuar con la Venta"}</div>
+                      <div className={`text-sm font-medium ${
+                        !form.cliente?.trim() ? "text-[#7f8c8d]" : "text-white/90"
+                      }`}>
+                        {!form.cliente?.trim() ? "Complete los campos requeridos" : "Proceder al registro final"}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Indicador de progreso */}
+                <div className="bg-[#f8f9fa] rounded-2xl p-4 border border-[#ecf0f1]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-[#2c3e50]">Progreso del formulario</span>
+                    <span className="text-sm font-bold text-[#2c3e50]">
+                      {Math.round(((form.cliente ? 1 : 0) + (form.modelo ? 1 : 0) + (form.precioVenta > 0 ? 1 : 0)) / 3 * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-[#ecf0f1] rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-[#3498db] to-[#2980b9] h-2 rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `${Math.round(((form.cliente ? 1 : 0) + (form.modelo ? 1 : 0) + (form.precioVenta > 0 ? 1 : 0)) / 3 * 100)}%` 
+                      }}
+                    ></div>
+                  </div>
+                  <div className="flex justify-between text-xs text-[#7f8c8d] mt-1">
+                    <span className={form.cliente ? "text-[#27ae60] font-medium" : ""}>Cliente</span>
+                    <span className={form.modelo ? "text-[#27ae60] font-medium" : ""}>Dispositivo</span>
+                    <span className={form.precioVenta > 0 ? "text-[#27ae60] font-medium" : ""}>Precio</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <button
-              onClick={guardar}
-              disabled={!form.cliente?.trim()}
-              className={`px-8 py-3 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-lg flex items-center gap-2 ${
-                !form.cliente?.trim()
-                  ? "bg-[#bdc3c7] cursor-not-allowed"
-                  : "bg-[#3498db] hover:bg-[#2980b9] hover:scale-105"
-              }`}
-            >
-              {editandoId ? "✏️ Actualizar Venta" : "💾 Continuar Venta"}
-            </button>
+            {/* Panel de Información Rápida */}
+            <div className="bg-gradient-to-br from-[#e8f4fd] to-[#d1ecf1] rounded-3xl p-6 border-2 border-[#3498db] shadow-lg">
+              <h4 className="font-bold text-[#2c3e50] mb-4 flex items-center space-x-2">
+                <span className="text-lg">💡</span>
+                <span>Consejos Rápidos</span>
+              </h4>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start space-x-2">
+                  <span className="text-[#27ae60] font-bold">✓</span>
+                  <span className="text-[#2c3e50]">Complete todos los campos del cliente para un mejor seguimiento</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <span className="text-[#3498db] font-bold">ℹ️</span>
+                  <span className="text-[#2c3e50]">Los precios mayoristas se aplican automáticamente desde el stock</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <span className="text-[#9b59b6] font-bold">⭐</span>
+                  <span className="text-[#2c3e50]">Registre pagos parciales para mejor control financiero</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Modal de pago */}
+      {/* 🎭 MODAL DE PAGO - Mejorado */}
       <ModalPago
         mostrar={mostrarPagoModal}
         pago={pago}
@@ -440,69 +697,103 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
         guardadoConExito={guardadoConExito}
       />
 
-      {/* Modal para FormularioStock - Estilo GestiOne */}
+      {/* 🎭 MODAL TELÉFONO - Completamente rediseñado */}
       {mostrarModalTelefono && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border-2 border-[#ecf0f1]">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden border border-white/50 transform animate-slideUp">
             
-            {/* Header del modal - Estilo GestiOne */}
-            <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] text-white rounded-t-2xl p-6">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                    <span className="text-xl">📦</span>
+            {/* Header del modal mejorado */}
+            <div className="relative bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] p-8">
+              <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent"></div>
+              <div className="relative flex justify-between items-start">
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center shadow-xl border border-white/30">
+                    <span className="text-3xl">📦</span>
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold">
-                      Agregar Teléfono al Stock
+                    <h3 className="text-2xl font-black text-white mb-2">
+                      Registrar Dispositivo
                     </h3>
-                    <p className="text-purple-100 text-sm mt-1">
-                      Registra el equipo que el cliente entrega como parte de pago
+                    <p className="text-white/80 font-medium">
+                      Complete los datos del equipo que recibe como parte de pago
                     </p>
+                    <div className="flex items-center mt-3 space-x-2">
+                      <div className="w-2 h-2 bg-[#27ae60] rounded-full animate-pulse"></div>
+                      <span className="text-white/90 text-sm font-medium">Sistema de valoración automática</span>
+                    </div>
                   </div>
                 </div>
                 <button
                   onClick={() => setMostrarModalTelefono(false)}
-                  className="text-purple-100 hover:text-white text-2xl font-bold transition-colors duration-200 hover:bg-white/20 rounded-xl w-10 h-10 flex items-center justify-center hover:scale-110"
+                  className="text-white/80 hover:text-white text-3xl font-bold transition-all duration-200 hover:bg-white/20 rounded-2xl w-12 h-12 flex items-center justify-center hover:scale-110 transform"
                 >
                   ×
                 </button>
               </div>
             </div>
             
-            {/* Contenido del modal */}
-            <div className="p-6 bg-[#f8f9fa]">
-              <FormularioStock
-                negocioID={negocioID}
-                placeholderProveedor="Cliente que entregó el teléfono"
-                onGuardado={(datos) => {
-                  console.log('📱 Teléfono registrado como parte de pago:', datos);
-                  
-                  // ✅ GUARDAR EN STATE LOCAL
-                  setTelefonoRecibido(datos);
-                  
-                  // ✅ TAMBIÉN GUARDAR EN LOCALSTORAGE PARA EL MODALVENTA
-                  const telefonoComoPago = {
-                    marca: datos.marca || '',
-                    modelo: datos.modelo || '',
-                    valorPago: datos.precioCompra || datos.precioEstimado || 0, // El valor que recibís el teléfono
-                    moneda: datos.moneda || 'ARS', // ✅ AGREGAR MONEDA DEL TELÉFONO
-                    color: datos.color || '',
-                    estado: datos.estado || '',
-                    imei: datos.imei || '',
-                    observaciones: `Teléfono recibido como parte de pago: ${datos.marca} ${datos.modelo}`
-                  };
-                  
-                  console.log('💾 Guardando en localStorage:', telefonoComoPago);
-                  localStorage.setItem("telefonoComoPago", JSON.stringify(telefonoComoPago));
-                  
-                  setMostrarModalTelefono(false);
-                }}
-              />
+            {/* Contenido del modal con scroll mejorado */}
+            <div className="p-8 bg-gradient-to-br from-[#f8f9fa] to-white max-h-[60vh] overflow-y-auto">
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
+                <FormularioStock
+                  negocioID={negocioID}
+                  placeholderProveedor="Cliente que entregó el teléfono"
+                  onGuardado={(datos) => {
+                    console.log('📱 Teléfono registrado como parte de pago:', datos);
+                    
+                    // ✅ GUARDAR EN STATE LOCAL
+                    setTelefonoRecibido(datos);
+                    
+                    // ✅ TAMBIÉN GUARDAR EN LOCALSTORAGE PARA EL MODALVENTA
+                    const telefonoComoPago = {
+                      marca: datos.marca || '',
+                      modelo: datos.modelo || '',
+                      valorPago: datos.precioCompra || datos.precioEstimado || 0,
+                      moneda: datos.moneda || 'ARS',
+                      color: datos.color || '',
+                      estado: datos.estado || '',
+                      imei: datos.imei || '',
+                      observaciones: `Teléfono recibido como parte de pago: ${datos.marca} ${datos.modelo}`
+                    };
+                    
+                    console.log('💾 Guardando en localStorage:', telefonoComoPago);
+                    localStorage.setItem("telefonoComoPago", JSON.stringify(telefonoComoPago));
+                    
+                    setMostrarModalTelefono(false);
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Estilos CSS adicionales */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+          from { 
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+          }
+          to { 
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+        
+        .animate-slideUp {
+          animation: slideUp 0.4s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

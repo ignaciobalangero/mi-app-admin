@@ -48,6 +48,54 @@ export default function ModalVenta({
   // Estado para el teléfono como parte de pago
   const [telefonoComoPago, setTelefonoComoPago] = useState<any>(null);
 
+  // 🔥 useEffect para detectar cliente recién agregado
+  useEffect(() => {
+    const clienteNuevo = localStorage.getItem("clienteNuevo");
+    const ventaModalTemporal = localStorage.getItem("ventaModalTemporal");
+    
+    if (clienteNuevo && ventaModalTemporal) {
+      try {
+        const datosTemporales = JSON.parse(ventaModalTemporal);
+        
+        // Solo restaurar si venía del modal de venta específicamente
+        if (datosTemporales.origen === "modal-venta") {
+          console.log('🔄 Restaurando datos del modal y cargando cliente nuevo:', clienteNuevo);
+          
+          // Cargar el cliente nuevo
+          setCliente(clienteNuevo);
+          
+          // Restaurar datos temporales
+          if (datosTemporales.productos?.length > 0) {
+            setProductos(datosTemporales.productos);
+          }
+          if (datosTemporales.pago) {
+            setPago(datosTemporales.pago);
+          }
+          if (datosTemporales.telefonoComoPago) {
+            setTelefonoComoPago(datosTemporales.telefonoComoPago);
+          }
+          
+          // Limpiar localStorage
+          localStorage.removeItem("clienteNuevo");
+          localStorage.removeItem("ventaModalTemporal");
+          
+          // Recargar lista de clientes
+          if (rol?.negocioID) {
+            const recargarClientes = async () => {
+              const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/clientes`));
+              const nombres = snap.docs.map((doc) => doc.data().nombre);
+              setListaClientes(nombres);
+            };
+            recargarClientes();
+          }
+        }
+      } catch (error) {
+        console.error('Error restaurando datos temporales:', error);
+        localStorage.removeItem("ventaModalTemporal");
+      }
+    }
+  }, [rol?.negocioID]);
+
   const pagoInicialCompleto = pagoInicial || {
     monto: "",
     moneda: "ARS",
@@ -74,6 +122,8 @@ export default function ModalVenta({
     localStorage.removeItem("telefonoComoPago");
     localStorage.removeItem("productoDesdeTelefono");
     localStorage.removeItem("pagoDesdeTelefono");
+    localStorage.removeItem("ventaModalTemporal");
+    localStorage.removeItem("clienteNuevo");
     
     console.log('✅ Datos temporales limpiados');
   };
@@ -275,42 +325,71 @@ export default function ModalVenta({
           {/* Contenido scrolleable - Más compacto */}
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-[#f8f9fa] min-h-0">
             
-            {/* Información del Cliente - Más compacto */}
+            {/* Información del Cliente - CON BOTÓN AGREGAR */}
             <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm">
               <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] mb-2 sm:mb-3 flex items-center gap-2">
                 <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-md flex items-center justify-center text-white text-xs">👤</span>
                 <span className="text-sm sm:text-base">Datos del Cliente</span>
               </h3>
-              <Combobox value={cliente} onChange={setCliente}>
-                <div className="relative z-[10000]">
-                  <Combobox.Input
-                    className="w-full p-2 sm:p-3 border border-[#bdc3c7] rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-                    onChange={(e) => setQueryCliente(e.target.value)}
-                    displayValue={() => cliente}
-                    placeholder="🔍 Ingrese o seleccione el nombre del cliente..."
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                  <Combobox.Options className="absolute z-[10001] w-full bg-white border border-[#bdc3c7] rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
-                    {listaClientes
-                      .filter((c) => c.toLowerCase().includes(queryCliente.toLowerCase()))
-                      .map((c, i) => (
-                        <Combobox.Option
-                          key={i}
-                          value={c}
-                          className={({ active }) =>
-                            `px-3 py-2 cursor-pointer transition-colors text-[#2c3e50] text-sm ${
-                              active ? "bg-[#3498db] text-white" : "hover:bg-[#ecf0f1]"
-                            }`
-                          }
-                        >
-                          {c}
-                        </Combobox.Option>
-                      ))}
-                  </Combobox.Options>
+              
+              {/* 🔥 CONTENEDOR CON COMBOBOX + BOTÓN */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Combobox value={cliente} onChange={setCliente}>
+                    <div className="relative z-[9900]">
+                      <Combobox.Input
+                        className="w-full p-2 sm:p-3 border border-[#bdc3c7] rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                        onChange={(e) => setQueryCliente(e.target.value)}
+                        displayValue={() => cliente}
+                        placeholder="🔍 Ingrese o seleccione el nombre del cliente..."
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                      />
+                      <Combobox.Options className="absolute z-[9901] w-full bg-white border border-[#bdc3c7] rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
+                        {listaClientes
+                          .filter((c) => c.toLowerCase().includes(queryCliente.toLowerCase()))
+                          .map((c, i) => (
+                            <Combobox.Option
+                              key={i}
+                              value={c}
+                              className={({ active }) =>
+                                `px-3 py-2 cursor-pointer transition-colors text-[#2c3e50] text-sm ${
+                                  active ? "bg-[#3498db] text-white" : "hover:bg-[#ecf0f1]"
+                                }`
+                              }
+                            >
+                              {c}
+                            </Combobox.Option>
+                          ))}
+                      </Combobox.Options>
+                    </div>
+                  </Combobox>
                 </div>
-              </Combobox>
+                
+                {/* 🔥 BOTÓN AGREGAR CLIENTE */}
+                <button
+                  onClick={() => {
+                    // Guardar datos temporales antes de navegar
+                    localStorage.setItem("ventaModalTemporal", JSON.stringify({
+                      cliente,
+                      productos,
+                      pago,
+                      telefonoComoPago,
+                      origen: "modal-venta"
+                    }));
+                    
+                    // Navegar a agregar cliente
+                    window.location.href = "/clientes/agregar?origen=modal-venta";
+                  }}
+                  type="button"
+                  className="bg-[#27ae60] hover:bg-[#229954] text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center justify-center gap-1 text-sm sm:text-base min-w-[44px]"
+                  title="Agregar nuevo cliente"
+                >
+                  <span className="text-lg">+</span>
+                  <span className="hidden sm:inline">Cliente</span>
+                </button>
+              </div>
             </div>
 
             {/* Selector de Productos - Con z-index corregido */}
