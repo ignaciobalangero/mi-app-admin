@@ -176,7 +176,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
                         {p.cantidad}
                       </span>
                     </td>
-                    {rol?.tipo === "admin" && (
+                   
                     <td className="p-1.5 border border-[#bdc3c7] text-center">
                       <div className="flex gap-1 justify-center flex-wrap">
                         <button
@@ -199,7 +199,7 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
                         </button>
                       </div>
                     </td>
-                    )}
+                   
                   </tr>
                 );
               })
