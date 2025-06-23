@@ -27,6 +27,29 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
   const [actualizandoSheet, setActualizandoSheet] = useState(false);
   const { rol } = useRol();
 
+  // Función para obtener emoji del color
+  const obtenerEmojiColor = (color: string): string => {
+    if (!color) return "🎨";
+    
+    const colorLower = color.toLowerCase();
+    
+    if (colorLower.includes("rojo") || colorLower.includes("red")) return "🔴";
+    if (colorLower.includes("azul") || colorLower.includes("blue")) return "🔵";
+    if (colorLower.includes("verde") || colorLower.includes("green")) return "🟢";
+    if (colorLower.includes("amarillo") || colorLower.includes("yellow")) return "🟡";
+    if (colorLower.includes("naranja") || colorLower.includes("orange")) return "🟠";
+    if (colorLower.includes("morado") || colorLower.includes("púrpura") || colorLower.includes("violeta") || colorLower.includes("purple")) return "🟣";
+    if (colorLower.includes("negro") || colorLower.includes("black")) return "⚫";
+    if (colorLower.includes("blanco") || colorLower.includes("white")) return "⚪";
+    if (colorLower.includes("gris") || colorLower.includes("gray") || colorLower.includes("grey")) return "🔘";
+    if (colorLower.includes("rosa") || colorLower.includes("pink")) return "🌸";
+    if (colorLower.includes("dorado") || colorLower.includes("oro") || colorLower.includes("gold")) return "🟡";
+    if (colorLower.includes("plateado") || colorLower.includes("plata") || colorLower.includes("silver")) return "🔘";
+    if (colorLower.includes("transparente") || colorLower.includes("clear")) return "💎";
+    
+    return "🎨";
+  };
+
   useEffect(() => {
     const cargar = async () => {
       // Cargar de stockRepuestos (stock local)
@@ -74,134 +97,132 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     }
   }, [rol, trabajoID]);
 
-// 🆕 Función para actualizar el Google Sheet por hoja específica
-const actualizarGoogleSheet = async () => {
-  if (!rol?.negocioID) return;
+  // 🆕 Función para actualizar el Google Sheet por hoja específica
+  const actualizarGoogleSheet = async () => {
+    if (!rol?.negocioID) return;
 
-  try {
-    setActualizandoSheet(true);
-    
-    // Obtener todas las configuraciones de hojas
-    const sheetConfigSnap = await getDocs(
-      collection(db, `negocios/${rol.negocioID}/configuracion/datos/googleSheets`)
-    );
-    
-    if (sheetConfigSnap.empty) {
-      console.log("⚠️ No hay configuración de Sheet configurada");
-      return;
-    }
-
-    // Crear un mapa de configuraciones por nombre de hoja (normalizado)
-    const configPorHoja: { [key: string]: { sheetID: string; hoja: string } } = {};
-    sheetConfigSnap.docs.forEach((doc: any) => {
-      const config = doc.data();
-      const nombreHoja = config.hoja;
-      if (nombreHoja) {
-        // Normalizar el nombre (primera letra mayúscula, resto minúscula)
-        const nombreNormalizado = nombreHoja.toLowerCase();
-        configPorHoja[nombreNormalizado] = {
-          sheetID: config.id,
-          hoja: config.hoja
-        };
+    try {
+      setActualizandoSheet(true);
+      
+      // Obtener todas las configuraciones de hojas
+      const sheetConfigSnap = await getDocs(
+        collection(db, `negocios/${rol.negocioID}/configuracion/datos/googleSheets`)
+      );
+      
+      if (sheetConfigSnap.empty) {
+        console.log("⚠️ No hay configuración de Sheet configurada");
+        return;
       }
-    });
 
-    console.log("📋 Configuraciones disponibles:", Object.keys(configPorHoja));
-
-    // Obtener cotización
-    let cotizacion = 1000;
-    const configSnap = await getDoc(
-      doc(db, `negocios/${rol.negocioID}/configuracion/moneda`)
-    );
-    if (configSnap.exists()) {
-      const data = configSnap.data();
-      cotizacion = Number(data.dolarManual) || 1000;
-    }
-
-    // Obtener productos actualizados desde Firebase
-    const snap = await getDocs(
-      collection(db, `negocios/${rol.negocioID}/stockExtra`)
-    );
-    const productos = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-    // Agrupar productos por hoja (usando categoría)
-    const productosPorHoja: { [key: string]: any[] } = {};
-    productos.forEach((p: any) => {
-      if (p.categoria) {
-        // Normalizar la categoría para coincidir con las hojas
-        const categoriaNormalizada = p.categoria.toLowerCase();
-        
-        if (!productosPorHoja[categoriaNormalizada]) {
-          productosPorHoja[categoriaNormalizada] = [];
+      // Crear un mapa de configuraciones por nombre de hoja (normalizado)
+      const configPorHoja: { [key: string]: { sheetID: string; hoja: string } } = {};
+      sheetConfigSnap.docs.forEach((doc: any) => {
+        const config = doc.data();
+        const nombreHoja = config.hoja;
+        if (nombreHoja) {
+          // Normalizar el nombre (primera letra mayúscula, resto minúscula)
+          const nombreNormalizado = nombreHoja.toLowerCase();
+          configPorHoja[nombreNormalizado] = {
+            sheetID: config.id,
+            hoja: config.hoja
+          };
         }
-        
-        const precioUSD = Number(p.precioUSD) || 0;
-        const precioARS = Number((precioUSD * cotizacion).toFixed(2));
+      });
 
-        productosPorHoja[categoriaNormalizada].push({
-          codigo: p.id,
-          categoria: p.categoria || "",
-          producto: p.producto || "",
-          cantidad: Number(p.cantidad) || 0, // ✅ Asegurar que sea número
-          precioARS: precioARS,
-          precioUSD: precioUSD, // ✅ Asegurar que esté definido
-        });
-      }
-    });
+      console.log("📋 Configuraciones disponibles:", Object.keys(configPorHoja));
 
-    console.log("📊 Productos agrupados por hoja:", Object.keys(productosPorHoja));
-
-    // Actualizar cada hoja que tenga productos
-    for (const [nombreHoja, filas] of Object.entries(productosPorHoja)) {
-      const config = configPorHoja[nombreHoja];
-      
-      if (!config) {
-        console.log(`⚠️ No hay configuración para la hoja: ${nombreHoja}`);
-        continue;
+      // Obtener cotización
+      let cotizacion = 1000;
+      const configSnap = await getDoc(
+        doc(db, `negocios/${rol.negocioID}/configuracion/moneda`)
+      );
+      if (configSnap.exists()) {
+        const data = configSnap.data();
+        cotizacion = Number(data.dolarManual) || 1000;
       }
 
-      const { sheetID, hoja } = config;
-      
-      console.log(`🔧 Actualizando hoja: "${hoja}" con ${filas.length} productos`);
-      console.log("🔥 Datos que se envían:", { sheetID, hoja, filas: filas.slice(0, 2) });
+      // Obtener productos actualizados desde Firebase
+      const snap = await getDocs(
+        collection(db, `negocios/${rol.negocioID}/stockExtra`)
+      );
+      const productos = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-      try {
-        const res = await fetch("/api/actualizar-precios-sheet", {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({ 
-            sheetID: sheetID, 
-            hoja: hoja, 
-            filas: filas 
-          }),
-        });
+      // Agrupar productos por hoja (usando categoría)
+      const productosPorHoja: { [key: string]: any[] } = {};
+      productos.forEach((p: any) => {
+        if (p.categoria) {
+          // Normalizar la categoría para coincidir con las hojas
+          const categoriaNormalizada = p.categoria.toLowerCase();
+          
+          if (!productosPorHoja[categoriaNormalizada]) {
+            productosPorHoja[categoriaNormalizada] = [];
+          }
+          
+          const precioUSD = Number(p.precioUSD) || 0;
+          const precioARS = Number((precioUSD * cotizacion).toFixed(2));
 
-        const json = await res.json();
-        console.log(`🔥 Respuesta de API para "${hoja}":`, json);
-        console.log(`🔥 Status: ${res.status}`);
+          productosPorHoja[categoriaNormalizada].push({
+            codigo: p.id,
+            categoria: p.categoria || "",
+            producto: p.producto || "",
+            cantidad: Number(p.cantidad) || 0,
+            precioARS: precioARS,
+            precioUSD: precioUSD,
+          });
+        }
+      });
+
+      console.log("📊 Productos agrupados por hoja:", Object.keys(productosPorHoja));
+
+      // Actualizar cada hoja que tenga productos
+      for (const [nombreHoja, filas] of Object.entries(productosPorHoja)) {
+        const config = configPorHoja[nombreHoja];
         
-        if (!res.ok) {
-          console.error("❌ Error HTTP:", res.status, res.statusText);
-          throw new Error(json.error || `HTTP Error: ${res.status}`);
+        if (!config) {
+          console.log(`⚠️ No hay configuración para la hoja: ${nombreHoja}`);
+          continue;
         }
 
-        console.log(`✅ Hoja "${hoja}" actualizada correctamente`);
-      } catch (err) {
-        console.error(`❌ Error actualizando hoja "${hoja}":`, err);
-      }
-    }
+        const { sheetID, hoja } = config;
+        
+        console.log(`🔧 Actualizando hoja: "${hoja}" con ${filas.length} productos`);
 
-    console.log("✅ Todas las hojas han sido actualizadas");
-    
-  } catch (err) {
-    console.error("❌ Error general actualizando Google Sheets:", err);
-  } finally {
-    setActualizandoSheet(false);
-  }
-};
+        try {
+          const res = await fetch("/api/actualizar-precios-sheet", {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              "Accept": "application/json"
+            },
+            body: JSON.stringify({ 
+              sheetID: sheetID, 
+              hoja: hoja, 
+              filas: filas 
+            }),
+          });
+
+          const json = await res.json();
+          console.log(`🔥 Respuesta de API para "${hoja}":`, json);
+          
+          if (!res.ok) {
+            console.error("❌ Error HTTP:", res.status, res.statusText);
+            throw new Error(json.error || `HTTP Error: ${res.status}`);
+          }
+
+          console.log(`✅ Hoja "${hoja}" actualizada correctamente`);
+        } catch (err) {
+          console.error(`❌ Error actualizando hoja "${hoja}":`, err);
+        }
+      }
+
+      console.log("✅ Todas las hojas han sido actualizadas");
+      
+    } catch (err) {
+      console.error("❌ Error general actualizando Google Sheets:", err);
+    } finally {
+      setActualizandoSheet(false);
+    }
+  };
 
   const agregarASeleccionados = (repuesto: any) => {
     if (repuesto.cantidad <= 0) return;
@@ -312,17 +333,18 @@ const actualizarGoogleSheet = async () => {
     if (onGuardar) onGuardar();
   };
 
+  // Filtro mejorado que incluye color
   const resultados = repuestos.filter((r) => {
-    const texto = `${r.categoria} ${r.producto} ${r.modelo || ''} ${r.marca || ''}`.toLowerCase();
+    const texto = `${r.categoria} ${r.producto} ${r.modelo || ''} ${r.marca || ''} ${r.color || ''}`.toLowerCase();
     return filtro
       .toLowerCase()
       .split(" ")
       .every((palabra) => texto.includes(palabra));
-  });  
+  });
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden border-2 border-[#ecf0f1]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden border-2 border-[#ecf0f1]">
         
         {/* Header del modal - Estilo GestiOne */}
         <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] text-white p-6">
@@ -372,7 +394,7 @@ const actualizarGoogleSheet = async () => {
             </div>
             <input
               type="text"
-              placeholder="🔍 Buscar por categoría, producto, modelo o marca"
+              placeholder="🔍 Buscar por categoría, producto, modelo, marca o color (ej: tapa iphone 13 roja)"
               value={filtro}
               onChange={(e) => setFiltro(e.target.value)}
               className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
@@ -395,7 +417,6 @@ const actualizarGoogleSheet = async () => {
               </div>
             </div>
           )}
-
           {/* Tabla de resultados - Estilo GestiOne */}
           {filtro.trim() !== "" && resultados.length > 0 && (
             <div className="bg-white rounded-xl border border-[#ecf0f1] p-4 mb-6 shadow-sm">
@@ -415,6 +436,7 @@ const actualizarGoogleSheet = async () => {
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Producto</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Modelo</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Marca</th>
+                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">🎨 Color</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Precio</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Stock</th>
                       <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-black">Acción</th>
@@ -453,6 +475,12 @@ const actualizarGoogleSheet = async () => {
                           </td>
                           <td className="p-3 border border-black">
                             <span className="text-sm text-[#2c3e50]">{r.marca || '—'}</span>
+                          </td>
+                          <td className="p-3 border border-black">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{obtenerEmojiColor(r.color)}</span>
+                              <span className="text-sm text-[#2c3e50]">{r.color || '—'}</span>
+                            </div>
                           </td>
                           <td className="p-3 border border-black">
                             <span className="text-sm font-semibold text-[#27ae60]">
@@ -520,6 +548,7 @@ const actualizarGoogleSheet = async () => {
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Producto</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Modelo</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Marca</th>
+                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">🎨 Color</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Precio</th>
                       <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-black">Acción</th>
                     </tr>
@@ -555,6 +584,12 @@ const actualizarGoogleSheet = async () => {
                           </td>
                           <td className="p-3 border border-black">
                             <span className="text-sm text-[#2c3e50]">{r.marca || '—'}</span>
+                          </td>
+                          <td className="p-3 border border-black">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{obtenerEmojiColor(r.color)}</span>
+                              <span className="text-sm text-[#2c3e50]">{r.color || '—'}</span>
+                            </div>
                           </td>
                           <td className="p-3 border border-black">
                             <span className="text-sm font-semibold text-[#27ae60]">
@@ -597,6 +632,7 @@ const actualizarGoogleSheet = async () => {
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Producto</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Modelo</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Marca</th>
+                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">🎨 Color</th>
                       <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">Precio</th>
                       <th className="p-3 text-center text-sm font-semibold text-[#2c3e50] border border-black">Acción</th>
                     </tr>
@@ -632,6 +668,12 @@ const actualizarGoogleSheet = async () => {
                           </td>
                           <td className="p-3 border border-black">
                             <span className="text-sm text-[#2c3e50]">{r.marca || '—'}</span>
+                          </td>
+                          <td className="p-3 border border-black">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{obtenerEmojiColor(r.color)}</span>
+                              <span className="text-sm text-[#2c3e50]">{r.color || '—'}</span>
+                            </div>
                           </td>
                           <td className="p-3 border border-black">
                             <span className="text-sm font-semibold text-[#27ae60]">

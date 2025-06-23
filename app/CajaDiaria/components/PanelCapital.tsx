@@ -165,7 +165,7 @@ const PanelCapital: React.FC<PanelCapitalProps> = ({
                     <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
                       <span className="text-lg">📦</span>
                     </div>
-                    <span className="font-medium text-gray-700">Stock Extra</span>
+                    <span className="font-medium text-gray-700">Stock de Sheet</span>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-purple-600">

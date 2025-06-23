@@ -47,25 +47,25 @@ export default function BotonGuardarVenta({
   const { rol } = useRol();
   const [guardando, setGuardando] = useState(false);
 
-  // 🔧 CORRECCIÓN 1: Función para calcular total correcto
+  // 🔧 CORRECCIÓN 1: Función para calcular total correcto usando prop moneda
   const calcularTotalCorrect = (productos: any[]) => {
     const hayTelefono = productos.some(p => p.categoria === "Teléfono");
     
     return productos.reduce((acc, p) => {
-      if (hayTelefono) {
-        // 📱 CON TELÉFONO: Usar precio USD
+      if (moneda === "USD" && hayTelefono) {
+        // 📱 CON MONEDA USD Y TELÉFONO: Usar precio USD
         const precioUSD = p.categoria === "Teléfono" 
           ? p.precioUnitario 
           : (p.precioUSD || p.precioUnitario);
         return acc + (precioUSD * p.cantidad);
       } else {
-        // 🛍️ SIN TELÉFONO: Usar precio ARS
+        // 🛍️ SIN TELÉFONO O MONEDA ARS: Usar precio ARS
         return acc + (p.precioUnitario * p.cantidad);
       }
     }, 0);
   };
 
-  // 🔥 FUNCIÓN CORREGIDA: Obtener datos con costos y ganancias CON COTIZACIÓN MANUAL
+  // 🔥 FUNCIÓN COMPLETAMENTE CORREGIDA: Obtener datos con costos y ganancias
   const obtenerDatosConCostos = async (productos: any[]) => {
     if (!rol?.negocioID) return productos;
 
@@ -109,30 +109,26 @@ export default function BotonGuardarVenta({
     });
 
     console.log('🔍 Mapa de stock completo creado:', mapaStock);
-
-    // Detectar si hay teléfono en la venta
-    const hayTelefono = productos.some(p => p.categoria === "Teléfono");
+    console.log('🔥 CORRECCIÓN - moneda prop recibida:', moneda);
 
     return productos.map(producto => {
       const cantidad = producto.cantidad || 1;
       let precioVenta = producto.precioUnitario || 0;
       let costo = 0;
-      let monedaProducto = "ARS";
 
       console.log('🔍 Procesando producto:', {
         codigo: producto.codigo,
         categoria: producto.categoria,
         tipo: producto.tipo,
-        hayTelefono
+        monedaProp: moneda
       });
 
       if (producto.categoria === "Teléfono" || producto.tipo === "telefono") {
         // 📱 TELÉFONO - NO TOCAR (funciona bien)
         precioVenta = producto.precioUnitario || 0;
         costo = producto.precioCosto || 0;
-        monedaProducto = producto.moneda || "ARS";
       } else {
-        // 🔌 ACCESORIO/REPUESTO - AQUÍ ESTÁ LA CORRECCIÓN
+        // 🔌 ACCESORIO/REPUESTO - CORRECCIÓN APLICADA
         const stockData = mapaStock[producto.codigo];
         
         console.log('🔍 Stock data encontrado:', stockData);
@@ -141,18 +137,17 @@ export default function BotonGuardarVenta({
           // 🔥 COSTO SIEMPRE EN USD desde stockAccesorios/stockExtra
           costo = stockData.costo;
           
-          if (hayTelefono) {
-            // Con teléfono: usar precio USD
+          // 🔥 CORRECCIÓN PRINCIPAL: Usar la prop moneda en lugar de detectar teléfono
+          if (moneda === "USD") {
+            // Con moneda USD: usar precio USD
             if (stockData.tipo === "accesorio") {
               precioVenta = stockData.precio1 || producto.precioUnitario; // precio2 (USD)
             } else {
               precioVenta = producto.precioUnitario; // Para repuestos, usar el precio que viene
             }
-            monedaProducto = "USD";
           } else {
-            // Solo accesorio/repuesto: usar precio ARS
+            // Con moneda ARS: usar precio ARS
             precioVenta = producto.precioUnitario;
-            monedaProducto = "ARS";
           }
         } else {
           console.log('❌ No se encontró stock data para código:', producto.codigo);
@@ -167,11 +162,11 @@ export default function BotonGuardarVenta({
         ganancia = (precioVenta - costo) * cantidad;
       } else {
         // 🔌 ACCESORIO/REPUESTO: APLICAR COTIZACIÓN
-        if (hayTelefono) {
-          // ✅ CON TELÉFONO: Todo en USD - costo ya está en USD
+        if (moneda === "USD") {
+          // ✅ CON MONEDA USD: Todo en USD - costo ya está en USD
           ganancia = (precioVenta - costo) * cantidad;
         } else {
-          // ✅ SIN TELÉFONO: Precio en ARS, costo en USD
+          // ✅ CON MONEDA ARS: Precio en ARS, costo en USD
           // Convertir costo USD a ARS usando cotización MANUAL
           const costoEnARS = costo * cotizacionActual;
           ganancia = (precioVenta - costoEnARS) * cantidad;
@@ -182,9 +177,9 @@ export default function BotonGuardarVenta({
         producto: producto.producto || producto.codigo,
         precioVenta,
         costo,
-        costoConvertido: hayTelefono ? costo : costo * cotizacionActual,
+        costoConvertido: moneda === "USD" ? costo : costo * cotizacionActual,
         ganancia,
-        monedaProducto,
+        monedaFinal: moneda, // 🔥 AHORA USA LA PROP MONEDA
         cotizacionManualUsada: cotizacionActual
       });
 
@@ -193,7 +188,7 @@ export default function BotonGuardarVenta({
         precioVenta,
         costo,
         ganancia,
-        moneda: monedaProducto,
+        moneda: moneda, // 🔥 CORRECCIÓN CRÍTICA: Usar la prop moneda directamente
         cotizacionUsada: cotizacionActual, // Para debug
       };
     });
@@ -223,7 +218,7 @@ export default function BotonGuardarVenta({
       precioCosto: datosVentaTelefono.precioCosto || 0,
       precioVenta: datosVentaTelefono.precioVenta,
       ganancia: datosVentaTelefono.ganancia,
-      moneda: datosVentaTelefono.moneda || "ARS",
+      moneda: moneda,
       stockID: datosVentaTelefono.stockID || "",
       observaciones: pagoTelefono.observaciones || observaciones || "",
       // Datos del teléfono recibido (si existe)
@@ -254,7 +249,7 @@ export default function BotonGuardarVenta({
           precioVenta: datosVentaTelefono.precioVenta, // 🔥 NUEVO
           costo: datosVentaTelefono.precioCosto || 0,  // 🔥 NUEVO
           ganancia: datosVentaTelefono.ganancia || 0,  // 🔥 NUEVO
-          moneda: datosVentaTelefono.moneda,
+          moneda: moneda,
           gb: datosVentaTelefono.gb || "",
           codigo: datosVentaTelefono.stockID || datosVentaTelefono.modelo,
           tipo: "telefono",
@@ -266,7 +261,7 @@ export default function BotonGuardarVenta({
       observaciones: pagoTelefono.observaciones || observaciones || "",
       timestamp: serverTimestamp(),
       estado: "pendiente",
-      moneda: datosVentaTelefono.moneda,
+      moneda: moneda,
       // 🔥 AGREGAR: Número de venta también en ventasGeneral
       nroVenta: nroVenta,
     });
@@ -277,9 +272,6 @@ export default function BotonGuardarVenta({
     }
 
     // 5. Registrar el pago si existe
-    // 🔧 AGREGAR ESTOS CONSOLE.LOG EN BotonGuardarVenta.tsx
-    // En la función guardarVentaTelefono(), antes de calcular montoPagado:
-
     console.log('🐛 DEBUG VENTA TELEFONO:');
     console.log('📱 datosVentaTelefono:', datosVentaTelefono);
     console.log('💰 pagoTelefono completo:', pagoTelefono);
@@ -287,7 +279,6 @@ export default function BotonGuardarVenta({
     console.log('💲 pagoTelefono.montoUSD:', pagoTelefono.montoUSD);
     console.log('🪙 pagoTelefono.moneda:', pagoTelefono.moneda);
 
-    // ANTES de esta línea:
     const montoPagado = pagoTelefono.moneda === "USD" 
       ? Number(pagoTelefono.montoUSD || 0)
       : Number(pagoTelefono.monto || 0);
@@ -303,11 +294,11 @@ export default function BotonGuardarVenta({
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
         fecha: fecha,
         cliente: cliente,
-        monto: datosVentaTelefono.moneda === "USD" ? null : totalPagado,
-        montoUSD: datosVentaTelefono.moneda === "USD" ? totalPagado : null,
+        monto: moneda === "USD" ? null : totalPagado,
+        montoUSD: moneda === "USD" ? totalPagado : null,
         forma: valorTelefonoEntregado > 0 ? "Efectivo + Entrega equipo" : pagoTelefono.formaPago || "Efectivo",
         destino: "ventaTelefonos",
-        moneda: datosVentaTelefono.moneda,
+        moneda: moneda,
         cotizacion: 1000,
         observaciones: pagoTelefono.observaciones || "",
         timestamp: serverTimestamp(),
@@ -319,10 +310,14 @@ export default function BotonGuardarVenta({
     return ventaTelefonosRef.id;
   };
 
-  // 🔧 REEMPLAZAR COMPLETAMENTE la función guardarVentaNormal en tu BotonGuardarVenta:
+  // 🔧 FUNCIÓN guardarVentaNormal CORREGIDA
   const guardarVentaNormal = async () => {
     if (!rol?.negocioID) return;
-
+    console.log('🐛 DEBUG INICIO guardarVentaNormal:');
+    console.log('📱 productos originales:', productos);
+    console.log('💰 moneda prop recibida:', moneda);
+    console.log('🔍 hayTelefono check:', productos.some(p => p.categoria === "Teléfono"));
+  
     const nroVenta = await obtenerYSumarNumeroVenta(rol.negocioID);
 
     const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
@@ -334,6 +329,8 @@ export default function BotonGuardarVenta({
       ...p,
       codigo: p.codigo || p.id || "",
     })));
+
+    console.log('🚀 PRODUCTOS PROCESADOS CON MONEDA:', productosConCodigo);
 
     // Descontar del stock para accesorios y repuestos
     for (const producto of productosConCodigo) {
@@ -386,9 +383,9 @@ export default function BotonGuardarVenta({
       return acc + p.ganancia;
     }, 0);
 
-    // 🔥 NUEVO: Determinar moneda principal de la venta
-    const hayTelefono = productosConCodigo.some(p => p.categoria === "Teléfono");
-    const monedaPrincipal = hayTelefono ? "USD" : "ARS";
+    console.log('🚀 ANTES DE GUARDAR EN FIREBASE:');
+    console.log('💰 moneda que se va a guardar:', moneda);
+    console.log('📊 productos procesados:', productosConCodigo);
 
     // ✅ CREAR LA VENTA
     const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
@@ -403,7 +400,7 @@ export default function BotonGuardarVenta({
         precioVenta: p.precioVenta,     // 🔥 NUEVO
         costo: p.costo,                 // 🔥 NUEVO
         ganancia: p.ganancia,           // 🔥 NUEVO
-        moneda: p.moneda,               // 🔥 NUEVO
+        moneda: p.moneda,               // 🔥 CORREGIDO: Ahora será "USD" cuando corresponda
         codigo: p.codigo || p.id || "",
         tipo: p.tipo,
         hoja: p.hoja || "",
@@ -412,7 +409,7 @@ export default function BotonGuardarVenta({
       fecha,
       observaciones,
       pago: pagoLimpio,
-      moneda: monedaPrincipal, // 🔥 CORREGIDO: Usar moneda principal
+      moneda: moneda, // 🔥 CORREGIDO: Usar moneda principal
       estado: "pendiente",
       nroVenta,
       total, // 🔥 CORREGIDO: Total calculado correctamente
@@ -538,7 +535,7 @@ export default function BotonGuardarVenta({
                 precioVenta: p.precioVenta,   // 🔥 NUEVO
                 costo: p.costo,               // 🔥 NUEVO
                 ganancia: p.ganancia,         // 🔥 NUEVO
-                moneda: p.moneda,             // 🔥 NUEVO
+                moneda: p.moneda,             // 🔥 CORREGIDO: Ahora será "USD" cuando corresponda
                 codigo: p.codigo,
                 tipo: p.tipo,
                 hoja: p.hoja || "",
@@ -558,6 +555,7 @@ export default function BotonGuardarVenta({
               productos: productosCompletos,
               total: nuevoTotal,
               gananciaTotal: nuevaGananciaTotal, // 🔥 NUEVO
+              moneda: moneda,
             });
           }
         }

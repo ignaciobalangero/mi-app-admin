@@ -78,6 +78,22 @@ export default function ModalVenta({
     console.log('✅ Datos temporales limpiados');
   };
 
+  // 🔥 CORRECCIÓN PRINCIPAL: useEffect para detectar teléfono y cambiar moneda automáticamente
+  useEffect(() => {
+    const hayTelefono = productos.some((p) => p.categoria === "Teléfono");
+    
+    console.log('🔍 Detectando teléfono en productos:', hayTelefono);
+    console.log('📱 Productos actuales:', productos);
+    
+    if (hayTelefono) {
+      console.log('📱 TELÉFONO DETECTADO - Cambiando moneda a USD');
+      setMoneda("USD");
+    } else {
+      console.log('🛍️ SIN TELÉFONO - Cambiando moneda a ARS');
+      setMoneda("ARS");
+    }
+  }, [productos]); // 🔥 CRÍTICO: Se ejecuta cada vez que cambian los productos
+
   useEffect(() => {
     const clienteDesdeTelefono = localStorage.getItem("clienteDesdeTelefono");
     if (clienteDesdeTelefono) {
@@ -121,8 +137,9 @@ export default function ModalVenta({
         datosTelefonoCompletos: telefono
       };
       
+      console.log('📱 Cargando teléfono desde localStorage:', productoTelefono);
       setProductos([productoTelefono]);
-      setMoneda(telefono.moneda === "USD" ? "USD" : "ARS");
+      // 🔥 NOTA: No establecer moneda aquí, se hará automáticamente en el useEffect de arriba
     }
     
     if (clienteDesdeTelefono) {
@@ -208,6 +225,11 @@ export default function ModalVenta({
 
   // Total final
   const totalFinal = subtotal - totalDescuentos;
+
+  console.log('🔍 DEBUG EN MODALVENTA:');
+  console.log('📱 hayTelefono:', hayTelefono);
+  console.log('💰 moneda que se pasa:', hayTelefono ? "USD" : "ARS");
+  console.log('📦 productos actuales:', productos);
 
   return (
     <>
@@ -492,11 +514,11 @@ export default function ModalVenta({
                               {hayTelefono ? (
                                 // 📱 CON TELÉFONO: Todo en USD
                                 p.categoria === "Teléfono"
-                                  ? `USD $${Number(p.precioUnitario).toLocaleString("es-AR")}`
-                                  : `USD $${Number(p.precioUSD || p.precioUnitario).toLocaleString("es-AR")}`
+                                  ? `USD ${Number(p.precioUnitario).toLocaleString("es-AR")}`
+                                  : `USD ${Number(p.precioUSD || p.precioUnitario).toLocaleString("es-AR")}`
                               ) : (
                                 // 🛍️ SIN TELÉFONO: Todo en ARS
-                                `$${Number(p.precioUnitario).toLocaleString("es-AR")}`
+                                `${Number(p.precioUnitario).toLocaleString("es-AR")}`
                               )}
                             </span>
                           </div>

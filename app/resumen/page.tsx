@@ -32,6 +32,7 @@ interface Trabajo {
   precio?: number;
   costo?: number;
   repuestosUsados?: any[];
+  fechaModificacion?: string;
 }
 
 export default function ResumenPage() {
@@ -75,6 +76,7 @@ export default function ResumenPage() {
           precio: data.precio,
           costo: data.costo,
           repuestosUsados: data.repuestosUsados ?? [],
+          fechaModificacion: data.fechaModificacion,
         });
       });
 
@@ -117,6 +119,7 @@ export default function ResumenPage() {
         estadoCuentaCorriente: data.estadoCuentaCorriente,
         precio: data.precio,
         costo: data.costo,
+        fechaModificacion: data.fechaModificacion,
       });
     });
 
@@ -221,8 +224,8 @@ export default function ResumenPage() {
           {/* Filtros y controles - Estilo GestiOne */}
           <div className="bg-white rounded-2xl p-5 mb-4 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-4 mb-6">
-              <div className="10 h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
-                <span className="text-white text-4xl">🔍</span>
+              <div className="w-10 h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
+                <span className="text-white text-xl">🔍</span>
               </div>
               <h2 className="text-2xl font-bold text-[#2c3e50]">Filtros de Búsqueda</h2>
             </div>
@@ -256,50 +259,50 @@ export default function ResumenPage() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setFiltroEstado("TODOS")}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                className={`px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md ${
                   filtroEstado === "TODOS" 
-                    ? "bg-[#3498db] text-white shadow-md" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                    ? "bg-[#3498db] text-white shadow-lg border-2 border-[#2980b9]" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
                 }`}
               >
                 📋 Todos
               </button>
               <button
                 onClick={() => setFiltroEstado("PENDIENTE")}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                className={`px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md ${
                   filtroEstado === "PENDIENTE" 
-                    ? "bg-[#e74c3c] text-white shadow-md" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                    ? "bg-[#B71C1C] text-white shadow-lg border-2 border-[#8E0000]" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
                 }`}
               >
                 ⏳ Pendientes
               </button>
               <button
                 onClick={() => setFiltroEstado("REPARADO")}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                className={`px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md ${
                   filtroEstado === "REPARADO" 
-                    ? "bg-[#f39c12] text-white shadow-md" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                    ? "bg-[#D84315] text-white shadow-lg border-2 border-[#BF360C]" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
                 }`}
               >
                 🔧 Reparados
               </button>
               <button
                 onClick={() => setFiltroEstado("ENTREGADO")}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                className={`px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md ${
                   filtroEstado === "ENTREGADO" 
-                    ? "bg-[#27ae60] text-white shadow-md" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                    ? "bg-[#1B5E20] text-white shadow-lg border-2 border-[#0D3711]" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
                 }`}
               >
                 📦 Entregados
               </button>
               <button
                 onClick={() => setFiltroEstado("PAGADO")}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
+                className={`px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md ${
                   filtroEstado === "PAGADO" 
-                    ? "bg-[#9b59b6] text-white shadow-md" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                    ? "bg-[#1565C0] text-white shadow-lg border-2 border-[#0D47A1]" 
+                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
                 }`}
               >
                 💰 Pagados
@@ -327,7 +330,7 @@ export default function ResumenPage() {
 
             {/* Tabla con scroll */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1400px] border-collapse border-2 border-black">
+              <table className="w-full min-w-[1600px] border-collapse border-2 border-black">
                 <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
                   <tr>
                     <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
@@ -390,7 +393,13 @@ export default function ResumenPage() {
                         Ganancia
                       </div>
                     </th>
-                    <th className="p-4 text-center text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                    <th className="p-4 text-left text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📅</span>
+                        F.Mod
+                      </div>
+                    </th>
+                    <th className="p-4 text-center text-sm font-semibold text-[#2c3e50] border border-black bg-[#ecf0f1] w-50">
                       <div className="flex items-center justify-center gap-2">
                         <span className="text-base">⚙️</span>
                         Acciones
@@ -406,10 +415,10 @@ export default function ResumenPage() {
                     const isEven = index % 2 === 0;
 
                     let bgClass = "";
-                    if (t.estado === "PENDIENTE") bgClass = "bg-red-50";
-                    else if (t.estado === "REPARADO") bgClass = "bg-yellow-50";
-                    else if (t.estado === "ENTREGADO") bgClass = "bg-green-50";
-                    else if (t.estadoCuentaCorriente === "PAGADO") bgClass = "bg-blue-50";
+                    if (t.estadoCuentaCorriente === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
+                    else if (t.estado === "ENTREGADO") bgClass = "bg-green-100 border-l-4 border-[#1B5E20]";
+                    else if (t.estado === "REPARADO") bgClass = "bg-orange-100 border-l-4 border-[#D84315]";
+                    else if (t.estado === "PENDIENTE") bgClass = "bg-red-100 border-l-4 border-[#B71C1C]";
                     else bgClass = isEven ? "bg-white" : "bg-[#f8f9fa]";
 
                     return (
@@ -438,12 +447,12 @@ export default function ResumenPage() {
                           <span className="text-sm text-[#7f8c8d]">{t.observaciones}</span>
                         </td>
                         <td className="p-4 border border-black">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
-                            t.estado === "PENDIENTE" ? "bg-[#e74c3c] text-white" :
-                            t.estado === "REPARADO" ? "bg-[#f39c12] text-white" :
-                            t.estado === "ENTREGADO" ? "bg-[#27ae60] text-white" :
-                            t.estadoCuentaCorriente === "PAGADO" ? "bg-[#9b59b6] text-white" :
-                            "bg-[#95a5a6] text-white"
+                          <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-lg ${
+                            t.estadoCuentaCorriente === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
+                            t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
+                            t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
+                            t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
+                            "bg-[#424242] text-white border-2 border-[#212121]"
                           }`}>
                             {t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
                           </span>
@@ -474,32 +483,93 @@ export default function ResumenPage() {
                           </span>
                         </td>
                         <td className="p-4 border border-black">
-                          <div className="flex gap-2 justify-center">
-                            <button
-                              onClick={() => {
-                                setTrabajoSeleccionado(t.firebaseId);
-                                setMostrarModalRepuestos(true);
+                          <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                            {t.fechaModificacion || "—"}
+                          </span>
+                        </td>
+                        <td className="p-4 border border-black w-40">
+                          <div className="flex flex-col gap-2">
+                            
+                            {/* ✅ SELECTOR DE ESTADO - IGUAL QUE TABLA TRABAJOS */}
+                            <select
+                              value={t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
+                              onChange={async (e) => {
+                                const nuevoEstado = e.target.value;
+                                const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
+                                const updates: any = {};
+
+                                const hoy = new Date();
+                                const fechaModificacion = hoy.toLocaleDateString("es-AR");
+                                updates.fechaModificacion = fechaModificacion;
+
+                                if (nuevoEstado === "PAGADO") {
+                                  updates.estadoCuentaCorriente = "PAGADO";
+                                  updates.estado = "PAGADO";
+                                } else {
+                                  updates.estado = nuevoEstado;
+                                  if (t.estadoCuentaCorriente === "PAGADO") {
+                                    updates.estadoCuentaCorriente = "PENDIENTE";
+                                  }
+                                }
+
+                                await updateDoc(ref, updates);
+
+                                if (nuevoEstado === "PAGADO") {
+                                  try {
+                                    const clientesSnap = await getDocs(
+                                      query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", t.cliente))
+                                    );
+                                    if (!clientesSnap.empty) {
+                                      const clienteID = clientesSnap.docs[0].id;
+                                      console.log("🔁 Recalculando cuenta para:", clienteID);
+                                    } else {
+                                      console.warn("⚠️ Cliente no encontrado para recalcular:", t.cliente);
+                                    }
+                                  } catch (error) {
+                                    console.error("❌ Error al recalcular cuenta:", error);
+                                  }
+                                }
+                                
+                                await recargarTrabajos();
                               }}
-                              className={`text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md ${
-                                t.repuestosUsados && t.repuestosUsados.length > 0
-                                  ? "bg-[#9b59b6] hover:bg-[#8e44ad]"
-                                  : "bg-[#27ae60] hover:bg-[#229954]"
-                              }`}
+                              className="w-full px-2 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-black text-xs font-normal"
                             >
-                              ➕ Repuestos
-                            </button>
-                            <button
-                              onClick={() => editarTrabajo(t.firebaseId)}
-                              className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
-                            >
-                              ✏️ Editar
-                            </button>
-                            <button
-                              onClick={() => eliminarTrabajo(t.firebaseId)}
-                              className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
-                            >
-                              🗑️ Eliminar
-                            </button>
+                              <option value="PENDIENTE">⏳ Pendiente</option>
+                              <option value="REPARADO">🔧 Reparado</option>
+                              <option value="ENTREGADO">📦 Entregado</option>
+                              <option value="PAGADO">💰 Pagado</option>
+                            </select>
+
+                            {/* Botones de acción */}
+                            <div className="flex flex-wrap gap-1">
+                              <button
+                                onClick={() => {
+                                  setTrabajoSeleccionado(t.firebaseId);
+                                  setMostrarModalRepuestos(true);
+                                }}
+                                className={`text-white px-2 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm ${
+                                  t.repuestosUsados && t.repuestosUsados.length > 0
+                                    ? "bg-[#9b59b6] hover:bg-[#8e44ad]"
+                                    : "bg-[#27ae60] hover:bg-[#229954]"
+                                }`}
+                              >
+                                ➕
+                              </button>
+
+                              <button
+                                onClick={() => editarTrabajo(t.firebaseId)}
+                                className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-2 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
+                              >
+                                ✏️
+                              </button>
+                              
+                              <button
+                                onClick={() => eliminarTrabajo(t.firebaseId)}
+                                className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-2 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
+                              >
+                                🗑️
+                              </button>
+                            </div>
                           </div>
                         </td>
                       </tr>

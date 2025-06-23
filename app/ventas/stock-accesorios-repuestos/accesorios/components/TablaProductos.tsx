@@ -87,11 +87,11 @@ export default function TablaProductos({ productos, editarProducto, eliminarProd
               <th className="px-2 py-2 border border-[#bdc3c7] text-xs font-semibold text-[#2c3e50] text-center w-[60px]">
                 📊 Cant.
               </th>
-              {rol?.tipo === "admin" && (
+            
               <th className="px-2 py-2 border border-[#bdc3c7] text-xs font-semibold text-[#2c3e50] text-center w-[140px]">
                 ⚙️ Acciones
               </th>
-              )}
+              
             </tr>
           </thead>
           <tbody>

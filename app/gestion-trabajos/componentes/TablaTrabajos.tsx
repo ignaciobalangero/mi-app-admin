@@ -45,10 +45,10 @@ export default function TablaTrabajos({
   recargarTrabajos,
 }: TablaProps) {
   const obtenerClaseEstado = (trabajo: Trabajo) => {
-    if (trabajo.estadoCuentaCorriente === "PAGADO") return "bg-blue-50";
-    if (trabajo.estado === "ENTREGADO") return "bg-green-50";
-    if (trabajo.estado === "REPARADO") return "bg-yellow-50";
-    return "bg-red-50";
+    if (trabajo.estadoCuentaCorriente === "PAGADO") return "bg-blue-100 border-l-4 border-[#1565C0]";
+    if (trabajo.estado === "ENTREGADO") return "bg-green-100 border-l-4 border-[#1B5E20]";
+    if (trabajo.estado === "REPARADO") return "bg-orange-100 border-l-4 border-[#D84315]";
+    return "bg-red-100 border-l-4 border-[#B71C1C]";
   };
 
   const manejarClickEditar = (id: string) => {
@@ -228,12 +228,12 @@ export default function TablaTrabajos({
                       </span>
                     </td>
                     <td className="p-2 border border-black w-24">
-                      <span className={`inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-bold shadow-sm w-full ${
-                        t.estadoCuentaCorriente === "PAGADO" ? "bg-[#9b59b6] text-white" :
-                        t.estado === "ENTREGADO" ? "bg-[#27ae60] text-white" :
-                        t.estado === "REPARADO" ? "bg-[#f39c12] text-white" :
-                        t.estado === "PENDIENTE" ? "bg-[#e74c3c] text-white" :
-                        "bg-[#95a5a6] text-white"
+                      <span className={`inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-bold shadow-lg w-full ${
+                        t.estadoCuentaCorriente === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
+                        t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
+                        t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
+                        t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
+                        "bg-[#424242] text-white border-2 border-[#212121]"
                       }`}>
                         {t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
                       </span>
@@ -349,23 +349,27 @@ export default function TablaTrabajos({
           </table>
         </div>
 
-        {/* Footer con paginación */}
+        {/* Footer con paginación - Estilo ResumenPage */}
         {totalPaginas > 1 && (
           <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] px-6 py-4 border-t-2 border-[#bdc3c7]">
-            <div className="flex justify-center items-center gap-2 flex-wrap">
-              {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((num) => (
-                <button
-                  key={num}
-                  onClick={() => setPagina(num)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
-                    pagina === num 
-                      ? "bg-[#3498db] text-white shadow-md" 
-                      : "bg-white text-[#2c3e50] hover:bg-[#ecf0f1] border border-[#bdc3c7]"
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
+            <div className="flex justify-center items-center gap-4">
+              <button
+                disabled={pagina === 1}
+                onClick={() => setPagina((prev) => Math.max(prev - 1, 1))}
+                className="px-6 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                ← Anterior
+              </button>
+              <span className="px-4 py-2 bg-[#3498db] text-white rounded-lg font-semibold">
+                Página {pagina} de {totalPaginas}
+              </span>
+              <button
+                disabled={pagina === totalPaginas}
+                onClick={() => setPagina((prev) => Math.min(prev + 1, totalPaginas))}
+                className="px-6 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                Siguiente →
+              </button>
             </div>
           </div>
         )}
@@ -397,10 +401,10 @@ export default function TablaTrabajos({
                 <p className="flex justify-between"><strong className="text-black">Precio:</strong> <span className="text-[#1e7e34] font-bold">${trabajoSeleccionado.precio?.toLocaleString('es-AR') || '0'}</span></p>
                 <p className="flex justify-between"><strong className="text-black">Estado:</strong> 
                   <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
-                    trabajoSeleccionado.estadoCuentaCorriente === "PAGADO" ? "bg-[#9b59b6] text-white" :
-                    trabajoSeleccionado.estado === "ENTREGADO" ? "bg-[#27ae60] text-white" :
-                    trabajoSeleccionado.estado === "REPARADO" ? "bg-[#f39c12] text-white" :
-                    "bg-[#e74c3c] text-white"
+                    trabajoSeleccionado.estadoCuentaCorriente === "PAGADO" ? "bg-[#1565C0] text-white" :
+                    trabajoSeleccionado.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white" :
+                    trabajoSeleccionado.estado === "REPARADO" ? "bg-[#D84315] text-white" :
+                    "bg-[#B71C1C] text-white"
                   }`}>
                     {trabajoSeleccionado.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : trabajoSeleccionado.estado}
                   </span>
