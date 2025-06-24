@@ -10,17 +10,27 @@ import { collection, addDoc, getDocs, getDoc, doc, deleteDoc, updateDoc } from "
 import { v4 as uuidv4 } from "uuid";
 import * as XLSX from "xlsx";
 
+// 🆕 IMPORTAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que repuestos)
+import useCotizacion from "@/lib/hooks/useCotizacion";
+import { useRol } from "@/lib/useRol";
+
 // Componentes
 import ResumenCapital from "./components/ResumenCapital";
 import Acciones from "./components/Acciones";
 import PedidosSugeridos from "./components/PedidosSugeridos";
 import FormularioProducto from "./components/FormularioProducto";
-import TablaProductos from "./components/TablaProductos";
-import { set } from "date-fns";
+import TablaProductos from "./components/TablaAccesorios";
 
 export default function StockProductosPage() {
   const router = useRouter();
   const [user] = useAuthState(auth);
+  
+  // 🆕 USAR EL HOOK DE ROL (igual que en repuestos)
+  const { rol } = useRol();
+  
+  // 🆕 USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que en repuestos)
+  const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
+  
   const [negocioID, setNegocioID] = useState("");
   const [codigo, setCodigo] = useState("");
   const [proveedor, setProveedor] = useState("");
@@ -32,7 +42,6 @@ export default function StockProductosPage() {
   const [precioCosto, setPrecioCosto] = useState(0);
   const [precioVentaPesos, setPrecioVentaPesos] = useState(0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
-  const [cotizacion, setCotizacion] = useState<number | null>(null);
   const [cantidad, setCantidad] = useState(1);
   const [stockIdeal, setStockIdeal] = useState(5);
   const [stockBajo, setStockBajo] = useState(3);
@@ -44,23 +53,6 @@ export default function StockProductosPage() {
   const [precio1, setPrecio1] = useState(0);
   const [precio2, setPrecio2] = useState(0);
   const [precio3, setPrecio3] = useState(0);
-  const [mostrarModalPrecios, setMostrarModalPrecios] = useState(false);
-  const [preciosConvertidos, setPreciosConvertidos] = useState({
-    precio1: 0,
-    precio2: 0,
-    precio3: 0,
-  });
-
-  const verPreciosConvertidos = (p: any) => {
-    if (p.moneda === "USD" && cotizacion) {
-      setPreciosConvertidos({
-        precio1: p.precio1 * cotizacion,
-        precio2: p.precio2 * cotizacion,
-        precio3: p.precio3 * cotizacion,
-      });
-      setMostrarModalPrecios(true);
-    }
-  };
 
   useEffect(() => {
     if (user) {
@@ -79,17 +71,6 @@ export default function StockProductosPage() {
   useEffect(() => {
     if (negocioID) cargarProductos();
   }, [negocioID]);
-
-  useEffect(() => {
-    fetch("https://dolarapi.com/v1/dolares/blue")
-      .then((res) => res.json())
-      .then((data) => {
-        setCotizacion(data.venta);
-      })
-      .catch((err) => {
-        console.error("Error al obtener cotización:", err);
-      });
-  }, []);
 
   const cargarProductos = async () => {
     const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
@@ -112,9 +93,9 @@ export default function StockProductosPage() {
       precio1,
       precio2,
       precio3,
-      precio1Pesos: moneda === "USD" && cotizacion !== null ? precio1 * cotizacion : precio1,
-      precio2Pesos: moneda === "USD" && cotizacion !== null ? precio2 * cotizacion : precio2,
-      precio3Pesos: moneda === "USD" && cotizacion !== null ? precio3 * cotizacion : precio3,
+      precio1Pesos: moneda === "USD" && cotizacion > 0 ? precio1 * cotizacion : precio1,
+      precio2Pesos: moneda === "USD" && cotizacion > 0 ? precio2 * cotizacion : precio2,
+      precio3Pesos: moneda === "USD" && cotizacion > 0 ? precio3 * cotizacion : precio3,
       moneda,
       cotizacion,
       cantidad,
@@ -135,6 +116,7 @@ export default function StockProductosPage() {
       });
     }
 
+    // Reset
     setCodigo("");
     setProveedor("");
     setProducto("");
@@ -171,15 +153,62 @@ export default function StockProductosPage() {
     setPrecio2(prod.precio2 || 0);
     setPrecio3(prod.precio3 || 0);
     setMoneda(prod.moneda || "");
-    setCotizacion(prod.cotizacion || null);
     setCantidad(prod.cantidad || 1);
     setStockIdeal(prod.stockIdeal || 5);
     setEditandoId(prod.id || "");
     setMostrarFormulario(true);
   };
 
+  // 🔥 FUNCIÓN ACTUALIZADA: Usar la cotización centralizada (NUEVA FUNCIÓN AGREGADA)
+  const actualizarProductoEnFirebase = async (producto: any) => {
+    try {
+      console.log("🔥 Actualizando producto en Firebase:", producto);
+      
+      // Actualizar en Firebase
+      const productRef = doc(db, `negocios/${negocioID}/stockAccesorios`, producto.id);
+      await updateDoc(productRef, {
+        codigo: producto.codigo,
+        categoria: producto.categoria,
+        producto: producto.producto,
+        marca: producto.marca,
+        modelo: producto.modelo,
+        color: producto.color,
+        precioCosto: producto.precioCosto,
+        precio1: producto.precio1,
+        precio2: producto.precio2,
+        precio3: producto.precio3,
+        precio1Pesos: producto.precio1Pesos,
+        precio2Pesos: producto.precio2Pesos,
+        precio3Pesos: producto.precio3Pesos,
+        cantidad: producto.cantidad,
+        moneda: producto.moneda,
+        stockBajo: producto.stockBajo || 3,
+        stockIdeal: producto.stockIdeal || 5,
+        proveedor: producto.proveedor,
+        cotizacion: cotizacion, // 🔄 USAR LA COTIZACIÓN CENTRALIZADA
+        ultimaActualizacion: new Date()
+      });
+
+      // Actualizar estado local inmediatamente
+      setProductos(prevProductos => 
+        prevProductos.map(p => 
+          p.id === producto.id 
+            ? { ...producto, ultimaActualizacion: new Date() } 
+            : p
+        )
+      );
+
+      console.log("✅ Producto actualizado correctamente en Firebase y estado local");
+      
+    } catch (error) {
+      console.error("❌ Error al actualizar producto en Firebase:", error);
+      throw error; // Para que el modal maneje el error
+    }
+  };
+
+  // 🔄 ACTUALIZAR: Usar la cotización del hook centralizado
   const totalUSD = productos.reduce((acc, p) => {
-    if (cotizacion === null) return acc;
+    if (cotizacion <= 0) return acc;
     const costoUSD =
       p.moneda === "USD"
         ? p.precioCosto * p.cantidad
@@ -187,7 +216,7 @@ export default function StockProductosPage() {
     return acc + costoUSD;
   }, 0);
 
-  const totalPesos = cotizacion !== null ? totalUSD * cotizacion : 0;
+  const totalPesos = cotizacion > 0 ? totalUSD * cotizacion : 0;
 
   const productosAPedir = productos.filter((p) => p.cantidad < p.stockIdeal);
   const productosFiltrados = productos.filter((p) => {
@@ -279,8 +308,7 @@ export default function StockProductosPage() {
               setPrecio3={setPrecio3}
               moneda={moneda}
               setMoneda={setMoneda}
-              cotizacion={cotizacion}
-              setCotizacion={setCotizacion}
+              cotizacion={cotizacion}                    // 🔄 USAR COTIZACIÓN CENTRALIZADA  
               cantidad={cantidad}
               setCantidad={setCantidad}
               stockIdeal={stockIdeal}
@@ -309,12 +337,23 @@ export default function StockProductosPage() {
             </div>
           </div>
 
+          {/* 🔥 TABLA ACTUALIZADA CON MODAL (IGUAL A REPUESTOS) */}
           <TablaProductos
             productos={productosFiltrados}
             editarProducto={editarProducto}
             eliminarProducto={eliminarProducto}
-            verPreciosConvertidos={verPreciosConvertidos}
+            actualizarProducto={actualizarProductoEnFirebase}
+            onProductoActualizado={(producto) => {
+              setProductos(prevProductos => 
+                prevProductos.map(p => 
+                  p.id === producto.id ? producto : p
+                )
+              );
+            }}
+            // 🆕 USANDO LA MISMA COTIZACIÓN QUE REPUESTOS
             cotizacion={cotizacion}
+            onCotizacionChange={actualizarCotizacion}
+            negocioID={rol?.negocioID || negocioID}
           />
 
           <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
@@ -325,48 +364,13 @@ export default function StockProductosPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium">
                   <strong>Tip:</strong> Los códigos se generan automáticamente como ACC001, ACC002, etc. 
-                  Utiliza el filtro para encontrar productos específicos rápidamente.
+                  La cotización está sincronizada con el sistema de ventas.
                 </p>
               </div>
             </div>
           </div>
         </div>
       </main>
-
-      {mostrarModalPrecios && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md text-center border border-[#ecf0f1]">
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-[#27ae60] rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg">💰</span>
-              </div>
-              <h2 className="text-xl font-bold text-[#2c3e50]">Precios en Pesos</h2>
-            </div>
-            
-            <div className="space-y-3 mb-6">
-              <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-lg p-3 border border-[#27ae60]/30">
-                <p className="text-sm font-semibold text-[#27ae60]">Precio 1</p>
-                <p className="text-lg font-bold text-[#27ae60]">${preciosConvertidos.precio1.toLocaleString("es-AR")}</p>
-              </div>
-              <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-lg p-3 border border-[#27ae60]/30">
-                <p className="text-sm font-semibold text-[#27ae60]">Precio 2</p>
-                <p className="text-lg font-bold text-[#27ae60]">${preciosConvertidos.precio2.toLocaleString("es-AR")}</p>
-              </div>
-              <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-lg p-3 border border-[#27ae60]/30">
-                <p className="text-sm font-semibold text-[#27ae60]">Precio 3</p>
-                <p className="text-lg font-bold text-[#27ae60]">${preciosConvertidos.precio3.toLocaleString("es-AR")}</p>
-              </div>
-            </div>
-            
-            <button
-              onClick={() => setMostrarModalPrecios(false)}
-              className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#3f51b5] text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 
 interface Props {
   codigo: string;
@@ -27,8 +27,8 @@ interface Props {
   setPrecio3: (val: number) => void;
   moneda: "ARS" | "USD";
   setMoneda: (val: "ARS" | "USD") => void;
+  // 🔄 CAMBIADO: Cotización viene de props, ya no se puede modificar
   cotizacion: number;
-  setCotizacion: (val: number) => void;
   cantidad: number;
   setCantidad: (val: number) => void;
   stockIdeal: number;
@@ -64,8 +64,8 @@ export default function FormularioProducto({
   setPrecio3,
   moneda,
   setMoneda,
+  // 🔄 CAMBIADO: Solo recibe cotización, no la puede modificar
   cotizacion,
-  setCotizacion,
   cantidad,
   setCantidad,
   stockIdeal,
@@ -75,16 +75,9 @@ export default function FormularioProducto({
   stockBajo = 3,
   setStockBajo = () => {},
 }: Props) {
-  useEffect(() => {
-    if (moneda === "USD") {
-      fetch("https://dolarapi.com/v1/dolares/blue")
-        .then(res => res.json())
-        .then(data => {
-          if (!editandoId) setCotizacion(data.venta);
-        })
-        .catch(() => {});
-    }
-  }, [moneda, editandoId, setCotizacion]);
+
+  // ❌ ELIMINADO: useEffect que buscaba cotización de la API
+  // ✅ AHORA: La cotización viene desde props y está sincronizada con la tabla
 
   // ✅ NUEVA VALIDACIÓN: Solo producto y cantidad son obligatorios
   const puedeGuardar = producto.trim() && cantidad > 0;
@@ -241,19 +234,22 @@ export default function FormularioProducto({
           </select>
         </div>
         
-        {moneda === "USD" && (
-          <div>
-            <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
-              💵 Cotización
-            </label>
-            <input 
-              type="number" 
-              value={cotizacion} 
-              onChange={(e) => setCotizacion(Number(e.target.value))} 
-              className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]" 
-            />
+        {/* 🆕 COTIZACIÓN USD (SIEMPRE VISIBLE PERO DESHABILITADA) */}
+        <div>
+          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+            💰 Cotización USD
+          </label>
+          <input 
+            type="text"
+            value={`$ ${cotizacion.toLocaleString("es-AR")} ARS`}
+            disabled
+            readOnly
+            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-[#f8f9fa] text-[#7f8c8d] text-xs cursor-not-allowed opacity-60"
+          />
+          <div className="text-xs text-[#7f8c8d] mt-1">
+            📌 Solo lectura - Se modifica desde Venta General
           </div>
-        )}
+        </div>
 
         <div>
           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
@@ -294,18 +290,48 @@ export default function FormularioProducto({
         </div>
       </div>
 
-      {moneda === "USD" && cotizacion > 0 && precio1 > 0 && (
-        <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] border-2 border-[#27ae60] rounded-xl p-3 mb-4">
-          <div className="flex items-center gap-2 mb-2">
+      {/* 🆕 PREVIEW DE CONVERSIÓN MEJORADO */}
+      {moneda === "USD" && cotizacion > 0 && (precio1 > 0 || precio2 > 0 || precio3 > 0 || precioCosto > 0) && (
+        <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] border-2 border-[#27ae60] rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
             <div className="w-6 h-6 bg-[#27ae60] rounded-lg flex items-center justify-center">
               <span className="text-white text-xs">💰</span>
             </div>
-            <span className="text-[#27ae60] font-bold text-sm">Precios en pesos:</span>
+            <span className="text-[#27ae60] font-bold text-sm">Precios convertidos a ARS:</span>
           </div>
-          <div className="space-y-1">
-            {precio1 > 0 && <p className="text-xs text-[#27ae60]">Precio 1: ${(precio1 * cotizacion).toLocaleString("es-AR")}</p>}
-            {precio2 > 0 && <p className="text-xs text-[#27ae60]">Precio 2: ${(precio2 * cotizacion).toLocaleString("es-AR")}</p>}
-            {precio3 > 0 && <p className="text-xs text-[#27ae60]">Precio 3: ${(precio3 * cotizacion).toLocaleString("es-AR")}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {precioCosto > 0 && (
+              <div className="bg-white/70 p-2 rounded-lg">
+                <div className="text-xs text-[#e74c3c] font-medium">Costo:</div>
+                <div className="text-sm font-bold text-[#e74c3c]">
+                  ${(precioCosto * cotizacion).toLocaleString("es-AR")}
+                </div>
+              </div>
+            )}
+            {precio1 > 0 && (
+              <div className="bg-white/70 p-2 rounded-lg">
+                <div className="text-xs text-[#27ae60] font-medium">Precio 1:</div>
+                <div className="text-sm font-bold text-[#27ae60]">
+                  ${(precio1 * cotizacion).toLocaleString("es-AR")}
+                </div>
+              </div>
+            )}
+            {precio2 > 0 && (
+              <div className="bg-white/70 p-2 rounded-lg">
+                <div className="text-xs text-[#3498db] font-medium">Precio 2:</div>
+                <div className="text-sm font-bold text-[#3498db]">
+                  ${(precio2 * cotizacion).toLocaleString("es-AR")}
+                </div>
+              </div>
+            )}
+            {precio3 > 0 && (
+              <div className="bg-white/70 p-2 rounded-lg">
+                <div className="text-xs text-[#9b59b6] font-medium">Precio 3:</div>
+                <div className="text-sm font-bold text-[#9b59b6]">
+                  ${(precio3 * cotizacion).toLocaleString("es-AR")}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -320,6 +346,11 @@ export default function FormularioProducto({
           Solo el <strong>Producto</strong> y la <strong>Cantidad</strong> son obligatorios. 
           Los precios pueden agregarse después.
         </p>
+        {moneda === "USD" && (
+          <p className="text-blue-700 text-xs mt-1">
+            💰 La cotización está sincronizada con el sistema de ventas.
+          </p>
+        )}
       </div>
 
       <div className="flex justify-center">

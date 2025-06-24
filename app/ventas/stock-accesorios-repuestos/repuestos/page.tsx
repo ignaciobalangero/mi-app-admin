@@ -10,6 +10,10 @@ import { collection, addDoc, getDocs, getDoc, doc, deleteDoc, updateDoc } from "
 import { v4 as uuidv4 } from "uuid";
 import * as XLSX from "xlsx";
 
+// 🆕 IMPORTAR EL HOOK DE COTIZACIÓN CENTRALIZADO
+import useCotizacion from "@/lib/hooks/useCotizacion";
+import { useRol } from "@/lib/useRol";
+
 // Componentes
 import ResumenCapital from "./components/ResumenCapital";
 import Acciones from "./components/Acciones";
@@ -20,6 +24,13 @@ import TablaProductos from "./components/TablaProductos";
 export default function StockProductosPage() {
   const router = useRouter();
   const [user] = useAuthState(auth);
+  
+  // 🆕 USAR EL HOOK DE ROL (igual que en TablaVentas)
+  const { rol } = useRol();
+  
+  // 🆕 USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que en TablaVentas)
+  const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
+  
   const [negocioID, setNegocioID] = useState("");
   const [codigo, setCodigo] = useState("");
   const [proveedor, setProveedor] = useState("");
@@ -31,7 +42,7 @@ export default function StockProductosPage() {
   const [precioCosto, setPrecioCosto] = useState(0);
   const [precioCostoPesos, setPrecioCostoPesos] = useState(0);
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
-  const [cotizacion, setCotizacion] = useState<number | null>(null);
+  // ❌ ELIMINAR: const [cotizacion, setCotizacion] = useState<number | null>(null);
   const [cantidad, setCantidad] = useState(1);
   const [stockIdeal, setStockIdeal] = useState(5);
   const [stockBajo, setStockBajo] = useState(3);
@@ -59,24 +70,19 @@ export default function StockProductosPage() {
     if (negocioID) cargarProductos();
   }, [negocioID]);
 
+  // 🔄 ACTUALIZAR: Usar la cotización del hook centralizado
   useEffect(() => {
-    if (moneda === "USD" && cotizacion !== null) {
+    if (moneda === "USD" && cotizacion > 0) {
       setPrecioCostoPesos(precioCosto * cotizacion);
     } else {
       setPrecioCostoPesos(precioCosto);
     }
   }, [precioCosto, cotizacion, moneda]);
 
-  useEffect(() => {
-    fetch("https://dolarapi.com/v1/dolares/blue")
-      .then((res) => res.json())
-      .then((data) => {
-        setCotizacion(data.venta);
-      })
-      .catch((err) => {
-        console.error("Error al obtener cotización:", err);
-      });
-  }, []);
+  // ❌ ELIMINAR: El fetch manual de la cotización ya no es necesario
+  // useEffect(() => {
+  //   fetch("https://dolarapi.com/v1/dolares/blue")...
+  // }, []);
 
   const cargarProductos = async () => {
     const snap = await getDocs(collection(db, `negocios/${negocioID}/stockRepuestos`));
@@ -96,7 +102,7 @@ export default function StockProductosPage() {
       marca,
       color,
       precioCosto,
-      precioCostoPesos: moneda === "USD" && cotizacion !== null ? precioCosto * cotizacion : precioCosto,
+      precioCostoPesos: moneda === "USD" && cotizacion > 0 ? precioCosto * cotizacion : precioCosto,
       moneda,
       cotizacion,
       cantidad,
@@ -156,7 +162,7 @@ export default function StockProductosPage() {
     setPrecioCosto(prod.precioCosto);
     setPrecioCostoPesos(prod.precioVentaPesos);
     setMoneda(prod.moneda);
-    setCotizacion(prod.cotizacion);
+    // ❌ ELIMINAR: setCotizacion(prod.cotizacion);
     setCantidad(prod.cantidad);
     setStockIdeal(prod.stockIdeal);
     setStockBajo(prod.stockBajo || 3);
@@ -164,8 +170,52 @@ export default function StockProductosPage() {
     setMostrarFormulario(true);
   };
 
+  // 🔥 FUNCIÓN ACTUALIZADA: Usar la cotización centralizada
+  const actualizarProductoEnFirebase = async (producto: any) => {
+    try {
+      console.log("🔥 Actualizando producto en Firebase:", producto);
+      
+      // Actualizar en Firebase
+      const productRef = doc(db, `negocios/${negocioID}/stockRepuestos`, producto.id);
+      await updateDoc(productRef, {
+        codigo: producto.codigo,
+        categoria: producto.categoria,
+        producto: producto.producto,
+        marca: producto.marca,
+        color: producto.color,
+        precioCosto: producto.precioCosto,
+        precioCostoPesos: producto.precioCostoPesos,
+        cantidad: producto.cantidad,
+        moneda: producto.moneda,
+        stockBajo: producto.stockBajo || 3,
+        proveedor: producto.proveedor,
+        // Campos adicionales si existen
+        calidad: producto.calidad || "",
+        stockIdeal: producto.stockIdeal || 5,
+        cotizacion: cotizacion, // 🔄 USAR LA COTIZACIÓN CENTRALIZADA
+        ultimaActualizacion: new Date()
+      });
+
+      // Actualizar estado local inmediatamente
+      setProductos(prevProductos => 
+        prevProductos.map(p => 
+          p.id === producto.id 
+            ? { ...producto, ultimaActualizacion: new Date() } 
+            : p
+        )
+      );
+
+      console.log("✅ Producto actualizado correctamente en Firebase y estado local");
+      
+    } catch (error) {
+      console.error("❌ Error al actualizar producto en Firebase:", error);
+      throw error; // Para que el modal maneje el error
+    }
+  };
+
+  // 🔄 ACTUALIZAR: Usar la cotización del hook centralizado
   const totalUSD = productos.reduce((acc, p) => {
-    if (cotizacion === null) return acc;
+    if (cotizacion <= 0) return acc;
     const costoUSD =
       p.moneda === "USD"
         ? p.precioCosto * p.cantidad
@@ -173,7 +223,7 @@ export default function StockProductosPage() {
     return acc + costoUSD;
   }, 0);
 
-  const totalPesos = cotizacion !== null ? totalUSD * cotizacion : 0;
+  const totalPesos = cotizacion > 0 ? totalUSD * cotizacion : 0;
 
   const productosAPedir = productos.filter((p) => p.cantidad < p.stockIdeal);
 
@@ -192,7 +242,7 @@ export default function StockProductosPage() {
   };
 
   const productosFiltrados = productos.filter((p) => {
-    const texto = `${p.categoria} ${p.producto} ${p.marca} ${p.modelo}`.toLowerCase();
+    const texto = `${p.categoria} ${p.producto} ${p.marca} ${p.modelo || ''}`.toLowerCase();
     return filtroTexto
       .toLowerCase()
       .split(" ")
@@ -230,8 +280,6 @@ export default function StockProductosPage() {
           </div>
           </div>
 
-       
-
           {/* Resumen de capital */}
           <ResumenCapital totalUSD={totalUSD} totalPesos={totalPesos} />
 
@@ -247,7 +295,7 @@ export default function StockProductosPage() {
           {/* Sugerencias de pedidos */}
           {mostrarSugerencias && <PedidosSugeridos productosAPedir={productosAPedir} />}
 
-          {/* Formulario */}
+          {/* Formulario - ACTUALIZADO con cotizacion centralizada */}
           {mostrarFormulario && (
             <FormularioProducto
               codigo={codigo}
@@ -266,8 +314,8 @@ export default function StockProductosPage() {
               setPrecioCosto={setPrecioCosto}
               moneda={moneda}
               setMoneda={setMoneda}
-              cotizacion={cotizacion}
-              setCotizacion={setCotizacion}
+              cotizacion={cotizacion}                    // 🔄 USAR COTIZACIÓN CENTRALIZADA
+              setCotizacion={actualizarCotizacion}      // 🔄 USAR FUNCIÓN CENTRALIZADA
               precioCostoPesos={precioCostoPesos}
               cantidad={cantidad}
               setCantidad={setCantidad}
@@ -298,11 +346,23 @@ export default function StockProductosPage() {
             </div>
           </div>
 
-          {/* Tabla de productos */}
+          {/* 🔥 TABLA DE PRODUCTOS - CON COTIZACIÓN CENTRALIZADA */}
           <TablaProductos
             productos={productosFiltrados}
             editarProducto={editarProducto}
             eliminarProducto={eliminarProducto}
+            actualizarProducto={actualizarProductoEnFirebase}
+            onProductoActualizado={(producto) => {
+              setProductos(prevProductos => 
+                prevProductos.map(p => 
+                  p.id === producto.id ? producto : p
+                )
+              );
+            }}
+            // 🆕 USANDO LA MISMA COTIZACIÓN QUE TABLAVENTAS
+            cotizacion={cotizacion}
+            onCotizacionChange={actualizarCotizacion}
+            negocioID={rol?.negocioID || negocioID}
           />
 
           {/* Información adicional */}
@@ -314,7 +374,7 @@ export default function StockProductosPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium">
                   <strong>Tip:</strong> Los códigos se generan automáticamente basados en la categoría. 
-                  Utiliza el filtro para encontrar productos específicos rápidamente.
+                  La cotización está sincronizada con el sistema de ventas.
                 </p>
               </div>
             </div>
