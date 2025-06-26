@@ -1,4 +1,4 @@
-// types/caja.ts
+// types/caja.ts - ACTUALIZADO CON USD/ARS
 export interface VentaDelDia {
     id: string;
     nroVenta: string;
@@ -7,7 +7,15 @@ export interface VentaDelDia {
     estado: 'pagado' | 'pendiente';
     metodoPago: string;
     fecha: string;
+    moneda: 'USD' | 'ARS'; // 🔧 NUEVO CAMPO
     productos?: any[];
+    // Campos adicionales opcionales
+    pago?: {
+      forma: string;
+      moneda: string;
+      monto: number;
+      montoUSD?: number;
+    };
   }
   
   export interface ResumenCaja {
@@ -18,7 +26,14 @@ export interface VentaDelDia {
     efectivoEnCaja: number;
   }
   
+  // 🔧 NUEVO: Resumen separado por moneda
+  export interface ResumenCajaCompleto {
+    USD: ResumenCaja;
+    ARS: ResumenCaja;
+  }
+  
   export interface CajaHistorial {
+    id: string;
     fecha: string;
     totalVentas: number;
     efectivo: number;
@@ -28,6 +43,14 @@ export interface VentaDelDia {
     diferencia: number;
     estado: string;
     fechaCierre?: string;
+    // 🔧 NUEVOS CAMPOS PARA USD
+    totalVentasUSD?: number;
+    efectivoUSD?: number;
+    transferenciaUSD?: number;
+    cuentaCorrienteUSD?: number;
+    efectivoEnCajaUSD?: number;
+    diferenciaCajaUSD?: number;
+    diferenciaCajaARS?: number;
   }
   
   export interface CapitalData {
@@ -50,4 +73,9 @@ export interface VentaDelDia {
     diasTrabajados: number;
     diferenciaNeta: number;
     promedioVentas: number;
+    // 🔧 NUEVOS CAMPOS PARA USD
+    ventasUSD?: number;
+    efectivoUSD?: number;
+    transferenciaUSD?: number;
+    cuentaCorrienteUSD?: number;
   }

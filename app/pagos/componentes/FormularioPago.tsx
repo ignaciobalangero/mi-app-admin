@@ -23,14 +23,26 @@ interface Props {
 export default function FormularioPago({ negocioID, setPagos }: Props) {
  const [cliente, setCliente] = useState("");
  const [clientes, setClientes] = useState<string[]>([]);
+ const [proveedores, setProveedores] = useState<any[]>([]);
  const [monto, setMonto] = useState(0);
  const [forma, setForma] = useState("");
- const [destino, setDestino] = useState("");
+ const [tipoDestino, setTipoDestino] = useState("libre"); // libre, proveedor
+ const [proveedorSeleccionado, setProveedorSeleccionado] = useState("");
+ const [destinoLibre, setDestinoLibre] = useState("");
  const [moneda, setMoneda] = useState("ARS");
  const [cotizacion, setCotizacion] = useState(1000);
  const [editandoId, setEditandoId] = useState<string | null>(null);
  const [mensaje, setMensaje] = useState("");
  const [queryCliente, setQueryCliente] = useState("");
+
+ // Opciones predefinidas para forma de pago
+ const formasPago = [
+   { valor: "Efectivo", icono: "💵" },
+   { valor: "Tarjeta", icono: "💳" },
+   { valor: "Transferencia", icono: "🏦" },
+   { valor: "USD", icono: "💵" },
+   { valor: "Crypto", icono: "₿" },
+ ];
 
  useEffect(() => {
    if (!negocioID) return;
@@ -39,6 +51,16 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
      const snap = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
      const nombres = snap.docs.map(doc => doc.data().nombre);
      setClientes(nombres);
+   };
+
+   const fetchProveedores = async () => {
+     const snap = await getDocs(collection(db, `negocios/${negocioID}/proveedores`));
+     const proveedoresData = snap.docs.map(doc => ({
+       id: doc.id,
+       nombre: doc.data().nombre,
+       categoria: doc.data().categoria || "",
+     }));
+     setProveedores(proveedoresData);
    };
 
    const fetchCotizacion = async () => {
@@ -52,8 +74,17 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
    };
 
    fetchClientes();
+   fetchProveedores();
    fetchCotizacion();
  }, [negocioID]);
+
+ const obtenerDestino = () => {
+   if (tipoDestino === "proveedor" && proveedorSeleccionado) {
+     const proveedor = proveedores.find(p => p.nombre === proveedorSeleccionado);
+     return `Proveedor: ${proveedorSeleccionado}${proveedor?.categoria ? ` (${proveedor.categoria})` : ''}`;
+   }
+   return destinoLibre;
+ };
 
  const guardarPago = async () => {
    if (!cliente || monto <= 0 || !forma) return;
@@ -70,6 +101,7 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
    }
 
    const clienteID = clienteDoc.id;
+   const destino = obtenerDestino();
 
    const nuevoPago = {
      fecha: new Date().toLocaleDateString("es-AR"),
@@ -78,6 +110,8 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
      montoUSD: moneda === "USD" ? monto : null,
      forma,
      destino,
+     tipoDestino,
+     proveedorDestino: tipoDestino === "proveedor" ? proveedorSeleccionado : null,
      moneda,
      cotizacion,
    };
@@ -105,7 +139,9 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
      setCliente("");
      setMonto(0);
      setForma("");
-     setDestino("");
+     setTipoDestino("libre");
+     setProveedorSeleccionado("");
+     setDestinoLibre("");
      setMoneda("ARS");
 
      setTimeout(() => setMensaje(""), 2000);
@@ -281,35 +317,97 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
            💳 Forma de Pago
          </label>
-         <input
+         <select
            value={forma}
            onChange={(e) => setForma(e.target.value)}
-           placeholder="Efectivo, Tarjeta, etc."
-           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
-         />
+           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] text-sm"
+         >
+           <option value="">Seleccionar forma de pago</option>
+           {formasPago.map((formaPago) => (
+             <option key={formaPago.valor} value={formaPago.valor}>
+               {formaPago.icono} {formaPago.valor}
+             </option>
+           ))}
+         </select>
        </div>
 
-       {/* Destino - 2 columnas */}
+       {/* Tipo de destino - 2 columnas */}
        <div className="col-span-2">
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
-           🎯 Destino
+           🎯 Tipo de Destino
          </label>
-         <input
-           value={destino}
-           onChange={(e) => setDestino(e.target.value)}
-           placeholder="Concepto del pago"
-           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
-         />
+         <select
+           value={tipoDestino}
+           onChange={(e) => {
+             setTipoDestino(e.target.value);
+             setProveedorSeleccionado("");
+             setDestinoLibre("");
+           }}
+           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] text-sm"
+         >
+           <option value="libre">✏️ Escribir destino</option>
+           <option value="proveedor">🏢 Pagar a proveedor</option>
+         </select>
+       </div>
+
+       {/* Destino dinámico - 4 columnas */}
+       <div className="col-span-4">
+         {tipoDestino === "proveedor" ? (
+           <div>
+             <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+               🏢 Seleccionar Proveedor
+             </label>
+             <select
+               value={proveedorSeleccionado}
+               onChange={(e) => setProveedorSeleccionado(e.target.value)}
+               className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#8e44ad] focus:border-[#8e44ad] transition-all text-[#2c3e50] text-sm"
+             >
+               <option value="">Seleccionar proveedor</option>
+               {proveedores.map((proveedor) => (
+                 <option key={proveedor.id} value={proveedor.nombre}>
+                   {proveedor.nombre} {proveedor.categoria && `(${proveedor.categoria})`}
+                 </option>
+               ))}
+             </select>
+             {proveedores.length === 0 && (
+               <p className="text-xs text-[#7f8c8d] mt-1">
+                 No hay proveedores. <a href="/proveedores" className="text-[#8e44ad] font-medium">Crear uno</a>
+               </p>
+             )}
+           </div>
+         ) : (
+           <div>
+             <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+               ✏️ Concepto del Pago
+             </label>
+             <input
+               value={destinoLibre}
+               onChange={(e) => setDestinoLibre(e.target.value)}
+               placeholder="Describe el concepto del pago"
+               className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+             />
+           </div>
+         )}
        </div>
      </div>
+
+     {/* Vista previa del destino */}
+     {(tipoDestino === "proveedor" && proveedorSeleccionado) || (tipoDestino === "libre" && destinoLibre) ? (
+       <div className="mt-4 p-3 bg-gradient-to-r from-[#f8f9fa] to-[#e9ecef] rounded-lg border border-[#dee2e6]">
+         <div className="flex items-center gap-2">
+           <span className="text-[#6c757d] text-sm font-medium">Destino:</span>
+           <span className="text-[#2c3e50] font-semibold text-sm">{obtenerDestino()}</span>
+         </div>
+       </div>
+     ) : null}
 
      {/* Botón guardar centrado */}
      <div className="flex justify-center mt-4">
        <button
          onClick={guardarPago}
-         disabled={!cliente || monto <= 0 || !forma}
+         disabled={!cliente || monto <= 0 || !forma || (tipoDestino === "proveedor" && !proveedorSeleccionado) || (tipoDestino === "libre" && !destinoLibre)}
          className={`px-6 py-2 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-md flex items-center justify-center gap-2 text-sm ${
-           (!cliente || monto <= 0 || !forma)
+           (!cliente || monto <= 0 || !forma || (tipoDestino === "proveedor" && !proveedorSeleccionado) || (tipoDestino === "libre" && !destinoLibre))
              ? "bg-[#bdc3c7] cursor-not-allowed"
              : "bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] hover:scale-105"
          }`}
@@ -325,7 +423,7 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
          </div>
          <div className="flex-1">
            <p className="text-sm font-medium">
-             <strong>Tip:</strong> La cotización del USD se actualiza automáticamente desde la API del dólar blue.
+             <strong>Tip:</strong> Ahora puedes pagar directamente a proveedores seleccionándolos de la lista. La cotización del USD se actualiza automáticamente.
            </p>
          </div>
        </div>

@@ -1,7 +1,5 @@
 "use client";
 
-"use client";
-
 import { useEffect, useState } from "react";
 import { Timestamp, collection, getDocs, addDoc, setDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -24,6 +22,10 @@ interface Props {
 export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId, datosEdicion }: Props) {
   const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
   const [stock, setStock] = useState<any[]>([]);
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [tipoProveedor, setTipoProveedor] = useState<"manual" | "lista">("manual");
+  const [proveedorSeleccionado, setProveedorSeleccionado] = useState("");
+  const [proveedorManual, setProveedorManual] = useState("");
   const [mostrarPagoModal, setMostrarPagoModal] = useState(false);
   const [mostrarModalTelefono, setMostrarModalTelefono] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
@@ -70,6 +72,65 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   }, []);
   
   const { rol } = useRol();
+
+  // Cargar proveedores
+  useEffect(() => {
+    const cargarProveedores = async () => {
+      try {
+        const snap = await getDocs(collection(db, `negocios/${negocioID}/proveedores`));
+        const proveedoresData = snap.docs.map(doc => ({
+          id: doc.id,
+          nombre: doc.data().nombre,
+          categoria: doc.data().categoria || "",
+        }));
+        setProveedores(proveedoresData);
+      } catch (error) {
+        console.error("Error cargando proveedores:", error);
+      }
+    };
+    
+    if (negocioID) {
+      cargarProveedores();
+    }
+  }, [negocioID]);
+
+  // Función para manejar cambio de proveedor
+  const manejarCambioProveedor = () => {
+    let valorFinal = "";
+    
+    if (tipoProveedor === "lista" && proveedorSeleccionado) {
+      const proveedor = proveedores.find(p => p.nombre === proveedorSeleccionado);
+      valorFinal = `${proveedorSeleccionado}${proveedor?.categoria ? ` (${proveedor.categoria})` : ''}`;
+    } else if (tipoProveedor === "manual") {
+      valorFinal = proveedorManual;
+    }
+    
+    // Actualizar el form.proveedor
+    setForm(prev => ({ ...prev, proveedor: valorFinal }));
+  };
+
+  // Detectar cambios y actualizar
+  useEffect(() => {
+    manejarCambioProveedor();
+  }, [tipoProveedor, proveedorSeleccionado, proveedorManual]);
+
+  // Inicializar con valor existente si viene del stock
+  useEffect(() => {
+    if (form.proveedor && !proveedorManual && !proveedorSeleccionado) {
+      // Verificar si el proveedor existe en la lista
+      const proveedorEnLista = proveedores.find(p => 
+        form.proveedor.includes(p.nombre)
+      );
+      
+      if (proveedorEnLista) {
+        setTipoProveedor("lista");
+        setProveedorSeleccionado(proveedorEnLista.nombre);
+      } else {
+        setTipoProveedor("manual");
+        setProveedorManual(form.proveedor);
+      }
+    }
+  }, [form.proveedor, proveedores]);
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -164,6 +225,9 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       fecha: form.fecha,
       fechaIngreso: form.fecha,
       proveedor: form.proveedor || "",
+      tipoProveedor: tipoProveedor, // Nuevo campo
+      proveedorId: tipoProveedor === "lista" && proveedorSeleccionado ? 
+        proveedores.find(p => p.nombre === proveedorSeleccionado)?.id : null, // Nuevo campo
       cliente: form.cliente,
       modelo: form.modelo,
       marca: form.marca || "",
@@ -354,6 +418,93 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                   rol={rol}
                   onAgregarCliente={() => router.push("/clientes/agregar?origen=ventas-telefonos")}
                 />
+                
+                {/* Campo Proveedor Mejorado - Integrado directamente */}
+                <div className="space-y-3 mt-6">
+                  <label className="block text-sm font-bold text-[#2c3e50] mb-2">
+                    🏢 Proveedor
+                  </label>
+                  
+                  {/* Selector de tipo */}
+                  <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setTipoProveedor("manual")}
+                      className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-all ${
+                        tipoProveedor === "manual"
+                          ? "bg-white text-blue-600 shadow-md"
+                          : "text-gray-600 hover:text-gray-800"
+                      }`}
+                    >
+                      ✏️ Escribir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTipoProveedor("lista")}
+                      className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-all ${
+                        tipoProveedor === "lista"
+                          ? "bg-white text-purple-600 shadow-md"
+                          : "text-gray-600 hover:text-gray-800"
+                      }`}
+                    >
+                      🏢 Seleccionar
+                    </button>
+                  </div>
+
+                  {/* Campo dinámico según el tipo */}
+                  {tipoProveedor === "manual" ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={proveedorManual}
+                        onChange={(e) => setProveedorManual(e.target.value)}
+                        placeholder="Ej: Cliente final, Proveedor único, etc."
+                        className="w-full px-4 py-3 bg-gradient-to-r from-white to-[#f8f9fa] border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 text-[#2c3e50] font-medium shadow-sm hover:shadow-md"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        💡 Para proveedores únicos o clientes finales
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <select
+                        value={proveedorSeleccionado}
+                        onChange={(e) => setProveedorSeleccionado(e.target.value)}
+                        className="w-full px-4 py-3 bg-gradient-to-r from-white to-[#f8f9fa] border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 text-[#2c3e50] font-medium shadow-sm hover:shadow-md appearance-none"
+                      >
+                        <option value="">Seleccionar proveedor del sistema</option>
+                        {proveedores.map((proveedor) => (
+                          <option key={proveedor.id} value={proveedor.nombre}>
+                            {proveedor.nombre} {proveedor.categoria && `(${proveedor.categoria})`}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex justify-between items-center mt-1">
+                        <p className="text-xs text-gray-600">
+                          🏢 Proveedores registrados en el sistema
+                        </p>
+                        {proveedores.length === 0 && (
+                          <a 
+                            href="/proveedores" 
+                            className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                          >
+                            Crear proveedores
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vista previa del valor final */}
+                  {form.proveedor && (
+                    <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-300 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600 text-sm font-medium">Proveedor registrado:</span>
+                        <span className="text-green-800 font-semibold text-sm">{form.proveedor}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

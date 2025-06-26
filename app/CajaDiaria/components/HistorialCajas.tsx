@@ -1,6 +1,6 @@
-// components/HistorialCajas.tsx
+// components/HistorialCajas.tsx - ACTUALIZADO CON BORRAR
 import React, { useState } from 'react';
-import { History, TrendingUp } from 'lucide-react';
+import { History, TrendingUp, Trash2, AlertTriangle } from 'lucide-react';
 import { CajaHistorial } from '../types/caja';
 import { 
   agruparCajasPorMes, 
@@ -12,11 +12,25 @@ import {
 
 interface HistorialCajasProps {
   historialCajas: CajaHistorial[];
+  isAdmin?: boolean;
+  onBorrarCaja?: (cajaId: string, fecha: string) => Promise<boolean>;
 }
 
-const HistorialCajas: React.FC<HistorialCajasProps> = ({ historialCajas }) => {
+const HistorialCajas: React.FC<HistorialCajasProps> = ({ 
+  historialCajas,
+  isAdmin = false,
+  onBorrarCaja
+}) => {
   const [mostrarHistorial, setMostrarHistorial] = useState(true);
   const [mesesExpandidos, setMesesExpandidos] = useState(new Set([new Date().toISOString().slice(0, 7)]));
+  const [borrando, setBorrando] = useState<string | null>(null);
+
+  // 🔧 DEBUG: Verificar props
+  console.log('🔍 HistorialCajas props:', {
+    isAdmin,
+    onBorrarCaja: !!onBorrarCaja,
+    totalCajas: historialCajas.length
+  });
 
   const cajasPorMes = agruparCajasPorMes(historialCajas);
   const totalesPorMes = calcularTotalesPorMes(cajasPorMes);
@@ -34,6 +48,21 @@ const HistorialCajas: React.FC<HistorialCajasProps> = ({ historialCajas }) => {
     });
   };
 
+  // 🔧 FUNCIÓN PARA BORRAR CAJA
+  const handleBorrarCaja = async (cajaId: string, fecha: string) => {
+    if (!onBorrarCaja) return;
+    
+    setBorrando(fecha);
+    try {
+        const exito = await onBorrarCaja(cajaId, fecha);
+        if (exito) {
+        // La función ya maneja la recarga del historial
+      }
+    } finally {
+      setBorrando(null);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
       <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
@@ -41,6 +70,13 @@ const HistorialCajas: React.FC<HistorialCajasProps> = ({ historialCajas }) => {
           <div className="flex items-center gap-3">
             <History className="w-5 h-5 text-gray-600" />
             <h3 className="text-lg font-bold text-gray-800">Historial de Cajas por Mes</h3>
+            {/* 🔧 INDICADOR ADMIN */}
+            {isAdmin && (
+              <div className="flex items-center gap-1 text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
+                <AlertTriangle className="w-3 h-3" />
+                <span>Admin</span>
+              </div>
+            )}
           </div>
           <button
             onClick={() => setMostrarHistorial(!mostrarHistorial)}
@@ -136,8 +172,8 @@ const HistorialCajas: React.FC<HistorialCajasProps> = ({ historialCajas }) => {
                             : 'text-red-600'
                         }`}>
                           {mesData.diferenciaNeta === 0 && '✅ Exacto'}
-                          {mesData.diferenciaNeta > 0 && `+$${mesData.diferenciaNeta.toLocaleString()}`}
-                          {mesData.diferenciaNeta < 0 && `-$${Math.abs(mesData.diferenciaNeta).toLocaleString()}`}
+                          {mesData.diferenciaNeta > 0 && `+${mesData.diferenciaNeta.toLocaleString()}`}
+                          {mesData.diferenciaNeta < 0 && `-${Math.abs(mesData.diferenciaNeta).toLocaleString()}`}
                         </p>
                       </div>
                     </div>
@@ -209,6 +245,10 @@ const HistorialCajas: React.FC<HistorialCajasProps> = ({ historialCajas }) => {
                             <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
                               Dif.
                             </th>
+                            {/* 🔧 COLUMNA PARA ADMIN - TEMPORAL SIEMPRE VISIBLE */}
+                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                              Acciones {isAdmin ? '(ADMIN)' : '(NO ADMIN)'}
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
@@ -247,6 +287,29 @@ const HistorialCajas: React.FC<HistorialCajasProps> = ({ historialCajas }) => {
                                   {caja.diferencia < 0 && `${caja.diferencia.toLocaleString()}`}
                                 </span>
                               </td>
+                              {/* 🔧 CELDA ACCIONES ADMIN */}
+                              {isAdmin && (
+                                <td className="px-4 py-3 whitespace-nowrap text-center">
+                                  <button
+                                    onClick={() => handleBorrarCaja(caja.id || '', caja.fecha)}
+                                    disabled={borrando === caja.fecha}
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Borrar caja (irreversible)"
+                                  >
+                                    {borrando === caja.fecha ? (
+                                      <>
+                                        <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                                        ...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Trash2 className="w-3 h-3" />
+                                        Borrar
+                                      </>
+                                    )}
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>

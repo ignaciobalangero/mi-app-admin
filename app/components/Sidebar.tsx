@@ -30,6 +30,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Stock Repuestos (Sheet)", icono: "📋", href: "/integracion-sheet/stock-sheet" },
     { label: "Clientes", icono: "👥", href: "/clientes" },
     { label: "Caja Diaria", icono: "🏦", href: "/CajaDiaria" },
+    { label: "Proveedores", icono: "", href: "/proveedores" },
     { label: "Configuraciones", icono: "⚙️", href: "/configuraciones" },
   ];
  
@@ -43,6 +44,8 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },
     { label: "Stock Grl", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
     { label: "Clientes", icono: "👥", href: "/clientes" },
+    { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
+    { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
   ];
 
   const botones = rol?.tipo === "admin" ? botonesAdmin : botonesEmpleado;
