@@ -5,10 +5,10 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
-import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 import Link from "next/link";
 import { useRol } from "@/lib/useRol";
+import { useRouter } from "next/navigation";
 
 interface Trabajo {
   cliente: string;
@@ -37,6 +37,20 @@ export default function CuentaCorrientePage() {
   const [user] = useAuthState(auth);
   const { rol } = useRol();
   const [negocioID, setNegocioID] = useState<string>("");
+  const router = useRouter();
+
+  // Validación: Solo bloquear clientes, permitir admin y empleado
+  useEffect(() => {
+    if (rol && rol.tipo === "cliente") {
+      router.push("/");
+      return;
+    }
+  }, [rol, router]);
+
+  // Early return: Si es cliente, no renderizar nada
+  if (rol?.tipo === "cliente") {
+    return null;
+  }
 
   useEffect(() => {
     if (rol?.negocioID) {
@@ -75,48 +89,46 @@ export default function CuentaCorrientePage() {
       });
 
       // Procesar ventas de ventasGeneral
+      ventasSnap.forEach((doc) => {
+        const data = doc.data();
+        const cliente = data.cliente;
+        const productos = data.productos || [];
 
-// Procesar ventas de ventasGeneral
-ventasSnap.forEach((doc) => {
-  const data = doc.data();
-  const cliente = data.cliente;
-  const productos = data.productos || [];
+        if (!cliente || productos.length === 0) return;
 
-  if (!cliente || productos.length === 0) return;
-
-  if (!cuentasMap[cliente]) {
-    cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0 };
-  }
-
-  // ✅ LEER EXACTAMENTE COMO MUESTRA LA TABLA DE VENTAS
-  const hayTelefono = productos.some((prod: any) => prod.categoria === "Teléfono");
-
-  let totalVentaPesos = 0;
-  let totalVentaUSD = 0;
-
-  productos.forEach((p: any) => {
-    if (hayTelefono) {
-      // CON TELÉFONO: Mostrar moneda original
-      if (p.categoria === "Teléfono") {
-        totalVentaUSD += p.precioUnitario * p.cantidad;
-      } else {
-        // Accesorio/Repuesto: Según su moneda original
-        if (p.moneda?.toUpperCase() === "USD") {
-          totalVentaUSD += p.precioUnitario * p.cantidad;
-        } else {
-          totalVentaPesos += p.precioUnitario * p.cantidad;
+        if (!cuentasMap[cliente]) {
+          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0 };
         }
-      }
-    } else {
-      // SIN TELÉFONO: TODO en pesos (no usar cotización aquí)
-      totalVentaPesos += p.precioUnitario * p.cantidad;
-    }
-  });
 
-  // Sumar a la cuenta del cliente
-  cuentasMap[cliente].saldoPesos += totalVentaPesos;
-  cuentasMap[cliente].saldoUSD += totalVentaUSD;
-});
+        // LEER EXACTAMENTE COMO MUESTRA LA TABLA DE VENTAS
+        const hayTelefono = productos.some((prod: any) => prod.categoria === "Teléfono");
+
+        let totalVentaPesos = 0;
+        let totalVentaUSD = 0;
+
+        productos.forEach((p: any) => {
+          if (hayTelefono) {
+            // CON TELÉFONO: Mostrar moneda original
+            if (p.categoria === "Teléfono") {
+              totalVentaUSD += p.precioUnitario * p.cantidad;
+            } else {
+              // Accesorio/Repuesto: Según su moneda original
+              if (p.moneda?.toUpperCase() === "USD") {
+                totalVentaUSD += p.precioUnitario * p.cantidad;
+              } else {
+                totalVentaPesos += p.precioUnitario * p.cantidad;
+              }
+            }
+          } else {
+            // SIN TELÉFONO: TODO en pesos (no usar cotización aquí)
+            totalVentaPesos += p.precioUnitario * p.cantidad;
+          }
+        });
+
+        // Sumar a la cuenta del cliente
+        cuentasMap[cliente].saldoPesos += totalVentaPesos;
+        cuentasMap[cliente].saldoUSD += totalVentaUSD;
+      });
 
       // Procesar pagos
       pagosSnap.forEach((doc) => {
@@ -173,7 +185,7 @@ ventasSnap.forEach((doc) => {
   const totalUSD = cuentas.reduce((acum, c) => acum + c.saldoUSD, 0);
 
   return (
-    <RequireAdmin>
+    <>
       <Header />
       <main className="pt-20 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
@@ -413,6 +425,6 @@ ventasSnap.forEach((doc) => {
           </div>
         </div>
       </main>
-    </RequireAdmin>
+    </>
   );
 }

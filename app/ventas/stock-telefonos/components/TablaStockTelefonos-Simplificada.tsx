@@ -73,7 +73,7 @@ export default function TablaStockTelefonos({
   };
 
   const exportarExcel = () => {
-    const hoja = telefonos.map((t) => ({
+    const hoja = filtrados.map((t) => ({
       Fecha: typeof t.fechaIngreso === "string"
         ? t.fechaIngreso
         : t.fechaIngreso?.toDate?.().toLocaleDateString("es-AR") || "-",
@@ -92,12 +92,17 @@ export default function TablaStockTelefonos({
       Moneda: t.moneda,
       Observaciones: t.observaciones,
     }));
+    
     const ws = XLSX.utils.json_to_sheet(hoja);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "StockTelefonos");
-    XLSX.writeFile(wb, "stock_telefonos.xlsx");
+    
+    const nombreArchivo = ordenarPorModelo 
+      ? "stock_telefonos_por_modelo.xlsx" 
+      : "stock_telefonos_por_fecha.xlsx";
+      
+    XLSX.writeFile(wb, nombreArchivo);
   };
-
   const copiarAlPortapapeles = async (texto: string) => {
     try {
       await navigator.clipboard.writeText(texto);
