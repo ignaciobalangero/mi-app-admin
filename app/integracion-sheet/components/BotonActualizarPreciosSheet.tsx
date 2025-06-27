@@ -111,16 +111,25 @@ export default function BotonActualizarPreciosSheet({
         const precioUSD = Number(p.precioUSD) || Number(p.precio1) || 0;
         const precioARS = Number((precioUSD * cotizacion).toFixed(2));
 
+        // 🎯 CORRECCIÓN PRINCIPAL: Manejar cantidad 0 correctamente
+        let cantidad;
+        if (p.cantidad !== undefined && p.cantidad !== null) {
+          cantidad = p.cantidad; // ✅ Esto permite 0
+        } else {
+          cantidad = ""; // Solo usar vacío si realmente no hay cantidad
+        }
+
+        console.log(`🔍 Procesando ${p.id}: cantidad=${p.cantidad}, cantidad final=${cantidad}`);
+
         return {
           codigo: p.id,
           categoria: p.categoria || "",
           modelo: p.modelo || "",
-          cantidad: p.cantidad || "",
+          cantidad: cantidad, // 🎯 USAR LA VARIABLE CORREGIDA
           precioARS,
           precioUSD,
         };
       });
-
       console.log("🧾 Filas preparadas para enviar:", filas.length);
 
       // 🔄 PASO 6: Enviar a la API

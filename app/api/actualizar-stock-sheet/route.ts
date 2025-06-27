@@ -1,52 +1,70 @@
-// /app/api/actualizar-precios-sheet/route.ts
 import { NextResponse } from "next/server";
-import { actualizarPreciosEnSheet, obtenerDatosDesdeSheet } from "@/app/api/lib/googleSheets";
+import { agregarProductoASheet } from "@/app/api/lib/googleSheets";
 
 export async function POST(req: Request) {
   try {
-    const { sheetID, hoja, filas } = await req.json();
+    const { sheetID, hoja, producto, esActualizacion, permitirStockCero } = await req.json();
 
-    if (!sheetID || !hoja || !Array.isArray(filas)) {
-      return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
+    if (!sheetID || !hoja || !producto) {
+      return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
     }
 
-    console.log("🔄 Iniciando actualización de precios...");
-    console.log("📊 SheetID:", sheetID);
-    console.log("📋 Hoja:", hoja);
-    console.log("📦 Modelos a actualizar:", filas.length);
+    // 📦 Preparar valores
+    const precioUSD = Number(producto.precioUSD) || 0;
+    const cotizacion = Number(producto.cotizacion) || 1000;
 
-    // ✅ Traer los datos actuales del Sheet para conservar lo que no venga desde Firebase
-    const datosSheet = await obtenerDatosDesdeSheet(sheetID, `${hoja}!A2:F1000`);
+    const precioARS =
+      producto.moneda === "USD" && precioUSD > 0
+        ? precioUSD * cotizacion
+        : Number(producto.precio) || 0;
 
-    const valores = filas.map((fila: any) => {
-      const filaExistente = datosSheet.find((f) => f[0] === fila.codigo);
+    // 🎯 CORRECCIÓN PRINCIPAL: Manejar cantidad 0 correctamente
+    let cantidad;
+    if (producto.cantidad !== undefined && producto.cantidad !== null) {
+      cantidad = Number(producto.cantidad); // Esto incluye 0
+    } else {
+      cantidad = 0; // Default solo si no se envió
+    }
 
-      return {
-        codigo: fila.codigo,
-        categoria: fila.categoria || filaExistente?.[1] || "",
-        modelo: fila.modelo || filaExistente?.[2] || "",
-        cantidad: fila.cantidad || filaExistente?.[3] || "",
-        precioARS: fila.precioARS,
-        precioUSD: fila.precioUSD ?? (filaExistente?.[5] || 0),
-      };
-    });
+    // ✅ Solo insertamos columnas necesarias en el sheet
+    const fila = [
+      producto.codigo || "",
+      producto.categoria || "",
+      producto.modelo || "",
+      cantidad, // 🎯 USAR LA VARIABLE CORREGIDA
+      precioARS,
+      precioUSD,
+    ];
 
-    // ✅ CORRECCIÓN: Pasar los 3 parámetros separados
-    const resultado = await actualizarPreciosEnSheet(sheetID, hoja, valores);
+    console.log("🧾 Fila a insertar:", fila);
+    console.log(`🎯 Cantidad específica: ${cantidad} (tipo: ${typeof cantidad})`);
+    console.log(`🔧 Es actualización: ${esActualizacion}, Permitir stock cero: ${permitirStockCero}`);
 
-    console.log("✅ Actualización completada:", resultado);
+    try {
+      // 🎯 LLAMAR CON SOLO 3 PARÁMETROS COMO ESPERA LA FUNCIÓN
+      await agregarProductoASheet(sheetID, hoja, fila);
+      
+      console.log("✅ Producto insertado/actualizado exitosamente en Google Sheets");
+      console.log(`📊 Datos enviados - Código: ${producto.codigo}, Cantidad: ${cantidad}`);
+      
+    } catch (err) {
+      console.error("❌ Error al insertar en Google Sheets:", err);
+      console.error("📊 Datos que causaron el error:", { fila, cantidad, esActualizacion });
+      return NextResponse.json({ 
+        error: "Error al insertar en Google Sheets", 
+        detalles: err.message,
+        datosEnviados: { cantidad, esActualizacion }
+      }, { status: 500 });
+    }
 
     return NextResponse.json({ 
       ok: true, 
-      mensaje: resultado.mensaje,
-      actualizados: resultado.actualizados
+      mensaje: `Producto ${esActualizacion ? 'actualizado' : 'agregado'} exitosamente`,
+      cantidadFinal: cantidad
     });
-
-  } catch (err: any) {
-    console.error("❌ Error en actualizar-precios-sheet:", err);
-    return NextResponse.json({ 
-      error: "Error al actualizar precios",
-      detalles: err.message 
-    }, { status: 500 });
+    
+  } catch (error: any) {
+    console.error("❌ Error general:", error);
+    return NextResponse.json({ error: "Error interno en el servidor" }, { status: 500 });
   }
 }

@@ -1,4 +1,4 @@
-// Componente con botones Editar y Eliminar modelo - CORREGIDO
+// Componente con botones Editar y Eliminar modelo - OPTIMIZADO
 "use client";
 
 import { useState } from "react";
@@ -7,12 +7,20 @@ import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { useRol } from "@/lib/useRol";
 import ModalAdvertencia from "./ModalAdvertencia";
 
-export default function AccionesProducto({ producto, sheetID, hoja, cotizacion = 1200, onRecargar }: {
+export default function AccionesProducto({ 
+  producto, 
+  sheetID, 
+  hoja, 
+  cotizacion = 1200, 
+  onActualizarLocal,
+  onEliminarLocal
+}: {
   producto: any;
   sheetID: string;
   hoja: string;
   cotizacion?: number;
-  onRecargar: () => void;
+  onActualizarLocal?: (codigo: string, datos: any) => void;
+  onEliminarLocal?: (codigo: string) => void;
 }) {
   const { rol } = useRol();
   const [editando, setEditando] = useState(false);
@@ -33,7 +41,7 @@ export default function AccionesProducto({ producto, sheetID, hoja, cotizacion =
   const [mensajeAdvertencia, setMensajeAdvertencia] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  // ✅ FUNCIÓN CORREGIDA - guardarCambios
+  // ✅ FUNCIÓN OPTIMIZADA - guardarCambios con actualización local
   const guardarCambios = async () => {
     setCargando(true);
     try {
@@ -54,9 +62,9 @@ export default function AccionesProducto({ producto, sheetID, hoja, cotizacion =
       const datosActualizados = {
         ...formData,
         // ✅ CAMPOS ESENCIALES QUE FALTABAN:
-        negocioID: rol.negocioID, // 🎯 ESTE FALTABA
-        hoja: hoja, // 🎯 ESTE FALTABA
-        categoria: producto.categoria || "Baterias", // 🎯 ESTE TAMBIÉN
+        negocioID: rol.negocioID,
+        hoja: hoja,
+        categoria: producto.categoria || "Baterias",
         // Precios
         precioUSD: precio1,
         precio1,
@@ -71,34 +79,85 @@ export default function AccionesProducto({ producto, sheetID, hoja, cotizacion =
         // Metadatos
         fechaActualizacion: new Date(),
         codigo: producto.codigo,
-        activo: true, // 🎯 AGREGAR ESTE CAMPO
-        origenSincronizacion: 'Manual' // 🎯 IDENTIFICAR ORIGEN
+        activo: true,
+        origenSincronizacion: 'Manual'
       };
 
       console.log('📦 Datos que se van a guardar:', datosActualizados);
 
-      // ✅ CAMBIO PRINCIPAL: setDoc con merge
+      // ✅ Guardar en Firebase
       await setDoc(ref, datosActualizados, { merge: true });
-
       console.log(`✅ Modelo ${producto.codigo} actualizado en Firebase`);
 
-      // Actualizar precios en Sheet
+      // 🎯 ACTUALIZACIÓN LOCAL INMEDIATA (sin recargar tabla) - Solo si existe la función
+      if (onActualizarLocal) {
+        onActualizarLocal(producto.codigo, datosActualizados);
+      }
+
+      // ✅ Sincronización con Sheet (en background)
       try {
-        await fetch("/api/actualizar-precios-sheet", {
+        console.log('🔄 Sincronizando producto individual con Google Sheet...');
+        console.log('📊 Datos que se van a enviar:', {
+          sheetID,
+          hoja,
+          producto: {
+            codigo: producto.codigo,
+            categoria: producto.categoria || "Baterias",
+            modelo: formData.modelo,
+            cantidad: formData.cantidad,
+            precioARS: precio1Pesos,
+            precioUSD: precio1,
+          }
+        });
+        
+        const respuestaSheet = await fetch("/api/agregar-stock", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sheetID, hoja }),
+          body: JSON.stringify({
+            sheetID,
+            hoja,
+            producto: {
+              codigo: producto.codigo,
+              categoria: producto.categoria || "Baterias",
+              modelo: formData.modelo,
+              cantidad: formData.cantidad, // 🎯 LA CANTIDAD NUEVA (incluye 0)
+              precioARS: precio1Pesos,
+              precioUSD: precio1,
+              proveedor: formData.proveedor,
+              precioCosto: formData.precioCosto,
+              precio1: formData.precio1,
+              precio2: formData.precio2,
+              precio3: formData.precio3,
+            },
+            esActualizacion: true,
+            permitirStockCero: true
+          }),
         });
-        console.log("✅ Precios actualizados en Google Sheets");
-      } catch (sheetError) {
-        console.warn("⚠️ Error actualizando Sheet (modelo guardado en Firebase):", sheetError);
+
+        console.log('📡 Respuesta HTTP status:', respuestaSheet.status);
+
+        if (respuestaSheet.ok) {
+          const dataSheet = await respuestaSheet.json();
+          console.log("✅ Producto sincronizado con Google Sheet:", dataSheet);
+        } else {
+          const errorSheet = await respuestaSheet.json();
+          console.error("❌ Error sincronizando con Sheet:", errorSheet);
+          console.error("❌ Status:", respuestaSheet.status);
+        }
+
+      } catch (sheetError: any) {
+        console.error("❌ Error de conexión con Sheet:", sheetError);
+        console.error("❌ Error completo:", sheetError.message);
       }
 
       setMensaje("✅ Guardado exitosamente");
       setTimeout(() => {
         setMensaje("");
         setEditando(false);
-        onRecargar();
+        // 🎯 SOLO RECARGAR SI NO HAY FUNCIÓN DE ACTUALIZACIÓN LOCAL
+        if (!onActualizarLocal) {
+          // Aquí iría onRecargar() en el sistema anterior
+        }
       }, 1000);
       
     } catch (err: any) {
@@ -109,7 +168,7 @@ export default function AccionesProducto({ producto, sheetID, hoja, cotizacion =
     }
   };
 
-  // ✅ FUNCIÓN ELIMINAR CORREGIDA
+  // ✅ FUNCIÓN ELIMINAR OPTIMIZADA
   const eliminarProducto = async () => {
     setCargando(true);
     try {
@@ -126,7 +185,12 @@ export default function AccionesProducto({ producto, sheetID, hoja, cotizacion =
         console.warn("⚠️ Error eliminando de Firebase (puede que no exista):", fbError.message);
       }
 
-      // PASO 2: Eliminar del Sheet
+      // 🎯 ELIMINACIÓN LOCAL INMEDIATA - Solo si existe la función
+      if (onEliminarLocal) {
+        onEliminarLocal(producto.codigo);
+      }
+
+      // PASO 2: Eliminar del Sheet (en background)
       try {
         console.log("🔄 Intentando eliminar del Sheet...");
         const res = await fetch("/api/eliminar-del-sheet", {
@@ -165,7 +229,10 @@ export default function AccionesProducto({ producto, sheetID, hoja, cotizacion =
       setMensaje("✅ Modelo eliminado");
       setTimeout(() => {
         setMensaje("");
-        onRecargar();
+        // 🎯 SOLO RECARGAR SI NO HAY FUNCIÓN DE ELIMINACIÓN LOCAL
+        if (!onEliminarLocal) {
+          // Aquí iría onRecargar() en el sistema anterior
+        }
       }, 1000);
 
     } catch (err: any) {

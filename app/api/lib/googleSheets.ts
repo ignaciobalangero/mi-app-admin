@@ -419,15 +419,27 @@ export async function actualizarPreciosEnSheet(
         const numeroFila = indiceExistente + 2; // +2 porque empezamos en A2
         
         // Crear fila actualizada manteniendo valores existentes si no se proveen nuevos
-        const filaExistente = filasExistentes[indiceExistente];
-        const filaActualizada = [
-          filaNew.codigo || filaExistente[0] || "",           // A: Código
-          filaNew.categoria || filaExistente[1] || "",        // B: Categoría  
-          filaNew.modelo || filaExistente[2] || "",           // C: Modelo
-          filaNew.cantidad || filaExistente[3] || "",         // D: Cantidad
-          filaNew.precioARS || filaExistente[4] || "",        // E: Precio ARS
-          filaNew.precioUSD || filaExistente[5] || "",        // F: Precio USD
-        ];
+       // Crear fila actualizada manteniendo valores existentes si no se proveen nuevos
+       const filaExistente = filasExistentes[indiceExistente];
+        
+       // 🎯 CORRECCIÓN PRINCIPAL: Manejar cantidad 0 correctamente
+       let cantidad;
+       if (filaNew.cantidad !== undefined && filaNew.cantidad !== null) {
+        cantidad = String(filaNew.cantidad); // ✅ Esto permite 0
+       } else {
+         cantidad = filaExistente[3] || ""; // Solo usar el anterior si no viene cantidad
+       }
+       
+       console.log(`🔍 Actualizando ${filaNew.codigo}: cantidad nueva=${filaNew.cantidad}, cantidad final=${cantidad}`);
+       
+       const filaActualizada = [
+         filaNew.codigo || filaExistente[0] || "",           // A: Código
+         filaNew.categoria || filaExistente[1] || "",        // B: Categoría  
+         filaNew.modelo || filaExistente[2] || "",           // C: Modelo
+         cantidad,                                           // D: Cantidad ✅ CORREGIDO
+         filaNew.precioARS || filaExistente[4] || "",        // E: Precio ARS
+         filaNew.precioUSD || filaExistente[5] || "",        // F: Precio USD
+       ];
 
         actualizaciones.push({
           range: `${hoja}!A${numeroFila}:F${numeroFila}`,

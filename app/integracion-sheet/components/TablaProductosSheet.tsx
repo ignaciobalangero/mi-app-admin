@@ -53,6 +53,201 @@ export default function TablaProductosSheet({
   const [filtroTexto, setFiltroTexto] = useState("");
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [cargandoActualizar, setCargandoActualizar] = useState(false);
+  
+  // 🆕 Estados para optimización
+  const [ultimaActualizacion, setUltimaActualizacion] = useState<Date>(new Date());
+
+  // 🆕 Función para sincronizar un producto específico desde Firebase
+  const sincronizarProductoDesdeFirebase = async (codigoProducto: string) => {
+    if (!rol?.negocioID) return;
+    
+    try {
+      console.log(`🔄 Sincronizando ${codigoProducto} desde Firebase...`);
+      
+      const docRef = doc(db, `negocios/${rol.negocioID}/stockExtra/${codigoProducto}`);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        
+        // Solo actualizar si la fecha de actualización es más reciente
+        const fechaFirebase = new Date(data.fechaActualizacion || data.ultimaActualizacion || 0);
+        const fechaLocal = ultimaActualizacion;
+        
+        if (fechaFirebase > fechaLocal) {
+          console.log(`📥 Actualizando ${codigoProducto} desde Firebase (más reciente)`);
+          actualizarProductoLocal(codigoProducto, data);
+        } else {
+          console.log(`✅ ${codigoProducto} local está actualizado`);
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️ Error sincronizando ${codigoProducto}:`, error);
+    }
+  };
+
+  // 🔧 FUNCIÓN CORREGIDA - actualizarProductoLocal 
+  const actualizarProductoLocal = (codigoProducto: string, datosNuevos: Partial<any>) => {
+    console.log(`🔄 Actualizando producto local: ${codigoProducto}`, datosNuevos);
+    
+    setDatos(datosActuales => {
+      const nuevosDatos = datosActuales.map(producto => {
+        if (producto.codigo === codigoProducto) {
+          // Recalcular precios si cambiaron
+          const precioUSD = datosNuevos.precio1 ?? producto.precio1 ?? 0;
+          const precioCosto = datosNuevos.precioCosto ?? producto.precioCosto ?? 0;
+          const ganancia = precioUSD - precioCosto;
+          const precioARS = datosNuevos.precio1Pesos ?? Math.round(precioUSD * (dolarManual || cotizacionFinal || 1000));
+          
+          const productoActualizado = {
+            ...producto,
+            ...datosNuevos,
+            precioARS,
+            ganancia,
+          };
+          
+          console.log(`✅ Producto ${codigoProducto} actualizado localmente`);
+          return productoActualizado;
+        }
+        return producto;
+      });
+      
+      // 🎯 RECALCULAR SUGERENCIAS solo si cambió cantidad o stockIdeal
+      if (datosNuevos.cantidad !== undefined || datosNuevos.stockIdeal !== undefined) {
+        const sugerencias = nuevosDatos.filter((p) =>
+          typeof p.stockIdeal === "number" &&
+          typeof p.cantidad === "number" &&
+          p.stockIdeal > p.cantidad
+        );
+        
+        // 🔧 Usar setTimeout para evitar setState durante render
+        setTimeout(() => {
+          setProductosAPedir(sugerencias);
+        }, 0);
+      }
+      
+      return nuevosDatos;
+    });
+  };
+
+  // 🔧 FUNCIÓN CORREGIDA - actualizarProductoLocalConVerificacion
+  const actualizarProductoLocalConVerificacion = async (codigoProducto: string, datosNuevos: Partial<any>) => {
+    console.log(`🔄 Actualizando producto local: ${codigoProducto}`, datosNuevos);
+    
+    // 1. Actualización local inmediata (UX fluida)
+    setDatos(datosActuales => {
+      const nuevosDatos = datosActuales.map(producto => {
+        if (producto.codigo === codigoProducto) {
+          const precioUSD = datosNuevos.precio1 ?? producto.precio1 ?? 0;
+          const precioCosto = datosNuevos.precioCosto ?? producto.precioCosto ?? 0;
+          const ganancia = precioUSD - precioCosto;
+          const precioARS = datosNuevos.precio1Pesos ?? Math.round(precioUSD * (dolarManual || cotizacionFinal || 1000));
+          
+          const productoActualizado = {
+            ...producto,
+            ...datosNuevos,
+            precioARS,
+            ganancia,
+            ultimaActualizacionLocal: new Date()
+          };
+          
+          return productoActualizado;
+        }
+        return producto;
+      });
+      
+      // 🎯 RECALCULAR SUGERENCIAS directamente aquí
+      if (datosNuevos.cantidad !== undefined || datosNuevos.stockIdeal !== undefined) {
+        const sugerencias = nuevosDatos.filter((p) =>
+          typeof p.stockIdeal === "number" &&
+          typeof p.cantidad === "number" &&
+          p.stockIdeal > p.cantidad
+        );
+        
+        // 🔧 Usar setTimeout para evitar setState durante render
+        setTimeout(() => {
+          setProductosAPedir(sugerencias);
+        }, 0);
+      }
+      
+      return nuevosDatos;
+    });
+    
+    // 2. Verificación desde Firebase después de 2 segundos (para cambios externos)
+    setTimeout(() => {
+      sincronizarProductoDesdeFirebase(codigoProducto);
+    }, 2000);
+    
+    // 3. Actualizar timestamp de última modificación
+    setUltimaActualizacion(new Date());
+  };
+
+  // 🔧 FUNCIÓN CORREGIDA - eliminarProductoLocal
+  const eliminarProductoLocal = (codigoProducto: string) => {
+    console.log(`🗑️ Eliminando producto local: ${codigoProducto}`);
+    
+    setDatos(datosActuales => {
+      const nuevosDatos = datosActuales.filter(producto => producto.codigo !== codigoProducto);
+      
+      // Recalcular sugerencias directamente aquí
+      const sugerencias = nuevosDatos.filter((p) =>
+        typeof p.stockIdeal === "number" &&
+        typeof p.cantidad === "number" &&
+        p.stockIdeal > p.cantidad
+      );
+      
+      // 🔧 Usar setTimeout para evitar setState durante render
+      setTimeout(() => {
+        setProductosAPedir(sugerencias);
+      }, 0);
+      
+      console.log(`✅ Producto ${codigoProducto} eliminado localmente`);
+      return nuevosDatos;
+    });
+  };
+
+  // 🆕 Función para forzar sincronización completa (botón manual)
+  const sincronizarTodoDesdeFirebase = async () => {
+    if (!rol?.negocioID) return;
+    
+    setCargando(true);
+    try {
+      console.log('🔄 Sincronización completa desde Firebase...');
+      
+      const extraSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));
+      const firestoreData = extraSnap.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            codigo: doc.id,
+            hoja: data.hoja || '',
+            modelo: data.modelo || data.producto || '',
+            categoria: data.categoria || '',
+            proveedor: data.proveedor || '',
+            precio1: Number(data.precio1 || 0),
+            precio1Pesos: Number(data.precio1Pesos || 0),
+            precioCosto: Number(data.precioCosto || 0),
+            cantidad: Number(data.cantidad || 0),
+            stockIdeal: Number(data.stockIdeal || 0),
+            ...data
+          };
+        })
+        .filter((prod) => {
+          const tieneHoja = prod.hoja && prod.hoja.toString().toLowerCase().includes(hoja.toLowerCase());
+          const tieneNombre = prod.modelo && prod.modelo.toString().trim() !== '';
+          return tieneHoja && tieneNombre;
+        });
+      
+      setDatos(firestoreData);
+      setUltimaActualizacion(new Date());
+      console.log('✅ Sincronización completa terminada');
+      
+    } catch (error) {
+      console.error('❌ Error en sincronización completa:', error);
+    } finally {
+      setCargando(false);
+    }
+  };
 
   // 🔥 NUEVA FUNCIÓN: Actualizar precios ARS en Firebase
   const actualizarPreciosFirebase = async (nuevoDolar: number) => {
@@ -214,6 +409,28 @@ export default function TablaProductosSheet({
       console.error("❌ Error guardando configuración de moneda:", err);
     }
   };
+
+  // 🆕 Sincronización periódica silenciosa (cada 30 segundos)
+  useEffect(() => {
+    if (!rol?.negocioID || datos.length === 0) return;
+    
+    const intervalo = setInterval(async () => {
+      console.log('🔄 Verificación periódica silenciosa...');
+      
+      // Solo verificar productos que han sido editados recientemente
+      const productosRecientes = datos.filter(p => {
+        const ultimaModificacion = new Date(p.ultimaActualizacionLocal || 0);
+        const hace5Minutos = new Date(Date.now() - 5 * 60 * 1000);
+        return ultimaModificacion > hace5Minutos;
+      });
+      
+      for (const producto of productosRecientes) {
+        await sincronizarProductoDesdeFirebase(producto.codigo);
+      }
+    }, 30000); // Cada 30 segundos
+    
+    return () => clearInterval(intervalo);
+  }, [datos, rol?.negocioID]);
 
   useEffect(() => {
     const fetchSoloFirebase = async () => {
@@ -406,6 +623,9 @@ export default function TablaProductosSheet({
               )}
             </button>
           </div>
+
+
+
           {/* Buscador */}
           <div className="flex-1">
             <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
@@ -466,7 +686,7 @@ export default function TablaProductosSheet({
             <div className="w-16 h-16 lg:w-20 lg:h-20 bg-[#3498db] rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
               <span className="text-3xl lg:text-4xl text-white">📊</span>
             </div>
-            <h3 className="text-lg lg:text-xl font-bold text-[#2c3e50] mb-2">Sincronizando inventario...</h3>
+            <h3 className="text-lg lg:text-xl font-bold text-[#2c3e50] mb-2">Cargando inventario...</h3>
             <p className="text-[#7f8c8d] text-sm lg:text-base">
               Obteniendo datos desde Google Sheets
             </p>
@@ -581,7 +801,7 @@ export default function TablaProductosSheet({
                             : "bg-white"
                         }`}
                       >
-                        {/* Código */}
+                        {/* Código del producto */}
                         <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
                           <span className="inline-flex items-center px-1 sm:px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
                             {fila.codigo || "—"}
@@ -679,7 +899,8 @@ export default function TablaProductosSheet({
                             sheetID={sheetID}
                             hoja={hoja}
                             cotizacion={cotizacionFinal}
-                            onRecargar={() => setRecarga((prev) => prev + 1)}
+                            onActualizarLocal={actualizarProductoLocalConVerificacion}
+                            onEliminarLocal={eliminarProductoLocal}
                           />
                         </td>
                       </tr>
