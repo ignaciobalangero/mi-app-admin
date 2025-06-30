@@ -143,7 +143,7 @@ export default function FormularioCamposVenta({
         placeholder="Serie"
         className="p-2 border rounded w-full"
       />
-      {rol?.tipo === "admin" && (
+      
   <input
     type="number"
     name="precioCosto"
@@ -152,7 +152,7 @@ export default function FormularioCamposVenta({
     placeholder="Precio Costo"
     className="p-2 border rounded w-full"
   />
-)}
+
       <input
         type="number"
         name="precioVenta"

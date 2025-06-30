@@ -242,16 +242,16 @@ export default function FormularioStock({
             className="p-2 border rounded"
           />
           <div className="flex gap-2">
-          {rol?.tipo === "admin" && (
+         
          <input
            type="number"
            name="precioCompra"
            value={form.precioCompra}
            onChange={handleChange}
-           placeholder="Precio $"
+           placeholder="Precio Costo"
            className="p-2 border rounded w-full"
             />
-          )}
+          
              
             <select
               name="moneda"

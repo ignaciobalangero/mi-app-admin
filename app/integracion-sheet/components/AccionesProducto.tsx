@@ -1,4 +1,4 @@
-// Componente con botones Editar y Eliminar modelo - OPTIMIZADO
+// Componente con botones Editar y Eliminar modelo - CORREGIDO PARA SHEET
 "use client";
 
 import { useState } from "react";
@@ -41,7 +41,7 @@ export default function AccionesProducto({
   const [mensajeAdvertencia, setMensajeAdvertencia] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  // ✅ FUNCIÓN OPTIMIZADA - guardarCambios con actualización local
+  // ✅ FUNCIÓN CORREGIDA - guardarCambios que ACTUALIZA en lugar de AGREGAR
   const guardarCambios = async () => {
     setCargando(true);
     try {
@@ -94,23 +94,28 @@ export default function AccionesProducto({
         onActualizarLocal(producto.codigo, datosActualizados);
       }
 
-      // ✅ Sincronización con Sheet (en background)
+      // 🔧 SINCRONIZACIÓN CORREGIDA CON SHEET - USAR API DE ACTUALIZACIÓN
       try {
         console.log('🔄 Sincronizando producto individual con Google Sheet...');
-        console.log('📊 Datos que se van a enviar:', {
+        console.log('📊 Datos que se van a enviar para ACTUALIZAR:', {
           sheetID,
           hoja,
-          producto: {
-            codigo: producto.codigo,
-            categoria: producto.categoria || "Baterias",
+          codigo: producto.codigo,
+          datosActualizados: {
             modelo: formData.modelo,
             cantidad: formData.cantidad,
             precioARS: precio1Pesos,
             precioUSD: precio1,
+            proveedor: formData.proveedor,
+            precioCosto: formData.precioCosto,
+            precio1: formData.precio1,
+            precio2: formData.precio2,
+            precio3: formData.precio3,
           }
         });
         
-        const respuestaSheet = await fetch("/api/agregar-stock", {
+        // ✅ USAR TU API CORREGIDA: /api/actualizar-stock-sheet
+        const respuestaSheet = await fetch("/api/actualizar-stock-sheet", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -118,18 +123,14 @@ export default function AccionesProducto({
             hoja,
             producto: {
               codigo: producto.codigo,
-              categoria: producto.categoria || "Baterias",
+              categoria: producto.categoria || "modulos",
               modelo: formData.modelo,
               cantidad: formData.cantidad, // 🎯 LA CANTIDAD NUEVA (incluye 0)
-              precioARS: precio1Pesos,
               precioUSD: precio1,
-              proveedor: formData.proveedor,
-              precioCosto: formData.precioCosto,
-              precio1: formData.precio1,
-              precio2: formData.precio2,
-              precio3: formData.precio3,
+              cotizacion: cotizacion,
+              moneda: "USD"
             },
-            esActualizacion: true,
+            esActualizacion: true, // 🔑 ESTO HACE QUE USE actualizarPreciosEnSheet()
             permitirStockCero: true
           }),
         });
@@ -138,7 +139,7 @@ export default function AccionesProducto({
 
         if (respuestaSheet.ok) {
           const dataSheet = await respuestaSheet.json();
-          console.log("✅ Producto sincronizado con Google Sheet:", dataSheet);
+          console.log("✅ Producto actualizado en Google Sheet:", dataSheet);
         } else {
           const errorSheet = await respuestaSheet.json();
           console.error("❌ Error sincronizando con Sheet:", errorSheet);

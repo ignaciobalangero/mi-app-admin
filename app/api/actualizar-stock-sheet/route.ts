@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { agregarProductoASheet } from "@/app/api/lib/googleSheets";
+import { agregarProductoASheet, actualizarPreciosEnSheet } from "@/app/api/lib/googleSheets";
 
 export async function POST(req: Request) {
   try {
@@ -26,45 +26,70 @@ export async function POST(req: Request) {
       cantidad = 0; // Default solo si no se envió
     }
 
-    // ✅ Solo insertamos columnas necesarias en el sheet
-    const fila = [
-      producto.codigo || "",
-      producto.categoria || "",
-      producto.modelo || "",
-      cantidad, // 🎯 USAR LA VARIABLE CORREGIDA
-      precioARS,
-      precioUSD,
-    ];
-
-    console.log("🧾 Fila a insertar:", fila);
-    console.log(`🎯 Cantidad específica: ${cantidad} (tipo: ${typeof cantidad})`);
     console.log(`🔧 Es actualización: ${esActualizacion}, Permitir stock cero: ${permitirStockCero}`);
+    console.log(`🎯 Cantidad específica: ${cantidad} (tipo: ${typeof cantidad})`);
 
-    try {
-      // 🎯 LLAMAR CON SOLO 3 PARÁMETROS COMO ESPERA LA FUNCIÓN
+    // 🎯 CAMBIO PRINCIPAL: Usar función correcta según el tipo de operación
+    if (esActualizacion) {
+      // ✅ ACTUALIZAR fila existente (no agregar nueva)
+      console.log("🔄 Actualizando producto existente en Sheet...");
+      
+      const filaParaActualizar = {
+        codigo: producto.codigo || "",
+        categoria: producto.categoria || "",
+        modelo: producto.modelo || "",
+        cantidad: cantidad, // 🎯 USAR LA VARIABLE CORREGIDA
+        precioARS,
+        precioUSD,
+      };
+
+      console.log("🧾 Datos para actualizar:", filaParaActualizar);
+
+      await actualizarPreciosEnSheet(sheetID, hoja, [filaParaActualizar]);
+      
+      console.log("✅ Producto ACTUALIZADO exitosamente en Google Sheets");
+      console.log(`📊 Datos actualizados - Código: ${producto.codigo}, Cantidad: ${cantidad}`);
+      
+    } else {
+      // ✅ AGREGAR nueva fila
+      console.log("➕ Agregando nuevo producto al Sheet...");
+      
+      const fila = [
+        producto.codigo || "",
+        producto.categoria || "",
+        producto.modelo || "",
+        cantidad, // 🎯 USAR LA VARIABLE CORREGIDA
+        precioARS,
+        precioUSD,
+      ];
+
+      console.log("🧾 Fila a insertar:", fila);
+
       await agregarProductoASheet(sheetID, hoja, fila);
       
-      console.log("✅ Producto insertado/actualizado exitosamente en Google Sheets");
-      console.log(`📊 Datos enviados - Código: ${producto.codigo}, Cantidad: ${cantidad}`);
-      
-    } catch (err) {
-      console.error("❌ Error al insertar en Google Sheets:", err);
-      console.error("📊 Datos que causaron el error:", { fila, cantidad, esActualizacion });
-      return NextResponse.json({ 
-        error: "Error al insertar en Google Sheets", 
-        detalles: err.message,
-        datosEnviados: { cantidad, esActualizacion }
-      }, { status: 500 });
+      console.log("✅ Producto AGREGADO exitosamente en Google Sheets");
+      console.log(`📊 Datos insertados - Código: ${producto.codigo}, Cantidad: ${cantidad}`);
     }
 
     return NextResponse.json({ 
       ok: true, 
       mensaje: `Producto ${esActualizacion ? 'actualizado' : 'agregado'} exitosamente`,
-      cantidadFinal: cantidad
+      cantidadFinal: cantidad,
+      operacion: esActualizacion ? 'actualizar' : 'agregar'
     });
     
   } catch (error: any) {
     console.error("❌ Error general:", error);
-    return NextResponse.json({ error: "Error interno en el servidor" }, { status: 500 });
+    
+    // Log más detallado del error sin acceder a req.body directamente
+    console.error("📊 Contexto del error:", {
+      errorMessage: error.message,
+      stack: error.stack
+    });
+    
+    return NextResponse.json({ 
+      error: "Error interno en el servidor",
+      detalles: error.message
+    }, { status: 500 });
   }
 }
