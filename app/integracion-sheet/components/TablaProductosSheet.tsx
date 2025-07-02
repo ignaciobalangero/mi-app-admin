@@ -792,7 +792,7 @@ export default function TablaProductosSheet({
                     
                     return (
                       <tr
-                        key={i}
+                      key={fila.codigo}
                         className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
                           sinStock 
                             ? "bg-red-50" 
@@ -895,6 +895,7 @@ export default function TablaProductosSheet({
                         {/* Acciones */}
                         <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
                           <AccionesProducto
+                            key={`acciones-${fila.codigo}`}
                             producto={fila}
                             sheetID={sheetID}
                             hoja={hoja}

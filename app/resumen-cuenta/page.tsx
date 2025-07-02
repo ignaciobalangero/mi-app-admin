@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } fro
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import * as XLSX from "xlsx";
+import useCotizacion from "@/lib/hooks/useCotizacion";
 
 interface ResumenMensual {
   mes: string;
@@ -21,6 +22,7 @@ interface ResumenMensual {
 
 export default function ResumenCuenta() {
   const { rol } = useRol();
+  const { cotizacion } = useCotizacion(rol?.negocioID || "");
   const [resumenMensual, setResumenMensual] = useState<ResumenMensual[]>([]);
   const [mesSeleccionado, setMesSeleccionado] = useState<string>("");
   const [user] = useAuthState(auth);
@@ -31,27 +33,50 @@ export default function ResumenCuenta() {
 
     let fechaObj: Date;
 
-    if (typeof fecha === "object" && "seconds" in fecha) {
-      fechaObj = new Date(fecha.seconds * 1000);
-    } else if (fecha instanceof Date) {
-      fechaObj = fecha;
-    } else if (typeof fecha === "string") {
-      const partes = fecha.split("/");
-      if (partes.length === 3) {
-        const [dia, mes, anio] = partes;
-        fechaObj = new Date(`${anio}-${mes}-${dia}`);
+    try {
+      if (typeof fecha === "object" && "seconds" in fecha) {
+        fechaObj = new Date(fecha.seconds * 1000);
+        console.log("📅 Timestamp Firestore:", fecha.seconds, "→", fechaObj);
+      } else if (fecha instanceof Date) {
+        fechaObj = fecha;
+        console.log("📅 Date object:", fechaObj);
+      } else if (typeof fecha === "string") {
+        const partes = fecha.split("/");
+        if (partes.length === 3) {
+          let [dia, mes, anio] = partes;
+          
+          // 🔥 CORRECCIÓN: Asegurar formato correcto para Date()
+          fechaObj = new Date(
+            parseInt(anio), 
+            parseInt(mes) - 1, // ← Los meses en Date() van de 0-11
+            parseInt(dia)
+          );
+          
+          console.log("📅 String DD/MM/YYYY:", fecha, "partes:", {dia, mes, anio}, "→", fechaObj);
+        } else {
+          fechaObj = new Date(fecha);
+          console.log("📅 String genérica:", fecha, "→", fechaObj);
+        }
       } else {
-        fechaObj = new Date(fecha);
+        console.log("❌ Tipo de fecha no reconocido:", typeof fecha, fecha);
+        return null;
       }
-    } else {
+
+      if (isNaN(fechaObj.getTime())) {
+        console.log("❌ Fecha inválida:", fecha, "→", fechaObj);
+        return null;
+      }
+
+      const mes = fechaObj.getMonth() + 1;
+      const anio = fechaObj.getFullYear();
+      const resultado = `${mes < 10 ? "0" + mes : mes}/${anio}`;
+      
+      console.log("✅ Fecha procesada FINAL:", fecha, "→", resultado, "(mes:", mes, "año:", anio, ")");
+      return resultado;
+    } catch (error) {
+      console.log("❌ Error procesando fecha:", fecha, error);
       return null;
     }
-
-    if (isNaN(fechaObj.getTime())) return null;
-
-    const mes = fechaObj.getMonth() + 1;
-    const anio = fechaObj.getFullYear();
-    return `${mes < 10 ? "0" + mes : mes}/${anio}`;
   };
 
   useEffect(() => {
@@ -62,18 +87,47 @@ export default function ResumenCuenta() {
 
   useEffect(() => {
     const fetchDatos = async () => {
-      if (!negocioID || rol?.tipo !== "admin") return;
+      if (!negocioID || rol?.tipo !== "admin") {
+        console.log("❌ No se puede ejecutar fetchDatos:", { negocioID, rolTipo: rol?.tipo });
+        return;
+      }
 
-      // 🔥 CAMBIAR SOLO PARA AGREGAR COLECCIÓN DE VENTAS UNIFICADAS
+      console.log("🔍 DEBUG INICIAL:", {
+        negocioID: negocioID,
+        rolTipo: rol?.tipo,
+        cotizacion: cotizacion,
+        cotizacionTipo: typeof cotizacion
+      });
+
+      // ❌ NO usar cotización por defecto, esperar la real
+      if (!cotizacion || cotizacion <= 0) {
+        console.log("⏳ Esperando cotización válida...", cotizacion);
+        return;
+      }
+
+      console.log("✅ Iniciando procesamiento con cotización:", cotizacion);
+
+      // OBTENER DATOS DE FIREBASE
       const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
       const ventasSnap = await getDocs(collection(db, `negocios/${negocioID}/ventasGeneral`));
+      const telefonosSnap = await getDocs(collection(db, `negocios/${negocioID}/ventaTelefonos`));
 
       const resumen: Record<string, ResumenMensual> = {};
 
-      // ✅ TRABAJOS - Sin cambios
-      trabajosSnap.forEach((doc) => {
+      // ✅ TRABAJOS - Con debug
+      console.log("🔧 === PROCESANDO TRABAJOS ===");
+      trabajosSnap.docs.forEach((doc, index) => {
         const d = doc.data();
         const key = obtenerMesAnio(d.fecha);
+        
+        console.log(`📋 Trabajo ${index + 1} [${doc.id}]:`, {
+          fecha: d.fecha,
+          fechaProcesada: key,
+          estado: d.estado,
+          precio: d.precio,
+          costo: d.costo,
+          cumpleCondiciones: (d.estado === "ENTREGADO" || d.estado === "PAGADO") && d.precio != null && key
+        });
       
         if (
           (d.estado === "ENTREGADO" || d.estado === "PAGADO") &&
@@ -81,66 +135,103 @@ export default function ResumenCuenta() {
           key
         ) {
           if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
-        
-          resumen[key].trabajos += Number(d.precio) - Number(d.costo || 0);
+          
+          const ganancia = Number(d.precio) - Number(d.costo || 0);
+          resumen[key].trabajos += ganancia;
+          
+          console.log(`✅ Trabajo AGREGADO: ${ganancia}. Total trabajos: ${resumen[key].trabajos}`);
+        } else {
+          console.log(`❌ Trabajo NO cumple condiciones`);
         }
       });
 
-      // ✅ MANTENER LÓGICA ORIGINAL DE TELÉFONOS (que funcionaba bien)
-      const telefonosSnap = await getDocs(collection(db, `negocios/${negocioID}/ventaTelefonos`));
+      // ✅ VENTA TELEFONOS - Deshabilitado para evitar duplicados
+      console.log("📱 === PROCESANDO VENTA TELÉFONOS ===");
+      console.log("⚠️ DESHABILITADO para evitar duplicados con ventasGeneral");
       
-      telefonosSnap.forEach((doc) => {
-        const d = doc.data();
-        const key = obtenerMesAnio(d.fecha);
+      // telefonosSnap.docs.forEach((doc, index) => {
+      //   const d = doc.data();
+      //   const key = obtenerMesAnio(d.fecha);
         
-        if (d.precioVenta && d.precioCosto && key) {
-          if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
+      //   console.log(`📱 Teléfono ${index + 1} [${doc.id}]:`, {
+      //     fecha: d.fecha,
+      //     fechaProcesada: key,
+      //     precioVenta: d.precioVenta,
+      //     precioCosto: d.precioCosto,
+      //     moneda: d.moneda,
+      //     cotizacion: d.cotizacion,
+      //     cumpleCondiciones: d.precioVenta && d.precioCosto && key
+      //   });
+        
+      //   if (d.precioVenta && d.precioCosto && key) {
+      //     if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
           
-          const ganancia = Number(d.precioVenta) - Number(d.precioCosto);
+      //     const ganancia = Number(d.precioVenta) - Number(d.precioCosto);
           
-          if (d.moneda === "USD") {
-            // Guardar ganancia en USD
-            resumen[key].telefonosUSD += ganancia;
-            
-            // También convertir a pesos para el total general (si hay cotización)
-            if (d.cotizacion) {
-              const gananciaPesos = ganancia * Number(d.cotizacion);
-              resumen[key].telefonos += gananciaPesos;
-            } else {
-              // Si no hay cotización, asumir que está ya en pesos
-              resumen[key].telefonos += ganancia;
-            }
-          } else {
-            // Ganancia en ARS
-            resumen[key].telefonosARS += ganancia;
-            resumen[key].telefonos += ganancia;
-          }
-        }
-      });
+      //     if (d.moneda === "USD") {
+      //       resumen[key].telefonosUSD += ganancia;
+      //       console.log(`📱 Teléfono USD AGREGADO: ${ganancia}. Total USD: ${resumen[key].telefonosUSD}`);
+      //     } else {
+      //       resumen[key].telefonosARS += ganancia;
+      //       console.log(`📱 Teléfono ARS AGREGADO: ${ganancia}. Total ARS: ${resumen[key].telefonosARS}`);
+      //     }
+      //   } else {
+      //     console.log(`❌ Teléfono NO cumple condiciones`);
+      //   }
+      // });
 
-      // 🔥 NUEVA LÓGICA SOLO PARA ACCESORIOS/REPUESTOS DE VENTAS UNIFICADAS
-      ventasSnap.forEach((doc) => {
+      // ✅ VENTAS GENERALES - Con cotización real
+      console.log("🛍️ === PROCESANDO VENTAS GENERALES ===");
+      console.log("💰 Cotización real:", cotizacion);
+      
+      ventasSnap.docs.forEach((doc) => {
         const d = doc.data();
         const key = obtenerMesAnio(d.fecha);
         
         if (!d.productos || !Array.isArray(d.productos) || !key) return;
 
-        // Procesar cada producto de la venta
-        d.productos.forEach((producto: any) => {
+        d.productos.forEach((producto: any, index: number) => {
           if (!resumen[key]) resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0, telefonosUSD: 0, telefonosARS: 0 };
           
-          // Solo procesar productos que tengan ganancia calculada
           if (producto.ganancia !== undefined && producto.ganancia !== null) {
             const ganancia = Number(producto.ganancia);
             
-            // 🎧 SOLO CLASIFICAR ACCESORIOS/REPUESTOS (NO TELÉFONOS)
-            const esTeléfono = producto.categoria === "Teléfono" || producto.tipo === "telefono";
+            const esTeléfono = producto.categoria === "Teléfono" || 
+                              producto.tipo === "telefono" ||
+                              producto.categoria?.toLowerCase().includes("telefono") ||
+                              producto.producto?.toLowerCase().includes("iphone") ||
+                              producto.modelo?.toLowerCase().includes("iphone");
             
-            if (!esTeléfono) {
-              // Es un accesorio/repuesto - sumarlo a accesorios
-              resumen[key].accesorios += ganancia;
+            console.log(`📦 Producto ${index + 1}:`, {
+              producto: producto.producto || producto.modelo,
+              categoria: producto.categoria,
+              ganancia: ganancia,
+              moneda: producto.moneda,
+              esTeléfono: esTeléfono,
+              cotizacion: cotizacion
+            });
+            
+            if (esTeléfono) {
+              if (producto.moneda === "USD") {
+                resumen[key].telefonosUSD += ganancia;
+                console.log(`📱 Teléfono USD: +${ganancia}. Total: ${resumen[key].telefonosUSD}`);
+              } else {
+                resumen[key].telefonosARS += ganancia;
+                console.log(`📱 Teléfono ARS: +${ganancia}. Total: ${resumen[key].telefonosARS}`);
+              }
+            } else {
+              // 🎧 ACCESORIO - CONVERTIR USD A ARS
+              if (producto.moneda === "USD") {
+                const gananciaARS = ganancia * cotizacion;
+                resumen[key].accesorios += gananciaARS;
+                console.log(`🎧 Accesorio USD→ARS: ${ganancia} × ${cotizacion} = ${gananciaARS}. Total: ${resumen[key].accesorios}`);
+              } else {
+                resumen[key].accesorios += ganancia;
+                console.log(`🎧 Accesorio ARS: +${ganancia}. Total: ${resumen[key].accesorios}`);
+              }
             }
-            // Los teléfonos se ignoran aquí porque se procesan arriba con la lógica original
+          } else {
+            console.log(`⚠️ Producto SIN ganancia:`, producto);
           }
         });
       });
@@ -151,16 +242,15 @@ export default function ResumenCuenta() {
     };
 
     fetchDatos();
-  }, [negocioID, rol]);
+  }, [negocioID, rol, cotizacion]); // ✅ Agregar cotizacion como dependencia
 
   const exportarExcel = () => {
     const datos = resumenMensual.map((r) => ({
       Mes: r.mes,
       "Ganancia Trabajos": r.trabajos,
       "Ganancia Accesorios": r.accesorios,
-      "Ganancia Teléfonos (Total ARS)": r.telefonos,
-      "Ganancia Teléfonos USD": r.telefonosUSD,
       "Ganancia Teléfonos ARS": r.telefonosARS,
+      "Ganancia Teléfonos USD": r.telefonosUSD,
     }));
     const ws = XLSX.utils.json_to_sheet(datos);
     const wb = XLSX.utils.book_new();
@@ -169,15 +259,14 @@ export default function ResumenCuenta() {
   };
 
   const seleccionado = resumenMensual.find((r) => r.mes === mesSeleccionado);
-  const totalMes = seleccionado ? seleccionado.trabajos + seleccionado.accesorios + seleccionado.telefonos : 0;
+  const totalMesARS = seleccionado ? seleccionado.trabajos + seleccionado.accesorios + seleccionado.telefonosARS : 0;
   const totalMesUSD = seleccionado ? seleccionado.telefonosUSD : 0;
 
-  // Datos para el gráfico con formato mejorado
   const datosGrafico = seleccionado ? [{
     mes: seleccionado.mes,
     Trabajos: Math.round(seleccionado.trabajos),
     Accesorios: Math.round(seleccionado.accesorios), 
-    Teléfonos: Math.round(seleccionado.telefonos || 0)
+    Teléfonos: Math.round(seleccionado.telefonosARS || 0)
   }] : [];
 
   return (
@@ -268,29 +357,25 @@ export default function ResumenCuenta() {
                     </div>
                   </div>
 
-                  {/* TARJETA DE TELÉFONOS MEJORADA CON SEPARACIÓN POR MONEDA */}
                   <div className="bg-gradient-to-r from-[#fdebd0] to-[#fadbd8] rounded-2xl p-4 border-2 border-[#e67e22] shadow-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <p className="text-xs font-semibold text-[#e67e22]">Teléfonos</p>
                         
-                        {/* Si hay ganancias en USD, mostrar USD */}
                         {seleccionado.telefonosUSD > 0 && (
-                          <p className="text-xl font-bold text-[#e67e22]">
+                          <p className="text-lg font-bold text-[#e67e22]">
                             USD ${seleccionado.telefonosUSD.toLocaleString("es-AR")}
                           </p>
                         )}
                         
-                        {/* Si hay ganancias en ARS, mostrar ARS */}
                         {seleccionado.telefonosARS > 0 && (
-                          <p className="text-xl font-bold text-[#e67e22]">
+                          <p className="text-lg font-bold text-[#e67e22]">
                             ARS ${seleccionado.telefonosARS.toLocaleString("es-AR")}
                           </p>
                         )}
                         
-                        {/* Si no hay ninguna ganancia, mostrar $0 */}
                         {seleccionado.telefonosUSD === 0 && seleccionado.telefonosARS === 0 && (
-                          <p className="text-xl font-bold text-[#e67e22]">
+                          <p className="text-lg font-bold text-[#e67e22]">
                             $0
                           </p>
                         )}
@@ -303,7 +388,6 @@ export default function ResumenCuenta() {
                 </div>
               )}
 
-              {/* TARJETAS DE TOTAL */}
               {seleccionado && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-gradient-to-r from-[#f8f9fa] to-[#ecf0f1] rounded-2xl p-4 border-2 border-[#7f8c8d] shadow-lg">
@@ -311,7 +395,7 @@ export default function ResumenCuenta() {
                       <div>
                         <p className="text-sm font-semibold text-[#7f8c8d]">TOTAL MES (en pesos)</p>
                         <p className="text-xl font-bold text-[#2c3e50]">
-                          ${totalMes.toLocaleString("es-AR")}
+                          ${totalMesARS.toLocaleString("es-AR")}
                         </p>
                       </div>
                       <div className="w-12 h-12 bg-[#7f8c8d]/20 rounded-full flex items-center justify-center">
@@ -320,7 +404,6 @@ export default function ResumenCuenta() {
                     </div>
                   </div>
 
-                  {/* TARJETA TOTAL EN USD */}
                   <div className="bg-gradient-to-r from-[#fff9e6] to-[#fff2cc] rounded-2xl p-4 border-2 border-[#f39c12] shadow-lg">
                     <div className="flex items-center justify-between">
                       <div>
@@ -337,7 +420,6 @@ export default function ResumenCuenta() {
                 </div>
               )}
 
-              {/* SOLO EL GRÁFICO */}
               <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-[#9b59b6] rounded-xl flex items-center justify-center">
@@ -387,7 +469,7 @@ export default function ResumenCuenta() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">
-                      <strong>Tip:</strong> Las ganancias se calculan restando el costo del precio de venta. Los teléfonos muestran valores separados por moneda (USD/ARS). El gráfico y total general están expresados en pesos argentinos. Los datos se obtienen de la colección unificada de ventas.
+                      <strong>Resumen:</strong> Trabajos, accesorios y teléfonos ARS se muestran en pesos. Teléfonos USD se mantienen en dólares. Los totales están separados por moneda.
                     </p>
                   </div>
                 </div>

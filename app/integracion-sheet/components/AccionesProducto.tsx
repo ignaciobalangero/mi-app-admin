@@ -1,7 +1,7 @@
 // Componente con botones Editar y Eliminar modelo - CORREGIDO PARA SHEET
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { useRol } from "@/lib/useRol";
@@ -24,22 +24,48 @@ export default function AccionesProducto({
 }) {
   const { rol } = useRol();
   const [editando, setEditando] = useState(false);
-  const [formData, setFormData] = useState({
-    modelo: producto.modelo || "",
-    cantidad: producto.cantidad || 0,
-    proveedor: producto.proveedor || "",
-    precioCosto: producto.precioCosto || 0,
-    stockMinimo: producto.stockMinimo || 0,
-    stockIdeal: producto.stockIdeal || 0,
-    precio1: producto.precio1 || 0,
-    precio2: producto.precio2 || 0,
-    precio3: producto.precio3 || 0,
-  });  
+  
+  // 🔧 FUNCIÓN PARA INICIALIZAR formData
+  const inicializarFormData = (prod: any) => ({
+    modelo: prod.modelo || "",
+    cantidad: prod.cantidad || 0,
+    proveedor: prod.proveedor || "",
+    precioCosto: prod.precioCosto || 0,
+    stockMinimo: prod.stockMinimo || 0,
+    stockIdeal: prod.stockIdeal || 0,
+    precio1: prod.precio1 || 0,
+    precio2: prod.precio2 || 0,
+    precio3: prod.precio3 || 0,
+  });
+
+  const [formData, setFormData] = useState(inicializarFormData(producto));
   const [mensaje, setMensaje] = useState("");
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
   const [mostrarAdvertencia, setMostrarAdvertencia] = useState(false);
   const [mensajeAdvertencia, setMensajeAdvertencia] = useState("");
   const [cargando, setCargando] = useState(false);
+
+  // 🎯 SOLUCIÓN PRINCIPAL: Actualizar formData cuando cambie el producto
+  useEffect(() => {
+    console.log('🔄 Producto cambió en AccionesProducto:', {
+      codigo: producto.codigo,
+      modelo: producto.modelo,
+      formDataAnterior: formData.modelo
+    });
+    
+    // Solo actualizar si no está editando (para no perder cambios del usuario)
+    if (!editando) {
+      setFormData(inicializarFormData(producto));
+    }
+  }, [producto.codigo, producto.modelo, producto.cantidad]);
+
+  // 🔧 FUNCIÓN PARA ABRIR MODAL
+  const abrirModal = () => {
+    console.log('📝 Abriendo modal para editar:', producto.codigo, producto.modelo);
+    setFormData(inicializarFormData(producto));
+    setEditando(true);
+    setMensaje("");
+  };
 
   // ✅ FUNCIÓN CORREGIDA - guardarCambios que ACTUALIZA en lugar de AGREGAR
   const guardarCambios = async () => {
@@ -250,7 +276,7 @@ export default function AccionesProducto({
       {/* Botones de acciones */}
       <div className="flex flex-col gap-1 w-full">
         <button
-          onClick={() => setEditando(true)}
+          onClick={abrirModal}
           className="bg-gradient-to-r from-[#f39c12] to-[#e67e22] hover:from-[#e67e22] hover:to-[#d35400] text-white px-2 py-1 rounded-lg text-xs font-medium transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 flex items-center justify-center gap-1"
         >
           <span>✏️</span>
@@ -279,6 +305,7 @@ export default function AccionesProducto({
                 <div>
                   <h2 className="text-lg lg:text-xl font-bold">Editar Modelo</h2>
                   <p className="text-orange-100 text-sm">Código: {producto.codigo} • Hoja: {hoja}</p>
+                  <p className="text-orange-100 text-xs">Modelo: {producto.modelo}</p>
                 </div>
               </div>
             </div>

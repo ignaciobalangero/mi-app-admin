@@ -119,7 +119,7 @@ export default function TablaTrabajos({
             <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
               <tr>
                 {/* Fecha - Siempre visible */}
-                <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[60px] sm:min-w-[80px] md:min-w-[100px]">
+                <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[65px] sm:min-w-[70px] md:min-w-[75px] max-w-[80px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">📅</span>
                     <span className="hidden sm:inline text-xs">Fecha</span>
@@ -127,7 +127,7 @@ export default function TablaTrabajos({
                 </th>
                 
                 {/* Cliente - Siempre visible */}
-                <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[80px] sm:min-w-[100px] md:min-w-[120px]">
+                <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[80px] sm:min-w-[90px] md:min-w-[100px] max-w-[120px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">👤</span>
                     <span className="text-xs">Cliente</span>
@@ -151,8 +151,8 @@ export default function TablaTrabajos({
                 </th>
                 
                 {/* Trabajo - Siempre visible */}
-                <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[100px] sm:min-w-[120px] md:min-w-[150px]">
-                  <div className="flex items-center gap-1">
+                <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[100px] sm:min-w-[110px] md:min-w-[130px] max-w-[150px]">
+                    <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">🔧</span>
                     <span className="text-xs">Trabajo</span>
                   </div>
@@ -170,7 +170,7 @@ export default function TablaTrabajos({
                 <th className="hidden md:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[60px] md:w-[80px] max-w-[80px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">📝</span>
-                    <span className="text-xs">Obs</span>
+                    <span className="text-xs">Observaciones</span>
                   </div>
                 </th>
                 
@@ -191,15 +191,15 @@ export default function TablaTrabajos({
                 </th>
                 
                 {/* Fecha Modificación - Oculto en móvil y tablet */}
-                <th className="hidden lg:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[60px] md:min-w-[80px]">
+                <th className="hidden md:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[60px] md:w-[80px] max-w-[80px]">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs sm:text-sm">📅</span>
-                    <span className="text-xs">F.Mod</span>
+                    <span className="text-xs sm:text-sm">📝</span>
+                    <span className="text-xs">Obs</span>
                   </div>
                 </th>
                 
                 {/* Acciones - Mantener compacto en móvil, más ancho en desktop */}
-<th className="p-1 sm:p-2 md:p-3 text-center text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[120px] sm:w-[130px] md:w-[140px] lg:w-[180px]">
+              <th className="p-1 sm:p-2 md:p-3 text-center text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[120px] sm:w-[130px] md:w-[140px] lg:w-[180px]">
                   <div className="flex items-center justify-center gap-1">
                     <span className="text-xs sm:text-sm">⚙️</span>
                     <span className="hidden sm:inline text-xs">Acciones</span>
@@ -218,18 +218,18 @@ export default function TablaTrabajos({
                   >
                     
                     {/* Fecha */}
-                    <td className="p-1 sm:p-2 md:p-3 border border-black">
-                      <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fecha}>
-                        {t.fecha}
-                      </span>
-                    </td>
+                    <td className="p-1 sm:p-1.5 md:p-2 border border-black max-w-[85px]">
+  <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fecha}>
+    {t.fecha}
+  </span>
+</td>
                     
                     {/* Cliente */}
-                    <td className="p-1 sm:p-2 md:p-3 border border-black">
+                    <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[120px]">
                       <span className="text-xs truncate block font-medium" title={t.cliente}>
-                        {t.cliente}
-                      </span>
-                    </td>
+                       {t.cliente}
+                       </span>
+                        </td>
                     
                     {/* Modelo */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
@@ -240,16 +240,42 @@ export default function TablaTrabajos({
                     
                     {/* IMEI - Oculto en móvil */}
                     <td className="hidden sm:table-cell p-1 sm:p-2 md:p-3 border border-black">
-                      <span className="text-xs font-mono bg-[#ecf0f1] px-1 py-1 rounded truncate block" title={t.imei || "—"}>
-                        {t.imei ? t.imei.slice(-4) : "—"}
+                    {t.imei ? (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(t.imei);
+                            // Puedes agregar un mensaje temporal aquí si quieres
+                            console.log(`📋 IMEI copiado: ${t.imei}`);
+                          } catch (error) {
+                            console.error("Error al copiar IMEI:", error);
+                          }
+                        }}
+                        className="text-xs font-mono bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
+                        title={`IMEI completo: ${t.imei} (Click para copiar)`}
+                        onMouseEnter={(e) => {
+                          // Mostrar IMEI completo en hover
+                          e.currentTarget.textContent = t.imei;
+                        }}
+                        onMouseLeave={(e) => {
+                          // Volver a mostrar solo los últimos 4
+                          e.currentTarget.textContent = `...${t.imei.slice(-4)}`;
+                        }}
+                      >
+                        ...{t.imei.slice(-4)}
+                      </button>
+                    ) : (
+                      <span className="text-xs font-mono bg-[#ecf0f1] px-1 py-1 rounded block text-center">
+                        —
                       </span>
-                    </td>
+                    )}
+                  </td>
                     
                     {/* Trabajo */}
-                    <td className="p-1 sm:p-2 md:p-3 border border-black">
-                      <span className="text-xs truncate block" title={t.trabajo}>
-                        {t.trabajo}
-                      </span>
+                    <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[150px]">
+                    <span className="text-xs truncate block" title={t.trabajo}>
+                      {t.trabajo}
+                    </span>
                     </td>
                     
                     {/* Clave - Oculto en móvil y tablet */}
@@ -260,10 +286,10 @@ export default function TablaTrabajos({
                     </td>
                     
                     {/* Observaciones - Oculto en móvil, texto muy corto */}
-                    <td className="hidden md:table-cell p-1 sm:p-2 md:p-3 border border-black w-[60px] md:w-[80px] max-w-[80px]">
-                      <span className="text-xs truncate block overflow-hidden" title={t.observaciones || "—"}>
-                        {t.observaciones ? (t.observaciones.length > 5 ? t.observaciones.substring(0, 5) + "..." : t.observaciones) : "—"}
-                      </span>
+                    <td className="hidden md:table-cell p-1 sm:p-2 md:p-3 border border-black min-w-[120px] max-w-[200px]">
+                    <div className="text-xs break-words" title={t.observaciones || "—"}>
+                      {t.observaciones || "—"}
+                      </div>
                     </td>
                     
                     {/* Precio */}
@@ -296,11 +322,11 @@ export default function TablaTrabajos({
                     </td>
                     
                     {/* Fecha Modificación - Oculto en móvil y tablet */}
-                    <td className="hidden lg:table-cell p-1 sm:p-2 md:p-3 border border-black">
-                      <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate">
-                        {t.fechaModificacion || "—"}
-                      </span>
-                    </td>
+                    <td className="hidden lg:table-cell p-1 sm:p-1.5 md:p-2 border border-black max-w-[80px]">
+                    <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate">
+                      {t.fechaModificacion || "—"}
+                    </span>
+                  </td>
                     
                     {/* Acciones - Compacto en móvil, espacioso en desktop */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black w-[120px] sm:w-[130px] md:w-[140px] lg:w-[180px]">

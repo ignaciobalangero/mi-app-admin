@@ -23,6 +23,7 @@ export default function ClienteDetalle() {
   const [trabajos, setTrabajos] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
   const [ventas, setVentas] = useState<any[]>([]);
+  const [mostrarPagos, setMostrarPagos] = useState(false);
   const [mostrarVentas, setMostrarVentas] = useState(false);
   const [generandoPDF, setGenerandoPDF] = useState(false);
 
@@ -67,6 +68,20 @@ export default function ClienteDetalle() {
       console.log("📋 Trabajos:", trabajosData);
       console.log("💰 Pagos:", pagosData);
       console.log("🛍️ Ventas:", ventasData);
+      
+      // 🔍 DEBUG ESPECÍFICO PARA PAGOS
+      if (pagosData.length > 0) {
+        console.log("🔍 Estructura de pagos:");
+        pagosData.forEach((pago, index) => {
+          console.log(`💳 Pago ${index + 1}:`, {
+            moneda: pago.moneda,
+            monto: pago.monto,
+            montoUSD: pago.montoUSD,
+            estructura: Object.keys(pago),
+            datoCompleto: pago
+          });
+        });
+      }
       
       if (ventasData.length > 0) {
         console.log("🔍 Estructura de primera venta:", JSON.stringify(ventasData[0], null, 2));
@@ -136,10 +151,10 @@ export default function ClienteDetalle() {
       }
     });
 
-    // Calcular totales de pagos CORREGIDO
+    // Calcular totales de pagos
     pagos.forEach(p => {
       if (p.moneda === "USD") {
-        totalPagosUSD += Number(p.montoUSD || p.monto || 0); // 🎯 USAR montoUSD PARA USD
+        totalPagosUSD += Number(p.montoUSD || 0);  // 👈 CORRECTO
       } else {
         totalPagosARS += Number(p.monto || 0);
       }
@@ -304,40 +319,26 @@ export default function ClienteDetalle() {
                 ← Volver a Clientes
               </button>
 
-              <div className="flex gap-4">
-                <button
-                  onClick={() => router.push(`/clientes/${encodeURIComponent(nombreCliente)}/pagos`)}
-                  className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#2ecc71] hover:to-[#27ae60] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
-                >
-                  💳 Ver Pagos
-                  {pagos.length > 0 && (
-                    <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full">
-                      {pagos.length}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={generarPDF}
-                  disabled={generandoPDF}
-                  className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 ${
-                    generandoPDF
-                      ? "bg-[#bdc3c7] text-[#7f8c8d] cursor-not-allowed"
-                      : "bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white"
-                  }`}
-                >
-                  {generandoPDF ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Generando...
-                    </>
-                  ) : (
-                    <>
-                      📄 Generar PDF
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                onClick={generarPDF}
+                disabled={generandoPDF}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 ${
+                  generandoPDF
+                    ? "bg-[#bdc3c7] text-[#7f8c8d] cursor-not-allowed"
+                    : "bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white"
+                }`}
+              >
+                {generandoPDF ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    📄 Generar PDF
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
@@ -447,6 +448,19 @@ export default function ClienteDetalle() {
                 {ventas.length > 0 && (
                   <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full">
                     {ventas.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setMostrarPagos(!mostrarPagos)}
+                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#2ecc71] hover:to-[#27ae60] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+              >
+                <span>{mostrarPagos ? "👁️‍🗨️" : "👁️"}</span>
+                {mostrarPagos ? "Ocultar Pagos" : "Mostrar Pagos"}
+                {pagos.length > 0 && (
+                  <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full">
+                    {pagos.length}
                   </span>
                 )}
               </button>
@@ -592,6 +606,111 @@ export default function ClienteDetalle() {
                               <span className="text-3xl">🛍️</span>
                             </div>
                             <p className="text-lg font-medium text-[#7f8c8d]">No hay ventas registradas</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Tabla de pagos */}
+          {mostrarPagos && (
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1] mb-8">
+              
+              <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">💳</span>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold">Pagos Realizados</h3>
+                    <p className="text-green-100 mt-1">
+                      {pagos.length} {pagos.length === 1 ? 'pago registrado' : 'pagos registrados'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] border-collapse border-2 border-black">
+                  <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
+                    <tr>
+                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">📅</span>
+                          Fecha
+                        </div>
+                      </th>
+                      <th className="p-3 text-right text-sm font-semibold text-[#2c3e50] border border-black">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-base">💵</span>
+                          Monto
+                        </div>
+                      </th>
+                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">💱</span>
+                          Moneda
+                        </div>
+                      </th>
+                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">💳</span>
+                          Forma
+                        </div>
+                      </th>
+                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🎯</span>
+                          Destino
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagos.length > 0 ? (
+                      pagos.map((p, i) => {
+                        const isEven = i % 2 === 0;
+                        return (
+                          <tr key={i} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
+                            <td className="p-3 border border-black">
+                              <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                                {p.fecha}
+                              </span>
+                            </td>
+                            <td className="p-3 border border-black text-right">
+                            <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
+                                {p.moneda === "USD" 
+                                 ? `US$ ${Number(p.montoUSD || 0).toLocaleString("es-AR")}`
+                                 : `$ ${Number(p.monto || 0).toLocaleString("es-AR")}`
+                                   }   
+                              </span>
+                            </td>
+                            <td className="p-3 border border-black">
+                              <span className="text-sm text-[#2c3e50] bg-[#3498db]/10 px-2 py-1 rounded font-mono">
+                                {p.moneda || "ARS"}
+                              </span>
+                            </td>
+                            <td className="p-3 border border-black">
+                              <span className="text-sm text-[#2c3e50]">{p.forma}</span>
+                            </td>
+                            <td className="p-3 border border-black">
+                              <span className="text-sm text-[#7f8c8d]">{p.destino}</span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="p-12 text-center border border-black">
+                          <div className="flex flex-col items-center gap-4">
+                            <div className="w-16 h-16 bg-[#ecf0f1] rounded-2xl flex items-center justify-center">
+                              <span className="text-3xl">💳</span>
+                            </div>
+                            <p className="text-lg font-medium text-[#7f8c8d]">No hay pagos registrados</p>
                           </div>
                         </td>
                       </tr>

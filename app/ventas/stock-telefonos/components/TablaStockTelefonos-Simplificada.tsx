@@ -81,7 +81,7 @@ export default function TablaStockTelefonos({
       Modelo: t.modelo,
       Marca: t.marca,
       Estado: t.estado,
-      Bateria: t.estado === "Usado" ? `${t.bateria}%` : "-",
+      Bateria: t.estado?.toLowerCase() === "usado" ? `${t.bateria || 0}%` : "-",
       Almacenamiento: t.gb,
       Color: t.color,
       IMEI: t.imei,
@@ -310,7 +310,7 @@ export default function TablaStockTelefonos({
       )}
 
       {/* Controles de la tabla */}
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-lg md:shadow-xl border border-gray-200 p-3 sm:p-4 md:p-6">
         <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
           <div className="flex flex-col md:flex-row gap-4 flex-1">
             <div className="relative flex-1">
@@ -349,19 +349,19 @@ export default function TablaStockTelefonos({
             </button>
 
             <button
-              onClick={exportarExcel}
-              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+            onClick={exportarExcel}
+            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-3 sm:px-4 md:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
             >
-              📊 Descargar Excel
+            📊 <span className="hidden sm:inline">Descargar</span> Excel
             </button>
           </div>
         </div>
       </div>
 
       {/* Tabla principal */}
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
-          <h3 className="text-xl font-bold flex items-center gap-3">
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-lg md:shadow-xl overflow-hidden border border-gray-200">
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-3 sm:p-4 md:p-6">
+      <h3 className="text-sm sm:text-lg md:text-xl font-bold flex items-center gap-2 sm:gap-3">
             📱 Stock de Teléfonos
             <span className="text-lg font-normal">
               {ordenarPorModelo ? '(Ordenado por Modelo)' : '(Ordenado por Fecha)'}
@@ -376,7 +376,7 @@ export default function TablaStockTelefonos({
           <table className="w-full border-collapse">
             <thead className="bg-gradient-to-r from-gray-100 to-gray-200">
               <tr>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-24">
+              <th className="p-1 sm:p-2 md:p-3 text-left text-xs sm:text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 min-w-[60px] sm:min-w-[70px] md:min-w-[80px] max-w-[85px]">
                   📅 Fecha
                 </th>
                 <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-32">
@@ -385,7 +385,7 @@ export default function TablaStockTelefonos({
                 <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-40">
                   📱 Modelo
                 </th>
-                <th className="p-3 text-left text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-24">
+                <th className="p-1 sm:p-2 md:p-3 text-left text-xs sm:text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 min-w-[60px] sm:min-w-[70px] md:min-w-[80px] max-w-[85px]">
                   🏷️ Marca
                 </th>
                 <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-24">
@@ -466,7 +466,7 @@ export default function TablaStockTelefonos({
                           : isEven ? 'bg-white hover:bg-purple-50' : 'bg-gray-50 hover:bg-purple-50'
                       }`}
                     >
-                      <td className="p-2 border border-gray-300 text-xs" style={{minWidth: '80px'}}>
+                      <td className="p-1 sm:p-2 border border-gray-300 text-xs" style={{minWidth: '60px', maxWidth: '80px'}}>
                         <span className="font-medium text-gray-800">
                           {typeof t.fechaIngreso === "string"
                             ? t.fechaIngreso
@@ -479,7 +479,7 @@ export default function TablaStockTelefonos({
                       <td className="p-2 border border-gray-300" style={{minWidth: '120px'}}>
                         <div className="font-medium text-gray-800 text-xs truncate">{t.modelo}</div>
                       </td>
-                      <td className="p-2 border border-gray-300 text-xs" style={{minWidth: '80px'}}>
+                      <td className="p-1 sm:p-2 border border-gray-300 text-xs" style={{minWidth: '60px', maxWidth: '80px'}}>
                         <span className="text-gray-700 truncate block">{t.marca || "-"}</span>
                       </td>
                       <td className="p-2 border border-gray-300 text-center" style={{minWidth: '100px'}}>
@@ -527,19 +527,27 @@ export default function TablaStockTelefonos({
                           <span className="text-xs text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="p-2 border border-gray-300" style={{minWidth: '120px'}}>
+                      <td className="p-1 sm:p-2 border border-gray-300" style={{minWidth: '80px', maxWidth: '100px'}}>
                         {t.serial ? (
-                          <button
+                            <button
                             onClick={() => copiarAlPortapapeles(t.serial)}
-                            className="text-xs font-mono text-blue-600 hover:text-blue-800 hover:underline cursor-pointer w-full text-left truncate"
-                            title={`Click para copiar: ${t.serial}`}
-                          >
-                            {t.serial}
-                          </button>
+                            className="text-xs font-mono bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
+                            title={`Serial completo: ${t.serial} (Click para copiar)`}
+                            onMouseEnter={(e) => {
+                                // Mostrar serial completo en hover
+                                e.currentTarget.textContent = t.serial;
+                            }}
+                            onMouseLeave={(e) => {
+                                // Volver a mostrar solo los últimos 4
+                                e.currentTarget.textContent = `...${t.serial.slice(-4)}`;
+                            }}
+                            >
+                            ...{t.serial.slice(-4)}
+                            </button>
                         ) : (
-                          <span className="text-xs text-gray-400">-</span>
+                            <span className="text-xs font-mono bg-[#ecf0f1] px-1 py-1 rounded block text-center">-</span>
                         )}
-                      </td>
+                        </td>
                       {rol?.tipo === "admin" && (
                         <td className="p-2 border border-gray-300 text-right text-xs" style={{minWidth: '80px'}}>
                           <span className="font-medium text-gray-700 whitespace-nowrap">

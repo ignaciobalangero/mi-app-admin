@@ -89,7 +89,7 @@ export default function StockTelefonosPage() {
     <>
       <Header />
       <main className="pt-20 pb-10 bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 min-h-screen text-black w-full">
-        <div className="w-full px-6 max-w-[1600px] mx-auto space-y-8">
+      <div className="w-full px-2 sm:px-4 md:px-6 max-w-[1800px] mx-auto space-y-4 sm:space-y-6 md:space-y-8">
           
           {/* Header principal */}
           <div className="text-center space-y-4">
@@ -107,19 +107,19 @@ export default function StockTelefonosPage() {
           </div>
 
           {/* Tarjetas de resumen financiero */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4 md:gap-6">
             {/* Total Dólares */}
             {rol?.tipo === "admin" && (
-            <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
-              <div className="flex items-center justify-between">
+            <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+                <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total USD</p>
-                  <p className="text-2xl font-bold text-green-700">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Total USD</p>
+                <p className="text-sm sm:text-lg md:text-2xl font-bold text-green-700">
                     {formatearPrecio(resumen.usd)}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">🇺🇸</span>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <span className="text-sm sm:text-lg md:text-2xl">🇺🇸</span>
                 </div>
               </div>
             </div>
@@ -127,8 +127,8 @@ export default function StockTelefonosPage() {
            
             {/* Total Pesos */}
             {rol?.tipo === "admin" && (
-            <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
-              <div className="flex items-center justify-between">
+            <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+                <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total ARS</p>
                   <p className="text-2xl font-bold text-blue-700">
@@ -143,8 +143,8 @@ export default function StockTelefonosPage() {
             )}
 
             {/* Cantidad total */}
-            <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
-              <div className="flex items-center justify-between">
+            <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+                <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Equipos</p>
                   <p className="text-2xl font-bold text-purple-700">
@@ -158,8 +158,8 @@ export default function StockTelefonosPage() {
             </div>
 
             {/* Estados distribuidos */}
-            <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
-              <div className="space-y-2">
+            <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+                 <div className="space-y-2">
                 <p className="text-sm font-medium text-gray-600">Por Estado</p>
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
@@ -180,8 +180,8 @@ export default function StockTelefonosPage() {
 
             {/* Total Mayorista USD */}
             {rol?.tipo === "admin" && (
-            <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
-           
+          <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+ 
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Mayorista USD</p>
@@ -198,8 +198,8 @@ export default function StockTelefonosPage() {
 
             {/* Total Mayorista ARS */}
             {rol?.tipo === "admin" && (
-            <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
-              <div className="flex items-center justify-between">
+            <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+                 <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Mayorista ARS</p>
                   <p className="text-2xl font-bold text-cyan-700">
@@ -218,8 +218,8 @@ export default function StockTelefonosPage() {
             <>
               {/* Sección del formulario */}
               <div className="flex justify-center">
-                <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden max-w-xl w-full">
-                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-2">
+              <div className="bg-white rounded-xl md:rounded-2xl shadow-lg md:shadow-xl border border-gray-200 overflow-hidden max-w-xs sm:max-w-md md:max-w-xl w-full">
+              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-2">
                     <h2 className="text-lg font-bold flex items-center gap-2">
                       {telefonoAEditar ? "✏️ Editar Teléfono" : "➕ Agregar Nuevo Teléfono"}
                     </h2>
@@ -231,7 +231,7 @@ export default function StockTelefonosPage() {
                     </p>
                   </div>
                   
-                  <div className="p-6 bg-gradient-to-br from-gray-50 to-indigo-50">
+                  <div className="p-3 sm:p-4 md:p-6 bg-gradient-to-br from-gray-50 to-indigo-50">
                   <FormularioStock
                     negocioID={negocioID}
                     datosIniciales={telefonoAEditar}

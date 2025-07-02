@@ -334,7 +334,7 @@ export default function ResumenPage() {
                 <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
                   <tr>
                     {/* Fecha - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[60px] sm:min-w-[80px] md:min-w-[100px]">
+                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[65px] sm:min-w-[70px] md:min-w-[75px] max-w-[80px]">
                       <div className="flex items-center gap-1">
                         <span className="text-xs sm:text-sm">📅</span>
                         <span className="hidden sm:inline text-xs">Fecha</span>
@@ -342,8 +342,8 @@ export default function ResumenPage() {
                     </th>
                     
                     {/* Cliente - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[80px] sm:min-w-[100px] md:min-w-[120px]">
-                      <div className="flex items-center gap-1">
+                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[80px] sm:min-w-[90px] md:min-w-[100px] max-w-[120px]">
+                    <div className="flex items-center gap-1">
                         <span className="text-xs sm:text-sm">👤</span>
                         <span className="text-xs">Cliente</span>
                       </div>
@@ -358,8 +358,8 @@ export default function ResumenPage() {
                     </th>
                     
                     {/* Trabajo - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[100px] sm:min-w-[120px] md:min-w-[150px]">
-                      <div className="flex items-center gap-1">
+                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[100px] sm:min-w-[110px] md:min-w-[130px] max-w-[150px]">
+                     <div className="flex items-center gap-1">
                         <span className="text-xs sm:text-sm">🔧</span>
                         <span className="text-xs">Trabajo</span>
                       </div>
@@ -374,10 +374,10 @@ export default function ResumenPage() {
                     </th>
                     
                     {/* Observaciones - Oculto en móvil, reducido */}
-                    <th className="hidden md:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[60px] md:w-[80px] max-w-[80px]">
+                    <th className="hidden md:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[120px] max-w-[200px] w-auto">
                       <div className="flex items-center gap-1">
                         <span className="text-xs sm:text-sm">📝</span>
-                        <span className="text-xs">Obs</span>
+                        <span className="text-xs">Observaciones</span>
                       </div>
                     </th>
                     
@@ -449,18 +449,18 @@ export default function ResumenPage() {
                       >
                         
                         {/* Fecha */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black">
-                          <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fecha}>
-                            {t.fecha}
-                          </span>
-                        </td>
+                        <td className="p-1 sm:p-1.5 md:p-2 border border-black max-w-[80px]">
+                        <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fecha}>
+                          {t.fecha}
+                        </span>
+                      </td>
                         
                         {/* Cliente */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black">
-                          <span className="text-xs truncate block font-medium text-[#3498db]" title={t.cliente}>
-                            {t.cliente}
-                          </span>
-                        </td>
+                        <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[120px]">
+                        <span className="text-xs truncate block font-medium text-[#3498db]" title={t.cliente}>
+                          {t.cliente}
+                        </span>
+                      </td>
                         
                         {/* Modelo */}
                         <td className="p-1 sm:p-2 md:p-3 border border-black">
@@ -470,7 +470,7 @@ export default function ResumenPage() {
                         </td>
                         
                         {/* Trabajo */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black">
+                        <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[150px]">
                           <span className="text-xs truncate block" title={t.trabajo}>
                             {t.trabajo}
                           </span>
@@ -484,12 +484,12 @@ export default function ResumenPage() {
                         </td>
                         
                         {/* Observaciones - Oculto en móvil, texto muy corto */}
-                        <td className="hidden md:table-cell p-1 sm:p-2 md:p-3 border border-black w-[60px] md:w-[80px] max-w-[80px]">
-                          <span className="text-xs truncate block overflow-hidden" title={t.observaciones || "—"}>
-                            {t.observaciones ? (t.observaciones.length > 5 ? t.observaciones.substring(0, 5) + "..." : t.observaciones) : "—"}
-                          </span>
+                        <td className="hidden md:table-cell p-1 sm:p-2 md:p-3 border border-black min-w-[120px] max-w-[200px]">
+                          <div className="text-xs break-words" title={t.observaciones || "—"}>
+                            {t.observaciones || "—"}
+                          </div>
                         </td>
-                        
+                                                
                         {/* Estado */}
                         <td className="p-1 sm:p-2 md:p-3 border border-black">
                           <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
@@ -545,7 +545,7 @@ export default function ResumenPage() {
                         </td>
                         
                         {/* F.Mod - Oculto en móvil y tablet */}
-                        <td className="hidden lg:table-cell p-1 sm:p-2 md:p-3 border border-black">
+                        <td className="hidden lg:table-cell p-1 sm:p-1.5 md:p-2 border border-black max-w-[75px]">
                           <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fechaModificacion || "—"}>
                             {t.fechaModificacion || "—"}
                           </span>
