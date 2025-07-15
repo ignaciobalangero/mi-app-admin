@@ -285,11 +285,11 @@ export default function ModalVenta({
     <>
       <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
         {/* 🔧 CORRECCIÓN: Tamaño más proporcionado del modal */}
-        <div className="w-full h-full sm:w-[95%] md:w-[85%] lg:w-[75%] xl:w-[65%] 2xl:w-[55%] sm:h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
+        <div className="w-full h-full sm:w-[95%] md:w-[85%] lg:w-[75%] xl:w-[65%] 2xl:w-[55%] sm:h-[95vh] bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
           
           {/* Header del Remito - Más compacto */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3 sm:p-4 flex justify-between items-center flex-shrink-0">
-            <div className="flex items-center gap-2 sm:gap-3">
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-3 flex justify-between items-center flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
               {/* Logo mini de GestiOne */}
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex overflow-hidden shadow-lg">
                 <div className="w-1/2 h-full bg-[#2c3e50] flex items-center justify-center">
@@ -323,7 +323,7 @@ export default function ModalVenta({
           </div>
 
           {/* Contenido scrolleable - Más compacto */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-[#f8f9fa] min-h-0">
+          <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-3 bg-[#f8f9fa] min-h-0">
             
             {/* Información del Cliente - CON BOTÓN AGREGAR */}
             <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm">

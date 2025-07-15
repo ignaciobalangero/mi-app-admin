@@ -19,6 +19,8 @@ import { reponerRepuestosAlStock } from "./reponerRepuestosAlStock";
 import React from "react";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import ModalRemitoImpresion from "./ModalRemitoImpresion";
+import ModalEditarVenta from "./ModalEditarVenta";
+
 
 interface Props {
   refrescar: boolean;
@@ -415,17 +417,17 @@ export default function TablaVentas({ refrescar }: Props) {
         </div>
       </div>
 
-      {/* Tabla principal - UNA SOLA VISTA RESPONSIVE */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+    {/* Tabla principal COMPACTA sin scroll */}
+    <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
         
         {/* Header de la tabla */}
-        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3 sm:p-4">
+        <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <span className="text-lg sm:text-2xl">📊</span>
+            <div className="w-6 h-6 sm:w-10 sm:h-10 bg-white/20 rounded-lg flex items-center justify-center">
+              <span className="text-sm sm:text-2xl">📊</span>
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold">Ventas Registradas</h3>
+              <h3 className="text-sm sm:text-lg font-bold">Ventas Registradas</h3>
               <p className="text-blue-100 text-xs sm:text-sm">
                 {ventasFiltradas.length} {ventasFiltradas.length === 1 ? 'venta' : 'ventas'} encontradas
               </p>
@@ -433,62 +435,85 @@ export default function TablaVentas({ refrescar }: Props) {
           </div>
         </div>
 
-        {/* Tabla responsive con scroll horizontal controlado */}
-        <div className="overflow-x-auto border border-[#bdc3c7]">
-          <table className="w-full min-w-[800px] lg:min-w-[1200px] border-collapse">
+        {/* Tabla responsiva sin columna Precio en mobile */}
+        <div className="w-full">
+          <table className="w-full border-collapse table-fixed text-xs">
             <thead className="bg-[#ecf0f1]">
               <tr>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-12 sm:w-16 lg:w-20">
-                  <span className="hidden sm:inline">📋 </span>Nro
+                {/* Nro */}
+                <th className="w-[10%] lg:w-[6%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  Nro
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-16 sm:w-20 lg:w-24">
-                  <span className="hidden sm:inline">📅 </span>Fecha
+                
+                {/* Fecha - Solo tablet+ */}
+                <th className="w-0 md:w-[12%] lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden md:table-cell">
+                  Fecha
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  <span className="hidden sm:inline">👤 </span>Cliente
+                
+                {/* Cliente */}
+                <th className="w-[22%] md:w-[18%] lg:w-[15%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  Cliente
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  <span className="hidden sm:inline">🏷️ </span>Cat.
+                
+                {/* Categoría */}
+                <th className="w-[8%] lg:w-[7%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  Cat
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  <span className="hidden sm:inline">📱 </span>Producto
+                
+                {/* Producto */}
+                <th className="w-[26%] md:w-[22%] lg:w-[18%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  Producto
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
-                  🏭 Marca
+                
+                {/* Marca - Solo desktop */}
+                <th className="w-0 lg:w-[12%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                  Marca
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
-                  📱 Modelo
+                
+                {/* Modelo - Solo desktop */}
+                <th className="w-0 lg:w-[13%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                  Modelo
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell w-16 lg:w-20">
-                  🎨 Color
+                
+                {/* Color - Solo desktop */}
+                <th className="w-0 lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                  Color
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-12 sm:w-16">
-                  <span className="hidden sm:inline">📦 </span>Cant.
+                
+                {/* Cantidad */}
+                <th className="w-[8%] lg:w-[5%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  Q
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell w-20 lg:w-24">
-                  💰 Precio
+                
+                {/* Precio - OCULTO en mobile/tablet */}
+                <th className="w-0 lg:w-[10%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                  Precio
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  <span className="hidden sm:inline">💵 </span>Total
+                
+                {/* Total */}
+                <th className="w-[12%] md:w-[10%] lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  Total
                 </th>
-                <th className="p-1 sm:p-2 lg:p-3 text-center text-xs sm:text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7] w-20 sm:w-24 lg:w-32">
-                  <span className="hidden sm:inline">⚙️ </span>Acciones
+                
+                {/* Acciones */}
+                <th className="w-[12%] md:w-[10%] lg:w-[10%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  Acc
                 </th>
               </tr>
             </thead>
             <tbody>
               {ventasFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-8 sm:p-12 text-center text-[#7f8c8d] border border-[#bdc3c7]">
+                  <td colSpan={12} className="p-8 text-center text-[#7f8c8d] border border-[#bdc3c7]">
                     <div className="flex flex-col items-center gap-4">
-                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#ecf0f1] rounded-full flex items-center justify-center">
-                        <span className="text-2xl sm:text-3xl">📊</span>
+                      <div className="w-12 h-12 bg-[#ecf0f1] rounded-full flex items-center justify-center">
+                        <span className="text-2xl">📊</span>
                       </div>
                       <div>
-                        <p className="text-sm sm:text-lg font-medium text-[#7f8c8d]">
+                        <p className="text-sm font-medium text-[#7f8c8d]">
                           {ventas.length === 0 ? "No hay ventas registradas" : "No se encontraron resultados"}
                         </p>
-                        <p className="text-xs sm:text-sm text-[#bdc3c7]">
+                        <p className="text-xs text-[#bdc3c7]">
                           {ventas.length === 0 
                             ? "Las ventas aparecerán aquí una vez que registres algunas"
                             : "Intenta ajustar los filtros de búsqueda"
@@ -524,33 +549,43 @@ export default function TablaVentas({ refrescar }: Props) {
                           }`}
                         >
                           {/* Nro Venta */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                          <td className="p-1 text-center border border-[#bdc3c7]">
                             {esProductoPrincipal ? (
-                              <span className="inline-flex items-center px-1 sm:px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
-                                #{venta.nroVenta || venta.id.slice(-6)}
+                              <span className="inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold bg-[#3498db] text-white">
+                                #{venta.nroVenta || venta.id.slice(-4)}
                               </span>
                             ) : (
-                              <span className="text-[#bdc3c7] text-sm">↳</span>
+                              <span className="text-[#bdc3c7] text-xs">↳</span>
                             )}
                           </td>
                           
-                          {/* Fecha */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                          {/* Fecha - Solo tablet+ */}
+                          <td className="p-1 text-center border border-[#bdc3c7] hidden md:table-cell">
                             {esProductoPrincipal ? (
-                              <span className="text-xs sm:text-sm font-medium text-[#2c3e50]">{venta.fecha}</span>
+                              <span className="text-xs text-[#2c3e50]">
+                                {venta.fecha}
+                              </span>
                             ) : ""}
                           </td>
                           
                           {/* Cliente */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
+                          <td className="p-1 text-center border border-[#bdc3c7]">
                             {esProductoPrincipal ? (
-                              <span className="text-xs sm:text-sm font-medium text-[#2c3e50]">{venta.cliente}</span>
+                              <div className="text-xs text-[#2c3e50]">
+                                <div className="font-medium">
+                                  {venta.cliente}
+                                </div>
+                                {/* Fecha en mobile */}
+                                <div className="text-xs text-[#7f8c8d] md:hidden">
+                                  {venta.fecha}
+                                </div>
+                              </div>
                             ) : ""}
                           </td>
                           
                           {/* Categoría */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
-                            <span className={`inline-flex items-center px-1 sm:px-2 py-1 rounded-full text-xs font-medium ${
+                          <td className="p-1 text-center border border-[#bdc3c7]">
+                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs ${
                               p.categoria === "Teléfono" 
                                 ? 'bg-[#27ae60] text-white'
                                 : p.categoria === "Accesorio"
@@ -559,72 +594,67 @@ export default function TablaVentas({ refrescar }: Props) {
                                 ? 'bg-[#f39c12] text-white'
                                 : 'bg-[#7f8c8d] text-white'
                             }`}>
-                              <span className="sm:hidden">
-                                {p.categoria === "Teléfono" ? "📱" : p.categoria === "Accesorio" ? "🔌" : "🔧"}
-                              </span>
-                              <span className="hidden sm:inline">
-                                {p.categoria === "Repuesto" && p.hoja ? p.hoja : p.categoria}
-                              </span>
+                              {p.categoria === "Teléfono" ? "📱" : p.categoria === "Accesorio" ? "🔌" : "🔧"}
                             </span>
                           </td>
                           
                           {/* Producto */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
-                            <div className="text-xs sm:text-sm text-[#2c3e50]">
+                          <td className="p-1 text-center border border-[#bdc3c7] w-[26%] md:w-[22%] lg:w-[18%]">
+                            <div className="text-xs text-[#2c3e50]">
                               <div className="font-semibold">
-                                {((p.producto || p.descripcion || "—").length > 15 
-                                  ? (p.producto || p.descripcion || "—").substring(0, 15) + "..." 
-                                  : (p.producto || p.descripcion || "—"))}
+                                {p.producto || p.descripcion || "—"}
                               </div>
+                              {/* Info adicional en mobile/tablet */}
                               <div className="text-xs text-[#7f8c8d] lg:hidden">
-                                {p.marca} {p.modelo} {p.color}
+                                <div>{p.marca} {p.modelo}</div>
+                                <div>{p.color}</div>
                               </div>
                             </div>
                           </td>
                           
-                          {/* Marca - Solo en desktop */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-sm text-[#7f8c8d]">{p.marca || "—"}</span>
+                          {/* Marca - Solo desktop */}
+                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+                            <span className="text-xs text-[#7f8c8d]">
+                              {p.marca || "—"}
+                            </span>
                           </td>
                           
-                          {/* Modelo - Solo en desktop */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-sm text-[#7f8c8d]">{p.modelo || "—"}</span>
+                          {/* Modelo - Solo desktop */}
+                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+                            <span className="text-xs text-[#7f8c8d]">
+                              {p.modelo || "—"}
+                            </span>
                           </td>
                           
-                          {/* Color - Solo en desktop - CORREGIDA */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell w-16 lg:w-20">
-                            <span className="inline-flex items-center px-1 py-1 rounded-full text-xs font-medium bg-[#ecf0f1] text-[#2c3e50] truncate">
+                          {/* Color - Solo desktop */}
+                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+                            <span className="text-xs text-[#7f8c8d]">
                               {p.color || "—"}
                             </span>
                           </td>
                           
                           {/* Cantidad */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
-                            <span className="inline-flex items-center px-1 sm:px-2 py-1 rounded-full text-xs font-bold bg-[#3498db] text-white">
+                          <td className="p-1 text-center border border-[#bdc3c7]">
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold bg-[#3498db] text-white">
                               {p.cantidad}
                             </span>
                           </td>
                           
-                          {/* Precio - Solo en desktop */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-sm font-medium text-[#2c3e50]">
+                          {/* Precio - SOLO DESKTOP */}
+                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+                            <span className="text-xs text-[#2c3e50]">
                               {(() => {
-                                // ✅ DETECTAR SI HAY TELÉFONO EN LA VENTA
                                 const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
                                 
                                 if (hayTelefono) {
-                                  // 📱 CON TELÉFONO: Mostrar precio × cotización (referencia ARS)
-                                 // NUEVO: Mostrar moneda original cuando hay teléfono
-                              if (p.categoria === "Teléfono") {
-                                return `USD ${p.precioUnitario.toLocaleString("es-AR")}`;
-                              } else {
-                                return p.moneda?.toUpperCase() === "USD"
-                                  ? `USD ${p.precioUnitario.toLocaleString("es-AR")}`
-                                  : `${p.precioUnitario.toLocaleString("es-AR")}`;
-                              }
+                                  if (p.categoria === "Teléfono") {
+                                    return `USD ${p.precioUnitario.toLocaleString("es-AR")}`;
+                                  } else {
+                                    return p.moneda?.toUpperCase() === "USD"
+                                      ? `USD ${p.precioUnitario.toLocaleString("es-AR")}`
+                                      : `${p.precioUnitario.toLocaleString("es-AR")}`;
+                                  }
                                 } else {
-                                  // 🛍️ SIN TELÉFONO: Mostrar precio convertido dinámicamente
                                   if (p.moneda?.toUpperCase() === "USD") {
                                     return `${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
                                   } else {
@@ -635,25 +665,21 @@ export default function TablaVentas({ refrescar }: Props) {
                             </span>
                           </td>
 
-                           {/* Total */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7]">
-                            <span className="text-xs sm:text-sm font-bold text-[#27ae60]">
+                          {/* Total */}
+                          <td className="p-1 text-center border border-[#bdc3c7]">
+                            <div className="text-xs font-bold text-[#27ae60]">
                               {(() => {
-                                // ✅ DETECTAR SI HAY TELÉFONO EN LA VENTA
                                 const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
                                 
                                 if (hayTelefono) {
-                                  // 📱 CON TELÉFONO: Mostrar moneda original
                                   if (p.categoria === "Teléfono") {
                                     return `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
                                   } else {
-                                    // Accesorio/Repuesto: Mostrar según su moneda original
                                     return p.moneda?.toUpperCase() === "USD"
                                       ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
                                       : `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
                                   }
                                 } else {
-                                  // 🛍️ SIN TELÉFONO: Conversión dinámica (NO CAMBIAR)
                                   if (p.moneda?.toUpperCase() === "USD") {
                                     return `$ ${((p.precioUSD || p.precioUnitario) * p.cantidad * cotizacion).toLocaleString("es-AR")}`;
                                   } else {
@@ -661,13 +687,35 @@ export default function TablaVentas({ refrescar }: Props) {
                                   }
                                 }
                               })()}
-                            </span>
+                              {/* Precio unitario en mobile/tablet (ya que no hay columna Precio) */}
+                              <div className="text-xs text-[#7f8c8d] lg:hidden">
+                                {(() => {
+                                  const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
+                                  
+                                  if (hayTelefono) {
+                                    if (p.categoria === "Teléfono") {
+                                      return `@ USD ${p.precioUnitario.toLocaleString("es-AR")}`;
+                                    } else {
+                                      return p.moneda?.toUpperCase() === "USD"
+                                        ? `@ USD ${p.precioUnitario.toLocaleString("es-AR")}`
+                                        : `@ ${p.precioUnitario.toLocaleString("es-AR")}`;
+                                    }
+                                  } else {
+                                    if (p.moneda?.toUpperCase() === "USD") {
+                                      return `@ ${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
+                                    } else {
+                                      return `@ ${p.precioUnitario.toLocaleString("es-AR")}`;
+                                    }
+                                  }
+                                })()}
+                              </div>
+                            </div>
                           </td>
 
-                          {/* Acciones - CORREGIDA */}
-                          <td className="p-1 sm:p-2 lg:p-3 text-center border border-[#bdc3c7] w-20 sm:w-24 lg:w-32">
+                          {/* Acciones */}
+                          <td className="p-1 text-center border border-[#bdc3c7]">
                             <div className="flex flex-col items-center gap-1">
-                              {/* Select de estado - Solo en la primera fila */}
+                              {/* Estado compacto */}
                               {esProductoPrincipal && (
                                 <select
                                   value={venta.estado || "pendiente"}
@@ -678,24 +726,24 @@ export default function TablaVentas({ refrescar }: Props) {
                                     });
                                     await refrescarVentas();
                                   }}
-                                  className={`text-xs px-1 py-1 border-2 rounded text-center font-medium transition-all w-full ${
+                                  className={`text-xs px-1 py-1 border rounded text-center w-full ${
                                     (venta.estado || "pendiente") === "pagado"
                                       ? "bg-[#27ae60] text-white border-[#27ae60]"
                                       : "bg-[#f39c12] text-white border-[#f39c12]"
                                   }`}
                                 >
-                                  <option value="pendiente">Pend.</option>
+                                  <option value="pendiente">Pend</option>
                                   <option value="pagado">Pago</option>
                                 </select>
                               )}
 
-                              {/* Botones - SIN ICONOS DUPLICADOS */}
+                              {/* Botones compactos */}
                               <div className="flex gap-1 w-full">
                                 {esProductoPrincipal && (
                                   <>
                                     <button
                                       onClick={() => editarVenta(venta)}
-                                      className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200"
+                                      className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200"
                                       title="Editar"
                                     >
                                       ✏️
@@ -706,7 +754,7 @@ export default function TablaVentas({ refrescar }: Props) {
                                         setVentaParaRemito(venta);
                                         setMostrarRemito(true);
                                       }}
-                                      className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200 hidden sm:inline-block"
+                                      className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200 hidden lg:inline-block"
                                       title="Remito"
                                     >
                                       🖨️
@@ -714,10 +762,9 @@ export default function TablaVentas({ refrescar }: Props) {
                                   </>
                                 )}
 
-                                {/* 🔧 BOTÓN CORREGIDO - SIEMPRE usa el nuevo modal para productos */}
                                 <button
                                   onClick={() => pedirConfirmacionEliminarProducto(venta, p, i)}
-                                  className={`hover:bg-[#c0392b] text-white px-1 py-1 rounded text-xs flex-1 font-medium transition-all duration-200 ${
+                                  className={`hover:bg-[#c0392b] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200 ${
                                     venta.productos.length > 1 
                                       ? "bg-[#e74c3c]" 
                                       : "bg-[#c0392b]"
@@ -741,7 +788,7 @@ export default function TablaVentas({ refrescar }: Props) {
 
         {/* Footer de la tabla */}
         {ventasFiltradas.length > 0 && (
-          <div className="bg-[#f8f9fa] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#bdc3c7]">
+          <div className="bg-[#f8f9fa] px-2 sm:px-6 py-2 sm:py-4 border-t border-[#bdc3c7]">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
               <span>
                 Mostrando {ventasFiltradas.length} de {ventas.length} {ventas.length === 1 ? 'venta' : 'ventas'}
@@ -923,6 +970,22 @@ export default function TablaVentas({ refrescar }: Props) {
           telefonoNegocio="Tel: XXX-XXXX"
         />
       )}
+      
+      {mostrarModal && ventaSeleccionada && (
+  <ModalEditarVenta
+    mostrar={mostrarModal}
+    venta={ventaSeleccionada}
+    onClose={() => {
+      setMostrarModal(false);
+      setVentaSeleccionada(null);
+    }}
+    onVentaActualizada={async () => {
+      await refrescarVentas();
+    }}
+    negocioID={rol?.negocioID || ""}
+    cotizacion={cotizacion}
+  />
+)}
     </div>
   );
 }

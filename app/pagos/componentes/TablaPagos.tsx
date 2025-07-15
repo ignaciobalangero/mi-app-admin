@@ -25,6 +25,14 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
   const [pagoEditando, setPagoEditando] = useState<PagoConOrigen | null>(null);
   const [form, setForm] = useState<any>({});
 
+  // Función para convertir fecha string a Date object
+  const convertirFechaADate = (fecha: string): Date => {
+    if (!fecha) return new Date(0); // Fecha muy antigua para fechas vacías
+    
+    const [dia, mes, anio] = fecha.split("/");
+    return new Date(Number(anio), Number(mes) - 1, Number(dia));
+  };
+
   const obtenerPagos = async () => {
     if (!negocioID) return;
     try {
@@ -35,19 +43,16 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         ...doc.data()
       })) as PagoConOrigen[];
 
-      const ordenados = pagosCargados
+      // ÚNICO ORDENAMIENTO: Más reciente primero
+      const pagosOrdenados = pagosCargados
         .filter((p) => p.fecha)
         .sort((a, b) => {
-          const [diaA, mesA, anioA] = (a.fecha || "").split("/");
-          const [diaB, mesB, anioB] = (b.fecha || "").split("/");
-      
-          const fechaA = new Date(Number(anioA), Number(mesA) - 1, Number(diaA));
-          const fechaB = new Date(Number(anioB), Number(mesB) - 1, Number(diaB));
-      
-          return fechaB.getTime() - fechaA.getTime();
+          const fechaA = convertirFechaADate(a.fecha || "");
+          const fechaB = convertirFechaADate(b.fecha || "");
+          return fechaB.getTime() - fechaA.getTime(); // Más reciente primero
         }); 
 
-      setPagos(ordenados);
+      setPagos(pagosOrdenados);
     } catch (err) {
       console.error("❌ Error general en obtenerPagos:", err);
     }
@@ -133,6 +138,11 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       console.error("Error editando pago:", err);
     }
   };  
+
+  // Filtrar pagos para mostrar - SIN ORDENAR AQUÍ
+  const pagosFiltrados = pagos.filter(p => 
+    (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -315,7 +325,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
             <div>
               <h3 className="text-2xl font-bold">Lista de Pagos</h3>
               <p className="text-blue-100 mt-1">
-                {pagos.filter(p => (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase())).length} pagos registrados
+                {pagosFiltrados.length} pagos registrados (ordenados por fecha - más reciente primero)
               </p>
             </div>
           </div>
@@ -371,68 +381,61 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
               </tr>
             </thead>
             <tbody>
-              {[...pagos]
-                .sort((a, b) => {
-                  const fechaA = a.fecha instanceof Timestamp ? a.fecha.toDate() : new Date(a.fecha);
-                  const fechaB = b.fecha instanceof Timestamp ? b.fecha.toDate() : new Date(b.fecha);
-                  return fechaB.getTime() - fechaA.getTime();
-                })
-                .filter(p => (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase()))
-                .map((pago, index) => {
-                  const isEven = index % 2 === 0;
-                  return (
-                    <tr key={`${pago.id}-${pago.origen}`} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
-                      <td className="p-4 border border-black">
-                        <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
-                          {typeof pago.fecha === "string" ? pago.fecha : "Fecha inválida"}
-                        </span>
-                      </td>
-                      <td className="p-4 border border-black">
-                        <span className="text-sm font-semibold text-[#3498db]">{pago.cliente}</span>
-                      </td>
-                      <td className="p-4 border border-black">
-                        <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
-                          {pago.moneda === "USD"
-                            ? `USD ${pago.montoUSD}`
-                            : `${pago.monto}`}
-                        </span>
-                      </td>
-                      <td className="p-4 border border-black">
-                        <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
-                          pago.moneda === 'USD' 
-                            ? 'bg-[#27ae60] text-white' 
-                            : 'bg-[#3498db] text-white'
-                        }`}>
-                          {pago.moneda}
-                        </span>
-                      </td>
-                      <td className="p-4 border border-black">
-                        <span className="text-sm text-[#2c3e50]">{pago.forma}</span>
-                      </td>
-                      <td className="p-4 border border-black">
-                        <span className="text-sm text-[#7f8c8d]">{pago.destino}</span>
-                      </td>
-                      <td className="p-4 border border-black">
-                        <div className="flex gap-2 justify-center">
-                          <button
-                            onClick={() => abrirEdicion(pago)}
-                            className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
-                          >
-                            ✏️ Editar
-                          </button>
-                          <button
-                            onClick={() =>
-                              setPagoAEliminar({ id: pago.id, origen: pago.origen })
-                            }
-                            className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
-                          >
-                            🗑️ Eliminar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+              {pagosFiltrados.map((pago, index) => {
+                const isEven = index % 2 === 0;
+                return (
+                  <tr key={`${pago.id}-${pago.origen}`} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
+                    <td className="p-4 border border-black">
+                      <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                        {typeof pago.fecha === "string" ? pago.fecha : "Fecha inválida"}
+                      </span>
+                    </td>
+                    <td className="p-4 border border-black">
+                      <span className="text-sm font-semibold text-[#3498db]">{pago.cliente}</span>
+                    </td>
+                    <td className="p-4 border border-black">
+                      <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
+                        {pago.moneda === "USD"
+                          ? `USD ${pago.montoUSD}`
+                          : `${pago.monto}`}
+                      </span>
+                    </td>
+                    <td className="p-4 border border-black">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
+                        pago.moneda === 'USD' 
+                          ? 'bg-[#27ae60] text-white' 
+                          : 'bg-[#3498db] text-white'
+                      }`}>
+                        {pago.moneda}
+                      </span>
+                    </td>
+                    <td className="p-4 border border-black">
+                      <span className="text-sm text-[#2c3e50]">{pago.forma}</span>
+                    </td>
+                    <td className="p-4 border border-black">
+                      <span className="text-sm text-[#7f8c8d]">{pago.destino}</span>
+                    </td>
+                    <td className="p-4 border border-black">
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => abrirEdicion(pago)}
+                          className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() =>
+                            setPagoAEliminar({ id: pago.id, origen: pago.origen })
+                          }
+                          className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-md"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
