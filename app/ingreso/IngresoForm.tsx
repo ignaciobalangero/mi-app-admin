@@ -16,6 +16,7 @@ import { auth } from "@/lib/auth";
 import { guardarTrabajo } from "./guardarTrabajo";
 import CheckInForm from "./CheckInForm";
 import { Combobox } from "@headlessui/react";
+import OpcionesImpresion from "./OpcionesImpresion";
 
 interface Cliente {
   nombre: string;
@@ -25,6 +26,7 @@ interface Cliente {
   email: string;
 }
 
+// ✅ MOVER LAS CONSTANTES FUERA DEL COMPONENTE
 const hoy = new Date();
 const inicialForm = {
   fecha: hoy.toLocaleDateString("es-AR", {
@@ -65,6 +67,7 @@ export default function IngresoForm() {
   const [configImpresion, setConfigImpresion] = useState(true);
   const [checkData, setCheckData] = useState(inicialCheckData);
   const [queryCliente, setQueryCliente] = useState("");
+  const [mostrandoOpcionesImpresion, setMostrandoOpcionesImpresion] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -112,7 +115,479 @@ export default function IngresoForm() {
     }
   };
 
-  const handleGuardar = async () => {
+  // ✅ FUNCIÓN AUXILIAR: Limpiar formulario
+  const limpiarFormulario = () => {
+    const hoy = new Date();
+    const nuevoId = "EQ-" + hoy.getTime().toString().slice(-5);
+    
+    setForm({ ...inicialForm, id: nuevoId });
+    setCheckData(inicialCheckData);
+    setMostrarCheckIn(false);
+    setMostrandoOpcionesImpresion(false);
+  };
+
+  // ✅ FUNCIÓN ACTUALIZADA: Ticket con modal nativo
+  const imprimirTicket = async (datos: any) => {
+    console.log("🧾 Generando ticket normal...", datos);
+    
+    const contenidoTicket = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Ticket - ${datos.id}</title>
+          <meta charset="UTF-8">
+          <style>
+            @page { size: 80mm auto; margin: 5mm; }
+            body { 
+              margin: 0; 
+              padding: 10px; 
+              font-family: 'Courier New', monospace; 
+              font-size: 12px; 
+              line-height: 1.4; 
+              width: 70mm;
+            }
+            @media print {
+              body { margin: 0; padding: 5mm; }
+            }
+            .header {
+              text-align: center;
+              font-weight: bold;
+              font-size: 14px;
+              margin-bottom: 10px;
+              border-bottom: 2px solid #000;
+              padding-bottom: 5px;
+            }
+            .content {
+              margin-bottom: 15px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 15px;
+              border-top: 2px solid #000;
+              padding-top: 10px;
+              font-size: 10px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">TICKET DE SERVICIO TÉCNICO</div>
+          
+          <div class="content">
+            <strong>ID:</strong> ${datos.id}<br>
+            <strong>Fecha:</strong> ${datos.fecha}<br>
+            <strong>Cliente:</strong> ${datos.cliente}<br>
+            <strong>Modelo:</strong> ${datos.modelo || 'No especificado'}<br>
+            <strong>Trabajo:</strong> ${datos.trabajo || 'No especificado'}<br>
+            ${datos.clave ? `<strong>Clave:</strong> ${datos.clave}<br>` : ''}
+            ${datos.imei ? `<strong>IMEI:</strong> ${datos.imei}<br>` : ''}
+            <strong>Precio:</strong> $${datos.precio || '0.00'}
+          </div>
+          
+          ${datos.observaciones ? `
+            <div style="margin-bottom: 15px; border-top: 1px solid #ccc; padding-top: 10px;">
+              <strong>Observaciones:</strong><br>${datos.observaciones}
+            </div>
+          ` : ''}
+          
+          ${datos.checkIn ? `
+            <div style="margin-bottom: 15px; border-top: 1px solid #ccc; padding-top: 10px;">
+              <strong>CHECK IN DEL EQUIPO:</strong><br>
+              ${datos.checkIn.color ? `Color: ${datos.checkIn.color}<br>` : ''}
+              ${datos.checkIn.pantalla ? `Pantalla: ${datos.checkIn.pantalla}<br>` : ''}
+              ${datos.checkIn.camaras ? `Cámaras: ${datos.checkIn.camaras}<br>` : ''}
+              ${datos.checkIn.microfonos ? `Micrófonos: ${datos.checkIn.microfonos}<br>` : ''}
+              ${datos.checkIn.cargaCable ? `Carga Cable: ${datos.checkIn.cargaCable}<br>` : ''}
+              ${datos.checkIn.cargaInalambrica ? `Carga Inalámbrica: ${datos.checkIn.cargaInalambrica}<br>` : ''}
+              ${datos.checkIn.tapaTrasera ? `Tapa Trasera: ${datos.checkIn.tapaTrasera}<br>` : ''}
+            </div>
+          ` : ''}
+          
+          <div class="footer">
+            Ticket generado el ${new Date().toLocaleString('es-AR')}<br>
+            Gracias por confiar en nosotros
+          </div>
+
+          <script>
+            window.addEventListener('load', function() {
+              setTimeout(() => window.print(), 500);
+            });
+            window.addEventListener('afterprint', function() {
+              window.close();
+            });
+          </script>
+        </body>
+      </html>
+    `;
+    
+    const ventana = window.open('', '_blank', 'width=400,height=600');
+    if (ventana) {
+      ventana.document.write(contenidoTicket);
+      ventana.document.close();
+      ventana.focus();
+    }
+  };
+
+  // ✅ FUNCIÓN ACTUALIZADA: Etiqueta con modal nativo
+  const imprimirEtiqueta = async (datos: any) => {
+    console.log("🏷️ Generando etiqueta...", datos);
+    
+    const contenidoEtiqueta = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Etiqueta - ${datos.id}</title>
+          <meta charset="UTF-8">
+          <style>
+            @page { size: 62mm 29mm; margin: 2mm; }
+            body { 
+              margin: 0; 
+              padding: 2mm; 
+              font-family: Arial, sans-serif; 
+              font-size: 8px; 
+              line-height: 1.2; 
+              width: 58mm;
+              height: 25mm;
+              border: 1px solid #000;
+              box-sizing: border-box;
+            }
+            .id {
+              text-align: center;
+              font-weight: bold;
+              font-size: 10px;
+              margin-bottom: 1mm;
+            }
+            .content {
+              font-size: 7px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="id">${datos.id}</div>
+          <div class="content">
+            <strong>Cliente:</strong> ${(datos.cliente || 'N/A').substring(0, 18)}<br>
+            <strong>Modelo:</strong> ${(datos.modelo || 'N/A').substring(0, 15)}<br>
+            <strong>Fecha:</strong> ${datos.fecha}<br>
+            ${datos.trabajo ? `<strong>Trabajo:</strong> ${datos.trabajo.substring(0, 16)}<br>` : ''}
+          </div>
+
+          <script>
+            window.addEventListener('load', function() {
+              setTimeout(() => window.print(), 500);
+            });
+            window.addEventListener('afterprint', function() {
+              window.close();
+            });
+          </script>
+        </body>
+      </html>
+    `;
+    
+    const ventana = window.open('', '_blank', 'width=300,height=200');
+    if (ventana) {
+      ventana.document.write(contenidoEtiqueta);
+      ventana.document.close();
+      ventana.focus();
+    }
+  };
+
+  // ✅ FUNCIÓN ACTUALIZADA: A4 con modal nativo
+  const imprimirTicketA4 = async (datos: any, impresoraPersonalizada?: string) => {
+    console.log("📄 Generando ticket A4...", datos);
+    
+    // Obtener configuración y garantías desde Firestore
+    let logoUrl = '';
+    let garantiaServicio = '';
+    let garantiaTelefonos = '';
+    
+    try {
+      const configRef = doc(db, `negocios/${negocioID}/configuracion/datos`);
+      const configSnap = await getDoc(configRef);
+      if (configSnap.exists()) {
+        const configData = configSnap.data();
+        logoUrl = configData.logoUrl || '';
+        garantiaServicio = configData.textoGarantia || '';
+        garantiaTelefonos = configData.textoGarantiaTelefonos || '';
+      }
+    } catch (error) {
+      console.error("Error obteniendo configuración:", error);
+    }
+    
+    const contenidoA4 = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Orden de Servicio - ${datos.id}</title>
+          <meta charset="UTF-8">
+          <style>
+            @page {
+              size: A4;
+              margin: 20mm;
+            }
+            
+            body { 
+              margin: 0; 
+              padding: 0; 
+              font-family: Arial, sans-serif; 
+              font-size: 12px; 
+              line-height: 1.5; 
+              color: #333;
+            }
+            
+            @media print {
+              body { margin: 0; padding: 0; }
+            }
+            
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+            }
+            
+            .logo {
+              max-width: 150px;
+              max-height: 80px;
+              margin-bottom: 20px;
+            }
+            
+            .title {
+              font-weight: bold;
+              font-size: 24px;
+              margin-bottom: 30px;
+              border-bottom: 3px solid #3498db;
+              padding-bottom: 10px;
+            }
+            
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 30px;
+            }
+            
+            .info-box {
+              background: #f8f9fa;
+              padding: 15px;
+              border-radius: 8px;
+              border-left: 4px solid #3498db;
+            }
+            
+            .info-box.client {
+              border-left-color: #27ae60;
+            }
+            
+            .info-box h3 {
+              margin: 0 0 10px 0;
+              color: #2c3e50;
+            }
+            
+            .info-box p {
+              margin: 5px 0;
+            }
+            
+            .observations {
+              background: #fff3cd;
+              padding: 15px;
+              border-radius: 8px;
+              border-left: 4px solid #ffc107;
+              margin-bottom: 30px;
+            }
+            
+            .checkin {
+              background: #e7f3ff;
+              padding: 15px;
+              border-radius: 8px;
+              border-left: 4px solid #007bff;
+              margin-bottom: 30px;
+            }
+            
+            .checkin-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 10px;
+            }
+            
+            .signatures {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 2px solid #ecf0f1;
+            }
+            
+            .signature-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 30px;
+            }
+            
+            .signature-box {
+              text-align: center;
+            }
+            
+            .signature-line {
+              border-bottom: 1px solid #000;
+              margin-bottom: 5px;
+              height: 50px;
+            }
+            
+            .warranty {
+              background: #f8f9fa;
+              padding: 15px;
+              border-radius: 8px;
+              margin-top: 30px;
+              border: 1px solid #dee2e6;
+            }
+            
+            .footer {
+              text-align: center;
+              margin-top: 30px;
+              padding-top: 20px;
+              border-top: 1px solid #ecf0f1;
+              font-size: 10px;
+              color: #7f8c8d;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="logo">` : ''}
+            <div class="title">ORDEN DE SERVICIO TÉCNICO</div>
+          </div>
+          
+          <div class="info-grid">
+            <div class="info-box">
+              <h3>📋 Información del Trabajo</h3>
+              <p><strong>ID del Equipo:</strong> ${datos.id}</p>
+              <p><strong>Fecha de Ingreso:</strong> ${datos.fecha}</p>
+              <p><strong>Modelo:</strong> ${datos.modelo || 'No especificado'}</p>
+              <p><strong>Trabajo a Realizar:</strong> ${datos.trabajo || 'No especificado'}</p>
+              ${datos.precio ? `<p><strong>Precio Estimado:</strong> $${datos.precio}</p>` : ''}
+            </div>
+            
+            <div class="info-box client">
+              <h3>👤 Datos del Cliente</h3>
+              <p><strong>Nombre:</strong> ${datos.cliente}</p>
+              ${datos.clave ? `<p><strong>Clave del Dispositivo:</strong> ${datos.clave}</p>` : ''}
+              ${datos.imei ? `<p><strong>IMEI:</strong> ${datos.imei}</p>` : ''}
+            </div>
+          </div>
+          
+          ${datos.observaciones ? `
+            <div class="observations">
+              <h3 style="margin: 0 0 10px 0; color: #2c3e50;">📝 Observaciones</h3>
+              <p style="margin: 0;">${datos.observaciones}</p>
+            </div>
+          ` : ''}
+          
+          ${datos.checkIn ? `
+            <div class="checkin">
+              <h3 style="margin: 0 0 15px 0; color: #2c3e50;">🔍 Check-In del Equipo</h3>
+              <div class="checkin-grid">
+                ${datos.checkIn.color ? `<p><strong>Color:</strong> ${datos.checkIn.color}</p>` : ''}
+                ${datos.checkIn.pantalla ? `<p><strong>Estado Pantalla:</strong> ${datos.checkIn.pantalla}</p>` : ''}
+                ${datos.checkIn.camaras ? `<p><strong>Cámaras:</strong> ${datos.checkIn.camaras}</p>` : ''}
+                ${datos.checkIn.microfonos ? `<p><strong>Micrófonos:</strong> ${datos.checkIn.microfonos}</p>` : ''}
+                ${datos.checkIn.cargaCable ? `<p><strong>Carga por Cable:</strong> ${datos.checkIn.cargaCable}</p>` : ''}
+                ${datos.checkIn.cargaInalambrica ? `<p><strong>Carga Inalámbrica:</strong> ${datos.checkIn.cargaInalambrica}</p>` : ''}
+                ${datos.checkIn.tapaTrasera ? `<p><strong>Tapa Trasera:</strong> ${datos.checkIn.tapaTrasera}</p>` : ''}
+              </div>
+            </div>
+          ` : ''}
+          
+          <div class="signatures">
+            <div class="signature-grid">
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <p style="margin: 0; font-weight: bold;">Firma del Cliente</p>
+              </div>
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <p style="margin: 0; font-weight: bold;">Firma del Técnico</p>
+              </div>
+            </div>
+          </div>
+          
+          ${garantiaServicio ? `
+            <div class="warranty">
+              <h3 style="margin: 0 0 10px 0; color: #2c3e50;">🛡️ Términos de Garantía</h3>
+              <p style="font-size: 10px; line-height: 1.4; margin: 0;">${garantiaServicio}</p>
+            </div>
+          ` : ''}
+          
+          <div class="footer">
+            Documento generado el ${new Date().toLocaleString('es-AR')}<br>
+            Este documento es un comprobante de recepción del equipo para servicio técnico
+            ${impresoraPersonalizada ? `<br><small>Impresora seleccionada: ${impresoraPersonalizada}</small>` : ''}
+          </div>
+
+          <script>
+            // ✅ ABRIR MODAL NATIVO AUTOMÁTICAMENTE
+            window.addEventListener('load', function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            });
+
+            // ✅ CERRAR VENTANA DESPUÉS DE IMPRIMIR O CANCELAR
+            window.addEventListener('afterprint', function() {
+              window.close();
+            });
+          </script>
+        </body>
+      </html>
+    `;
+    
+    // ✅ ABRIR EN NUEVA VENTANA Y ACTIVAR IMPRESIÓN INMEDIATAMENTE
+    const ventanaImpresion = window.open('', '_blank', 'width=800,height=600');
+    if (ventanaImpresion) {
+      ventanaImpresion.document.write(contenidoA4);
+      ventanaImpresion.document.close();
+      ventanaImpresion.focus();
+    } else {
+      alert("⚠️ El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio.");
+    }
+  };
+
+  // ✅ FUNCIÓN SIMPLIFICADA: Manejar impresión sin modal personalizado
+  const manejarImpresion = async (opciones: {
+    ticket: boolean;
+    etiqueta: boolean;
+    ticketA4: boolean;
+  }) => {
+    if (!negocioID) {
+      alert("No se encontró un negocio asociado a este usuario");
+      return;
+    }
+
+    const datos = {
+      ...form,
+      fecha: form.fecha,
+      checkIn: mostrarCheckIn ? checkData : null,
+    };
+
+    // Primero guardar el trabajo (sin impresión automática)
+    const resultado = await guardarTrabajo(negocioID, datos, false);
+
+    if (resultado) {
+      setMensajeExito(resultado);
+      
+      // Luego procesar las impresiones seleccionadas
+      if (opciones.ticket) {
+        await imprimirTicket(datos);
+      }
+      
+      if (opciones.etiqueta) {
+        await imprimirEtiqueta(datos);
+      }
+      
+      if (opciones.ticketA4) {
+        await imprimirTicketA4(datos);
+      }
+      
+      // Limpiar formulario
+      limpiarFormulario();
+    }
+  };
+
+  // ✅ FUNCIÓN ORIGINAL: Guardar con configuración automática
+  const handleGuardarSolo = async () => {
     if (!negocioID) {
       alert("No se encontró un negocio asociado a este usuario");
       return;
@@ -128,9 +603,7 @@ export default function IngresoForm() {
 
     if (resultado) {
       setMensajeExito(resultado);
-      setForm({ ...inicialForm, id: form.id });
-      setCheckData(inicialCheckData);
-      setMostrarCheckIn(false);
+      limpiarFormulario();
     }
   };
 
@@ -157,30 +630,28 @@ export default function IngresoForm() {
             </div>
           </div>
 
-       
-
           <div className="bg-white rounded-2xl p-8 shadow-lg border border-[#ecf0f1] mb-8">
   
-  {/* Header del formulario con botón */}
-  <div className="flex items-center justify-between mb-8">
-    <div className="flex items-center gap-4">
-      <div className="w-12 h-12 bg-[#f39c12] rounded-xl flex items-center justify-center">
-        <span className="text-white text-2xl">📋</span>
-      </div>
-      <div>
-        <h3 className="text-2xl font-bold text-[#2c3e50]">Información del Trabajo</h3>
-        <p className="text-[#7f8c8d] mt-1">Completa todos los datos del equipo y trabajo a realizar</p>
-      </div>
-    </div>
-    
-    {/* Botón agregar cliente */}
-    <button
-      className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
-      onClick={() => router.push("/clientes/agregar?origen=ingreso")}
-    >
-      ➕ Agregar Cliente
-    </button>
-  </div>
+            {/* Header del formulario con botón */}
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#f39c12] rounded-xl flex items-center justify-center">
+                  <span className="text-white text-2xl">📋</span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-[#2c3e50]">Información del Trabajo</h3>
+                  <p className="text-[#7f8c8d] mt-1">Completa todos los datos del equipo y trabajo a realizar</p>
+                </div>
+              </div>
+              
+              {/* Botón agregar cliente */}
+              <button
+                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
+                onClick={() => router.push("/clientes/agregar?origen=ingreso")}
+              >
+                ➕ Agregar Cliente
+              </button>
+            </div>
 
             {/* Grid del formulario */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -383,15 +854,54 @@ export default function IngresoForm() {
             <CheckInForm checkData={checkData} setCheckData={setCheckData} />
           )}
 
-          {/* Botón guardar */}
+          {/* ✅ OPCIONES DE IMPRESIÓN SIMPLIFICADAS */}
+          {mostrandoOpcionesImpresion && (
+            <OpcionesImpresion
+              onImprimir={manejarImpresion}
+              mostrandoOpciones={mostrandoOpcionesImpresion}
+              onToggleOpciones={() => setMostrandoOpcionesImpresion(false)}
+              datosTrabajos={{
+                ...form,
+                checkIn: mostrarCheckIn ? checkData : null,
+              }}
+              negocioID={negocioID}
+            />
+          )}
+
+          {/* ✅ BOTONES DE ACCIÓN SIMPLIFICADOS */}
           <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1] mb-8">
-            <div className="flex justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              
+              {/* Botón guardar normal */}
               <button
-                onClick={handleGuardar}
-                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-12 py-4 rounded-xl text-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-xl flex items-center gap-3"
+                onClick={handleGuardarSolo}
+                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 justify-center"
               >
                 💾 Guardar Trabajo
               </button>
+
+              {/* Botón opciones de impresión */}
+              {!mostrandoOpcionesImpresion && (
+                <OpcionesImpresion
+                  onImprimir={manejarImpresion}
+                  mostrandoOpciones={mostrandoOpcionesImpresion}
+                  onToggleOpciones={() => setMostrandoOpcionesImpresion(true)}
+                  datosTrabajos={{
+                    ...form,
+                    checkIn: mostrarCheckIn ? checkData : null,
+                  }}
+                  negocioID={negocioID}
+                />
+              )}
+            </div>
+            
+            {/* Texto informativo actualizado */}
+            <div className="mt-4 text-center">
+              <p className="text-sm text-[#7f8c8d]">
+                💡 <strong>Tip:</strong> Usa "Guardar Trabajo" para guardar con configuración automática, 
+                o "Opciones de Impresión" para elegir qué documentos imprimir. 
+                <strong>¡Tu EPSON L1250 aparecerá en el diálogo de impresión nativo!</strong>
+              </p>
             </div>
           </div>
 
@@ -415,7 +925,8 @@ export default function IngresoForm() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium">
-                  <strong>Tip:</strong> El ID del equipo se genera automáticamente. Todos los campos son opcionales excepto el cliente.
+                  <strong>Tip:</strong> El ID del equipo se genera automáticamente. 
+                  Al imprimir, se abrirá el diálogo nativo donde verás tu EPSON L1250 Series y todas tus impresoras instaladas.
                 </p>
               </div>
             </div>
