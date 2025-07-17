@@ -13,6 +13,9 @@ import {
 } from "firebase/firestore";
 import { useRol } from "@/lib/useRol";
 
+// ✅ IMPORTAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que en StockProductosPage)
+import useCotizacion from "@/lib/hooks/useCotizacion";
+
 interface Props {
   trabajoID: string;
   onClose: () => void;
@@ -26,6 +29,48 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
   const [filtro, setFiltro] = useState("");
   const [actualizandoSheet, setActualizandoSheet] = useState(false);
   const { rol } = useRol();
+
+  // ✅ USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que en StockProductosPage)
+  const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
+
+  // ✅ FUNCIÓN MEJORADA PARA NORMALIZAR PRECIOS CON COTIZACIÓN CENTRALIZADA
+  const normalizarPrecio = (repuesto: any) => {
+    console.log("🔍 Analizando precios del repuesto:", repuesto.id);
+    console.log("📊 Datos del repuesto:", {
+      precioCosto: repuesto.precioCosto,
+      precioCostoPesos: repuesto.precioCostoPesos,
+      precioARS: repuesto.precioARS,
+      precioUSD: repuesto.precioUSD,
+      precio: repuesto.precio
+    });
+    console.log("💵 Cotización centralizada actual:", cotizacion);
+
+    let precioFinal = 0;
+    let metodoPrecio = "Sin precio";
+    
+    // Orden de prioridad para encontrar el precio
+    if (repuesto.precioCostoPesos && repuesto.precioCostoPesos > 0) {
+      precioFinal = Number(repuesto.precioCostoPesos);
+      metodoPrecio = "precioCostoPesos (ARS)";
+    } else if (repuesto.precioCosto && repuesto.precioCosto > 0) {
+      precioFinal = Number(repuesto.precioCosto);
+      metodoPrecio = "precioCosto (ARS)";
+    } else if (repuesto.precioARS && repuesto.precioARS > 0) {
+      precioFinal = Number(repuesto.precioARS);
+      metodoPrecio = "precioARS (ARS)";
+    } else if (repuesto.precioUSD && repuesto.precioUSD > 0 && cotizacion > 0) {
+      // ✅ USAR COTIZACIÓN CENTRALIZADA DEL SISTEMA
+      precioFinal = Number(repuesto.precioUSD) * cotizacion;
+      metodoPrecio = `precioUSD (${repuesto.precioUSD} USD × ${cotizacion} = ${precioFinal.toFixed(2)} ARS)`;
+    } else if (repuesto.precio && repuesto.precio > 0) {
+      precioFinal = Number(repuesto.precio);
+      metodoPrecio = "precio genérico";
+    }
+
+    console.log("✅ Método usado:", metodoPrecio);
+    console.log("💰 Precio final normalizado:", precioFinal);
+    return precioFinal;
+  };
 
   // Función para obtener emoji del color
   const obtenerEmojiColor = (color: string): string => {
@@ -78,16 +123,18 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
 
       // Combinar ambas fuentes
       const dataCombinada = [...dataRepuestos, ...dataExtra];
+      console.log("📦 Repuestos cargados:", dataCombinada.length);
       setRepuestos(dataCombinada);
     };
 
     const cargarUsadosPrevios = async () => {
       const trabajoRef = doc(db, `negocios/${rol.negocioID}/trabajos/${trabajoID}`);
-      const trabajoDoc = await getDoc(doc(db, `negocios/${rol.negocioID}/trabajos/${trabajoID}`));
+      const trabajoDoc = await getDoc(trabajoRef);
       const usados = (trabajoDoc.data()?.repuestosUsados || []).map((d: any) => ({
         ...d,
         timestamp: d.timestamp || Date.now() + Math.random(),
       }));
+      console.log("📋 Repuestos usados previos:", usados);
       setUsadosPrevios(usados);
     };
 
@@ -131,15 +178,8 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
 
       console.log("📋 Configuraciones disponibles:", Object.keys(configPorHoja));
 
-      // Obtener cotización
-      let cotizacion = 1000;
-      const configSnap = await getDoc(
-        doc(db, `negocios/${rol.negocioID}/configuracion/moneda`)
-      );
-      if (configSnap.exists()) {
-        const data = configSnap.data();
-        cotizacion = Number(data.dolarManual) || 1000;
-      }
+      // ✅ USAR COTIZACIÓN CENTRALIZADA PARA ACTUALIZAR SHEETS
+      console.log("💵 Usando cotización centralizada para Google Sheets:", cotizacion);
 
       // Obtener productos actualizados desde Firebase
       const snap = await getDocs(
@@ -224,21 +264,44 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     }
   };
 
+  // ✅ FUNCIÓN CORREGIDA PARA AGREGAR A SELECCIONADOS
   const agregarASeleccionados = (repuesto: any) => {
-    if (repuesto.cantidad <= 0) return;
-  
-    if (typeof repuesto.precioCostoPesos !== "number") {
-      alert("Este repuesto no tiene definido el precio en pesos.");
+    if (repuesto.cantidad <= 0) {
+      alert("⚠️ Este repuesto no tiene stock disponible.");
       return;
     }
-  
+
+    console.log("🔧 Agregando repuesto a seleccionados:", repuesto.id);
+    
+    // Normalizar el precio usando la función mejorada
+    const precioNormalizado = normalizarPrecio(repuesto);
+    
+    if (precioNormalizado <= 0) {
+      console.error("❌ Error: Precio no válido para el repuesto:", repuesto.id);
+      alert(`⚠️ Este repuesto no tiene un precio válido definido.\n\nRepuesto: ${repuesto.producto}\nCódigo: ${repuesto.id}\n\nPor favor, verifica la configuración de precios.`);
+      return;
+    }
+
+    // ✅ CREAR OBJETO CON PRECIOS NORMALIZADOS
     const repuestoUsado = {
       ...repuesto,
-      precio: repuesto.precioCosto,
-      costoPesos: repuesto.precioCostoPesos,
+      // Asegurar que todas las propiedades de precio estén definidas
+      precio: precioNormalizado,
+      precioCosto: precioNormalizado,
+      precioCostoPesos: precioNormalizado,
+      costoPesos: precioNormalizado, // Para compatibilidad
       timestamp: Date.now() + Math.random(),
     };
-  
+
+    console.log("✅ Repuesto preparado para agregar:", {
+      id: repuestoUsado.id,
+      producto: repuestoUsado.producto,
+      precio: repuestoUsado.precio,
+      precioCosto: repuestoUsado.precioCosto,
+      precioCostoPesos: repuestoUsado.precioCostoPesos,
+      costoPesos: repuestoUsado.costoPesos
+    });
+
     setSeleccionados((prev) => [...prev, repuestoUsado]);
   };
   
@@ -246,24 +309,42 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     setSeleccionados((prev) => prev.filter((r) => r.timestamp !== timestamp));
   };
 
+  // ✅ FUNCIÓN CORREGIDA PARA ELIMINAR REPUESTOS PREVIOS
   const eliminarPrevio = async (repuesto: any) => {
+    console.log("🗑️ Eliminando repuesto previo:", repuesto.id);
+    
     const trabajoRef = doc(db, `negocios/${rol.negocioID}/trabajos/${trabajoID}`);
     const docSnap = await getDoc(trabajoRef);
     const data = docSnap.data();
     const repuestosActuales = data?.repuestosUsados || [];
-    const costoActual = data?.costo || 0;
-  
+    const costoActual = Number(data?.costo) || 0;
+
+    // Encontrar el repuesto a eliminar
+    const repuestoAEliminar = repuestosActuales.find(
+      (r: any) => r.timestamp === repuesto.timestamp
+    );
+
+    if (!repuestoAEliminar) {
+      console.error("❌ No se encontró el repuesto a eliminar");
+      return;
+    }
+
+    // Calcular el costo a restar
+    const costoARestar = normalizarPrecio(repuestoAEliminar);
+    console.log("💰 Costo a restar:", costoARestar);
+
     const actualizados = repuestosActuales.filter(
       (r: any) => r.timestamp !== repuesto.timestamp
     );
-  
-    const nuevoCosto = costoActual - (repuesto.costoPesos || 0);
-  
+
+    const nuevoCosto = Math.max(0, costoActual - costoARestar);
+    console.log("💰 Nuevo costo total:", nuevoCosto);
+
     await updateDoc(trabajoRef, {
       repuestosUsados: actualizados,
-      costo: nuevoCosto >= 0 ? nuevoCosto : 0,
+      costo: nuevoCosto,
     });
-  
+
     // Retornar al stock correcto según la fuente
     const coleccionStock = repuesto.fuente || 'stockRepuestos';
     const repuestoRef = doc(db, `negocios/${rol.negocioID}/${coleccionStock}/${repuesto.id}`);
@@ -275,33 +356,54 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     if (repuesto.fuente === 'stockExtra') {
       await actualizarGoogleSheet();
     }
-  
+
     window.location.reload();
   };  
 
+  // ✅ FUNCIÓN CORREGIDA PARA GUARDAR TODOS LOS REPUESTOS
   const guardarTodos = async () => {
-    if (seleccionados.length === 0) return;
-  
+    if (seleccionados.length === 0) {
+      alert("⚠️ No hay repuestos seleccionados para guardar.");
+      return;
+    }
+
     console.log("🟢 Iniciando guardarTodos...");
     console.log("🟢 Repuestos seleccionados:", seleccionados);
-  
+
     const trabajoRef = doc(db, `negocios/${rol.negocioID}/trabajos/${trabajoID}`);
     const trabajoSnap = await getDoc(trabajoRef);
     const trabajoData = trabajoSnap.data();
-  
+
     const previos = trabajoData?.repuestosUsados || [];
     const repuestosActualizados = [...previos, ...seleccionados];
-    const costoTotal = repuestosActualizados.reduce((sum, r) => sum + (r.costoPesos || 0), 0);
-  
+    
+    // ✅ CALCULAR COSTO TOTAL CON PRECIOS NORMALIZADOS
+    let costoTotal = 0;
+    
+    // Sumar costos de repuestos previos
+    previos.forEach((r: any) => {
+      const costo = normalizarPrecio(r);
+      costoTotal += costo;
+      console.log(`💰 Costo previo - ${r.producto}: ${costo}`);
+    });
+    
+    // Sumar costos de repuestos nuevos
+    seleccionados.forEach((r: any) => {
+      const costo = normalizarPrecio(r);
+      costoTotal += costo;
+      console.log(`💰 Costo nuevo - ${r.producto}: ${costo}`);
+    });
+
     console.log("🟢 Costo total calculado:", costoTotal);
-  
+
+    // ✅ GUARDAR CON COSTO CORRECTO
     await updateDoc(trabajoRef, {
       repuestosUsados: repuestosActualizados,
-      costo: Number(costoTotal),
+      costo: Number(costoTotal.toFixed(2)), // Redondear a 2 decimales
     });
-  
+
     console.log("🟢 Trabajo actualizado en Firebase");
-  
+
     // Descontar del stock correcto según la fuente
     let hayStockExtra = false;
     for (const r of seleccionados) {
@@ -312,23 +414,25 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
       await updateDoc(ref, {
         cantidad: r.cantidad - 1,
       });
-  
+
       console.log("🟢 Stock actualizado para:", r.id);
-  
+
       // Marcar si hay productos de stockExtra
       if (r.fuente === 'stockExtra') {
         hayStockExtra = true;
         console.log("🟢 Repuesto de stockExtra detectado");
       }
     }
-  
+
     // 🆕 Si se usaron productos de stockExtra, actualizar el Google Sheet
     if (hayStockExtra) {
       console.log("🟢 Iniciando actualización de Google Sheet...");
       await actualizarGoogleSheet();
       console.log("🟢 Actualización de Google Sheet completada");
     }
-  
+
+    alert(`✅ Se agregaron ${seleccionados.length} repuestos correctamente.\n💰 Costo total: $${costoTotal.toFixed(2)}`);
+    
     onClose();
     if (onGuardar) onGuardar();
   };
@@ -356,7 +460,7 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
               <div>
                 <h2 className="text-2xl font-bold">Gestión de Repuestos</h2>
                 <p className="text-purple-100 text-sm mt-1">
-                  Agregar repuestos desde Stock Local y Google Sheets
+                  Cotización sincronizada con Ventas General: ${cotizacion > 0 ? cotizacion.toFixed(0) : 'N/A'} ARS/USD
                   {actualizandoSheet && (
                     <span className="block text-yellow-200 font-medium mt-1">
                       🔄 Actualizando Google Sheet...
@@ -375,6 +479,27 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
         </div>
 
         <div className="p-6 bg-[#f8f9fa] max-h-[calc(90vh-120px)] overflow-y-auto">
+          
+          {/* ✅ COMPONENTE PARA MOSTRAR COTIZACIÓN CENTRALIZADA */}
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-[#27ae60] rounded-xl p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-[#27ae60] rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">💵</span>
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-[#2c3e50]">Cotización del Dólar (Sistema Centralizado)</h4>
+                <p className="text-xs text-[#7f8c8d]">
+                  Los precios en USD se convertirán automáticamente usando la cotización de Ventas General
+                </p>
+              </div>
+              <div className="text-right">
+                <div>
+                  <span className="text-lg font-bold text-[#27ae60]">${cotizacion > 0 ? cotizacion.toFixed(0) : 'N/A'}</span>
+                  <span className="text-xs text-[#7f8c8d] block">ARS por USD</span>
+                </div>
+              </div>
+            </div>
+          </div>
           
           {/* Buscador - Estilo GestiOne */}
           <div className="bg-white rounded-xl border border-[#ecf0f1] p-4 mb-6 shadow-sm">
@@ -417,6 +542,31 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
               </div>
             </div>
           )}
+
+          {/* ✅ PANEL DE DEBUG DE PRECIOS CON COTIZACIÓN CENTRALIZADA */}
+          {filtro.trim() !== "" && resultados.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+              <h4 className="text-sm font-semibold text-blue-800 mb-2">🔍 Debug de Precios (primeros 3 resultados)</h4>
+              {resultados.slice(0, 3).map((r, i) => {
+                const precioNorm = normalizarPrecio(r);
+                const tieneUSD = r.precioUSD && r.precioUSD > 0;
+                return (
+                  <div key={i} className="text-xs bg-white p-2 rounded mb-2">
+                    <strong>{r.producto}</strong> - Precio normalizado: ${precioNorm.toFixed(2)}
+                    {tieneUSD && (
+                      <span className="text-green-600 font-medium"> (USD ${r.precioUSD} × {cotizacion})</span>
+                    )}
+                    <br />
+                    <span className="text-gray-600">
+                      Raw: precioCosto={r.precioCosto}, precioCostoPesos={r.precioCostoPesos}, 
+                      precioARS={r.precioARS}, precioUSD={r.precioUSD}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Tabla de resultados - Estilo GestiOne */}
           {filtro.trim() !== "" && resultados.length > 0 && (
             <div className="bg-white rounded-xl border border-[#ecf0f1] p-4 mb-6 shadow-sm">
@@ -446,6 +596,7 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                     {resultados.map((r, index) => {
                       const yaSeleccionado = seleccionados.some((s) => s.id === r.id && s.fuente === r.fuente);
                       const isEven = index % 2 === 0;
+                      const precioNormalizado = normalizarPrecio(r);
 
                       return (
                         <tr key={`${r.fuente}-${r.id}`} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
@@ -483,9 +634,17 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                             </div>
                           </td>
                           <td className="p-3 border border-black">
-                            <span className="text-sm font-semibold text-[#27ae60]">
-                              {r.moneda || 'ARS'} ${r.precioCosto ? Number(r.precioCosto).toFixed(2) : "—"}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className={`text-sm font-semibold ${precioNormalizado > 0 ? 'text-[#27ae60]' : 'text-[#e74c3c]'}`}>
+                                ARS ${precioNormalizado > 0 ? precioNormalizado.toFixed(2) : "Sin precio"}
+                              </span>
+                              {precioNormalizado <= 0 && (
+                                <span className="text-xs text-[#e74c3c]">⚠️ Precio no válido</span>
+                              )}
+                              {r.precioUSD && r.precioUSD > 0 && cotizacion > 0 && (
+                                <span className="text-xs text-[#7f8c8d]">USD ${r.precioUSD}</span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 border border-black">
                             <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold ${
@@ -498,12 +657,17 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                             {!yaSeleccionado ? (
                               <button
                                 onClick={() => agregarASeleccionados(r)}
-                                disabled={r.cantidad <= 0}
+                                disabled={r.cantidad <= 0 || precioNormalizado <= 0}
                                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md ${
-                                  r.cantidad > 0
+                                  r.cantidad > 0 && precioNormalizado > 0
                                     ? "bg-[#3498db] hover:bg-[#2980b9] text-white"
                                     : "bg-[#bdc3c7] text-[#7f8c8d] cursor-not-allowed"
                                 }`}
+                                title={
+                                  r.cantidad <= 0 ? "Sin stock disponible" :
+                                  precioNormalizado <= 0 ? "Precio no válido" :
+                                  "Agregar al trabajo"
+                                }
                               >
                                 ➕ Agregar
                               </button>
@@ -537,6 +701,9 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                   <span className="text-white text-sm">✅</span>
                 </div>
                 Repuestos Seleccionados ({seleccionados.length})
+                <div className="ml-auto bg-[#27ae60] text-white px-3 py-1 rounded-lg text-sm font-bold">
+                  💰 Total: ${seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}
+                </div>
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse border-2 border-black">
@@ -556,6 +723,7 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                   <tbody>
                     {seleccionados.map((r, index) => {
                       const isEven = index % 2 === 0;
+                      const precioNormalizado = normalizarPrecio(r);
                       return (
                         <tr key={r.timestamp} className={`transition-all duration-200 ${isEven ? 'bg-white' : 'bg-green-50'}`}>
                           <td className="p-3 border border-black">
@@ -592,9 +760,14 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                             </div>
                           </td>
                           <td className="p-3 border border-black">
-                            <span className="text-sm font-semibold text-[#27ae60]">
-                              {r.moneda || 'ARS'} ${r.precioCosto ? Number(r.precioCosto).toFixed(2) : "—"}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-semibold text-[#27ae60]">
+                                ARS ${precioNormalizado.toFixed(2)}
+                              </span>
+                              {r.precioUSD && r.precioUSD > 0 && (
+                                <span className="text-xs text-[#7f8c8d]">USD ${r.precioUSD}</span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 border border-black text-center">
                             <button
@@ -621,6 +794,9 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                   <span className="text-white text-sm">🔧</span>
                 </div>
                 Repuestos Ya Usados ({usadosPrevios.length})
+                <div className="ml-auto bg-[#f39c12] text-white px-3 py-1 rounded-lg text-sm font-bold">
+                  💰 Costo actual: ${usadosPrevios.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}
+                </div>
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse border-2 border-black">
@@ -640,6 +816,7 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                   <tbody>
                     {usadosPrevios.map((r, index) => {
                       const isEven = index % 2 === 0;
+                      const precioNormalizado = normalizarPrecio(r);
                       return (
                         <tr key={r.timestamp} className={`transition-all duration-200 ${isEven ? 'bg-white' : 'bg-orange-50'}`}>
                           <td className="p-3 border border-black">
@@ -676,9 +853,14 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                             </div>
                           </td>
                           <td className="p-3 border border-black">
-                            <span className="text-sm font-semibold text-[#27ae60]">
-                              {r.moneda || 'ARS'} ${r.precioCosto ? Number(r.precioCosto).toFixed(2) : "—"}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-semibold text-[#27ae60]">
+                                ARS ${precioNormalizado.toFixed(2)}
+                              </span>
+                              {r.precioUSD && r.precioUSD > 0 && (
+                                <span className="text-xs text-[#7f8c8d]">USD ${r.precioUSD}</span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 border border-black text-center">
                             <button
@@ -723,7 +905,10 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                 ) : (
                   <>
                     <span>💾</span>
-                    <span>Guardar {seleccionados.length > 0 && `(${seleccionados.length})`}</span>
+                    <span>
+                      Guardar {seleccionados.length > 0 && `(${seleccionados.length})`}
+                      {seleccionados.length > 0 && ` - ${seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}`}
+                    </span>
                   </>
                 )}
               </button>
@@ -738,6 +923,43 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                     <strong>Sincronización automática:</strong> Al guardar, el Google Sheet se actualizará automáticamente con las nuevas cantidades.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* Resumen de costos */}
+            {(seleccionados.length > 0 || usadosPrevios.length > 0) && (
+              <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 border border-[#27ae60] rounded-lg">
+                <h4 className="font-bold text-[#2c3e50] mb-2">💰 Resumen de Costos</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="text-center">
+                    <span className="block text-xs text-[#7f8c8d]">Costo Actual</span>
+                    <span className="block text-lg font-bold text-[#f39c12]">
+                      ${usadosPrevios.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-xs text-[#7f8c8d]">Nuevos Repuestos</span>
+                    <span className="block text-lg font-bold text-[#27ae60]">
+                      ${seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="text-center">
+                    <span className="block text-xs text-[#7f8c8d]">Total Final</span>
+                    <span className="block text-lg font-bold text-[#2c3e50]">
+                      ${(
+                        usadosPrevios.reduce((sum, r) => sum + normalizarPrecio(r), 0) +
+                        seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                {cotizacion > 0 && (
+                  <div className="mt-3 pt-3 border-t border-[#27ae60] text-center">
+                    <span className="text-xs text-[#7f8c8d]">
+                      Cotización utilizada: <strong>${cotizacion.toFixed(0)} ARS/USD</strong> (sincronizada con Ventas General)
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
