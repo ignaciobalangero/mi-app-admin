@@ -21,6 +21,8 @@ import useCotizacion from "@/lib/hooks/useCotizacion";
 import ModalRemitoImpresion from "./ModalRemitoImpresion";
 import ModalEditarVenta from "./ModalEditarVenta";
 
+// 🔥 CONSTANTE DE PAGINACIÓN
+const PRODUCTOS_POR_PAGINA = 40;
 
 interface Props {
   refrescar: boolean;
@@ -36,13 +38,41 @@ export default function TablaVentas({ refrescar }: Props) {
   const [mostrarConfirmarEliminar, setMostrarConfirmarEliminar] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<"todos" | "pendiente" | "pagado">("todos");
   const [filtroCategoria, setFiltroCategoria] = useState<"todas" | "telefono" | "accesorio" | "repuesto">("todas");
+  const [filtroMoneda, setFiltroMoneda] = useState<"todas" | "USD" | "ARS">("todas");
   const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
   const [ventaParaRemito, setVentaParaRemito] = useState<any | null>(null);
   const [mostrarRemito, setMostrarRemito] = useState(false);
 
-  // 🆕 NUEVOS ESTADOS PARA ELIMINACIÓN DE PRODUCTOS
+  // 🆕 ESTADOS DE PAGINACIÓN
+  const [paginaActual, setPaginaActual] = useState(1);
+
+  // Estados para eliminación de productos
   const [productoAEliminar, setProductoAEliminar] = useState<{venta: any, producto: any, index: number} | null>(null);
   const [mostrarConfirmarEliminarProducto, setMostrarConfirmarEliminarProducto] = useState(false);
+
+  // 🔥 FUNCIÓN CORREGIDA PARA OBTENER GANANCIA
+  const obtenerGanancia = (producto: any, ventaId: string) => {
+    const precioVenta = producto.precioUnitario || 0;
+    const cantidad = producto.cantidad || 1;
+
+    // 🔥 PRIORIDAD 1: ganancia ya calculada
+    if (producto.ganancia !== undefined && producto.ganancia !== null) {
+      return producto.ganancia;
+    }
+
+    // 🔥 PRIORIDAD 2: costo definido (calcular: precioVenta - costo)
+    if (producto.costo !== undefined && producto.costo !== null) {
+      return (precioVenta - producto.costo) * cantidad;
+    }
+
+    // 🔥 PRIORIDAD 3: precioCosto (campo legacy)
+    if (producto.precioCosto !== undefined && producto.precioCosto !== null) {
+      return (precioVenta - producto.precioCosto) * cantidad;
+    }
+
+    // 🔥 FALLBACK: Sin datos suficientes
+    return null;
+  };
 
   const editarVenta = (venta: any) => {
     setVentaSeleccionada(venta);
@@ -54,7 +84,6 @@ export default function TablaVentas({ refrescar }: Props) {
     setMostrarConfirmarEliminar(true);
   };
 
-  // 🆕 NUEVA FUNCIÓN PARA CONFIRMAR ELIMINACIÓN DE PRODUCTO
   const confirmarEliminarProducto = () => {
     if (productoAEliminar) {
       eliminarProducto(productoAEliminar.venta.id, productoAEliminar.index);
@@ -63,13 +92,11 @@ export default function TablaVentas({ refrescar }: Props) {
     }
   };
 
-  // 🆕 NUEVA FUNCIÓN PARA ABRIR MODAL DE CONFIRMACIÓN DE PRODUCTO
   const pedirConfirmacionEliminarProducto = (venta: any, producto: any, index: number) => {
     setProductoAEliminar({ venta, producto, index });
     setMostrarConfirmarEliminarProducto(true);
   };
 
-  // 🔧 FUNCIÓN CORREGIDA - Eliminar un producto individual de una venta
   const eliminarProducto = async (ventaId: string, productoIndex: number) => {
     if (!rol?.negocioID) return;
 
@@ -79,7 +106,7 @@ export default function TablaVentas({ refrescar }: Props) {
     const productoEliminado = venta.productos[productoIndex];
     const nuevosProductos = venta.productos.filter((_: any, idx: number) => idx !== productoIndex);
 
-    // 🔥 REPONER AL STOCK SEGÚN EL TIPO CORRECTO
+    // Reponer al stock según el tipo
     if (productoEliminado.codigo) {
       if (productoEliminado.tipo === "accesorio" || productoEliminado.categoria === "Accesorio") {
         await reponerAccesoriosAlStock({
@@ -90,7 +117,7 @@ export default function TablaVentas({ refrescar }: Props) {
         productoEliminado.tipo === "repuesto" || 
         productoEliminado.tipo === "general" ||
         productoEliminado.categoria === "Repuesto" ||
-        productoEliminado.hoja  // 👈 AGREGAR ESTO
+        productoEliminado.hoja
       ) {
         await reponerRepuestosAlStock({
           productos: [productoEliminado],
@@ -121,22 +148,19 @@ export default function TablaVentas({ refrescar }: Props) {
     await refrescarVentas();
   };
 
-  // 🔧 FUNCIÓN CORREGIDA - Eliminar una venta completa
   const eliminarVentaCompleta = async (venta: any) => {
     if (!rol?.negocioID) return;
 
-    // ✅ FILTRO ACCESORIOS - Mantener como está (funciona bien)
     const accesorios = venta.productos.filter(
       (p: any) => (p.tipo === "accesorio" || p.categoria === "Accesorio") && p.codigo
     );
     
-    // 🔥 FILTRO CORREGIDO - Incluir productos de stockExtra (tipo "general")
     const repuestos = venta.productos.filter(
       (p: any) => (
         p.tipo === "repuesto" || 
         p.tipo === "general" ||
         p.categoria === "Repuesto" ||
-        p.hoja  // 👈 AGREGAR ESTO
+        p.hoja
       ) && p.codigo
     );
     
@@ -155,7 +179,6 @@ export default function TablaVentas({ refrescar }: Props) {
       });
     }
 
-    // ✅ LÓGICA TELÉFONOS - Mantener como está (funciona bien)
     const telefono = venta.productos.find((p: any) => p.categoria === "Teléfono");
 
     if (telefono) {
@@ -190,15 +213,11 @@ export default function TablaVentas({ refrescar }: Props) {
           });
         }
 
-        // Borrar de ventaTelefonos
         await deleteDoc(refTelefono);
       }
     }
 
-    // Eliminar de ventasGeneral
     await deleteDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${venta.id}`));
-
-    // Refrescar estado
     await refrescarVentas();
   };
 
@@ -222,6 +241,7 @@ export default function TablaVentas({ refrescar }: Props) {
     refrescarVentas();
   }, [rol?.negocioID, refrescar]);
 
+  // 🔥 FILTROS APLICADOS A VENTAS
   const ventasFiltradas = ventas
     .filter((v) =>
       v.cliente.toLowerCase().includes(filtroCliente.toLowerCase())
@@ -240,185 +260,282 @@ export default function TablaVentas({ refrescar }: Props) {
       });
       
       return tieneCategoria;
+    })
+    .filter((v) => {
+      if (filtroMoneda === "todas") return true;
+      
+      const hayTelefono = v.productos.some((p: any) => p.categoria === "Teléfono");
+      
+      if (filtroMoneda === "USD") {
+        return hayTelefono || v.productos.some((p: any) => p.moneda?.toUpperCase() === "USD");
+      } else if (filtroMoneda === "ARS") {
+        return !hayTelefono && v.productos.some((p: any) => p.moneda?.toUpperCase() !== "USD");
+      }
+      
+      return true;
     });
+
+  // 🔥 CREAR LISTA PLANA DE PRODUCTOS
+  const productosPlanos = ventasFiltradas.flatMap(venta => 
+    venta.productos.map((producto: any, index: number) => ({
+      ...producto,
+      ventaId: venta.id,
+      ventaCliente: venta.cliente,
+      ventaFecha: venta.fecha,
+      ventaEstado: venta.estado || "pendiente",
+      ventaNroVenta: venta.nroVenta || venta.id.slice(-4),
+      ventaTotal: venta.total,
+      ventaProductos: venta.productos,
+      productoIndex: index,
+      esProductoPrincipal: index === 0,
+      tieneMultiplesProductos: venta.productos.length > 1,
+      hayTelefonoEnVenta: venta.productos.some((p: any) => p.categoria === "Teléfono"),
+      gananciaCalculada: obtenerGanancia(producto, venta.id)
+    }))
+  );
+
+  // 🔥 FUNCIONES DE PAGINACIÓN
+  const totalPaginas = Math.ceil(productosPlanos.length / PRODUCTOS_POR_PAGINA);
+  const indiceInicio = (paginaActual - 1) * PRODUCTOS_POR_PAGINA;
+  const indiceFin = indiceInicio + PRODUCTOS_POR_PAGINA;
+  const productosPaginados = productosPlanos.slice(indiceInicio, indiceFin);
+
+  const irAPagina = (pagina: number) => {
+    if (pagina >= 1 && pagina <= totalPaginas) {
+      setPaginaActual(pagina);
+    }
+  };
+
+  const paginaAnterior = () => {
+    if (paginaActual > 1) {
+      setPaginaActual(paginaActual - 1);
+    }
+  };
+
+  const paginaSiguiente = () => {
+    if (paginaActual < totalPaginas) {
+      setPaginaActual(paginaActual + 1);
+    }
+  };
+
+  // 🔥 RESET PAGINACIÓN AL FILTRAR
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [filtroCliente, filtroEstado, filtroCategoria, filtroMoneda]);
 
   return (
     <div className="space-y-6">
-      {/* Header de filtros y controles - Responsive */}
-      <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 lg:p-6">
-        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+      {/* HEADER DE FILTROS */}
+      <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-3 lg:p-4">
+        <div className="flex flex-col lg:flex-row gap-3 lg:gap-6 mb-3">
           
-          {/* Filtros principales */}
-          <div className="flex flex-col gap-4 w-full lg:min-w-[300px]">
-            {/* Estados */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-[#2c3e50] flex items-center gap-2">
-                <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">📊</span>
-                Estado:
-              </span>
-              <div className="flex gap-1 sm:gap-2">
-                <button
-                  onClick={() => setFiltroEstado("todos")}
-                  className={`px-2 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm flex-1 sm:flex-none ${
-                    filtroEstado === "todos" 
-                      ? "bg-[#3498db] text-white shadow-md" 
-                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  onClick={() => setFiltroEstado("pendiente")}
-                  className={`px-2 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm flex-1 sm:flex-none ${
-                    filtroEstado === "pendiente" 
-                      ? "bg-[#f39c12] text-white shadow-md" 
-                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
-                  }`}
-                >
-                  Pendiente
-                </button>
-                <button
-                  onClick={() => setFiltroEstado("pagado")}
-                  className={`px-2 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm flex-1 sm:flex-none ${
-                    filtroEstado === "pagado" 
-                      ? "bg-[#27ae60] text-white shadow-md" 
-                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
-                  }`}
-                >
-                  Pagado
-                </button>
-              </div>
-            </div>
-
-            {/* Categorías */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-[#2c3e50] flex items-center gap-2">
-                <span className="w-4 h-4 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs">🏷️</span>
-                Categoría:
-              </span>
-              <div className="grid grid-cols-2 sm:flex gap-1 sm:gap-2">
-                <button
-                  onClick={() => setFiltroCategoria("todas")}
-                  className={`px-2 sm:px-3 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm ${
-                    filtroCategoria === "todas" 
-                      ? "bg-[#2c3e50] text-white shadow-md" 
-                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
-                  }`}
-                >
-                  📊 Todas
-                </button>
-                <button
-                  onClick={() => setFiltroCategoria("telefono")}
-                  className={`px-2 sm:px-3 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm ${
-                    filtroCategoria === "telefono" 
-                      ? "bg-[#27ae60] text-white shadow-md" 
-                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
-                  }`}
-                >
-                  📱 Telefonos
-                </button>
-                <button
-                  onClick={() => setFiltroCategoria("accesorio")}
-                  className={`px-2 sm:px-3 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm ${
-                    filtroCategoria === "accesorio" 
-                      ? "bg-[#3498db] text-white shadow-md" 
-                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
-                  }`}
-                >
-                  🔌 Accesorios
-                </button>
-                <button
-                  onClick={() => setFiltroCategoria("repuesto")}
-                  className={`px-2 sm:px-3 py-2 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm ${
-                    filtroCategoria === "repuesto" 
-                      ? "bg-[#f39c12] text-white shadow-md" 
-                      : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
-                  }`}
-                >
-                  🔧 Repuestos
-                </button>
-              </div>
+          {/* Estados */}
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
+              <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">📊</span>
+              Estado:
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFiltroEstado("todos")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroEstado === "todos" 
+                    ? "bg-[#3498db] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setFiltroEstado("pendiente")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroEstado === "pendiente" 
+                    ? "bg-[#f39c12] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                Pendiente
+              </button>
+              <button
+                onClick={() => setFiltroEstado("pagado")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroEstado === "pagado" 
+                    ? "bg-[#27ae60] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                Pagado
+              </button>
             </div>
           </div>
 
-          {/* Buscador y cotización */}
-          <div className="flex flex-col lg:flex-row gap-4 flex-1">
-            {/* Buscador */}
-            <div className="w-full lg:w-52">
-              <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
-                <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
-                Buscar cliente:
-              </label>
-              <input
-                type="text"
-                placeholder="🔍 Filtrar por cliente..."
-                value={filtroCliente}
-                onChange={(e) => setFiltroCliente(e.target.value)}
-                className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
-              />
+          {/* Categorías */}
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
+              <span className="w-4 h-4 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs">🏷️</span>
+              Categoría:
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFiltroCategoria("todas")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroCategoria === "todas" 
+                    ? "bg-[#2c3e50] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                📊 Todas
+              </button>
+              <button
+                onClick={() => setFiltroCategoria("telefono")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroCategoria === "telefono" 
+                    ? "bg-[#27ae60] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                📱 Tel
+              </button>
+              <button
+                onClick={() => setFiltroCategoria("accesorio")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroCategoria === "accesorio" 
+                    ? "bg-[#3498db] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                🔌 Acc
+              </button>
+              <button
+                onClick={() => setFiltroCategoria("repuesto")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroCategoria === "repuesto" 
+                    ? "bg-[#f39c12] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                🔧 Rep
+              </button>
             </div>
+          </div>
 
-            {/* Cotización USD - CORREGIDA */}
-            <div className="w-full lg:w-52">
-              <label className="text-xs font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
-                <span className="w-4 h-4 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-xs">💰</span>
-                Cotización USD:
-              </label>
-              <div className="flex items-center gap-2 bg-gradient-to-r from-[#f8f9fa] to-[#ecf0f1] px-2 sm:px-3 py-2 sm:py-3 rounded-lg border-2 border-[#f39c12]">
-                <span className="text-sm font-medium text-[#2c3e50]">$</span>
-                <input
-                  type="number"
-                  value={cotizacion}
-                  onChange={async (e) => {
-                    const nuevaCotizacion = Number(e.target.value);
-                    actualizarCotizacion(nuevaCotizacion);
+          {/* Monedas */}
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
+              <span className="w-4 h-4 bg-[#9b59b6] rounded-full flex items-center justify-center text-white text-xs">💱</span>
+              Moneda:
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFiltroMoneda("todas")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroMoneda === "todas" 
+                    ? "bg-[#9b59b6] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                Todas
+              </button>
+              <button
+                onClick={() => setFiltroMoneda("USD")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroMoneda === "USD" 
+                    ? "bg-[#16a085] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                💵 USD
+              </button>
+              <button
+                onClick={() => setFiltroMoneda("ARS")}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                  filtroMoneda === "ARS" 
+                    ? "bg-[#e67e22] text-white shadow-md" 
+                    : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                }`}
+              >
+                💰 ARS
+              </button>
+            </div>
+          </div>
 
-                    const snap = await getDocs(
-                      query(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), orderBy("timestamp", "desc"))
-                    );
+          {/* Cotización USD */}
+          <div className="flex flex-col gap-2 ml-auto">
+            <span className="text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
+              <span className="w-4 h-4 bg-[#f39c12] rounded-full flex items-center justify-center text-white text-xs">💰</span>
+              Cotización USD:
+            </span>
+            <div className="flex items-center gap-2 bg-gradient-to-r from-[#f8f9fa] to-[#ecf0f1] px-4 py-2 rounded-lg border-2 border-[#f39c12] min-w-[180px]">
+              <span className="text-sm font-medium text-[#2c3e50]">$</span>
+              <input
+                type="number"
+                value={cotizacion}
+                onChange={async (e) => {
+                  const nuevaCotizacion = Number(e.target.value);
+                  actualizarCotizacion(nuevaCotizacion);
 
-                    const updates = snap.docs.map(async (docu) => {
-                      const data = docu.data();
-                      if ((data.estado || "pendiente") === "pendiente") {
-                        const productosActualizados = data.productos.map((p: any) => {
-                          const total =
-                            p.moneda?.toUpperCase() === "USD"
-                              ? p.precioUnitario * p.cantidad * nuevaCotizacion
-                              : p.precioUnitario * p.cantidad;
+                  const snap = await getDocs(
+                    query(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), orderBy("timestamp", "desc"))
+                  );
 
-                          return {
-                            ...p,
-                            total,
-                          };
-                        });
+                  const updates = snap.docs.map(async (docu) => {
+                    const data = docu.data();
+                    if ((data.estado || "pendiente") === "pendiente") {
+                      const productosActualizados = data.productos.map((p: any) => {
+                        const total =
+                          p.moneda?.toUpperCase() === "USD"
+                            ? p.precioUnitario * p.cantidad * nuevaCotizacion
+                            : p.precioUnitario * p.cantidad;
 
-                        const totalVenta = productosActualizados.reduce(
-                          (acc: number, p: any) => acc + p.total,
-                          0
-                        );
+                        return {
+                          ...p,
+                          total,
+                        };
+                      });
 
-                        await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${docu.id}`), {
-                          productos: productosActualizados,
-                          total: totalVenta,
-                        });
-                      }
-                    });
+                      const totalVenta = productosActualizados.reduce(
+                        (acc: number, p: any) => acc + p.total,
+                        0
+                      );
 
-                    await Promise.all(updates);
-                  }}
-                  className="flex-1 px-2 py-2 border-2 border-[#f39c12] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-center font-medium text-sm text-[#2c3e50] min-w-0"
-                />
-                <div className="text-xs text-[#f39c12] whitespace-nowrap">
-                  <div className="font-medium">ARS</div>
-                </div>
+                      await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${docu.id}`), {
+                        productos: productosActualizados,
+                        total: totalVenta,
+                      });
+                    }
+                  });
+
+                  await Promise.all(updates);
+                }}
+                className="flex-1 px-3 py-2 border-2 border-[#f39c12] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-center font-medium text-sm text-[#2c3e50] min-w-0"
+              />
+              <div className="text-sm text-[#f39c12] font-medium">
+                ARS
               </div>
             </div>
           </div>
         </div>
+
+        {/* Buscador */}
+        <div className="flex">
+          <div className="flex-1 max-w-md">
+            <label className="text-sm font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
+              <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
+              Buscar cliente:
+            </label>
+            <input
+              type="text"
+              placeholder="🔍 Filtrar por cliente..."
+              value={filtroCliente}
+              onChange={(e) => setFiltroCliente(e.target.value)}
+              className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
+            />
+          </div>
+        </div>
       </div>
 
-    {/* Tabla principal COMPACTA sin scroll */}
-    <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+      {/* Tabla principal */}
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
         
         {/* Header de la tabla */}
         <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-4">
@@ -429,82 +546,62 @@ export default function TablaVentas({ refrescar }: Props) {
             <div>
               <h3 className="text-sm sm:text-lg font-bold">Ventas Registradas</h3>
               <p className="text-blue-100 text-xs sm:text-sm">
-                {ventasFiltradas.length} {ventasFiltradas.length === 1 ? 'venta' : 'ventas'} encontradas
+                {productosPlanos.length} productos en {ventasFiltradas.length} {ventasFiltradas.length === 1 ? 'venta' : 'ventas'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Tabla responsiva sin columna Precio en mobile */}
+        {/* Tabla responsiva */}
         <div className="w-full">
           <table className="w-full border-collapse table-fixed text-xs">
             <thead className="bg-[#ecf0f1]">
               <tr>
-                {/* Nro */}
-                <th className="w-[10%] lg:w-[6%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="w-[8%] lg:w-[5%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   Nro
                 </th>
-                
-                {/* Fecha - Solo tablet+ */}
-                <th className="w-0 md:w-[12%] lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden md:table-cell">
+                <th className="w-0 md:w-[10%] lg:w-[7%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden md:table-cell">
                   Fecha
                 </th>
-                
-                {/* Cliente */}
-                <th className="w-[22%] md:w-[18%] lg:w-[15%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="w-[18%] md:w-[15%] lg:w-[12%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   Cliente
                 </th>
-                
-                {/* Categoría */}
-                <th className="w-[8%] lg:w-[7%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="w-[6%] lg:w-[5%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   Cat
                 </th>
-                
-                {/* Producto */}
-                <th className="w-[26%] md:w-[22%] lg:w-[18%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="w-[22%] md:w-[18%] lg:w-[15%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   Producto
                 </th>
-                
-                {/* Marca - Solo desktop */}
-                <th className="w-0 lg:w-[12%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                <th className="w-0 lg:w-[10%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   Marca
                 </th>
-                
-                {/* Modelo - Solo desktop */}
-                <th className="w-0 lg:w-[13%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                <th className="w-0 lg:w-[11%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   Modelo
                 </th>
-                
-                {/* Color - Solo desktop */}
-                <th className="w-0 lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                <th className="w-0 lg:w-[7%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   Color
                 </th>
-                
-                {/* Cantidad */}
-                <th className="w-[8%] lg:w-[5%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="w-[6%] lg:w-[4%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   Q
                 </th>
-                
-                {/* Precio - OCULTO en mobile/tablet */}
-                <th className="w-0 lg:w-[10%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
+                <th className="w-0 lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   Precio
                 </th>
-                
-                {/* Total */}
-                <th className="w-[12%] md:w-[10%] lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="w-[10%] md:w-[8%] lg:w-[7%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   Total
                 </th>
-                
-                {/* Acciones */}
-                <th className="w-[12%] md:w-[10%] lg:w-[10%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                <th className="w-[10%] md:w-[8%] lg:w-[7%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                  💰 Ganancia
+                </th>
+                <th className="w-[10%] md:w-[8%] lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   Acc
                 </th>
               </tr>
             </thead>
             <tbody>
-              {ventasFiltradas.length === 0 ? (
+              {productosPlanos.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-8 text-center text-[#7f8c8d] border border-[#bdc3c7]">
+                  <td colSpan={13} className="p-8 text-center text-[#7f8c8d] border border-[#bdc3c7]">
                     <div className="flex flex-col items-center gap-4">
                       <div className="w-12 h-12 bg-[#ecf0f1] rounded-full flex items-center justify-center">
                         <span className="text-2xl">📊</span>
@@ -524,284 +621,454 @@ export default function TablaVentas({ refrescar }: Props) {
                   </td>
                 </tr>
               ) : (
-                ventasFiltradas.map((venta) => (
-                  <React.Fragment key={venta.id}>
-                    {venta.productos.map((p: any, i: number) => {
-                      const esProductoPrincipal = i === 0;
-                      const tieneMultiplesProductos = venta.productos.length > 1;
-                      const isEven = ventasFiltradas.indexOf(venta) % 2 === 0;
+                productosPaginados.map((producto) => {
+                  const isEven = productosPaginados.indexOf(producto) % 2 === 0;
+                  
+                  return (
+                    <tr
+                      key={`${producto.ventaId}-${producto.productoIndex}`}
+                      className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
+                        producto.ventaEstado === "pagado"
+                          ? "bg-green-50"
+                          : producto.ventaEstado === "pendiente"
+                          ? "bg-yellow-50"
+                          : isEven ? "bg-white" : "bg-[#f8f9fa]"
+                      } ${
+                        producto.tieneMultiplesProductos 
+                          ? producto.esProductoPrincipal 
+                            ? 'border-l-4 border-l-[#3498db]' 
+                            : 'border-l-4 border-l-[#bdc3c7]' 
+                          : ''
+                      }`}
+                    >
+                      {/* Nro Venta */}
+                      <td className="p-1 text-center border border-[#bdc3c7]">
+                        {producto.esProductoPrincipal ? (
+                          <span className="inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold bg-[#3498db] text-white">
+                            #{producto.ventaNroVenta}
+                          </span>
+                        ) : (
+                          <span className="text-[#bdc3c7] text-xs">↳</span>
+                        )}
+                      </td>
                       
-                      return (
-                        <tr
-                          key={`${venta.id}-${i}`}
-                          className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
-                            (venta.estado || "pendiente") === "pagado"
-                              ? "bg-green-50"
-                              : (venta.estado || "pendiente") === "pendiente"
-                              ? "bg-yellow-50"
-                              : isEven ? "bg-white" : "bg-[#f8f9fa]"
-                          } ${
-                            tieneMultiplesProductos 
-                              ? esProductoPrincipal 
-                                ? 'border-l-4 border-l-[#3498db]' 
-                                : 'border-l-4 border-l-[#bdc3c7]' 
-                              : ''
-                          }`}
-                        >
-                          {/* Nro Venta */}
-                          <td className="p-1 text-center border border-[#bdc3c7]">
-                            {esProductoPrincipal ? (
-                              <span className="inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold bg-[#3498db] text-white">
-                                #{venta.nroVenta || venta.id.slice(-4)}
-                              </span>
-                            ) : (
-                              <span className="text-[#bdc3c7] text-xs">↳</span>
-                            )}
-                          </td>
-                          
-                          {/* Fecha - Solo tablet+ */}
-                          <td className="p-1 text-center border border-[#bdc3c7] hidden md:table-cell">
-                            {esProductoPrincipal ? (
-                              <span className="text-xs text-[#2c3e50]">
-                                {venta.fecha}
-                              </span>
-                            ) : ""}
-                          </td>
-                          
-                          {/* Cliente */}
-                          <td className="p-1 text-center border border-[#bdc3c7]">
-                            {esProductoPrincipal ? (
-                              <div className="text-xs text-[#2c3e50]">
-                                <div className="font-medium">
-                                  {venta.cliente}
-                                </div>
-                                {/* Fecha en mobile */}
-                                <div className="text-xs text-[#7f8c8d] md:hidden">
-                                  {venta.fecha}
-                                </div>
-                              </div>
-                            ) : ""}
-                          </td>
-                          
-                          {/* Categoría */}
-                          <td className="p-1 text-center border border-[#bdc3c7]">
-                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs ${
-                              p.categoria === "Teléfono" 
-                                ? 'bg-[#27ae60] text-white'
-                                : p.categoria === "Accesorio"
-                                ? 'bg-[#3498db] text-white'
-                                : p.categoria === "Repuesto"
-                                ? 'bg-[#f39c12] text-white'
-                                : 'bg-[#7f8c8d] text-white'
-                            }`}>
-                              {p.categoria === "Teléfono" ? "📱" : p.categoria === "Accesorio" ? "🔌" : "🔧"}
-                            </span>
-                          </td>
-                          
-                          {/* Producto */}
-                          <td className="p-1 text-center border border-[#bdc3c7] w-[26%] md:w-[22%] lg:w-[18%]">
-                            <div className="text-xs text-[#2c3e50]">
-                              <div className="font-semibold">
-                                {p.producto || p.descripcion || "—"}
-                              </div>
-                              {/* Info adicional en mobile/tablet */}
-                              <div className="text-xs text-[#7f8c8d] lg:hidden">
-                                <div>{p.marca} {p.modelo}</div>
-                                <div>{p.color}</div>
-                              </div>
+                      {/* Fecha - Solo tablet+ */}
+                      <td className="p-1 text-center border border-[#bdc3c7] hidden md:table-cell">
+                        {producto.esProductoPrincipal ? (
+                          <span className="text-xs text-[#2c3e50]">
+                            {producto.ventaFecha}
+                          </span>
+                        ) : ""}
+                      </td>
+                      
+                      {/* Cliente */}
+                      <td className="p-1 text-center border border-[#bdc3c7]">
+                        {producto.esProductoPrincipal ? (
+                          <div className="text-xs text-[#2c3e50]">
+                            <div className="font-medium">
+                              {producto.ventaCliente}
                             </div>
-                          </td>
-                          
-                          {/* Marca - Solo desktop */}
-                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-xs text-[#7f8c8d]">
-                              {p.marca || "—"}
-                            </span>
-                          </td>
-                          
-                          {/* Modelo - Solo desktop */}
-                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-xs text-[#7f8c8d]">
-                              {p.modelo || "—"}
-                            </span>
-                          </td>
-                          
-                          {/* Color - Solo desktop */}
-                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-xs text-[#7f8c8d]">
-                              {p.color || "—"}
-                            </span>
-                          </td>
-                          
-                          {/* Cantidad */}
-                          <td className="p-1 text-center border border-[#bdc3c7]">
-                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold bg-[#3498db] text-white">
-                              {p.cantidad}
-                            </span>
-                          </td>
-                          
-                          {/* Precio - SOLO DESKTOP */}
-                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-xs text-[#2c3e50]">
-                              {(() => {
-                                const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
-                                
-                                if (hayTelefono) {
-                                  if (p.categoria === "Teléfono") {
-                                    return `USD ${p.precioUnitario.toLocaleString("es-AR")}`;
-                                  } else {
-                                    return p.moneda?.toUpperCase() === "USD"
-                                      ? `USD ${p.precioUnitario.toLocaleString("es-AR")}`
-                                      : `${p.precioUnitario.toLocaleString("es-AR")}`;
-                                  }
-                                } else {
-                                  if (p.moneda?.toUpperCase() === "USD") {
-                                    return `${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
-                                  } else {
-                                    return `${p.precioUnitario.toLocaleString("es-AR")}`;
-                                  }
-                                }
-                              })()}
-                            </span>
-                          </td>
-
-                          {/* Total */}
-                          <td className="p-1 text-center border border-[#bdc3c7]">
-                            <div className="text-xs font-bold text-[#27ae60]">
-                              {(() => {
-                                const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
-                                
-                                if (hayTelefono) {
-                                  if (p.categoria === "Teléfono") {
-                                    return `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-                                  } else {
-                                    return p.moneda?.toUpperCase() === "USD"
-                                      ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-                                      : `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-                                  }
-                                } else {
-                                  if (p.moneda?.toUpperCase() === "USD") {
-                                    return `$ ${((p.precioUSD || p.precioUnitario) * p.cantidad * cotizacion).toLocaleString("es-AR")}`;
-                                  } else {
-                                    return `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-                                  }
-                                }
-                              })()}
-                              {/* Precio unitario en mobile/tablet (ya que no hay columna Precio) */}
-                              <div className="text-xs text-[#7f8c8d] lg:hidden">
-                                {(() => {
-                                  const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
-                                  
-                                  if (hayTelefono) {
-                                    if (p.categoria === "Teléfono") {
-                                      return `@ USD ${p.precioUnitario.toLocaleString("es-AR")}`;
-                                    } else {
-                                      return p.moneda?.toUpperCase() === "USD"
-                                        ? `@ USD ${p.precioUnitario.toLocaleString("es-AR")}`
-                                        : `@ ${p.precioUnitario.toLocaleString("es-AR")}`;
-                                    }
-                                  } else {
-                                    if (p.moneda?.toUpperCase() === "USD") {
-                                      return `@ ${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
-                                    } else {
-                                      return `@ ${p.precioUnitario.toLocaleString("es-AR")}`;
-                                    }
-                                  }
-                                })()}
-                              </div>
+                            {/* Fecha en mobile */}
+                            <div className="text-xs text-[#7f8c8d] md:hidden">
+                              {producto.ventaFecha}
                             </div>
-                          </td>
+                          </div>
+                        ) : ""}
+                      </td>
+                      
+                      {/* Categoría */}
+                      <td className="p-1 text-center border border-[#bdc3c7]">
+                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs ${
+                          producto.categoria === "Teléfono" 
+                            ? 'bg-[#27ae60] text-white'
+                            : producto.categoria === "Accesorio"
+                            ? 'bg-[#3498db] text-white'
+                            : producto.categoria === "Repuesto"
+                            ? 'bg-[#f39c12] text-white'
+                            : 'bg-[#7f8c8d] text-white'
+                        }`}>
+                          {producto.categoria === "Teléfono" ? "📱" : producto.categoria === "Accesorio" ? "🔌" : "🔧"}
+                        </span>
+                      </td>
+                      
+                      {/* Producto */}
+                      <td className="p-1 text-center border border-[#bdc3c7]">
+                        <div className="text-xs text-[#2c3e50]">
+                          <div className="font-semibold">
+                            {producto.producto || producto.descripcion || "—"}
+                          </div>
+                          {/* Info adicional en mobile/tablet */}
+                          <div className="text-xs text-[#7f8c8d] lg:hidden">
+                            <div>{producto.marca} {producto.modelo}</div>
+                            <div>{producto.color}</div>
+                          </div>
+                        </div>
+                      </td>
+                      
+                      {/* Marca - Solo desktop */}
+                      <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+                        <span className="text-xs text-[#7f8c8d]">
+                          {producto.marca || "—"}
+                        </span>
+                      </td>
+                      
+                      {/* Modelo - Solo desktop */}
+                      <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+                        <span className="text-xs text-[#7f8c8d]">
+                          {producto.modelo || "—"}
+                        </span>
+                      </td>
+                      
+                      {/* Color - Solo desktop */}
+                      <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+                        <span className="text-xs text-[#7f8c8d]">
+                          {producto.color || "—"}
+                        </span>
+                      </td>
+                      
+                      {/* Cantidad */}
+                      <td className="p-1 text-center border border-[#bdc3c7]">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold bg-[#3498db] text-white">
+                          {producto.cantidad}
+                        </span>
+                      </td>
+                      
+                      {/* Precio - SOLO DESKTOP */}
+                      <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+                        <span className="text-xs text-[#2c3e50]">
+                          {(() => {
+                            if (producto.hayTelefonoEnVenta) {
+                              if (producto.categoria === "Teléfono") {
+                                return `USD ${producto.precioUnitario.toLocaleString("es-AR")}`;
+                              } else {
+                                return producto.moneda?.toUpperCase() === "USD"
+                                  ? `USD ${producto.precioUnitario.toLocaleString("es-AR")}`
+                                  : `${producto.precioUnitario.toLocaleString("es-AR")}`;
+                              }
+                            } else {
+                              if (producto.moneda?.toUpperCase() === "USD") {
+                                return `${((producto.precioUSD || producto.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
+                              } else {
+                                return `${producto.precioUnitario.toLocaleString("es-AR")}`;
+                              }
+                            }
+                          })()}
+                        </span>
+                      </td>
 
-                          {/* Acciones */}
-                          <td className="p-1 text-center border border-[#bdc3c7]">
-                            <div className="flex flex-col items-center gap-1">
-                              {/* Estado compacto */}
-                              {esProductoPrincipal && (
-                                <select
-                                  value={venta.estado || "pendiente"}
-                                  onChange={async (e) => {
-                                    const nuevoEstado = e.target.value;
-                                    await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${venta.id}`), {
-                                      estado: nuevoEstado,
-                                    });
-                                    await refrescarVentas();
-                                  }}
-                                  className={`text-xs px-1 py-1 border rounded text-center w-full ${
-                                    (venta.estado || "pendiente") === "pagado"
-                                      ? "bg-[#27ae60] text-white border-[#27ae60]"
-                                      : "bg-[#f39c12] text-white border-[#f39c12]"
-                                  }`}
-                                >
-                                  <option value="pendiente">Pend</option>
-                                  <option value="pagado">Pago</option>
-                                </select>
-                              )}
+                      {/* Total */}
+                      <td className="p-1 text-center border border-[#bdc3c7]">
+                        <div className="text-xs font-bold text-[#27ae60]">
+                          {(() => {
+                            if (producto.hayTelefonoEnVenta) {
+                              if (producto.categoria === "Teléfono") {
+                                return `USD ${(producto.precioUnitario * producto.cantidad).toLocaleString("es-AR")}`;
+                              } else {
+                                return producto.moneda?.toUpperCase() === "USD"
+                                  ? `USD ${(producto.precioUnitario * producto.cantidad).toLocaleString("es-AR")}`
+                                  : `$ ${(producto.precioUnitario * producto.cantidad).toLocaleString("es-AR")}`;
+                              }
+                            } else {
+                              if (producto.moneda?.toUpperCase() === "USD") {
+                                return `$ ${((producto.precioUSD || producto.precioUnitario) * producto.cantidad * cotizacion).toLocaleString("es-AR")}`;
+                              } else {
+                                return `$ ${(producto.precioUnitario * producto.cantidad).toLocaleString("es-AR")}`;
+                              }
+                            }
+                          })()}
+                          {/* Precio unitario en mobile/tablet */}
+                          <div className="text-xs text-[#7f8c8d] lg:hidden">
+                            {(() => {
+                              if (producto.hayTelefonoEnVenta) {
+                                if (producto.categoria === "Teléfono") {
+                                  return `@ USD ${producto.precioUnitario.toLocaleString("es-AR")}`;
+                                } else {
+                                  return producto.moneda?.toUpperCase() === "USD"
+                                    ? `@ USD ${producto.precioUnitario.toLocaleString("es-AR")}`
+                                    : `@ ${producto.precioUnitario.toLocaleString("es-AR")}`;
+                                }
+                              } else {
+                                if (producto.moneda?.toUpperCase() === "USD") {
+                                  return `@ ${((producto.precioUSD || producto.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
+                                } else {
+                                  return `@ ${producto.precioUnitario.toLocaleString("es-AR")}`;
+                                }
+                              }
+                            })()}
+                          </div>
+                        </div>
+                      </td>
 
-                              {/* Botones compactos */}
-                              <div className="flex gap-1 w-full">
-                                {esProductoPrincipal && (
-                                  <>
-                                    <button
-                                      onClick={() => editarVenta(venta)}
-                                      className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200"
-                                      title="Editar"
-                                    >
-                                      ✏️
-                                    </button>
-                                    
-                                    <button
-                                      onClick={() => {
-                                        setVentaParaRemito(venta);
-                                        setMostrarRemito(true);
-                                      }}
-                                      className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200 hidden lg:inline-block"
-                                      title="Remito"
-                                    >
-                                      🖨️
-                                    </button>
-                                  </>
-                                )}
+                      {/* Ganancia */}
+                      <td className="p-1 text-center border border-[#bdc3c7]">
+                        <div className="text-xs font-bold">
+                          {(() => {
+                            const ganancia = producto.gananciaCalculada;
+                            
+                            if (ganancia === null) {
+                              return <span className="text-[#7f8c8d]">—</span>;
+                            }
+                            
+                            const esPositiva = ganancia > 0;
+                            const esNegativa = ganancia < 0;
+                            
+                            return (
+                              <span className={`${
+                                esPositiva ? 'text-[#27ae60]' : 
+                                esNegativa ? 'text-[#e74c3c]' : 
+                                'text-[#7f8c8d]'
+                              }`}>
+                                {producto.hayTelefonoEnVenta && producto.categoria === "Teléfono" 
+                                  ? `USD ${ganancia.toLocaleString("es-AR")}` 
+                                  : `$ ${ganancia.toLocaleString("es-AR")}`
+                                }
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </td>
 
+                      {/* Acciones */}
+                      <td className="p-1 text-center border border-[#bdc3c7]">
+                        <div className="flex flex-col items-center gap-1">
+                          {/* Estado compacto */}
+                          {producto.esProductoPrincipal && (
+                            <select
+                              value={producto.ventaEstado}
+                              onChange={async (e) => {
+                                const nuevoEstado = e.target.value;
+                                await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${producto.ventaId}`), {
+                                  estado: nuevoEstado,
+                                });
+                                await refrescarVentas();
+                              }}
+                              className={`text-xs px-1 py-1 border rounded text-center w-full ${
+                                producto.ventaEstado === "pagado"
+                                  ? "bg-[#27ae60] text-white border-[#27ae60]"
+                                  : "bg-[#f39c12] text-white border-[#f39c12]"
+                              }`}
+                            >
+                              <option value="pendiente">Pend</option>
+                              <option value="pagado">Pago</option>
+                            </select>
+                          )}
+
+                          {/* Botones compactos */}
+                          <div className="flex gap-1 w-full">
+                            {producto.esProductoPrincipal && (
+                              <>
                                 <button
-                                  onClick={() => pedirConfirmacionEliminarProducto(venta, p, i)}
-                                  className={`hover:bg-[#c0392b] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200 ${
-                                    venta.productos.length > 1 
-                                      ? "bg-[#e74c3c]" 
-                                      : "bg-[#c0392b]"
-                                  }`}
-                                  title={venta.productos.length > 1 ? "Eliminar producto" : "Eliminar venta"}
+                                  onClick={() => {
+                                    const ventaCompleta = {
+                                      id: producto.ventaId,
+                                      cliente: producto.ventaCliente,
+                                      fecha: producto.ventaFecha,
+                                      estado: producto.ventaEstado,
+                                      nroVenta: producto.ventaNroVenta,
+                                      total: producto.ventaTotal,
+                                      productos: producto.ventaProductos
+                                    };
+                                    editarVenta(ventaCompleta);
+                                  }}
+                                  className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200"
+                                  title="Editar"
                                 >
-                                  {venta.productos.length > 1 ? "🗑️" : "❌"}
+                                  ✏️
                                 </button>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
-                ))
+                                
+                                <button
+                                  onClick={() => {
+                                    const ventaCompleta = {
+                                      id: producto.ventaId,
+                                      cliente: producto.ventaCliente,
+                                      fecha: producto.ventaFecha,
+                                      estado: producto.ventaEstado,
+                                      nroVenta: producto.ventaNroVenta,
+                                      total: producto.ventaTotal,
+                                      productos: producto.ventaProductos
+                                    };
+                                    setVentaParaRemito(ventaCompleta);
+                                    setMostrarRemito(true);
+                                  }}
+                                  className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200 hidden lg:inline-block"
+                                  title="Remito"
+                                >
+                                  🖨️
+                                </button>
+                              </>
+                            )}
+
+                            <button
+                              onClick={() => {
+                                const ventaCompleta = {
+                                  id: producto.ventaId,
+                                  cliente: producto.ventaCliente,
+                                  fecha: producto.ventaFecha,
+                                  estado: producto.ventaEstado,
+                                  nroVenta: producto.ventaNroVenta,
+                                  total: producto.ventaTotal,
+                                  productos: producto.ventaProductos
+                                };
+                                pedirConfirmacionEliminarProducto(ventaCompleta, producto, producto.productoIndex);
+                              }}
+                              className={`hover:bg-[#c0392b] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200 ${
+                                producto.tieneMultiplesProductos 
+                                  ? "bg-[#e74c3c]" 
+                                  : "bg-[#c0392b]"
+                              }`}
+                              title={producto.tieneMultiplesProductos ? "Eliminar producto" : "Eliminar venta"}
+                            >
+                              {producto.tieneMultiplesProductos ? "🗑️" : "❌"}
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
 
+        {/* 🔥 CONTROLES DE PAGINACIÓN */}
+        {totalPaginas > 1 && (
+          <div className="bg-[#f8f9fa] px-4 py-3 border-t border-[#bdc3c7]">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+              
+              {/* Info de página */}
+              <div className="text-sm text-[#7f8c8d]">
+                Página {paginaActual} de {totalPaginas} 
+                <span className="hidden sm:inline">
+                  ({indiceInicio + 1}-{Math.min(indiceFin, productosPlanos.length)} de {productosPlanos.length} productos)
+                </span>
+              </div>
+
+              {/* Botones de navegación */}
+              <div className="flex items-center gap-2">
+                
+                {/* Botón anterior */}
+                <button
+                  onClick={paginaAnterior}
+                  disabled={paginaActual === 1}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    paginaActual === 1
+                      ? "bg-[#ecf0f1] text-[#bdc3c7] cursor-not-allowed"
+                      : "bg-[#3498db] text-white hover:bg-[#2980b9] shadow-md transform hover:scale-105"
+                  }`}
+                >
+                  ← Anterior
+                </button>
+
+                {/* Números de página */}
+                <div className="flex gap-1">
+                  {(() => {
+                    const paginas = [];
+                    const inicio = Math.max(1, paginaActual - 2);
+                    const fin = Math.min(totalPaginas, paginaActual + 2);
+
+                    // Primera página si no está visible
+                    if (inicio > 1) {
+                      paginas.push(
+                        <button
+                          key={1}
+                          onClick={() => irAPagina(1)}
+                          className="w-10 h-10 rounded-lg text-sm font-medium bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50] transition-all duration-200"
+                        >
+                          1
+                        </button>
+                      );
+                      if (inicio > 2) {
+                        paginas.push(
+                          <span key="ellipsis1" className="w-10 h-10 flex items-center justify-center text-[#7f8c8d]">
+                            ...
+                          </span>
+                        );
+                      }
+                    }
+
+                    // Páginas visibles
+                    for (let i = inicio; i <= fin; i++) {
+                      paginas.push(
+                        <button
+                          key={i}
+                          onClick={() => irAPagina(i)}
+                          className={`w-10 h-10 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            i === paginaActual
+                              ? "bg-[#2c3e50] text-white shadow-md"
+                              : "bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50]"
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      );
+                    }
+
+                    // Última página si no está visible
+                    if (fin < totalPaginas) {
+                      if (fin < totalPaginas - 1) {
+                        paginas.push(
+                          <span key="ellipsis2" className="w-10 h-10 flex items-center justify-center text-[#7f8c8d]">
+                            ...
+                          </span>
+                        );
+                      }
+                      paginas.push(
+                        <button
+                          key={totalPaginas}
+                          onClick={() => irAPagina(totalPaginas)}
+                          className="w-10 h-10 rounded-lg text-sm font-medium bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50] transition-all duration-200"
+                        >
+                          {totalPaginas}
+                        </button>
+                      );
+                    }
+
+                    return paginas;
+                  })()}
+                </div>
+
+                {/* Botón siguiente */}
+                <button
+                  onClick={paginaSiguiente}
+                  disabled={paginaActual === totalPaginas}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    paginaActual === totalPaginas
+                      ? "bg-[#ecf0f1] text-[#bdc3c7] cursor-not-allowed"
+                      : "bg-[#3498db] text-white hover:bg-[#2980b9] shadow-md transform hover:scale-105"
+                  }`}
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer de la tabla */}
-        {ventasFiltradas.length > 0 && (
+        {productosPlanos.length > 0 && (
           <div className="bg-[#f8f9fa] px-2 sm:px-6 py-2 sm:py-4 border-t border-[#bdc3c7]">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
               <span>
-                Mostrando {ventasFiltradas.length} de {ventas.length} {ventas.length === 1 ? 'venta' : 'ventas'}
+                Mostrando {productosPlanos.length} productos en {ventasFiltradas.length} {ventasFiltradas.length === 1 ? 'venta' : 'ventas'}
               </span>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
                 <span>
-                  Productos: <strong className="text-[#3498db]">
-                    {ventasFiltradas.reduce((sum, v) => sum + v.productos.length, 0)}
+                  Total: <strong className="text-[#27ae60]">
+                    ${ventasFiltradas.reduce((sum, v) => sum + (v.total || 0), 0).toLocaleString("es-AR")}
                   </strong>
                 </span>
                 <span>
-                  Total: <strong className="text-[#27ae60]">
-                    ${ventasFiltradas.reduce((sum, v) => sum + (v.total || 0), 0).toLocaleString("es-AR")}
+                  Ganancia: <strong className={`${
+                    productosPlanos
+                      .filter(p => p.gananciaCalculada !== null)
+                      .reduce((sum, p) => sum + p.gananciaCalculada, 0) > 0 
+                      ? 'text-[#27ae60]' : 'text-[#e74c3c]'
+                  }`}>
+                    ${productosPlanos
+                      .filter(p => p.gananciaCalculada !== null)
+                      .reduce((sum, p) => sum + p.gananciaCalculada, 0)
+                      .toLocaleString("es-AR")}
                   </strong>
                 </span>
               </div>
@@ -815,7 +1082,6 @@ export default function TablaVentas({ refrescar }: Props) {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
             
-            {/* Header del modal */}
             <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-t-2xl p-4 sm:p-6">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -828,7 +1094,6 @@ export default function TablaVentas({ refrescar }: Props) {
               </div>
             </div>
             
-            {/* Contenido del modal */}
             <div className="p-4 sm:p-6 space-y-4">
               <div className="bg-red-50 border-2 border-[#e74c3c] rounded-lg p-3 sm:p-4">
                 <p className="text-[#e74c3c] font-medium text-sm sm:text-base">
@@ -840,7 +1105,6 @@ export default function TablaVentas({ refrescar }: Props) {
                 </div>
               </div>
               
-              {/* Botones */}
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setMostrarConfirmarEliminar(false)}
@@ -860,12 +1124,11 @@ export default function TablaVentas({ refrescar }: Props) {
         </div>
       )}
 
-      {/* 🆕 Modal de confirmación de eliminación DE PRODUCTO INDIVIDUAL */}
+      {/* Modal de confirmación de eliminación DE PRODUCTO INDIVIDUAL */}
       {mostrarConfirmarEliminarProducto && productoAEliminar && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
             
-            {/* Header del modal */}
             <div className={`text-white rounded-t-2xl p-4 sm:p-6 ${
               productoAEliminar.venta.productos.length > 1 
                 ? "bg-gradient-to-r from-[#f39c12] to-[#e67e22]" 
@@ -893,7 +1156,6 @@ export default function TablaVentas({ refrescar }: Props) {
               </div>
             </div>
             
-            {/* Contenido del modal */}
             <div className="p-4 sm:p-6 space-y-4">
               <div className={`border-2 rounded-lg p-3 sm:p-4 ${
                 productoAEliminar.venta.productos.length > 1 
@@ -926,7 +1188,6 @@ export default function TablaVentas({ refrescar }: Props) {
                 </div>
               </div>
               
-              {/* Botones */}
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => {
@@ -972,20 +1233,20 @@ export default function TablaVentas({ refrescar }: Props) {
       )}
       
       {mostrarModal && ventaSeleccionada && (
-  <ModalEditarVenta
-    mostrar={mostrarModal}
-    venta={ventaSeleccionada}
-    onClose={() => {
-      setMostrarModal(false);
-      setVentaSeleccionada(null);
-    }}
-    onVentaActualizada={async () => {
-      await refrescarVentas();
-    }}
-    negocioID={rol?.negocioID || ""}
-    cotizacion={cotizacion}
-  />
-)}
+        <ModalEditarVenta
+          mostrar={mostrarModal}
+          venta={ventaSeleccionada}
+          onClose={() => {
+            setMostrarModal(false);
+            setVentaSeleccionada(null);
+          }}
+          onVentaActualizada={async () => {
+            await refrescarVentas();
+          }}
+          negocioID={rol?.negocioID || ""}
+          cotizacion={cotizacion}
+        />
+      )}
     </div>
   );
 }

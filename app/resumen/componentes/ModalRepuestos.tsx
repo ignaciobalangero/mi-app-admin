@@ -33,7 +33,7 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
   // ✅ USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que en StockProductosPage)
   const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
 
-  // ✅ FUNCIÓN MEJORADA PARA NORMALIZAR PRECIOS CON COTIZACIÓN CENTRALIZADA
+  // ✅ FUNCIÓN CORREGIDA CON LÓGICA CORRECTA
   const normalizarPrecio = (repuesto: any) => {
     console.log("🔍 Analizando precios del repuesto:", repuesto.id);
     console.log("📊 Datos del repuesto:", {
@@ -41,34 +41,62 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
       precioCostoPesos: repuesto.precioCostoPesos,
       precioARS: repuesto.precioARS,
       precioUSD: repuesto.precioUSD,
-      precio: repuesto.precio
+      precio: repuesto.precio,
+      moneda: repuesto.moneda
     });
     console.log("💵 Cotización centralizada actual:", cotizacion);
 
     let precioFinal = 0;
     let metodoPrecio = "Sin precio";
     
-    // Orden de prioridad para encontrar el precio
+    // ✅ LÓGICA CORRECTA SEGÚN TUS ESPECIFICACIONES:
+    
+    // 1️⃣ PRIMERO: Si tiene precioCostoPesos (ya guardado convertido) - PRIORITARIO
     if (repuesto.precioCostoPesos && repuesto.precioCostoPesos > 0) {
       precioFinal = Number(repuesto.precioCostoPesos);
-      metodoPrecio = "precioCostoPesos (ARS)";
-    } else if (repuesto.precioCosto && repuesto.precioCosto > 0) {
-      precioFinal = Number(repuesto.precioCosto);
-      metodoPrecio = "precioCosto (ARS)";
+      metodoPrecio = "precioCostoPesos (ya guardado convertido)";
+      console.log("✅ Usando precioCostoPesos ya guardado:", precioFinal);
+      
+    // 2️⃣ SEGUNDO: Si NO tiene precioCostoPesos pero SÍ tiene precioUSD - CONVERTIR
+    } else if (repuesto.precioUSD && repuesto.precioUSD > 0 && cotizacion > 0) {
+      precioFinal = Number(repuesto.precioUSD) * cotizacion;
+      metodoPrecio = `precioUSD convertido (${repuesto.precioUSD} USD × ${cotizacion} = ${precioFinal.toFixed(2)} ARS)`;
+      console.log("🔄 NO tiene precioCostoPesos, convirtiendo precioUSD:", precioFinal);
+      
+    // 3️⃣ TERCERO: Si NO tiene USD, usar precioARS nativo
     } else if (repuesto.precioARS && repuesto.precioARS > 0) {
       precioFinal = Number(repuesto.precioARS);
-      metodoPrecio = "precioARS (ARS)";
-    } else if (repuesto.precioUSD && repuesto.precioUSD > 0 && cotizacion > 0) {
-      // ✅ USAR COTIZACIÓN CENTRALIZADA DEL SISTEMA
-      precioFinal = Number(repuesto.precioUSD) * cotizacion;
-      metodoPrecio = `precioUSD (${repuesto.precioUSD} USD × ${cotizacion} = ${precioFinal.toFixed(2)} ARS)`;
+      metodoPrecio = "precioARS nativo (sin USD)";
+      console.log("✅ NO tiene USD, usando precioARS nativo:", precioFinal);
+      
+    // 4️⃣ CUARTO: Fallback con precioCosto verificando moneda
+    } else if (repuesto.precioCosto && repuesto.precioCosto > 0) {
+      if (repuesto.moneda === "USD" && cotizacion > 0) {
+        precioFinal = Number(repuesto.precioCosto) * cotizacion;
+        metodoPrecio = `precioCosto USD convertido (${repuesto.precioCosto} USD × ${cotizacion} = ${precioFinal.toFixed(2)} ARS)`;
+        console.log("🔄 Convirtiendo precioCosto USD a ARS:", precioFinal);
+      } else {
+        precioFinal = Number(repuesto.precioCosto);
+        metodoPrecio = "precioCosto (asumido ARS)";
+        console.log("✅ Usando precioCosto como ARS:", precioFinal);
+      }
+      
+    // 5️⃣ ÚLTIMO RECURSO: precio genérico
     } else if (repuesto.precio && repuesto.precio > 0) {
-      precioFinal = Number(repuesto.precio);
-      metodoPrecio = "precio genérico";
+      if (repuesto.moneda === "USD" && cotizacion > 0) {
+        precioFinal = Number(repuesto.precio) * cotizacion;
+        metodoPrecio = `precio USD convertido (${repuesto.precio} USD × ${cotizacion} = ${precioFinal.toFixed(2)} ARS)`;
+        console.log("🔄 Convirtiendo precio genérico USD a ARS:", precioFinal);
+      } else {
+        precioFinal = Number(repuesto.precio);
+        metodoPrecio = "precio genérico (asumido ARS)";
+        console.log("✅ Usando precio genérico como ARS:", precioFinal);
+      }
     }
 
     console.log("✅ Método usado:", metodoPrecio);
     console.log("💰 Precio final normalizado:", precioFinal);
+    
     return precioFinal;
   };
 
@@ -360,7 +388,7 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     window.location.reload();
   };  
 
-  // ✅ FUNCIÓN CORREGIDA PARA GUARDAR TODOS LOS REPUESTOS
+  // ✅ FUNCIÓN CORREGIDA PARA GUARDAR Y ACTUALIZAR ESTADO LOCAL
   const guardarTodos = async () => {
     if (seleccionados.length === 0) {
       alert("⚠️ No hay repuestos seleccionados para guardar.");
@@ -396,7 +424,7 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
 
     console.log("🟢 Costo total calculado:", costoTotal);
 
-    // ✅ GUARDAR CON COSTO CORRECTO
+    // ✅ GUARDAR CON COSTO CORRECTO EN FIREBASE
     await updateDoc(trabajoRef, {
       repuestosUsados: repuestosActualizados,
       costo: Number(costoTotal.toFixed(2)), // Redondear a 2 decimales
@@ -431,10 +459,16 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
       console.log("🟢 Actualización de Google Sheet completada");
     }
 
-    alert(`✅ Se agregaron ${seleccionados.length} repuestos correctamente.\n💰 Costo total: $${costoTotal.toFixed(2)}`);
+    // ✅ LLAMAR A onGuardar PARA ACTUALIZAR EL COMPONENTE PADRE
+    if (onGuardar) {
+      console.log("🔄 Notificando al componente padre para actualizar...");
+      onGuardar();
+    }
+
+    alert(`✅ Se agregaron ${seleccionados.length} repuestos correctamente.\n💰 Costo total: ${costoTotal.toFixed(2)}`);
     
+    console.log("🟢 Cerrando modal...");
     onClose();
-    if (onGuardar) onGuardar();
   };
 
   // Filtro mejorado que incluye color
