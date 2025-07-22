@@ -20,8 +20,21 @@ interface Props {
   moneda: "ARS" | "USD";
   setMoneda: (val: "ARS" | "USD") => void;
   cotizacion: number;
-  setCotizacion: (val: number) => void; // ✅ AHORA RECIBE LA FUNCIÓN CENTRALIZADA
+  setCotizacion: (val: number) => void;
   precioCostoPesos: number;
+  // 🆕 CAMPOS NUEVOS DE PRECIOS DE VENTA
+  precio1: number;
+  setPrecio1: (val: number) => void;
+  precio2: number;
+  setPrecio2: (val: number) => void;
+  precio3: number;
+  setPrecio3: (val: number) => void;
+  precio1Pesos: number;
+  setPrecio1Pesos: (val: number) => void;
+  precio2Pesos: number;
+  setPrecio2Pesos: (val: number) => void;
+  precio3Pesos: number;
+  setPrecio3Pesos: (val: number) => void;
   cantidad: number;
   setCantidad: (val: number) => void;
   stockIdeal: number;
@@ -50,8 +63,21 @@ export default function FormularioProducto({
   moneda,
   setMoneda,
   cotizacion,
-  setCotizacion, // ✅ FUNCIÓN CENTRALIZADA PARA ACTUALIZAR COTIZACIÓN
+  setCotizacion,
   precioCostoPesos,
+  // 🆕 NUEVOS PARÁMETROS
+  precio1,
+  setPrecio1,
+  precio2,
+  setPrecio2,
+  precio3,
+  setPrecio3,
+  precio1Pesos,
+  setPrecio1Pesos,
+  precio2Pesos,
+  setPrecio2Pesos,
+  precio3Pesos,
+  setPrecio3Pesos,
   cantidad,
   setCantidad,
   stockIdeal,
@@ -61,18 +87,6 @@ export default function FormularioProducto({
   stockBajo = 3,
   setStockBajo = () => {},
 }: Props) {
-
-  // ❌ ELIMINAR: Fetch del dólar API - Ahora usa cotización centralizada
-  // useEffect(() => {
-  //   if (moneda === "USD") {
-  //     fetch("https://dolarapi.com/v1/dolares/blue")
-  //       .then((res) => res.json())
-  //       .then((data) => {
-  //         if (!editandoId) setCotizacion(data.venta);
-  //       })
-  //       .catch(() => {});
-  //   }
-  // }, [moneda, editandoId, setCotizacion]);
 
   return (
     <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
@@ -202,6 +216,44 @@ export default function FormularioProducto({
             <option value="USD">🇺🇸 Dólares</option>
           </select>
         </div>
+
+        {/* 🆕 NUEVOS CAMPOS DE PRECIOS DE VENTA */}
+        <div>
+          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+            💰 Precio 1 (opcional)
+          </label>
+          <input
+            type="number"
+            value={precio1}
+            onChange={(e) => setPrecio1(Number(e.target.value))}
+            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+            placeholder="0 = sin precio"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+            💰 Precio 2 (opcional)
+          </label>
+          <input
+            type="number"
+            value={precio2}
+            onChange={(e) => setPrecio2(Number(e.target.value))}
+            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+            placeholder="0 = sin precio"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+            💰 Precio 3 (opcional)
+          </label>
+          <input
+            type="number"
+            value={precio3}
+            onChange={(e) => setPrecio3(Number(e.target.value))}
+            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+            placeholder="0 = sin precio"
+          />
+        </div>
         
         {/* ✅ COTIZACIÓN SOLO LECTURA - NO EDITABLE */}
         {moneda === "USD" && (
@@ -275,7 +327,7 @@ export default function FormularioProducto({
             </div>
             <div className="flex-1">
               <span className="text-[#27ae60] font-bold text-sm">
-                Precio en pesos: ${(precioCostoPesos || 0).toLocaleString("es-AR")}
+                Costo en pesos: ${(precioCostoPesos || 0).toLocaleString("es-AR")}
               </span>
               <p className="text-xs text-[#27ae60] mt-1">
                 {precioCosto > 0 && cotizacion > 0 && (
@@ -290,6 +342,44 @@ export default function FormularioProducto({
                 🔒 Cotización de Sistema
               </span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 PREVIEW DE PRECIOS DE VENTA CONVERTIDOS */}
+      {moneda === "USD" && cotizacion > 0 && (precio1 > 0 || precio2 > 0 || precio3 > 0) && (
+        <div className="bg-gradient-to-r from-[#e8f5e8] to-[#d4f1d4] border-2 border-[#27ae60] rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-6 h-6 bg-[#27ae60] rounded-lg flex items-center justify-center">
+              <span className="text-white text-xs">💰</span>
+            </div>
+            <span className="text-[#27ae60] font-bold text-sm">Precios de venta convertidos a ARS:</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {precio1 > 0 && (
+              <div className="bg-white/70 p-2 rounded-lg">
+                <div className="text-xs text-[#27ae60] font-medium">Precio 1:</div>
+                <div className="text-sm font-bold text-[#27ae60]">
+                  ${(precio1 * cotizacion).toLocaleString("es-AR")}
+                </div>
+              </div>
+            )}
+            {precio2 > 0 && (
+              <div className="bg-white/70 p-2 rounded-lg">
+                <div className="text-xs text-[#3498db] font-medium">Precio 2:</div>
+                <div className="text-sm font-bold text-[#3498db]">
+                  ${(precio2 * cotizacion).toLocaleString("es-AR")}
+                </div>
+              </div>
+            )}
+            {precio3 > 0 && (
+              <div className="bg-white/70 p-2 rounded-lg">
+                <div className="text-xs text-[#9b59b6] font-medium">Precio 3:</div>
+                <div className="text-sm font-bold text-[#9b59b6]">
+                  ${(precio3 * cotizacion).toLocaleString("es-AR")}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

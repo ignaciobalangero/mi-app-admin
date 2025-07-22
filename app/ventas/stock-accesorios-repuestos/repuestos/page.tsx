@@ -41,8 +41,16 @@ export default function StockProductosPage() {
   const [color, setColor] = useState("");
   const [precioCosto, setPrecioCosto] = useState(0);
   const [precioCostoPesos, setPrecioCostoPesos] = useState(0);
+  
+  // 🆕 NUEVOS ESTADOS PARA PRECIOS DE VENTA
+  const [precio1, setPrecio1] = useState<number>(0);
+  const [precio2, setPrecio2] = useState<number>(0);
+  const [precio3, setPrecio3] = useState<number>(0);
+  const [precio1Pesos, setPrecio1Pesos] = useState<number>(0);
+  const [precio2Pesos, setPrecio2Pesos] = useState<number>(0);
+  const [precio3Pesos, setPrecio3Pesos] = useState<number>(0);
+  
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
-  // ❌ ELIMINAR: const [cotizacion, setCotizacion] = useState<number | null>(null);
   const [cantidad, setCantidad] = useState(1);
   const [stockIdeal, setStockIdeal] = useState(5);
   const [stockBajo, setStockBajo] = useState(3);
@@ -70,19 +78,24 @@ export default function StockProductosPage() {
     if (negocioID) cargarProductos();
   }, [negocioID]);
 
-  // 🔄 ACTUALIZAR: Usar la cotización del hook centralizado
+  // 🔄 ACTUALIZAR: Calcular costos y precios de venta en pesos con cotización centralizada
   useEffect(() => {
     if (moneda === "USD" && cotizacion > 0) {
-      setPrecioCostoPesos(precioCosto * cotizacion);
+      // Calcular costo en pesos
+      setPrecioCostoPesos(Math.round(precioCosto * cotizacion));
+      
+      // 🆕 CALCULAR PRECIOS DE VENTA EN PESOS
+      setPrecio1Pesos(precio1 > 0 ? Math.round(precio1 * cotizacion) : 0);
+      setPrecio2Pesos(precio2 > 0 ? Math.round(precio2 * cotizacion) : 0);
+      setPrecio3Pesos(precio3 > 0 ? Math.round(precio3 * cotizacion) : 0);
     } else {
       setPrecioCostoPesos(precioCosto);
+      // Para productos en ARS, los precios ya están en pesos
+      setPrecio1Pesos(precio1);
+      setPrecio2Pesos(precio2);
+      setPrecio3Pesos(precio3);
     }
-  }, [precioCosto, cotizacion, moneda]);
-
-  // ❌ ELIMINAR: El fetch manual de la cotización ya no es necesario
-  // useEffect(() => {
-  //   fetch("https://dolarapi.com/v1/dolares/blue")...
-  // }, []);
+  }, [precioCosto, precio1, precio2, precio3, cotizacion, moneda]);
 
   const cargarProductos = async () => {
     const snap = await getDocs(collection(db, `negocios/${negocioID}/stockRepuestos`));
@@ -102,7 +115,14 @@ export default function StockProductosPage() {
       marca,
       color,
       precioCosto,
-      precioCostoPesos: moneda === "USD" && cotizacion > 0 ? precioCosto * cotizacion : precioCosto,
+      precioCostoPesos: moneda === "USD" && cotizacion > 0 ? Math.round(precioCosto * cotizacion) : precioCosto,
+      // 🆕 NUEVOS CAMPOS DE PRECIOS DE VENTA
+      precio1: precio1,
+      precio2: precio2,
+      precio3: precio3,
+      precio1Pesos: precio1Pesos,
+      precio2Pesos: precio2Pesos,
+      precio3Pesos: precio3Pesos,
       moneda,
       cotizacion,
       cantidad,
@@ -130,7 +150,7 @@ export default function StockProductosPage() {
       });
     }
   
-    // Reset
+    // 🔄 RESET ACTUALIZADO - Incluir nuevos campos
     setCodigo("");
     setProveedor("");
     setProducto("");
@@ -140,6 +160,13 @@ export default function StockProductosPage() {
     setColor("");
     setPrecioCosto(0);
     setPrecioCostoPesos(0);
+    // 🆕 RESETEAR PRECIOS DE VENTA
+    setPrecio1(0);
+    setPrecio2(0);
+    setPrecio3(0);
+    setPrecio1Pesos(0);
+    setPrecio2Pesos(0);
+    setPrecio3Pesos(0);
     setCantidad(1);
     setStockIdeal(5);
     setMoneda("ARS");
@@ -151,6 +178,7 @@ export default function StockProductosPage() {
     cargarProductos();
   };
 
+  // 🔄 FUNCIÓN EDITARPRODUCTO ACTUALIZADA - Cargar nuevos campos
   const editarProducto = (prod: any) => {
     setCodigo(prod.codigo || uuidv4().slice(0, 8));
     setProveedor(prod.proveedor);
@@ -160,9 +188,17 @@ export default function StockProductosPage() {
     setMarca(prod.marca);
     setColor(prod.color);
     setPrecioCosto(prod.precioCosto);
-    setPrecioCostoPesos(prod.precioVentaPesos);
+    setPrecioCostoPesos(prod.precioCostoPesos);
+    
+    // 🆕 CARGAR PRECIOS DE VENTA AL EDITAR
+    setPrecio1(prod.precio1 || 0);
+    setPrecio2(prod.precio2 || 0);
+    setPrecio3(prod.precio3 || 0);
+    setPrecio1Pesos(prod.precio1Pesos || 0);
+    setPrecio2Pesos(prod.precio2Pesos || 0);
+    setPrecio3Pesos(prod.precio3Pesos || 0);
+    
     setMoneda(prod.moneda);
-    // ❌ ELIMINAR: setCotizacion(prod.cotizacion);
     setCantidad(prod.cantidad);
     setStockIdeal(prod.stockIdeal);
     setStockBajo(prod.stockBajo || 3);
@@ -170,7 +206,7 @@ export default function StockProductosPage() {
     setMostrarFormulario(true);
   };
 
-  // 🔥 FUNCIÓN ACTUALIZADA: Usar la cotización centralizada
+  // 🔥 FUNCIÓN ACTUALIZADA: Incluir nuevos campos al actualizar en Firebase
   const actualizarProductoEnFirebase = async (producto: any) => {
     try {
       console.log("🔥 Actualizando producto en Firebase:", producto);
@@ -185,11 +221,17 @@ export default function StockProductosPage() {
         color: producto.color,
         precioCosto: producto.precioCosto,
         precioCostoPesos: producto.precioCostoPesos,
+        // 🆕 INCLUIR PRECIOS DE VENTA EN ACTUALIZACIÓN
+        precio1: producto.precio1 || 0,
+        precio2: producto.precio2 || 0,
+        precio3: producto.precio3 || 0,
+        precio1Pesos: producto.precio1Pesos || 0,
+        precio2Pesos: producto.precio2Pesos || 0,
+        precio3Pesos: producto.precio3Pesos || 0,
         cantidad: producto.cantidad,
         moneda: producto.moneda,
         stockBajo: producto.stockBajo || 3,
         proveedor: producto.proveedor,
-        // Campos adicionales si existen
         calidad: producto.calidad || "",
         stockIdeal: producto.stockIdeal || 5,
         cotizacion: cotizacion, // 🔄 USAR LA COTIZACIÓN CENTRALIZADA
@@ -295,7 +337,7 @@ export default function StockProductosPage() {
           {/* Sugerencias de pedidos */}
           {mostrarSugerencias && <PedidosSugeridos productosAPedir={productosAPedir} />}
 
-          {/* Formulario - ACTUALIZADO con cotizacion centralizada */}
+          {/* 🔄 FORMULARIO ACTUALIZADO - Con nuevos props */}
           {mostrarFormulario && (
             <FormularioProducto
               codigo={codigo}
@@ -314,9 +356,22 @@ export default function StockProductosPage() {
               setPrecioCosto={setPrecioCosto}
               moneda={moneda}
               setMoneda={setMoneda}
-              cotizacion={cotizacion}                    // 🔄 USAR COTIZACIÓN CENTRALIZADA
-              setCotizacion={actualizarCotizacion}      // 🔄 USAR FUNCIÓN CENTRALIZADA
+              cotizacion={cotizacion}
+              setCotizacion={actualizarCotizacion}
               precioCostoPesos={precioCostoPesos}
+              // 🆕 NUEVOS PROPS PARA PRECIOS DE VENTA
+              precio1={precio1}
+              setPrecio1={setPrecio1}
+              precio2={precio2}
+              setPrecio2={setPrecio2}
+              precio3={precio3}
+              setPrecio3={setPrecio3}
+              precio1Pesos={precio1Pesos}
+              setPrecio1Pesos={setPrecio1Pesos}
+              precio2Pesos={precio2Pesos}
+              setPrecio2Pesos={setPrecio2Pesos}
+              precio3Pesos={precio3Pesos}
+              setPrecio3Pesos={setPrecio3Pesos}
               cantidad={cantidad}
               setCantidad={setCantidad}
               stockIdeal={stockIdeal}
@@ -374,7 +429,8 @@ export default function StockProductosPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium">
                   <strong>Tip:</strong> Los códigos se generan automáticamente basados en la categoría. 
-                  La cotización está sincronizada con el sistema de ventas.
+                  La cotización está sincronizada con el sistema de ventas. Ahora puedes configurar 
+                  hasta 3 precios de venta diferentes para cada repuesto.
                 </p>
               </div>
             </div>
