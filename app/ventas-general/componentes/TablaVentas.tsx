@@ -46,6 +46,7 @@ export default function TablaVentas({ refrescar }: Props) {
   const [mostrarRemito, setMostrarRemito] = useState(false);
   const [productoAEliminar, setProductoAEliminar] = useState<{venta: any, producto: any, index: number} | null>(null);
   const [mostrarConfirmarEliminarProducto, setMostrarConfirmarEliminarProducto] = useState(false);
+  const [mostrarMigracion, setMostrarMigracion] = useState(false);
 
   // 🚀 ESTADOS PARA PAGINACIÓN OPTIMIZADA
   const [cargando, setCargando] = useState(false);
@@ -376,6 +377,7 @@ export default function TablaVentas({ refrescar }: Props) {
 
   return (
     <div className="space-y-6">
+  
       {/* Header de filtros */}
       <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-3 lg:p-4">
         <div className="flex flex-col lg:flex-row gap-3 lg:gap-6 mb-3">

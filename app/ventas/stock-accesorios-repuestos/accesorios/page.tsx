@@ -10,7 +10,7 @@ import { collection, addDoc, getDocs, getDoc, doc, deleteDoc, updateDoc } from "
 import { v4 as uuidv4 } from "uuid";
 import * as XLSX from "xlsx";
 
-// 🆕 IMPORTAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que repuestos)
+// 🆕 IMPORTAR EL HOOK DE COTIZACIÓN CENTRALIZADO
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import { useRol } from "@/lib/useRol";
 
@@ -19,16 +19,16 @@ import ResumenCapital from "./components/ResumenCapital";
 import Acciones from "./components/Acciones";
 import PedidosSugeridos from "./components/PedidosSugeridos";
 import FormularioProducto from "./components/FormularioProducto";
-import TablaProductos from "./components/TablaAccesorios";
+import TablaAccesorios from "./components/TablaAccesorios";
 
 export default function StockProductosPage() {
   const router = useRouter();
   const [user] = useAuthState(auth);
   
-  // 🆕 USAR EL HOOK DE ROL (igual que en repuestos)
+  // 🆕 USAR EL HOOK DE ROL
   const { rol } = useRol();
   
-  // 🆕 USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que en repuestos)
+  // 🆕 USAR EL HOOK DE COTIZACIÓN CENTRALIZADO
   const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
   
   const [negocioID, setNegocioID] = useState("");
@@ -45,14 +45,26 @@ export default function StockProductosPage() {
   const [cantidad, setCantidad] = useState(1);
   const [stockIdeal, setStockIdeal] = useState(5);
   const [stockBajo, setStockBajo] = useState(3);
-  const [productos, setProductos] = useState<any[]>([]);
+  
+  // 🔄 ESTADOS SIMPLIFICADOS - La tabla optimizada maneja sus propios productos
+  const [productosResumen, setProductosResumen] = useState<any[]>([]); // Solo para cálculos de resumen
+  const [refrescar, setRefrescar] = useState(false);
+  
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [filtroTexto, setFiltroTexto] = useState("");
   const [precio1, setPrecio1] = useState(0);
   const [precio2, setPrecio2] = useState(0);
   const [precio3, setPrecio3] = useState(0);
+
+  // 🔄 FUNCIÓN PARA REFRESCAR LA TABLA
+  const triggerRefresh = () => {
+    setRefrescar(prev => !prev);
+    // También cargar productos para el resumen
+    if (negocioID || rol?.negocioID) {
+      cargarProductosParaResumen();
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -69,17 +81,31 @@ export default function StockProductosPage() {
   }, [user]);
   
   useEffect(() => {
-    if (negocioID) cargarProductos();
-  }, [negocioID]);
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (currentNegocioID) {
+      cargarProductosParaResumen();
+    }
+  }, [negocioID, rol?.negocioID]);
 
-  const cargarProductos = async () => {
-    const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
-    const lista = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    setProductos(lista);
+  // 🔄 FUNCIÓN OPTIMIZADA: Solo cargar productos para cálculos de resumen
+  const cargarProductosParaResumen = async () => {
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (!currentNegocioID) return;
+    
+    try {
+      const snap = await getDocs(collection(db, `negocios/${currentNegocioID}/stockAccesorios`));
+      const lista = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setProductosResumen(lista);
+    } catch (error) {
+      console.error("Error cargando productos para resumen:", error);
+    }
   };
 
   const guardarProducto = async () => {
-    if (!producto || (precio1 <= 0 && precio2 <= 0 && precio3 <= 0) || cantidad <= 0) return;
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (!currentNegocioID || !producto || (precio1 <= 0 && precio2 <= 0 && precio3 <= 0) || cantidad <= 0) return;
+
+    const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : 1200;
 
     const data = {
       codigo,
@@ -93,30 +119,43 @@ export default function StockProductosPage() {
       precio1,
       precio2,
       precio3,
-      precio1Pesos: moneda === "USD" && cotizacion > 0 ? precio1 * cotizacion : precio1,
-      precio2Pesos: moneda === "USD" && cotizacion > 0 ? precio2 * cotizacion : precio2,
-      precio3Pesos: moneda === "USD" && cotizacion > 0 ? precio3 * cotizacion : precio3,
+      precio1Pesos: moneda === "USD" && cotizacionSegura > 0 ? precio1 * cotizacionSegura : precio1,
+      precio2Pesos: moneda === "USD" && cotizacionSegura > 0 ? precio2 * cotizacionSegura : precio2,
+      precio3Pesos: moneda === "USD" && cotizacionSegura > 0 ? precio3 * cotizacionSegura : precio3,
       moneda,
-      cotizacion,
+      cotizacion: cotizacionSegura,
       cantidad,
       stockIdeal,
       stockBajo,
     };
     
-    if (editandoId) {
-      await updateDoc(doc(db, `negocios/${negocioID}/stockAccesorios`, editandoId), data);
-      setEditandoId(null);
-    } else {
-      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
-      const nuevoCodigo = `ACC${String(snap.size + 1).padStart(3, "0")}`;
+    try {
+      if (editandoId) {
+        await updateDoc(doc(db, `negocios/${currentNegocioID}/stockAccesorios`, editandoId), data);
+        setEditandoId(null);
+      } else {
+        const snap = await getDocs(collection(db, `negocios/${currentNegocioID}/stockAccesorios`));
+        const nuevoCodigo = `ACC${String(snap.size + 1).padStart(3, "0")}`;
 
-      await addDoc(collection(db, `negocios/${negocioID}/stockAccesorios`), {
-        ...data,
-        codigo: nuevoCodigo,
-      });
+        await addDoc(collection(db, `negocios/${currentNegocioID}/stockAccesorios`), {
+          ...data,
+          codigo: nuevoCodigo,
+        });
+      }
+
+      // Reset del formulario
+      resetFormulario();
+      
+      // Trigger refresh de la tabla optimizada
+      triggerRefresh();
+      
+    } catch (error) {
+      console.error("Error al guardar producto:", error);
+      alert("Error al guardar el producto. Intenta nuevamente.");
     }
+  };
 
-    // Reset
+  const resetFormulario = () => {
     setCodigo("");
     setProveedor("");
     setProducto("");
@@ -132,12 +171,20 @@ export default function StockProductosPage() {
     setCantidad(1);
     setStockIdeal(5);
     setMoneda("ARS");
-    cargarProductos();
+    setMostrarFormulario(false);
   };
 
   const eliminarProducto = async (id: string) => {
-    await deleteDoc(doc(db, `negocios/${negocioID}/stockAccesorios`, id));
-    cargarProductos();
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (!currentNegocioID) return;
+
+    try {
+      await deleteDoc(doc(db, `negocios/${currentNegocioID}/stockAccesorios`, id));
+      triggerRefresh(); // Actualizar la tabla
+    } catch (error) {
+      console.error("Error al eliminar producto:", error);
+      throw error;
+    }
   };
 
   const editarProducto = (prod: any) => {
@@ -152,20 +199,26 @@ export default function StockProductosPage() {
     setPrecio1(prod.precio1 || 0);
     setPrecio2(prod.precio2 || 0);
     setPrecio3(prod.precio3 || 0);
-    setMoneda(prod.moneda || "");
+    setMoneda(prod.moneda || "ARS");
     setCantidad(prod.cantidad || 1);
     setStockIdeal(prod.stockIdeal || 5);
+    setStockBajo(prod.stockBajo || 3);
     setEditandoId(prod.id || "");
     setMostrarFormulario(true);
   };
 
-  // 🔥 FUNCIÓN ACTUALIZADA: Usar la cotización centralizada (NUEVA FUNCIÓN AGREGADA)
+  // 🔄 FUNCIÓN PARA ACTUALIZAR PRODUCTO DESDE MODAL
   const actualizarProductoEnFirebase = async (producto: any) => {
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (!currentNegocioID) return;
+
     try {
       console.log("🔥 Actualizando producto en Firebase:", producto);
       
+      const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : 1200;
+      
       // Actualizar en Firebase
-      const productRef = doc(db, `negocios/${negocioID}/stockAccesorios`, producto.id);
+      const productRef = doc(db, `negocios/${currentNegocioID}/stockAccesorios`, producto.id);
       await updateDoc(productRef, {
         codigo: producto.codigo,
         categoria: producto.categoria,
@@ -185,54 +238,46 @@ export default function StockProductosPage() {
         stockBajo: producto.stockBajo || 3,
         stockIdeal: producto.stockIdeal || 5,
         proveedor: producto.proveedor,
-        cotizacion: cotizacion, // 🔄 USAR LA COTIZACIÓN CENTRALIZADA
+        cotizacion: cotizacionSegura,
         ultimaActualizacion: new Date()
       });
 
-      // Actualizar estado local inmediatamente
-      setProductos(prevProductos => 
-        prevProductos.map(p => 
-          p.id === producto.id 
-            ? { ...producto, ultimaActualizacion: new Date() } 
-            : p
-        )
-      );
-
-      console.log("✅ Producto actualizado correctamente en Firebase y estado local");
+      console.log("✅ Producto actualizado correctamente en Firebase");
+      
+      // Trigger refresh
+      triggerRefresh();
       
     } catch (error) {
       console.error("❌ Error al actualizar producto en Firebase:", error);
-      throw error; // Para que el modal maneje el error
+      throw error;
     }
   };
 
-  // 🔄 ACTUALIZAR: Usar la cotización del hook centralizado
-  const totalUSD = productos.reduce((acc, p) => {
-    if (cotizacion <= 0) return acc;
-    const costoUSD =
-      p.moneda === "USD"
-        ? p.precioCosto * p.cantidad
-        : (p.precioCosto * p.cantidad) / cotizacion;
+  // 🔄 CÁLCULOS DE RESUMEN CON PROTECCIÓN
+  const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : 1200;
+  
+  const totalUSD = productosResumen.reduce((acc, p) => {
+    if (cotizacionSegura <= 0) return acc;
+    const precioCosto = typeof p.precioCosto === 'number' ? p.precioCosto : 0;
+    const cantidad = typeof p.cantidad === 'number' ? p.cantidad : 0;
+    
+    const costoUSD = p.moneda === "USD"
+      ? precioCosto * cantidad
+      : (precioCosto * cantidad) / cotizacionSegura;
     return acc + costoUSD;
   }, 0);
 
-  const totalPesos = cotizacion > 0 ? totalUSD * cotizacion : 0;
+  const totalPesos = cotizacionSegura > 0 ? totalUSD * cotizacionSegura : 0;
 
-  const productosAPedir = productos.filter((p) => p.cantidad < p.stockIdeal);
-  const productosFiltrados = productos.filter((p) => {
-    const texto = `${p.categoria} ${p.producto} ${p.marca} ${p.modelo}`.toLowerCase();
-    return filtroTexto
-      .toLowerCase()
-      .split(" ")
-      .every((palabra) => texto.includes(palabra));
-  });
+  const productosAPedir = productosResumen.filter((p) => (p.cantidad || 0) < (p.stockIdeal || 5));
+  
   
   const exportarExcel = () => {
     const data = productosAPedir.map((p) => ({
-      Producto: p.producto,
-      Faltan: p.stockIdeal - p.cantidad,
-      "Stock ideal": p.stockIdeal,
-      Actual: p.cantidad,
+      Producto: p.producto || '',
+      Faltan: (p.stockIdeal || 5) - (p.cantidad || 0),
+      "Stock ideal": p.stockIdeal || 5,
+      Actual: p.cantidad || 0,
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -257,7 +302,7 @@ export default function StockProductosPage() {
                   Stock de Accesorios
                 </h2>
                 <p className="text-blue-100 text-sm">
-                  Gestión completa de inventario de accesorios y productos
+                  Gestión optimizada de inventario de accesorios y productos
                 </p>
               </div>
               
@@ -308,7 +353,7 @@ export default function StockProductosPage() {
               setPrecio3={setPrecio3}
               moneda={moneda}
               setMoneda={setMoneda}
-              cotizacion={cotizacion}                    // 🔄 USAR COTIZACIÓN CENTRALIZADA  
+              cotizacion={cotizacionSegura}
               cantidad={cantidad}
               setCantidad={setCantidad}
               stockIdeal={stockIdeal}
@@ -320,40 +365,16 @@ export default function StockProductosPage() {
             />
           )}
 
-          <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">🔍</span>
-              </div>
-              <div className="flex-1">
-                <input
-                  type="text"
-                  placeholder="🔍 Buscar por categoría, producto, marca o modelo..."
-                  value={filtroTexto}
-                  onChange={(e) => setFiltroTexto(e.target.value)}
-                  className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
-                />
-              </div>
-            </div>
-          </div>
 
-          {/* 🔥 TABLA ACTUALIZADA CON MODAL (IGUAL A REPUESTOS) */}
-          <TablaProductos
-            productos={productosFiltrados}
-            editarProducto={editarProducto}
+          {/* 🔥 TABLA OPTIMIZADA - Sin pasar productos, carga desde Firebase internamente */}
+          <TablaAccesorios
             eliminarProducto={eliminarProducto}
             actualizarProducto={actualizarProductoEnFirebase}
-            onProductoActualizado={(producto) => {
-              setProductos(prevProductos => 
-                prevProductos.map(p => 
-                  p.id === producto.id ? producto : p
-                )
-              );
-            }}
-            // 🆕 USANDO LA MISMA COTIZACIÓN QUE REPUESTOS
-            cotizacion={cotizacion}
+            onProductoActualizado={() => triggerRefresh()}
+            cotizacion={cotizacionSegura}
             onCotizacionChange={actualizarCotizacion}
             negocioID={rol?.negocioID || negocioID}
+            refrescar={refrescar}
           />
 
           <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
@@ -364,7 +385,7 @@ export default function StockProductosPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium">
                   <strong>Tip:</strong> Los códigos se generan automáticamente como ACC001, ACC002, etc. 
-                  La cotización está sincronizada con el sistema de ventas.
+                  La cotización está sincronizada con el sistema de ventas. La tabla usa paginación optimizada.
                 </p>
               </div>
             </div>

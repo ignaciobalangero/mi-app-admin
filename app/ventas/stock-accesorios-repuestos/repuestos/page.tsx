@@ -21,44 +21,98 @@ import PedidosSugeridos from "./components/PedidosSugeridos";
 import FormularioProducto from "./components/FormularioProducto";
 import TablaProductos from "./components/TablaProductos";
 
-export default function StockProductosPage() {
+// 📦 PÁGINA PRINCIPAL DE REPUESTOS CON ESTRUCTURA COMPLETA
+
+interface ProductoRepuesto {
+  id: string;
+  codigo: string;
+  categoria: string;
+  producto: string;
+  marca: string;
+  color: string;
+  precioCosto: number;
+  cantidad: number;
+  moneda: "ARS" | "USD";
+  stockBajo: number;
+  proveedor: string;
+  stockIdeal: number;
+}
+
+export default function RepuestosPage() {
   const router = useRouter();
   const [user] = useAuthState(auth);
   
-  // 🆕 USAR EL HOOK DE ROL (igual que en TablaVentas)
+  // 🆕 USAR EL HOOK DE ROL
   const { rol } = useRol();
   
-  // 🆕 USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que en TablaVentas)
+  // 🆕 USAR EL HOOK DE COTIZACIÓN CENTRALIZADO
   const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
   
   const [negocioID, setNegocioID] = useState("");
+  
+  // ✅ ESTADOS BÁSICOS DEL FORMULARIO
   const [codigo, setCodigo] = useState("");
   const [proveedor, setProveedor] = useState("");
   const [producto, setProducto] = useState("");
   const [categoria, setCategoria] = useState("");
-  const [calidad, setCalidad] = useState("");
   const [marca, setMarca] = useState("");
   const [color, setColor] = useState("");
   const [precioCosto, setPrecioCosto] = useState(0);
-  const [precioCostoPesos, setPrecioCostoPesos] = useState(0);
-  
-  // 🆕 NUEVOS ESTADOS PARA PRECIOS DE VENTA
-  const [precio1, setPrecio1] = useState<number>(0);
-  const [precio2, setPrecio2] = useState<number>(0);
-  const [precio3, setPrecio3] = useState<number>(0);
-  const [precio1Pesos, setPrecio1Pesos] = useState<number>(0);
-  const [precio2Pesos, setPrecio2Pesos] = useState<number>(0);
-  const [precio3Pesos, setPrecio3Pesos] = useState<number>(0);
-  
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
   const [cantidad, setCantidad] = useState(1);
   const [stockIdeal, setStockIdeal] = useState(5);
   const [stockBajo, setStockBajo] = useState(3);
-  const [productos, setProductos] = useState<any[]>([]);
+  
+  // 🆕 ESTADOS ADICIONALES PARA EL FORMULARIO ORIGINAL
+  const [cotizacionLocal, setCotizacionLocal] = useState(1200);
+  const [precioCostoPesos, setPrecioCostoPesos] = useState(0);
+  
+  // 🆕 ESTADOS DE PRECIOS DE VENTA (REQUERIDOS POR FormularioProducto)
+  const [precio1, setPrecio1] = useState(0);
+  const [precio2, setPrecio2] = useState(0);
+  const [precio3, setPrecio3] = useState(0);
+  const [precio1Pesos, setPrecio1Pesos] = useState(0);
+  const [precio2Pesos, setPrecio2Pesos] = useState(0);
+  const [precio3Pesos, setPrecio3Pesos] = useState(0);
+  
+  // 🔄 ESTADOS SIMPLIFICADOS - La tabla optimizada maneja sus propios productos
+  const [productosResumen, setProductosResumen] = useState<ProductoRepuesto[]>([]); // Solo para cálculos de resumen
+  const [refrescar, setRefrescar] = useState(false);
+  
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [filtroTexto, setFiltroTexto] = useState("");
+
+  // 🔄 FUNCIÓN PARA REFRESCAR LA TABLA
+  const triggerRefresh = () => {
+    setRefrescar(prev => !prev);
+    // También cargar productos para el resumen
+    if (negocioID || rol?.negocioID) {
+      cargarProductosParaResumen();
+    }
+  };
+
+  // 🆕 EFECTOS PARA SINCRONIZAR COTIZACIÓN
+  useEffect(() => {
+    if (typeof cotizacion === 'number' && cotizacion > 0) {
+      setCotizacionLocal(cotizacion);
+    }
+  }, [cotizacion]);
+
+  // 🆕 EFECTOS PARA CALCULAR PRECIOS EN PESOS AUTOMÁTICAMENTE
+  useEffect(() => {
+    if (moneda === "USD" && cotizacionLocal > 0) {
+      setPrecioCostoPesos(precioCosto * cotizacionLocal);
+      setPrecio1Pesos(precio1 * cotizacionLocal);
+      setPrecio2Pesos(precio2 * cotizacionLocal);
+      setPrecio3Pesos(precio3 * cotizacionLocal);
+    } else {
+      setPrecioCostoPesos(precioCosto);
+      setPrecio1Pesos(precio1);
+      setPrecio2Pesos(precio2);
+      setPrecio3Pesos(precio3);
+    }
+  }, [moneda, cotizacionLocal, precioCosto, precio1, precio2, precio3]);
 
   useEffect(() => {
     if (user) {
@@ -75,144 +129,171 @@ export default function StockProductosPage() {
   }, [user]);
   
   useEffect(() => {
-    if (negocioID) cargarProductos();
-  }, [negocioID]);
-
-  // 🔄 ACTUALIZAR: Calcular costos y precios de venta en pesos con cotización centralizada
-  useEffect(() => {
-    if (moneda === "USD" && cotizacion > 0) {
-      // Calcular costo en pesos
-      setPrecioCostoPesos(Math.round(precioCosto * cotizacion));
-      
-      // 🆕 CALCULAR PRECIOS DE VENTA EN PESOS
-      setPrecio1Pesos(precio1 > 0 ? Math.round(precio1 * cotizacion) : 0);
-      setPrecio2Pesos(precio2 > 0 ? Math.round(precio2 * cotizacion) : 0);
-      setPrecio3Pesos(precio3 > 0 ? Math.round(precio3 * cotizacion) : 0);
-    } else {
-      setPrecioCostoPesos(precioCosto);
-      // Para productos en ARS, los precios ya están en pesos
-      setPrecio1Pesos(precio1);
-      setPrecio2Pesos(precio2);
-      setPrecio3Pesos(precio3);
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (currentNegocioID) {
+      cargarProductosParaResumen();
     }
-  }, [precioCosto, precio1, precio2, precio3, cotizacion, moneda]);
+  }, [negocioID, rol?.negocioID]);
 
-  const cargarProductos = async () => {
-    const snap = await getDocs(collection(db, `negocios/${negocioID}/stockRepuestos`));
-    const lista = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    setProductos(lista);
+  // 🔄 FUNCIÓN OPTIMIZADA: Solo cargar productos para cálculos de resumen
+  const cargarProductosParaResumen = async () => {
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (!currentNegocioID) return;
+    
+    try {
+      const snap = await getDocs(collection(db, `negocios/${currentNegocioID}/stockRepuestos`));
+      const lista = snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          codigo: data.codigo || '',
+          categoria: data.categoria || '',
+          producto: data.producto || '',
+          marca: data.marca || '',
+          color: data.color || '',
+          precioCosto: data.precioCosto || 0,
+          cantidad: data.cantidad || 0,
+          moneda: data.moneda || 'ARS',
+          stockBajo: data.stockBajo || 3,
+          proveedor: data.proveedor || '',
+          stockIdeal: data.stockIdeal || 5,
+        } as ProductoRepuesto;
+      });
+      setProductosResumen(lista);
+    } catch (error) {
+      console.error("Error cargando productos para resumen:", error);
+    }
   };
 
   const guardarProducto = async () => {
-    if (!producto || precioCosto <= 0 || cantidad <= 0) return;
-  
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (!currentNegocioID || !producto || precioCosto <= 0 || cantidad < 0) return;
+
+    const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : cotizacionLocal;
+
     const data = {
       codigo,
       proveedor,
       producto,
       categoria,
-      calidad,
       marca,
       color,
       precioCosto,
-      precioCostoPesos: moneda === "USD" && cotizacion > 0 ? Math.round(precioCosto * cotizacion) : precioCosto,
-      // 🆕 NUEVOS CAMPOS DE PRECIOS DE VENTA
-      precio1: precio1,
-      precio2: precio2,
-      precio3: precio3,
-      precio1Pesos: precio1Pesos,
-      precio2Pesos: precio2Pesos,
-      precio3Pesos: precio3Pesos,
       moneda,
-      cotizacion,
+      cotizacion: cotizacionSegura,
       cantidad,
       stockIdeal,
       stockBajo,
+      // 🆕 DATOS ADICIONALES PARA COMPATIBILIDAD
+      precioCostoPesos,
+      precio1: precio1 || 0,
+      precio2: precio2 || 0,
+      precio3: precio3 || 0,
+      precio1Pesos: precio1Pesos || 0,
+      precio2Pesos: precio2Pesos || 0,
+      precio3Pesos: precio3Pesos || 0,
     };
-  
-    if (editandoId) {
-      await updateDoc(doc(db, `negocios/${negocioID}/stockRepuestos`, editandoId), data);
-      setEditandoId(null);
-    } else {
-      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockRepuestos`));
+    
+    try {
+      if (editandoId) {
+        await updateDoc(doc(db, `negocios/${currentNegocioID}/stockRepuestos`, editandoId), data);
+        setEditandoId(null);
+      } else {
+        const snap = await getDocs(collection(db, `negocios/${currentNegocioID}/stockRepuestos`));
+        const nuevoCodigo = `REP${String(snap.size + 1).padStart(3, "0")}`;
 
-      const categoriaPrefix = (categoria || "REP").slice(0, 3).toUpperCase();
-      const existentes = snap.docs
-       .map((doc) => doc.data().codigo)
-       .filter((c) => c?.startsWith(categoriaPrefix));
+        await addDoc(collection(db, `negocios/${currentNegocioID}/stockRepuestos`), {
+          ...data,
+          codigo: nuevoCodigo,
+        });
+      }
 
-      const siguienteNumero = existentes.length + 1;
-      const nuevoCodigo = `${categoriaPrefix}${String(siguienteNumero).padStart(3, "0")}`;
-
-      await addDoc(collection(db, `negocios/${negocioID}/stockRepuestos`), {
-        ...data,
-        codigo: nuevoCodigo,
-      });
+      // Reset del formulario
+      resetFormulario();
+      
+      // Trigger refresh de la tabla optimizada
+      triggerRefresh();
+      
+    } catch (error) {
+      console.error("Error al guardar producto:", error);
+      alert("Error al guardar el producto. Intenta nuevamente.");
     }
-  
-    // 🔄 RESET ACTUALIZADO - Incluir nuevos campos
+  };
+
+  const resetFormulario = () => {
     setCodigo("");
     setProveedor("");
     setProducto("");
     setCategoria("");
-    setCalidad("");
     setMarca("");
     setColor("");
     setPrecioCosto(0);
-    setPrecioCostoPesos(0);
-    // 🆕 RESETEAR PRECIOS DE VENTA
+    setCantidad(1);
+    setStockIdeal(5);
+    setStockBajo(3);
+    setMoneda("ARS");
+    // 🆕 RESET DE ESTADOS ADICIONALES
     setPrecio1(0);
     setPrecio2(0);
     setPrecio3(0);
     setPrecio1Pesos(0);
     setPrecio2Pesos(0);
     setPrecio3Pesos(0);
-    setCantidad(1);
-    setStockIdeal(5);
-    setMoneda("ARS");
-    cargarProductos();
-  };
-  
-  const eliminarProducto = async (id: string) => {
-    await deleteDoc(doc(db, `negocios/${negocioID}/stockRepuestos`, id));
-    cargarProductos();
+    setPrecioCostoPesos(0);
+    setMostrarFormulario(false);
   };
 
-  // 🔄 FUNCIÓN EDITARPRODUCTO ACTUALIZADA - Cargar nuevos campos
+  const eliminarProducto = async (id: string) => {
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (!currentNegocioID) return;
+
+    try {
+      await deleteDoc(doc(db, `negocios/${currentNegocioID}/stockRepuestos`, id));
+      triggerRefresh(); // Actualizar la tabla
+    } catch (error) {
+      console.error("Error al eliminar producto:", error);
+      throw error;
+    }
+  };
+
   const editarProducto = (prod: any) => {
     setCodigo(prod.codigo || uuidv4().slice(0, 8));
-    setProveedor(prod.proveedor);
-    setProducto(prod.producto);
-    setCategoria(prod.categoria);
-    setCalidad(prod.calidad || "");
-    setMarca(prod.marca);
-    setColor(prod.color);
-    setPrecioCosto(prod.precioCosto);
-    setPrecioCostoPesos(prod.precioCostoPesos);
+    setProveedor(prod.proveedor || "");
+    setProducto(prod.producto || "");
+    setCategoria(prod.categoria || "");
+    setMarca(prod.marca || "");
+    setColor(prod.color || "");
+    setPrecioCosto(prod.precioCosto || 0);
+    setMoneda(prod.moneda || "ARS");
+    setCantidad(prod.cantidad || 1);
+    setStockIdeal(prod.stockIdeal || 5);
+    setStockBajo(prod.stockBajo || 3);
     
-    // 🆕 CARGAR PRECIOS DE VENTA AL EDITAR
+    // 🆕 CARGAR DATOS ADICIONALES SI EXISTEN
     setPrecio1(prod.precio1 || 0);
     setPrecio2(prod.precio2 || 0);
     setPrecio3(prod.precio3 || 0);
     setPrecio1Pesos(prod.precio1Pesos || 0);
     setPrecio2Pesos(prod.precio2Pesos || 0);
     setPrecio3Pesos(prod.precio3Pesos || 0);
+    setPrecioCostoPesos(prod.precioCostoPesos || prod.precioCosto || 0);
     
-    setMoneda(prod.moneda);
-    setCantidad(prod.cantidad);
-    setStockIdeal(prod.stockIdeal);
-    setStockBajo(prod.stockBajo || 3);
-    setEditandoId(prod.id);
+    setEditandoId(prod.id || "");
     setMostrarFormulario(true);
   };
 
-  // 🔥 FUNCIÓN ACTUALIZADA: Incluir nuevos campos al actualizar en Firebase
+  // 🔄 FUNCIÓN PARA ACTUALIZAR PRODUCTO DESDE MODAL
   const actualizarProductoEnFirebase = async (producto: any) => {
+    const currentNegocioID = rol?.negocioID || negocioID;
+    if (!currentNegocioID) return;
+
     try {
       console.log("🔥 Actualizando producto en Firebase:", producto);
       
+      const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : cotizacionLocal;
+      
       // Actualizar en Firebase
-      const productRef = doc(db, `negocios/${negocioID}/stockRepuestos`, producto.id);
+      const productRef = doc(db, `negocios/${currentNegocioID}/stockRepuestos`, producto.id);
       await updateDoc(productRef, {
         codigo: producto.codigo,
         categoria: producto.categoria,
@@ -220,55 +301,45 @@ export default function StockProductosPage() {
         marca: producto.marca,
         color: producto.color,
         precioCosto: producto.precioCosto,
-        precioCostoPesos: producto.precioCostoPesos,
-        // 🆕 INCLUIR PRECIOS DE VENTA EN ACTUALIZACIÓN
-        precio1: producto.precio1 || 0,
-        precio2: producto.precio2 || 0,
-        precio3: producto.precio3 || 0,
-        precio1Pesos: producto.precio1Pesos || 0,
-        precio2Pesos: producto.precio2Pesos || 0,
-        precio3Pesos: producto.precio3Pesos || 0,
         cantidad: producto.cantidad,
         moneda: producto.moneda,
         stockBajo: producto.stockBajo || 3,
-        proveedor: producto.proveedor,
-        calidad: producto.calidad || "",
         stockIdeal: producto.stockIdeal || 5,
-        cotizacion: cotizacion, // 🔄 USAR LA COTIZACIÓN CENTRALIZADA
+        proveedor: producto.proveedor,
+        precioCostoPesos: producto.precioCostoPesos || 0,
+        cotizacion: cotizacionSegura,
         ultimaActualizacion: new Date()
       });
 
-      // Actualizar estado local inmediatamente
-      setProductos(prevProductos => 
-        prevProductos.map(p => 
-          p.id === producto.id 
-            ? { ...producto, ultimaActualizacion: new Date() } 
-            : p
-        )
-      );
-
-      console.log("✅ Producto actualizado correctamente en Firebase y estado local");
+      console.log("✅ Producto actualizado correctamente en Firebase");
+      
+      // Trigger refresh
+      triggerRefresh();
       
     } catch (error) {
       console.error("❌ Error al actualizar producto en Firebase:", error);
-      throw error; // Para que el modal maneje el error
+      throw error;
     }
   };
 
-  // 🔄 ACTUALIZAR: Usar la cotización del hook centralizado
-  const totalUSD = productos.reduce((acc, p) => {
-    if (cotizacion <= 0) return acc;
-    const costoUSD =
-      p.moneda === "USD"
-        ? p.precioCosto * p.cantidad
-        : (p.precioCosto * p.cantidad) / cotizacion;
+  // 🔄 CÁLCULOS DE RESUMEN CON PROTECCIÓN
+  const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : cotizacionLocal;
+  
+  const totalUSD = productosResumen.reduce((acc, p) => {
+    if (cotizacionSegura <= 0) return acc;
+    const precioCosto = typeof p.precioCosto === 'number' ? p.precioCosto : 0;
+    const cantidad = typeof p.cantidad === 'number' ? p.cantidad : 0;
+    
+    const costoUSD = p.moneda === "USD"
+      ? precioCosto * cantidad
+      : (precioCosto * cantidad) / cotizacionSegura;
     return acc + costoUSD;
   }, 0);
 
-  const totalPesos = cotizacion > 0 ? totalUSD * cotizacion : 0;
+  const totalPesos = cotizacionSegura > 0 ? totalUSD * cotizacionSegura : 0;
 
-  const productosAPedir = productos.filter((p) => p.cantidad < p.stockIdeal);
-
+  const productosAPedir = productosResumen.filter((p) => p.cantidad < p.stockIdeal);
+  
   const exportarExcel = () => {
     const data = productosAPedir.map((p) => ({
       Producto: p.producto,
@@ -280,52 +351,40 @@ export default function StockProductosPage() {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Pedidos sugeridos");
-    XLSX.writeFile(wb, "pedidos_sugeridos_repuestos.xlsx");
+    XLSX.writeFile(wb, "pedidos_sugeridos.xlsx");
   };
 
-  const productosFiltrados = productos.filter((p) => {
-    const texto = `${p.categoria} ${p.producto} ${p.marca} ${p.modelo || ''}`.toLowerCase();
-    return filtroTexto
-      .toLowerCase()
-      .split(" ")
-      .every((palabra) => texto.includes(palabra));
-  });  
-  
   return (
     <>
       <Header />
-      <main className="pt-14 bg-[#f8f9fa] min-h-screen text-black w-full"> 
-        <div className="w-full px-1/2 max-w-[1200px] mx-auto space-y-4"> 
-          {/* Header de la página - Estilo GestiOne */}
+      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+        <div className="w-full px-4 max-w-[1200px] mx-auto space-y-4">
+          
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                <span className="text-3xl">🔧</span>
+                <span className="text-3xl">📦</span>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white mb-1"> 
+                <h2 className="text-2xl font-bold text-white mb-1">
                   Stock de Repuestos
                 </h2>
                 <p className="text-blue-100 text-sm">
-                  Gestión completa de inventario de repuestos y componentes
+                  Gestión optimizada de inventario de repuestos y componentes
                 </p>
               </div>
+              
+              <button
+                onClick={() => router.push("/ventas")}
+                className="ml-auto bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm border border-white/30"
+              >
+                ← Atrás
+              </button>
             </div>
-               {/* Botón atrás */}
-          <div className="flex justify-center"> 
-            <button
-              onClick={() => router.push("/ventas/stock-accesorios-repuestos/")}
-              className="ml-auto bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm border border-white/30" 
-            >
-              ← Atrás
-            </button>
-          </div>
           </div>
 
-          {/* Resumen de capital */}
           <ResumenCapital totalUSD={totalUSD} totalPesos={totalPesos} />
 
-          {/* Acciones */}
           <Acciones
             exportarExcel={exportarExcel}
             mostrarSugerencias={mostrarSugerencias}
@@ -334,10 +393,9 @@ export default function StockProductosPage() {
             setMostrarFormulario={setMostrarFormulario}
           />
 
-          {/* Sugerencias de pedidos */}
           {mostrarSugerencias && <PedidosSugeridos productosAPedir={productosAPedir} />}
 
-          {/* 🔄 FORMULARIO ACTUALIZADO - Con nuevos props */}
+          {/* ✅ FORMULARIO COMPLETO CON TODAS LAS PROPS */}
           {mostrarFormulario && (
             <FormularioProducto
               codigo={codigo}
@@ -356,10 +414,10 @@ export default function StockProductosPage() {
               setPrecioCosto={setPrecioCosto}
               moneda={moneda}
               setMoneda={setMoneda}
-              cotizacion={cotizacion}
+              cotizacion={cotizacionSegura}
               setCotizacion={actualizarCotizacion}
               precioCostoPesos={precioCostoPesos}
-              // 🆕 NUEVOS PROPS PARA PRECIOS DE VENTA
+              // 🆕 PROPS DE PRECIOS DE VENTA
               precio1={precio1}
               setPrecio1={setPrecio1}
               precio2={precio2}
@@ -376,51 +434,24 @@ export default function StockProductosPage() {
               setCantidad={setCantidad}
               stockIdeal={stockIdeal}
               setStockIdeal={setStockIdeal}
-              stockBajo={stockBajo}
-              setStockBajo={setStockBajo}
               guardarProducto={guardarProducto}
               editandoId={editandoId}
+              stockBajo={stockBajo}
+              setStockBajo={setStockBajo}
             />
           )}
-          
-          {/* Filtro de búsqueda */}
-          <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]"> 
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">🔍</span>
-              </div>
-              <div className="flex-1">
-                <input
-                  type="text"
-                  placeholder="🔍 Buscar por categoría, producto, marca o modelo..."
-                  value={filtroTexto}
-                  onChange={(e) => setFiltroTexto(e.target.value)}
-                  className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
-                />
-              </div>
-            </div>
-          </div>
 
-          {/* 🔥 TABLA DE PRODUCTOS - CON COTIZACIÓN CENTRALIZADA */}
+           {/* 🔥 TABLA OPTIMIZADA - Sin pasar productos, carga desde Firebase internamente */}
           <TablaProductos
-            productos={productosFiltrados}
-            editarProducto={editarProducto}
             eliminarProducto={eliminarProducto}
             actualizarProducto={actualizarProductoEnFirebase}
-            onProductoActualizado={(producto) => {
-              setProductos(prevProductos => 
-                prevProductos.map(p => 
-                  p.id === producto.id ? producto : p
-                )
-              );
-            }}
-            // 🆕 USANDO LA MISMA COTIZACIÓN QUE TABLAVENTAS
-            cotizacion={cotizacion}
+            onProductoActualizado={() => triggerRefresh()}
+            cotizacion={cotizacionSegura}
             onCotizacionChange={actualizarCotizacion}
             negocioID={rol?.negocioID || negocioID}
+            refrescar={refrescar}
           />
 
-          {/* Información adicional */}
           <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
             <div className="flex items-center gap-3 text-[#2c3e50]">
               <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
@@ -428,9 +459,8 @@ export default function StockProductosPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium">
-                  <strong>Tip:</strong> Los códigos se generan automáticamente basados en la categoría. 
-                  La cotización está sincronizada con el sistema de ventas. Ahora puedes configurar 
-                  hasta 3 precios de venta diferentes para cada repuesto.
+                  <strong>Tip:</strong> Los códigos se generan automáticamente como REP001, REP002, etc. 
+                  La cotización está sincronizada con el sistema de ventas. La tabla usa paginación optimizada.
                 </p>
               </div>
             </div>
