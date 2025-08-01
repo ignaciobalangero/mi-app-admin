@@ -90,7 +90,7 @@ export default function TablaAccesorios({
   const [totalProductos, setTotalProductos] = useState(0);
   
   // 🔥 CONFIGURACIÓN DE PAGINACIÓN
-  const ITEMS_POR_PAGINA = 50;
+  const ITEMS_POR_PAGINA = 100;
 
   // 🚀 FUNCIÓN OPTIMIZADA PARA CARGAR PRODUCTOS CON PAGINACIÓN
   const cargarProductosPaginados = async (esNuevaCarga = false, filtros?: {

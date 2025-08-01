@@ -98,7 +98,7 @@ export default function ResumenSimplificado() {
           }
         });
         
-        // 🛍️ PROCESAR VENTAS
+        // 🛍️ PROCESAR VENTAS - VERSIÓN CORREGIDA
         console.log("🛍️ Procesando ventas...");
         ventasSnap.docs.forEach(doc => {
           const venta = doc.data();
@@ -117,22 +117,54 @@ export default function ResumenSimplificado() {
             };
           }
           
-          // Sumar productos de la venta
-          venta.productos.forEach((producto: any) => {
-            if (producto.ganancia !== undefined && producto.ganancia !== null) {
-              const ganancia = Number(producto.ganancia) || 0;
-              
-              if (venta.moneda === "USD") {
-                resumen[mes].ventasUSD += ganancia;
-              } else {
-                resumen[mes].ventasARS += ganancia;
-              }
-              
-              resumen[mes].totalVentas += 1;
-              
-              console.log(`🛍️ Venta ${venta.moneda}: ${ganancia}`);
+          // 🔥 CAMBIO PRINCIPAL: Usar gananciaTotal si existe, sino calcular por producto
+          if (venta.gananciaTotal !== undefined && venta.gananciaTotal !== null) {
+            // ✅ MÉTODO 1: Usar gananciaTotal (más confiable)
+            const gananciaVenta = Number(venta.gananciaTotal) || 0;
+            
+            // Determinar moneda de la venta
+            const hayTelefono = venta.productos.some((p: any) => p.categoria === "Teléfono");
+            const monedaVenta = venta.moneda || (hayTelefono ? "USD" : "ARS");
+            
+            if (monedaVenta === "USD") {
+              resumen[mes].ventasUSD += gananciaVenta;
+            } else {
+              resumen[mes].ventasARS += gananciaVenta;
             }
-          });
+            
+            resumen[mes].totalVentas += venta.productos.length;
+            
+            console.log(`🛍️ Venta total ${monedaVenta}: ${gananciaVenta}`);
+          } else {
+            // ✅ MÉTODO 2: Fallback - Sumar ganancias por producto
+            venta.productos.forEach((producto: any) => {
+              if (producto.ganancia !== undefined && producto.ganancia !== null) {
+                const ganancia = Number(producto.ganancia) || 0;
+                
+                // Determinar moneda del producto
+                const hayTelefono = venta.productos.some((p: any) => p.categoria === "Teléfono");
+                let monedaProducto = "ARS";
+                
+                if (hayTelefono) {
+                  // Venta mixta: respetar moneda original del producto
+                  monedaProducto = producto.moneda || venta.moneda || "USD";
+                } else {
+                  // Venta pura: usar moneda de la venta
+                  monedaProducto = venta.moneda || "ARS";
+                }
+                
+                if (monedaProducto === "USD") {
+                  resumen[mes].ventasUSD += ganancia;
+                } else {
+                  resumen[mes].ventasARS += ganancia;
+                }
+                
+                resumen[mes].totalVentas += 1;
+                
+                console.log(`🛍️ Producto ${monedaProducto}: ${ganancia}`);
+              }
+            });
+          }
         });
         
         // ✅ CONVERTIR A ARRAY Y ORDENAR

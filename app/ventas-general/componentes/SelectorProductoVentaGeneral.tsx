@@ -181,7 +181,7 @@ export default function SelectorProductoVentaGeneral({
           producto: data.producto || data.modelo || "",
           modelo: data.modelo || data.producto || "",
           marca: data.marca || "",
-          categoria: data.hoja || data.categoria || "",
+          categoria: data.categoria || "",
           color: data.color || "",
           precio1: precio1USD,
           precio2: precio2USD, 

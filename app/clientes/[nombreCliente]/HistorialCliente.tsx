@@ -116,7 +116,11 @@ export default function ClienteDetalle() {
     let totalPagosUSD = 0;
 
     // Calcular totales de trabajos
-    trabajos.forEach(t => {
+    const trabajosParaDeuda = trabajos.filter(t => 
+      t.estado === "ENTREGADO" || t.estado === "PAGADO"
+    );
+    
+    trabajosParaDeuda.forEach(t => {
       const hayTelefonoEnTrabajo = t.productos?.some((p: any) => p.categoria === "Teléfono");
       
       if (hayTelefonoEnTrabajo || t.moneda === "USD") {

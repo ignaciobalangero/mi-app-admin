@@ -1,4 +1,4 @@
-// ModalEditarVenta.tsx
+// ModalEditarVenta.tsx - CORREGIDO
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,7 +17,14 @@ interface Producto {
   total?: number;
   moneda?: string;
   costo?: number;
+  ganancia?: number;
   codigo?: string;
+  // ✅ AGREGAR CAMPOS FALTANTES QUE USA FIREBASE
+  precioCosto?: number;
+  precioCostoPesos?: number;
+  precioVenta?: number;
+  tipo?: string;
+  hoja?: string;
 }
 
 interface Props {
@@ -46,24 +53,66 @@ export default function ModalEditarVenta({
     if (venta && mostrar) {
       setCliente(venta.cliente || "");
       setFecha(venta.fecha || "");
-      setProductos(venta.productos ? [...venta.productos] : []);
+      
+      // ✅ CARGAR PRODUCTOS CON ESTRUCTURA EXACTA DEL FORMULARIO
+      const productosConCosto = venta.productos ? venta.productos.map((p: any) => ({
+        ...p,
+        // ✅ MAPEAR CAMPOS CORRECTAMENTE
+        producto: p.descripcion || p.producto, // descripcion → producto para edición
+        costo: p.precioCosto || 0,             // precioCosto → costo para edición
+        ganancia: p.ganancia || 0,
+        // ✅ MANTENER CAMPOS ORIGINALES
+        precioCosto: p.precioCosto || 0,
+        precioCostoPesos: p.precioCostoPesos || 0,
+        precioVenta: p.precioVenta || (p.precioUnitario * p.cantidad),
+      })) : [];
+      
+      setProductos(productosConCosto);
     }
   }, [venta, mostrar]);
 
+  // ✅ NUEVA FUNCIÓN PARA CALCULAR GANANCIA
+  const calcularGanancia = (precioVenta: number, precioCosto: number, cantidad: number = 1): number => {
+    return (precioVenta - precioCosto) * cantidad;
+  };
+
   const actualizarProducto = (index: number, campo: string, valor: any): void => {
     const nuevosProductos = [...productos];
-    nuevosProductos[index] = {
-      ...nuevosProductos[index],
-      [campo]: valor
-    };
-
-    // Recalcular total del producto
-    if (campo === 'precioUnitario' || campo === 'cantidad') {
-      const precio = campo === 'precioUnitario' ? valor : nuevosProductos[index].precioUnitario;
-      const cantidad = campo === 'cantidad' ? valor : nuevosProductos[index].cantidad;
-      nuevosProductos[index].total = precio * cantidad;
+    const productoActual = { ...nuevosProductos[index] };
+    
+    // ✅ ACTUALIZAR EL CAMPO DE FORMA SEGURA
+    if (campo === 'producto') {
+      productoActual.producto = valor;
+    } else if (campo === 'marca') {
+      productoActual.marca = valor;
+    } else if (campo === 'modelo') {
+      productoActual.modelo = valor;
+    } else if (campo === 'precioUnitario') {
+      productoActual.precioUnitario = Number(valor);
+    } else if (campo === 'cantidad') {
+      productoActual.cantidad = Number(valor);
+    } else if (campo === 'costo') {
+      productoActual.costo = Number(valor);
     }
 
+    // ✅ RECALCULAR TOTAL Y GANANCIA CUANDO CAMBIA PRECIO, CANTIDAD O COSTO
+    if (campo === 'precioUnitario' || campo === 'cantidad' || campo === 'costo') {
+      const precio = campo === 'precioUnitario' ? Number(valor) : productoActual.precioUnitario || 0;
+      const cantidad = campo === 'cantidad' ? Number(valor) : productoActual.cantidad || 1;
+      const costo = campo === 'costo' ? Number(valor) : productoActual.costo || 0;
+      
+      // ✅ CALCULAR IGUAL QUE EL FORMULARIO ORIGINAL
+      productoActual.precioVenta = precio * cantidad;        // precioVenta = total
+      productoActual.precioUnitario = precio;                // mantener precio unitario
+      productoActual.precioCosto = costo;                    // actualizar precioCosto
+      productoActual.precioCostoPesos = costo;               // actualizar precioCostoPesos  
+      productoActual.ganancia = (precio - costo) * cantidad; // ganancia total del producto
+      
+      // ✅ MANTENER TOTAL PARA COMPATIBILIDAD
+      productoActual.total = precio * cantidad;
+    }
+
+    nuevosProductos[index] = productoActual;
     setProductos(nuevosProductos);
   };
 
@@ -73,42 +122,69 @@ export default function ModalEditarVenta({
     setGuardando(true);
 
     try {
-      // Calcular nuevo total de la venta
-      const totalVenta = productos.reduce((sum, p) => sum + (p.total || 0), 0);
+      // ✅ PREPARAR PRODUCTOS CON ESTRUCTURA EXACTA DEL FORMULARIO ORIGINAL
+      const productosParaGuardar = productos.map(p => ({
+        categoria: p.categoria,
+        descripcion: p.producto || p.descripcion || "", // ✅ producto → descripcion
+        marca: p.marca || "—",
+        modelo: p.modelo || "—", 
+        color: p.color || "—",
+        cantidad: p.cantidad,
+        precioUnitario: p.precioUnitario,
+        precioCosto: p.costo || p.precioCosto || 0,      // ✅ costo → precioCosto
+        precioCostoPesos: p.costo || p.precioCostoPesos || p.precioCosto || 0,
+        precioVenta: p.precioVenta || (p.precioUnitario * p.cantidad), // ✅ total del producto
+        ganancia: p.ganancia || 0,
+        moneda: p.moneda,
+        codigo: p.codigo,
+        tipo: p.tipo,
+        hoja: p.hoja || "",
+        // ✅ MANTENER TOTAL PARA COMPATIBILIDAD
+        total: p.precioVenta || (p.precioUnitario * p.cantidad)
+      }));
 
-      // 1. Actualizar ventasGeneral
+      // ✅ CALCULAR TOTALES IGUAL QUE EL FORMULARIO ORIGINAL
+      const totalVenta = productosParaGuardar.reduce((sum, p) => sum + (p.precioVenta || 0), 0);
+      const gananciaTotal = productosParaGuardar.reduce((sum, p) => sum + (p.ganancia || 0), 0);
+
+      console.log('💰 Guardando venta editada:', {
+        totalVenta,
+        gananciaTotal,
+        productos: productosParaGuardar.length
+      });
+
+      // 1. Actualizar ventasGeneral con estructura exacta
       await updateDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${venta.id}`), {
         cliente,
         fecha,
-        productos,
-        total: totalVenta
+        productos: productosParaGuardar,
+        total: totalVenta,
+        gananciaTotal: gananciaTotal
       });
 
       // 2. Si hay teléfono, actualizar también ventaTelefonos
-      const telefono = productos.find(p => p.categoria === "Teléfono");
+      const telefono = productosParaGuardar.find(p => p.categoria === "Teléfono");
       if (telefono) {
         const telefonoRef = doc(db, `negocios/${negocioID}/ventaTelefonos/${venta.id}`);
         const telefonoSnap = await getDoc(telefonoRef);
         
         if (telefonoSnap.exists()) {
-          // Calcular precio de costo y ganancia
-          const precioVenta = telefono.precioUnitario;
-          const precioCosto = telefono.costo || telefonoSnap.data().precioCosto || 0;
-          
           await updateDoc(telefonoRef, {
-            precioVenta: precioVenta,
-            precioCosto: precioCosto,
+            precioVenta: telefono.precioVenta,        // ✅ usar precioVenta (total)
+            precioCosto: telefono.precioCosto,        // ✅ usar precioCosto
+            ganancia: telefono.ganancia,              // ✅ usar ganancia
             cliente: cliente,
             fecha: fecha
           });
         }
       }
 
+      console.log('✅ Venta editada y guardada correctamente');
       onVentaActualizada();
       onClose();
       
     } catch (error) {
-      console.error("Error al guardar cambios:", error);
+      console.error("❌ Error al guardar cambios:", error);
       alert("Error al guardar los cambios");
     } finally {
       setGuardando(false);
@@ -119,7 +195,7 @@ export default function ModalEditarVenta({
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border-2 border-[#ecf0f1]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden border-2 border-[#ecf0f1]">
         
         {/* Header */}
         <div className="bg-gradient-to-r from-[#f39c12] to-[#e67e22] text-white p-6">
@@ -245,40 +321,111 @@ export default function ModalEditarVenta({
                   </div>
                 </div>
 
-                {/* Precios y cantidad */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* ✅ SECCIÓN DE PRECIOS MEJORADA - PARA TODOS LOS PRODUCTOS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                  
+                  {/* Precio de Costo */}
                   <div>
-                    <label className="block text-sm font-medium text-[#2c3e50] mb-1">
-                      💰 Precio Unitario
+                    <label className="block text-sm font-medium text-[#e74c3c] mb-1">
+                      💸 Precio de Costo
+                    </label>
+                    <input
+                      type="number"
+                      value={producto.costo || 0}
+                      onChange={(e) => actualizarProducto(index, 'costo', Number(e.target.value))}
+                      className="w-full p-2 border-2 border-[#e74c3c] rounded focus:ring-1 focus:ring-[#e74c3c] text-sm font-medium bg-gradient-to-r from-white to-[#fdf2f2]"
+                      step="0.01"
+                      min="0"
+                    />
+                  </div>
+                  
+                  {/* Precio de Venta */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#27ae60] mb-1">
+                      💰 Precio de Venta
                     </label>
                     <input
                       type="number"
                       value={producto.precioUnitario || 0}
                       onChange={(e) => actualizarProducto(index, 'precioUnitario', Number(e.target.value))}
-                      className="w-full p-2 border border-[#bdc3c7] rounded focus:ring-1 focus:ring-[#f39c12] text-sm font-medium"
+                      className="w-full p-2 border-2 border-[#27ae60] rounded focus:ring-1 focus:ring-[#27ae60] text-sm font-medium bg-gradient-to-r from-white to-[#f0f9f4]"
                       step="0.01"
+                      min="0"
                     />
                   </div>
                   
+                  {/* Cantidad */}
                   <div>
-                    <label className="block text-sm font-medium text-[#2c3e50] mb-1">
+                    <label className="block text-sm font-medium text-[#3498db] mb-1">
                       📦 Cantidad
                     </label>
                     <input
                       type="number"
                       value={producto.cantidad || 1}
                       onChange={(e) => actualizarProducto(index, 'cantidad', Number(e.target.value))}
-                      className="w-full p-2 border border-[#bdc3c7] rounded focus:ring-1 focus:ring-[#f39c12] text-sm font-medium"
+                      className="w-full p-2 border-2 border-[#3498db] rounded focus:ring-1 focus:ring-[#3498db] text-sm font-medium bg-gradient-to-r from-white to-[#f0f8ff]"
                       min="1"
                     />
                   </div>
                   
+                  {/* Total */}
                   <div>
-                    <label className="block text-sm font-medium text-[#2c3e50] mb-1">
+                    <label className="block text-sm font-medium text-[#9b59b6] mb-1">
                       💵 Total
                     </label>
-                    <div className="w-full p-2 bg-[#ecf0f1] border border-[#bdc3c7] rounded text-sm font-bold text-[#27ae60]">
+                    <div className="w-full p-2 bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] text-white rounded text-sm font-bold text-center">
                       {producto.moneda === "USD" ? "USD" : "$"} {((producto.precioUnitario || 0) * (producto.cantidad || 1)).toLocaleString("es-AR")}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ✅ NUEVA SECCIÓN DE GANANCIA - PARA TODOS LOS PRODUCTOS */}
+                <div className={`p-3 rounded-lg border-2 ${
+                  (producto.ganancia || 0) > 0 
+                    ? 'bg-[#d5f4e6] border-[#27ae60]' 
+                    : (producto.ganancia || 0) < 0 
+                    ? 'bg-[#fadbd8] border-[#e74c3c]' 
+                    : 'bg-[#f8f9fa] border-[#7f8c8d]'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${
+                        (producto.ganancia || 0) > 0 
+                          ? 'text-[#27ae60]' 
+                          : (producto.ganancia || 0) < 0 
+                          ? 'text-[#e74c3c]' 
+                          : 'text-[#7f8c8d]'
+                      }`}>
+                        {(producto.ganancia || 0) > 0 ? '📈' : (producto.ganancia || 0) < 0 ? '📉' : '📊'} 
+                        Ganancia por producto:
+                      </span>
+                    </div>
+                    <div className={`font-bold text-lg ${
+                      (producto.ganancia || 0) > 0 
+                        ? 'text-[#27ae60]' 
+                        : (producto.ganancia || 0) < 0 
+                        ? 'text-[#e74c3c]' 
+                        : 'text-[#7f8c8d]'
+                    }`}>
+                      {producto.moneda === "USD" ? "USD" : "$"} {(producto.ganancia || 0).toLocaleString("es-AR")}
+                    </div>
+                  </div>
+                  
+                  {/* Desglose de la ganancia */}
+                  <div className="mt-2 text-xs text-[#7f8c8d] grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div>
+                      Precio Venta: <strong>${(producto.precioUnitario || 0).toLocaleString("es-AR")}</strong>
+                    </div>
+                    <div>
+                      Precio Costo: <strong>${(producto.costo || 0).toLocaleString("es-AR")}</strong>
+                    </div>
+                    <div>
+                      Margen: <strong>
+                        {producto.precioUnitario && producto.precioUnitario > 0 
+                          ? (((producto.precioUnitario - (producto.costo || 0)) / producto.precioUnitario) * 100).toFixed(1)
+                          : 0
+                        }%
+                      </strong>
                     </div>
                   </div>
                 </div>
@@ -288,36 +435,8 @@ export default function ModalEditarVenta({
                   <div className="mt-4 p-3 bg-[#fff3cd] border border-[#f39c12] rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-[#856404] font-medium text-sm">
-                        📱 Información del Teléfono
+                        📱 Los cambios se aplicarán también en Venta de Teléfonos
                       </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-[#856404] mb-1">
-                          Precio de Costo
-                        </label>
-                        <input
-                          type="number"
-                          value={producto.costo || 0}
-                          onChange={(e) => actualizarProducto(index, 'costo', Number(e.target.value))}
-                          className="w-full p-2 border border-[#f39c12] rounded focus:ring-1 focus:ring-[#f39c12] text-sm"
-                          step="0.01"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-[#856404] mb-1">
-                          Ganancia Estimada
-                        </label>
-                        <div className="w-full p-2 bg-white border border-[#f39c12] rounded text-sm font-bold text-[#27ae60]">
-                          {producto.moneda === "USD" ? "USD" : "$"} {((producto.precioUnitario || 0) - (producto.costo || 0)).toLocaleString("es-AR")}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-2 text-xs text-[#856404]">
-                      💡 Los cambios se aplicarán también en la tabla de Venta de Teléfonos
                     </div>
                   </div>
                 )}
@@ -325,13 +444,40 @@ export default function ModalEditarVenta({
             ))}
           </div>
 
-          {/* Resumen total */}
-          <div className="mt-6 p-4 bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-lg text-white">
-            <div className="flex justify-between items-center">
-              <span className="font-medium">TOTAL DE LA VENTA:</span>
-              <span className="font-bold text-xl">
-                $ {productos.reduce((sum, p) => sum + ((p.precioUnitario || 0) * (p.cantidad || 1)), 0).toLocaleString("es-AR")}
-              </span>
+            {/* ✅ RESUMEN TOTAL MEJORADO CON GANANCIA */}
+          <div className="mt-6 space-y-4">
+            
+            {/* Total de Venta */}
+            <div className="p-4 bg-gradient-to-r from-[#3498db] to-[#2980b9] rounded-lg text-white">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">TOTAL DE LA VENTA:</span>
+                <span className="font-bold text-xl">
+                  $ {productos.reduce((sum, p) => sum + (p.precioVenta || (p.precioUnitario * p.cantidad)), 0).toLocaleString("es-AR")}
+                </span>
+              </div>
+            </div>
+
+            {/* Ganancia Total */}
+            <div className={`p-4 rounded-lg text-white ${
+              productos.reduce((sum, p) => sum + (p.ganancia || 0), 0) > 0
+                ? 'bg-gradient-to-r from-[#27ae60] to-[#2ecc71]'
+                : productos.reduce((sum, p) => sum + (p.ganancia || 0), 0) < 0
+                ? 'bg-gradient-to-r from-[#e74c3c] to-[#c0392b]'
+                : 'bg-gradient-to-r from-[#7f8c8d] to-[#6c7b7f]'
+            }`}>
+              <div className="flex justify-between items-center">
+                <span className="font-medium">
+                  {productos.reduce((sum, p) => sum + (p.ganancia || 0), 0) > 0 
+                    ? '📈 GANANCIA TOTAL:' 
+                    : productos.reduce((sum, p) => sum + (p.ganancia || 0), 0) < 0 
+                    ? '📉 PÉRDIDA TOTAL:' 
+                    : '📊 SIN GANANCIA:'
+                  }
+                </span>
+                <span className="font-bold text-xl">
+                  $ {productos.reduce((sum, p) => sum + (p.ganancia || 0), 0).toLocaleString("es-AR")}
+                </span>
+              </div>
             </div>
           </div>
         </div>

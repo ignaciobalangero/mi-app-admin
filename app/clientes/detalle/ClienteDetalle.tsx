@@ -59,7 +59,9 @@ export default function ClienteDetalle() {
     };
   }, [nombreCliente, negocioID]);
 
-  const totalTrabajos = trabajos.reduce((sum, t) => sum + (t.precio || 0), 0);
+  const totalTrabajos = trabajos
+  .filter(t => t.estado === "ENTREGADO" || t.estado === "PAGADO")
+  .reduce((sum, t) => sum + (t.precio || 0), 0);
   const totalPagos = pagos.reduce((sum, p) => sum + (p.monto || 0), 0);
   const saldo = totalTrabajos - totalPagos;
 

@@ -56,7 +56,7 @@ export default function TablaVentas({ refrescar }: Props) {
   const [totalVentas, setTotalVentas] = useState(0);
   
   // 🔥 CONFIGURACIÓN DE PAGINACIÓN
-  const ITEMS_POR_PAGINA = 25;
+  const ITEMS_POR_PAGINA = 75;
 
   // 🚀 FUNCIÓN OPTIMIZADA PARA CARGAR VENTAS CON PAGINACIÓN
   const cargarVentasPaginadas = async (esNuevaCarga = false, filtros?: {

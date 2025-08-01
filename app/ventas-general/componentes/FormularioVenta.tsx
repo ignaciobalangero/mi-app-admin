@@ -19,9 +19,6 @@ import { useRouter } from "next/navigation";
 import { descontarRepuestoDelStock } from "./descontarRepuestoDelStock";
 import { Combobox } from "@headlessui/react";
 
-
-
-
 interface ProductoVenta {
   categoria: "Teléfono" | "Accesorio" | "Repuesto";
   descripcion: string;
