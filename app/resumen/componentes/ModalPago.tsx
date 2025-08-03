@@ -18,7 +18,6 @@ interface Trabajo {
   costo?: number;
   repuestosUsados?: any[];
   fechaModificacion?: string;
-  imei?: string; // Campo específico de gestión-trabajos
 }
 
 interface Props {
@@ -94,9 +93,7 @@ export default function ModalPago({
         negocioID: negocioID,
         // Información adicional del trabajo
         trabajoDetalle: trabajo.trabajo,
-        modeloDetalle: trabajo.modelo,
-        // Campo específico de gestión-trabajos
-        ...(trabajo.imei && { imeiDetalle: trabajo.imei })
+        modeloDetalle: trabajo.modelo
       };
 
       // Guardar en Firebase
@@ -181,9 +178,6 @@ export default function ModalPago({
               <div><strong>Fecha:</strong> {trabajo.fecha}</div>
               <div><strong>Modelo:</strong> {trabajo.modelo}</div>
               <div><strong>Trabajo:</strong> {trabajo.trabajo}</div>
-              {trabajo.imei && (
-                <div><strong>IMEI:</strong> {trabajo.imei}</div>
-              )}
               {trabajo.clave && (
                 <div><strong>Clave:</strong> {trabajo.clave}</div>
               )}

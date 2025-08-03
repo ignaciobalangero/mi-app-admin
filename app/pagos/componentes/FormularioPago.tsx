@@ -20,6 +20,17 @@ interface Props {
  setPagos: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
+interface Trabajo {
+  firebaseId: string;
+  cliente: string;
+  precio: number;
+  estado: string;
+  moneda?: "ARS" | "USD";
+  trabajo?: string;
+  modelo?: string;
+  fecha?: string;
+}
+
 export default function FormularioPago({ negocioID, setPagos }: Props) {
  const [cliente, setCliente] = useState("");
  const [clientes, setClientes] = useState<string[]>([]);
@@ -34,6 +45,10 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
  const [editandoId, setEditandoId] = useState<string | null>(null);
  const [mensaje, setMensaje] = useState("");
  const [queryCliente, setQueryCliente] = useState("");
+ 
+ // Estados para mostrar trabajos pendientes del cliente seleccionado
+ const [trabajosPendientes, setTrabajosPendientes] = useState<Trabajo[]>([]);
+ const [mostrarTrabajos, setMostrarTrabajos] = useState(false);
 
  // Opciones predefinidas para forma de pago
  const formasPago = [
@@ -78,12 +93,109 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
    fetchCotizacion();
  }, [negocioID]);
 
+ // Cargar trabajos pendientes cuando se selecciona un cliente
+ useEffect(() => {
+   const cargarTrabajosPendientes = async () => {
+     if (!cliente || !negocioID) {
+       setTrabajosPendientes([]);
+       setMostrarTrabajos(false);
+       return;
+     }
+
+     try {
+       const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
+       const trabajosDelCliente: Trabajo[] = [];
+
+       trabajosSnap.forEach((doc) => {
+         const data = doc.data();
+         if (data.cliente === cliente && 
+             (data.estado === "ENTREGADO" || data.estado === "REPARADO") && 
+             data.estadoCuentaCorriente !== "PAGADO" &&
+             data.precio > 0) {
+           trabajosDelCliente.push({
+             firebaseId: doc.id,
+             cliente: data.cliente,
+             precio: Number(data.precio || 0),
+             estado: data.estado,
+             moneda: data.moneda || "ARS",
+             trabajo: data.trabajo || "",
+             modelo: data.modelo || "",
+             fecha: data.fecha || ""
+           });
+         }
+       });
+
+       // Ordenar por fecha (más antiguos primero)
+       trabajosDelCliente.sort((a, b) => {
+         const fechaA = new Date(a.fecha || '');
+         const fechaB = new Date(b.fecha || '');
+         return fechaA.getTime() - fechaB.getTime();
+       });
+
+       setTrabajosPendientes(trabajosDelCliente);
+       setMostrarTrabajos(trabajosDelCliente.length > 0);
+
+       // Pre-llenar monto con el total de la deuda en la moneda seleccionada
+       if (trabajosDelCliente.length > 0) {
+         const totalARS = trabajosDelCliente
+           .filter(t => (t.moneda || "ARS") === "ARS")
+           .reduce((sum, t) => sum + t.precio, 0);
+         const totalUSD = trabajosDelCliente
+           .filter(t => t.moneda === "USD")
+           .reduce((sum, t) => sum + t.precio, 0);
+
+         if (moneda === "ARS" && totalARS > 0) {
+           setMonto(totalARS);
+         } else if (moneda === "USD" && totalUSD > 0) {
+           setMonto(totalUSD);
+         }
+       }
+
+     } catch (error) {
+       console.error("Error al cargar trabajos pendientes:", error);
+     }
+   };
+
+   cargarTrabajosPendientes();
+ }, [cliente, negocioID, moneda]);
+
  const obtenerDestino = () => {
    if (tipoDestino === "proveedor" && proveedorSeleccionado) {
      const proveedor = proveedores.find(p => p.nombre === proveedorSeleccionado);
      return `Proveedor: ${proveedorSeleccionado}${proveedor?.categoria ? ` (${proveedor.categoria})` : ''}`;
    }
    return destinoLibre;
+ };
+
+ const marcarTrabajosComoPagados = async (montoPagado: number, monedaPago: string) => {
+   if (trabajosPendientes.length === 0) return;
+
+   let montoRestante = montoPagado;
+   const trabajosEnMoneda = trabajosPendientes.filter(t => (t.moneda || "ARS") === monedaPago);
+
+   for (const trabajo of trabajosEnMoneda) {
+     if (montoRestante <= 0) break;
+
+     if (montoRestante >= trabajo.precio) {
+       // Pago completo del trabajo
+       const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
+       await updateDoc(trabajoRef, {
+         estado: "PAGADO",
+         estadoCuentaCorriente: "PAGADO",
+         fechaModificacion: new Date().toLocaleDateString('es-AR')
+       });
+       montoRestante -= trabajo.precio;
+       console.log(`✅ Trabajo marcado como PAGADO: ${trabajo.trabajo} - $${trabajo.precio}`);
+     } else {
+       // Pago parcial - no marcar como pagado
+       console.log(`⚠️ Pago parcial para: ${trabajo.trabajo} - Faltan $${trabajo.precio - montoRestante} para completar este trabajo`);
+       break;
+     }
+   }
+
+   if (montoRestante > 0) {
+     console.log(`📉 Pago aplicado correctamente. Deuda total reducida en $${montoPagado}`);
+   }
  };
 
  const guardarPago = async () => {
@@ -105,6 +217,7 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
 
    const nuevoPago = {
      fecha: new Date().toLocaleDateString("es-AR"),
+     fechaCompleta: new Date(),
      cliente,
      monto: moneda === "USD" ? null : monto,
      montoUSD: moneda === "USD" ? monto : null,
@@ -114,6 +227,9 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
      proveedorDestino: tipoDestino === "proveedor" ? proveedorSeleccionado : null,
      moneda,
      cotizacion,
+     tipo: 'ingreso',
+     negocioID,
+     observaciones: ""
    };
 
    try {
@@ -126,6 +242,9 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
      } else {
        docRef = await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
        setMensaje("✅ Pago guardado con éxito");
+       
+       // 🚀 NUEVA FUNCIONALIDAD: Marcar trabajos como pagados
+       await marcarTrabajosComoPagados(monto, moneda);
      }
 
      const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
@@ -136,6 +255,7 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
      }));
      setPagos(pagosActualizados);
 
+     // Limpiar formulario
      setCliente("");
      setMonto(0);
      setForma("");
@@ -143,8 +263,10 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
      setProveedorSeleccionado("");
      setDestinoLibre("");
      setMoneda("ARS");
+     setTrabajosPendientes([]);
+     setMostrarTrabajos(false);
 
-     setTimeout(() => setMensaje(""), 2000);
+     setTimeout(() => setMensaje(""), 3000);
    } catch (error) {
      console.error("Error al guardar el pago:", error);
      setMensaje("❌ Error inesperado al guardar el pago");
@@ -189,6 +311,14 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
    }
  };
 
+ // Calcular totales de deuda por moneda
+ const totalDeudaARS = trabajosPendientes
+   .filter(t => (t.moneda || "ARS") === "ARS")
+   .reduce((sum, t) => sum + t.precio, 0);
+ const totalDeudaUSD = trabajosPendientes
+   .filter(t => t.moneda === "USD")
+   .reduce((sum, t) => sum + t.precio, 0);
+
  return (
    <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
      
@@ -198,10 +328,10 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
        </div>
        <div>
          <h2 className="text-lg font-bold text-[#2c3e50]">
-           {editandoId ? "Editar Pago" : "Nuevo Pago"}
+           {editandoId ? "Editar Pago" : "Nuevo Pago Inteligente"}
          </h2>
          <p className="text-[#7f8c8d] text-xs">
-           Registra los pagos de tus clientes
+           Registra pagos y marca trabajos automáticamente
          </p>
        </div>
      </div>
@@ -213,6 +343,79 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
            : "bg-gradient-to-r from-[#fadbd8] to-[#f5b7b1] border-2 border-[#e74c3c] text-[#e74c3c]"
        }`}>
          {mensaje}
+       </div>
+     )}
+
+     {/* Información de trabajos pendientes */}
+     {mostrarTrabajos && (
+       <div className="bg-gradient-to-r from-[#ebf3fd] to-[#d6eafc] rounded-xl p-4 mb-4 border-2 border-[#3498db]">
+         <div className="flex items-center gap-2 mb-3">
+           <div className="w-6 h-6 bg-[#3498db] rounded-lg flex items-center justify-center">
+             <span className="text-white text-xs">📋</span>
+           </div>
+           <h3 className="font-bold text-[#2c3e50] text-sm">
+             Trabajos Pendientes de {cliente}
+           </h3>
+         </div>
+         
+         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+           {totalDeudaARS > 0 && (
+             <div className="bg-white/60 rounded-lg p-3">
+               <p className="text-xs text-[#7f8c8d]">Total en Pesos</p>
+               <p className="font-bold text-[#e74c3c]">${totalDeudaARS.toLocaleString()}</p>
+             </div>
+           )}
+           {totalDeudaUSD > 0 && (
+             <div className="bg-white/60 rounded-lg p-3">
+               <p className="text-xs text-[#7f8c8d]">Total en USD</p>
+               <p className="font-bold text-[#e74c3c]">USD ${totalDeudaUSD.toLocaleString()}</p>
+             </div>
+           )}
+         </div>
+
+         <div className="space-y-1 max-h-32 overflow-y-auto">
+           {trabajosPendientes.slice(0, 5).map((trabajo, idx) => (
+             <div key={trabajo.firebaseId} className="text-xs bg-white/40 rounded px-2 py-1 flex justify-between items-center">
+               <span>{trabajo.modelo} - {trabajo.trabajo}</span>
+               <span className="font-semibold">
+                 {trabajo.moneda === "USD" ? "USD " : "$"}{trabajo.precio}
+               </span>
+             </div>
+           ))}
+           {trabajosPendientes.length > 5 && (
+             <div className="text-xs text-[#7f8c8d] text-center">
+               +{trabajosPendientes.length - 5} trabajos más...
+             </div>
+           )}
+         </div>
+
+         <div className="mt-3 pt-3 border-t border-[#3498db]/30">
+           <div className="flex flex-wrap gap-2">
+             <span className="text-xs text-[#7f8c8d]">Pagos sugeridos:</span>
+             {totalDeudaARS > 0 && (
+               <button
+                 onClick={() => {
+                   setMoneda("ARS");
+                   setMonto(totalDeudaARS);
+                 }}
+                 className="bg-[#27ae60] hover:bg-[#229954] text-white px-2 py-1 rounded text-xs font-medium transition-all"
+               >
+                 Total ARS: ${totalDeudaARS.toLocaleString()}
+               </button>
+             )}
+             {totalDeudaUSD > 0 && (
+               <button
+                 onClick={() => {
+                   setMoneda("USD");
+                   setMonto(totalDeudaUSD);
+                 }}
+                 className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-2 py-1 rounded text-xs font-medium transition-all"
+               >
+                 Total USD: ${totalDeudaUSD.toLocaleString()}
+               </button>
+             )}
+           </div>
+         </div>
        </div>
      )}
 
@@ -412,18 +615,18 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
              : "bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] hover:scale-105"
          }`}
        >
-         💾 {editandoId ? "Actualizar" : "Guardar Pago"}
+         💾 {editandoId ? "Actualizar" : "Guardar Pago Inteligente"}
        </button>
      </div>
 
      <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-3 mt-4 border border-[#bdc3c7]">
        <div className="flex items-center gap-3 text-[#2c3e50]">
          <div className="w-6 h-6 bg-[#3498db] rounded-lg flex items-center justify-center">
-           <span className="text-white text-xs">💡</span>
+           <span className="text-white text-xs">🚀</span>
          </div>
          <div className="flex-1">
            <p className="text-sm font-medium">
-             <strong>Tip:</strong> Ahora puedes pagar directamente a proveedores seleccionándolos de la lista. La cotización del USD se actualiza automáticamente.
+             <strong>Nuevo:</strong> Pago Inteligente activado. Al seleccionar un cliente, verás sus trabajos pendientes y el sistema marcará automáticamente los trabajos como "PAGADO" según el monto recibido.
            </p>
          </div>
        </div>

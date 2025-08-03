@@ -3,63 +3,52 @@
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
 
-interface Usuario {
+interface AdminSuscripcion {
   id: string;
   email: string;
-  rol: string;
+  negocioID: string;
+  planActivo?: string;
+  fechaVencimiento?: any;
+  esExento?: boolean;
+  fechaRegistro?: any;
   nombre?: string;
-}
-
-interface Negocio {
-  id: string;
-  nombre: string;
-  creadoPor?: string;
-  creadoEn?: any;
-  adminEmail?: string;
-  adminUID?: string;
-  usuarios: Usuario[];
-  totalClientes: number;
-  totalReparaciones: number;
-  totalStock: number;
-  ultimaActividad?: string;
-  configuracion?: any;
-  activo: boolean;
 }
 
 interface DetailModal {
   isOpen: boolean;
-  negocio: Negocio | null;
+  admin: AdminSuscripcion | null;
 }
 
 interface EditModal {
   isOpen: boolean;
-  negocio: Negocio | null;
+  admin: AdminSuscripcion | null;
   newEmail: string;
   newPassword: string;
 }
 
-export default function NegociosListPage() {
+export default function GestionSuscripciones() {
   const auth = getAuth();
   const router = useRouter();
   const [currentUID, setCurrentUID] = useState<string | null>(null);
-  const [negocios, setNegocios] = useState<Negocio[]>([]);
+  const [adminsSuscripcion, setAdminsSuscripcion] = useState<AdminSuscripcion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState<'todos' | 'vencidos' | 'por_vencer' | 'activos' | 'exentos'>('todos');
+  const [actualizando, setActualizando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("");
-  const [filtro, setFiltro] = useState<"todos" | "activos" | "inactivos">("todos");
   
   const [detailModal, setDetailModal] = useState<DetailModal>({
     isOpen: false,
-    negocio: null
+    admin: null
   });
   
   const [editModal, setEditModal] = useState<EditModal>({
     isOpen: false,
-    negocio: null,
+    admin: null,
     newEmail: "",
     newPassword: ""
   });
@@ -78,172 +67,163 @@ export default function NegociosListPage() {
     }
     
     if (currentUID === SUPER_ADMIN_UID) {
-      cargarTodosLosNegocios();
+      cargarAdminsSuscripcion();
     }
   }, [currentUID, router]);
 
-  const cargarTodosLosNegocios = async () => {
+  // FUNCIÓN OPTIMIZADA - Solo carga admins
+  const cargarAdminsSuscripcion = async () => {
     try {
       setLoading(true);
       
-      // Obtener TODAS las colecciones que empiecen con nombre de negocio
-      const negociosSnapshot = await getDocs(collection(db, "negocios"));
-      const negociosData: Negocio[] = [];
+      const q = query(
+        collection(db, "usuarios"),
+        where("rol", "==", "admin"),
+        orderBy("email")
+      );
+      
+      const snapshot = await getDocs(q);
+      const adminsData: AdminSuscripcion[] = [];
 
-      for (const negocioDoc of negociosSnapshot.docs) {
-        const negocioId = negocioDoc.id;
-        const negocioData = negocioDoc.data();
-        
-        console.log(`Procesando negocio: ${negocioId}`, negocioData);
-
-        // Información básica del negocio
-        let usuarios: Usuario[] = [];
-        let totalClientes = 0;
-        let totalReparaciones = 0;
-        let totalStock = 0;
-        let ultimaActividad = "Sin actividad";
-        let configuracion = null;
-        let adminEmail = "";
-        let adminUID = "";
-
-        try {
-          // Cargar usuarios
-          const usuariosSnapshot = await getDocs(collection(db, `negocios/${negocioId}/usuarios`));
-          usuarios = usuariosSnapshot.docs.map(userDoc => ({
-            id: userDoc.id,
-            ...userDoc.data() as any
-          }));
-
-          const adminUser = usuarios.find(u => u.rol === "admin");
-          if (adminUser) {
-            adminEmail = adminUser.email;
-            adminUID = adminUser.id;
-          }
-        } catch (error) {
-          console.log(`No se pudieron cargar usuarios para ${negocioId}`);
-        }
-
-        try {
-          // Contar clientes
-          const clientesSnapshot = await getDocs(collection(db, `negocios/${negocioId}/clientes`));
-          totalClientes = clientesSnapshot.size;
-        } catch (error) {
-          console.log(`No se pudieron contar clientes para ${negocioId}`);
-        }
-
-        try {
-          // Contar reparaciones/trabajos
-          const reparacionesSnapshot = await getDocs(collection(db, `negocios/${negocioId}/trabajos`));
-          totalReparaciones = reparacionesSnapshot.size;
-          
-          if (reparacionesSnapshot.docs.length > 0) {
-            // Obtener la fecha más reciente
-            const fechasReparaciones = reparacionesSnapshot.docs
-              .map(doc => doc.data().fechaIngreso)
-              .filter(fecha => fecha)
-              .sort((a, b) => b.seconds - a.seconds);
-            
-            if (fechasReparaciones.length > 0) {
-              ultimaActividad = new Date(fechasReparaciones[0].seconds * 1000).toLocaleDateString();
-            }
-          }
-        } catch (error) {
-          console.log(`No se pudieron contar reparaciones para ${negocioId}`);
-        }
-
-        try {
-          // Contar stock
-          const stockSnapshot = await getDocs(collection(db, `negocios/${negocioId}/stockExtra`));
-          totalStock = stockSnapshot.size;
-        } catch (error) {
-          console.log(`No se pudo contar stock para ${negocioId}`);
-        }
-
-        try {
-          // Cargar configuración
-          const configSnapshot = await getDocs(collection(db, `negocios/${negocioId}/configuracion`));
-          if (configSnapshot.docs.length > 0) {
-            configuracion = configSnapshot.docs[0].data();
-          }
-        } catch (error) {
-          console.log(`No se pudo cargar configuración para ${negocioId}`);
-        }
-
-        // Determinar si está activo (tiene usuarios y alguna actividad reciente)
-        const activo = usuarios.length > 0 && (totalClientes > 0 || totalReparaciones > 0);
-
-        negociosData.push({
-          id: negocioId,
-          nombre: negocioData.nombre || negocioId,
-          creadoPor: negocioData.creadoPor,
-          creadoEn: negocioData.creadoEn,
-          adminEmail,
-          adminUID,
-          usuarios,
-          totalClientes,
-          totalReparaciones,
-          totalStock,
-          ultimaActividad,
-          configuracion,
-          activo
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        adminsData.push({
+          id: doc.id,
+          email: data.email,
+          negocioID: data.negocioID,
+          planActivo: data.planActivo,
+          fechaVencimiento: data.fechaVencimiento,
+          esExento: data.esExento,
+          fechaRegistro: data.fechaRegistro,
+          nombre: data.nombre
         });
-      }
+      });
 
-      // Ordenar por nombre
-      negociosData.sort((a, b) => a.nombre.localeCompare(b.nombre));
-      setNegocios(negociosData);
+      setAdminsSuscripcion(adminsData);
       
     } catch (error) {
-      console.error("Error al cargar negocios:", error);
-      setMensaje("❌ Error al cargar los negocios");
+      console.error("Error al cargar admins:", error);
+      setMensaje("❌ Error al cargar suscripciones");
     } finally {
       setLoading(false);
     }
   };
 
-  const abrirModalDetalle = (negocio: Negocio) => {
+  // Funciones para gestionar suscripciones
+  const extenderSuscripcion = async (adminId: string, meses: number) => {
+    setActualizando(adminId);
+    try {
+      const adminRef = doc(db, "usuarios", adminId);
+      const ahora = new Date();
+      const nuevaFecha = new Date();
+      nuevaFecha.setMonth(nuevaFecha.getMonth() + meses);
+
+      await updateDoc(adminRef, {
+        fechaVencimiento: nuevaFecha,
+        planActivo: meses >= 12 ? 'anual' : 'mensual',
+        ultimaActualizacion: ahora
+      });
+
+      await cargarAdminsSuscripcion();
+      setMensaje(`✅ Suscripción extendida por ${meses} meses`);
+      setTimeout(() => setMensaje(""), 3000);
+    } catch (error) {
+      console.error("Error:", error);
+      setMensaje("❌ Error al actualizar suscripción");
+    }
+    setActualizando(null);
+  };
+
+  const marcarExento = async (adminId: string, exento: boolean) => {
+    setActualizando(adminId);
+    try {
+      const adminRef = doc(db, "usuarios", adminId);
+      await updateDoc(adminRef, {
+        esExento: exento,
+        fechaModificacionExencion: new Date()
+      });
+
+      await cargarAdminsSuscripcion();
+      setMensaje(exento ? "✅ Negocio marcado como exento" : "✅ Exención removida");
+      setTimeout(() => setMensaje(""), 3000);
+    } catch (error) {
+      console.error("Error:", error);
+      setMensaje("❌ Error al actualizar usuario");
+    }
+    setActualizando(null);
+  };
+
+  const eliminarNegocio = async (adminId: string, negocioID: string) => {
+    const confirmacion = window.confirm(
+      `¿Estás seguro de que quieres eliminar el negocio "${negocioID}"? Esta acción eliminará todos los datos del negocio y no se puede deshacer.`
+    );
+
+    if (!confirmacion) return;
+
+    try {
+      // Eliminar de la colección usuarios
+      await deleteDoc(doc(db, "usuarios", adminId));
+      
+      // Eliminar de la colección negocios
+      await deleteDoc(doc(db, "negocios", negocioID));
+      
+      setMensaje("✅ Negocio eliminado exitosamente");
+      await cargarAdminsSuscripcion();
+    } catch (error: any) {
+      console.error("Error al eliminar negocio:", error);
+      setMensaje(`❌ Error al eliminar: ${error.message}`);
+    }
+  };
+
+  // Modales
+  const abrirModalDetalle = (admin: AdminSuscripcion) => {
     setDetailModal({
       isOpen: true,
-      negocio
+      admin
     });
   };
 
-  const abrirModalEdicion = (negocio: Negocio) => {
+  const abrirModalEdicion = (admin: AdminSuscripcion) => {
     setEditModal({
       isOpen: true,
-      negocio,
-      newEmail: negocio.adminEmail || "",
+      admin,
+      newEmail: admin.email,
       newPassword: ""
     });
   };
 
   const cerrarModales = () => {
-    setDetailModal({ isOpen: false, negocio: null });
-    setEditModal({ isOpen: false, negocio: null, newEmail: "", newPassword: "" });
+    setDetailModal({ isOpen: false, admin: null });
+    setEditModal({ isOpen: false, admin: null, newEmail: "", newPassword: "" });
     setMensaje("");
   };
 
   const guardarCambios = async () => {
-    if (!editModal.negocio) return;
+    if (!editModal.admin) return;
 
     try {
-      const { negocio, newEmail } = editModal;
+      const { admin, newEmail, newPassword } = editModal;
+      const updates: any = {};
 
-      if (newEmail && newEmail !== negocio.adminEmail && negocio.adminUID) {
-        await updateDoc(doc(db, `negocios/${negocio.id}/usuarios/${negocio.adminUID}`), {
-          email: newEmail
-        });
-        
-        await updateDoc(doc(db, `usuarios/${negocio.adminUID}`), {
-          email: newEmail
-        });
+      if (newEmail && newEmail !== admin.email) {
+        updates.email = newEmail;
       }
 
-      setMensaje("✅ Cambios guardados exitosamente");
-      setTimeout(() => {
-        cerrarModales();
-        cargarTodosLosNegocios();
-      }, 1500);
+      if (newPassword) {
+        updates.password = newPassword;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await updateDoc(doc(db, "usuarios", admin.id), updates);
+        
+        setMensaje("✅ Usuario actualizado exitosamente");
+        setTimeout(() => {
+          cerrarModales();
+          cargarAdminsSuscripcion();
+        }, 1500);
+      } else {
+        setMensaje("⚠️ No hay cambios para guardar");
+      }
 
     } catch (error: any) {
       console.error("Error al guardar cambios:", error);
@@ -251,35 +231,61 @@ export default function NegociosListPage() {
     }
   };
 
-  const eliminarNegocio = async (negocioId: string) => {
-    const confirmacion = window.confirm(
-      `¿Estás seguro de que quieres eliminar el negocio "${negocioId}"? Esta acción no se puede deshacer.`
-    );
+  // Función para obtener estado de suscripción
+  const obtenerEstadoSuscripcion = (admin: AdminSuscripcion) => {
+    if (admin.esExento) {
+      return { estado: 'exento', dias: null, color: 'text-blue-600' };
+    }
 
-    if (!confirmacion) return;
+    if (!admin.fechaVencimiento) {
+      return { estado: 'sin_plan', dias: null, color: 'text-gray-600' };
+    }
 
-    try {
-      await deleteDoc(doc(db, `negocios/${negocioId}`));
-      setMensaje("✅ Negocio eliminado exitosamente");
-      cargarTodosLosNegocios();
-    } catch (error: any) {
-      console.error("Error al eliminar negocio:", error);
-      setMensaje(`❌ Error al eliminar: ${error.message}`);
+    const ahora = new Date();
+    const fechaVencimiento = admin.fechaVencimiento.toDate();
+    const diferencia = fechaVencimiento.getTime() - ahora.getTime();
+    const diasRestantes = Math.ceil(diferencia / (1000 * 60 * 60 * 24));
+
+    if (diasRestantes < 0) {
+      return { estado: 'vencido', dias: Math.abs(diasRestantes), color: 'text-red-600' };
+    } else if (diasRestantes <= 7) {
+      return { estado: 'por_vencer', dias: diasRestantes, color: 'text-orange-600' };
+    } else {
+      return { estado: 'activo', dias: diasRestantes, color: 'text-green-600' };
     }
   };
+  const formatearFecha = (fecha: any) => {
+    if (!fecha) return 'N/A';
+    return fecha.toDate().toLocaleDateString('es-AR');
+  };
 
-  const negociosFiltrados = negocios.filter(negocio => {
-    if (filtro === "activos") return negocio.activo;
-    if (filtro === "inactivos") return !negocio.activo;
-    return true;
+  // Filtrar admins
+  const adminsFiltrados = adminsSuscripcion.filter(admin => {
+    if (filtro === 'todos') return true;
+    
+    const { estado } = obtenerEstadoSuscripcion(admin);
+    
+    switch (filtro) {
+      case 'vencidos':
+        return estado === 'vencido';
+      case 'por_vencer':
+        return estado === 'por_vencer';
+      case 'activos':
+        return estado === 'activo';
+      case 'exentos':
+        return estado === 'exento';
+      default:
+        return true;
+    }
   });
 
+  // Estadísticas
   const estadisticas = {
-    total: negocios.length,
-    activos: negocios.filter(n => n.activo).length,
-    inactivos: negocios.filter(n => !n.activo).length,
-    totalClientes: negocios.reduce((sum, n) => sum + n.totalClientes, 0),
-    totalReparaciones: negocios.reduce((sum, n) => sum + n.totalReparaciones, 0)
+    total: adminsSuscripcion.length,
+    activos: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'activo').length,
+    vencidos: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'vencido').length,
+    porVencer: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'por_vencer').length,
+    exentos: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'exento').length
   };
 
   if (currentUID && currentUID !== SUPER_ADMIN_UID) {
@@ -301,7 +307,7 @@ export default function NegociosListPage() {
         <div className="bg-white rounded-2xl p-6 shadow-lg">
           <div className="flex items-center gap-3 text-[#7f8c8d]">
             <span className="animate-spin text-2xl">⏳</span>
-            <p className="text-lg">Cargando todos los negocios...</p>
+            <p className="text-lg">Cargando suscripciones...</p>
           </div>
         </div>
       </div>
@@ -317,14 +323,14 @@ export default function NegociosListPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                <span className="text-4xl">🏢</span>
+                <span className="text-4xl">💳</span>
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-white mb-1">
-                  Gestión Completa de Negocios
+                  Gestión de Suscripciones
                 </h1>
                 <p className="text-blue-100">
-                  Vista detallada de todos los negocios en GestiOne
+                  Administra las suscripciones de todos los negocios en GestiOne
                 </p>
               </div>
             </div>
@@ -338,52 +344,28 @@ export default function NegociosListPage() {
           </div>
         </div>
 
-        {/* Estadísticas Generales */}
+        {/* Estadísticas */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-2xl p-4 shadow-lg">
+          <div className="bg-gradient-to-r from-[#34495e] to-[#2c3e50] rounded-2xl p-4 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                 <span className="text-2xl">📊</span>
               </div>
               <div>
-                <p className="text-green-100 text-sm">Total Negocios</p>
+                <p className="text-gray-200 text-sm">Total Negocios</p>
                 <p className="text-2xl font-bold text-white">{estadisticas.total}</p>
               </div>
             </div>
           </div>
           
-          <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] rounded-2xl p-4 shadow-lg">
+          <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-2xl p-4 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                 <span className="text-2xl">✅</span>
               </div>
               <div>
-                <p className="text-blue-100 text-sm">Activos</p>
+                <p className="text-green-100 text-sm">Activos</p>
                 <p className="text-2xl font-bold text-white">{estadisticas.activos}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] rounded-2xl p-4 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <span className="text-2xl">⏸️</span>
-              </div>
-              <div>
-                <p className="text-red-100 text-sm">Inactivos</p>
-                <p className="text-2xl font-bold text-white">{estadisticas.inactivos}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] rounded-2xl p-4 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <span className="text-2xl">👥</span>
-              </div>
-              <div>
-                <p className="text-purple-100 text-sm">Total Clientes</p>
-                <p className="text-2xl font-bold text-white">{estadisticas.totalClientes}</p>
               </div>
             </div>
           </div>
@@ -391,11 +373,35 @@ export default function NegociosListPage() {
           <div className="bg-gradient-to-r from-[#f39c12] to-[#e67e22] rounded-2xl p-4 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <span className="text-2xl">🔧</span>
+                <span className="text-2xl">⚠️</span>
               </div>
               <div>
-                <p className="text-orange-100 text-sm">Total Trabajos</p>
-                <p className="text-2xl font-bold text-white">{estadisticas.totalReparaciones}</p>
+                <p className="text-orange-100 text-sm">Por Vencer</p>
+                <p className="text-2xl font-bold text-white">{estadisticas.porVencer}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] rounded-2xl p-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <span className="text-2xl">❌</span>
+              </div>
+              <div>
+                <p className="text-red-100 text-sm">Vencidos</p>
+                <p className="text-2xl font-bold text-white">{estadisticas.vencidos}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] rounded-2xl p-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <span className="text-2xl">🔓</span>
+              </div>
+              <div>
+                <p className="text-blue-100 text-sm">Exentos</p>
+                <p className="text-2xl font-bold text-white">{estadisticas.exentos}</p>
               </div>
             </div>
           </div>
@@ -406,155 +412,156 @@ export default function NegociosListPage() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-[#2c3e50] font-medium">Filtrar:</span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setFiltro("todos")}
-                  className={`px-3 py-1 rounded-lg text-sm transition-all ${
-                    filtro === "todos" 
-                      ? "bg-[#3498db] text-white" 
-                      : "bg-[#ecf0f1] text-[#7f8c8d] hover:bg-[#d5dbdb]"
-                  }`}
-                >
-                  Todos ({estadisticas.total})
-                </button>
-                <button
-                  onClick={() => setFiltro("activos")}
-                  className={`px-3 py-1 rounded-lg text-sm transition-all ${
-                    filtro === "activos" 
-                      ? "bg-[#27ae60] text-white" 
-                      : "bg-[#ecf0f1] text-[#7f8c8d] hover:bg-[#d5dbdb]"
-                  }`}
-                >
-                  Activos ({estadisticas.activos})
-                </button>
-                <button
-                  onClick={() => setFiltro("inactivos")}
-                  className={`px-3 py-1 rounded-lg text-sm transition-all ${
-                    filtro === "inactivos" 
-                      ? "bg-[#e74c3c] text-white" 
-                      : "bg-[#ecf0f1] text-[#7f8c8d] hover:bg-[#d5dbdb]"
-                  }`}
-                >
-                  Inactivos ({estadisticas.inactivos})
-                </button>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { key: 'todos', label: 'Todos', color: 'bg-gray-100' },
+                  { key: 'activos', label: 'Activos', color: 'bg-green-100 text-green-800' },
+                  { key: 'por_vencer', label: 'Por Vencer', color: 'bg-orange-100 text-orange-800' },
+                  { key: 'vencidos', label: 'Vencidos', color: 'bg-red-100 text-red-800' },
+                  { key: 'exentos', label: 'Exentos', color: 'bg-blue-100 text-blue-800' }
+                ].map(f => (
+                  <button
+                    key={f.key}
+                    onClick={() => setFiltro(f.key as any)}
+                    className={`px-3 py-1 rounded-lg text-sm transition-all ${f.color} ${
+                      filtro === f.key ? 'ring-2 ring-blue-500' : ''
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
         </div>
-
-        {/* Lista de Negocios */}
+        {/* Lista de Suscripciones */}
         <div className="bg-white rounded-2xl shadow-lg border border-[#ecf0f1] overflow-hidden">
           <div className="bg-gradient-to-r from-[#34495e] to-[#2c3e50] p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg">📋</span>
+                <span className="text-white text-lg">💳</span>
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">Lista Completa de Negocios</h2>
-                <p className="text-gray-200 text-sm">Información detallada de cada negocio</p>
+                <h2 className="text-lg font-bold text-white">Gestión de Suscripciones</h2>
+                <p className="text-gray-200 text-sm">
+                  Administra las suscripciones de todos los negocios ({adminsFiltrados.length} mostrados)
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="p-6">
-            {negociosFiltrados.length === 0 ? (
-              <div className="text-center py-8 text-[#7f8c8d]">
-                <span className="text-4xl mb-4 block">📦</span>
-                <p className="text-lg">No hay negocios que coincidan con el filtro</p>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {negociosFiltrados.map((negocio) => (
-                  <div
-                    key={negocio.id}
-                    className={`border rounded-xl p-4 hover:shadow-md transition-all duration-200 ${
-                      negocio.activo ? "border-[#d5f4e6] bg-[#f8fffe]" : "border-[#fadbd8] bg-[#fef9f9]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                          negocio.id === 'iphonetec' 
-                            ? 'bg-gradient-to-r from-[#f39c12] to-[#e67e22]' 
-                            : negocio.activo
-                              ? 'bg-gradient-to-r from-[#27ae60] to-[#2ecc71]'
-                              : 'bg-gradient-to-r from-[#7f8c8d] to-[#95a5a6]'
-                        }`}>
-                          <span className="text-white text-xl">
-                            {negocio.id === 'iphonetec' ? '👑' : negocio.activo ? '🏪' : '⏸️'}
-                          </span>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Negocio
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Estado
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Plan
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Vencimiento
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {adminsFiltrados.map(admin => {
+                  const { estado, dias, color } = obtenerEstadoSuscripcion(admin);
+                  
+                  return (
+                    <tr key={admin.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {admin.negocioID} ({admin.nombre || 'Sin nombre'})
+                          </p>
+                          <p className="text-sm text-gray-500">{admin.email}</p>
                         </div>
-                        
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-lg font-bold text-[#2c3e50]">
-                              {negocio.nombre}
-                            </h3>
-                            {negocio.id === 'iphonetec' && (
-                              <span className="text-xs bg-[#f39c12] text-white px-2 py-1 rounded-lg">
-                                TU NEGOCIO
-                              </span>
-                            )}
-                            <span className={`text-xs px-2 py-1 rounded-lg ${
-                              negocio.activo ? "bg-[#27ae60] text-white" : "bg-[#e74c3c] text-white"
-                            }`}>
-                              {negocio.activo ? "ACTIVO" : "INACTIVO"}
-                            </span>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <p className="text-[#7f8c8d]">Admin: {negocio.adminEmail || 'No asignado'}</p>
-                              <p className="text-[#95a5a6]">Usuarios: {negocio.usuarios.length}</p>
-                            </div>
-                            <div>
-                              <p className="text-[#7f8c8d]">Clientes: {negocio.totalClientes}</p>
-                              <p className="text-[#95a5a6]">Trabajos: {negocio.totalReparaciones}</p>
-                            </div>
-                            <div>
-                              <p className="text-[#7f8c8d]">Stock: {negocio.totalStock} items</p>
-                              <p className="text-[#95a5a6]">Última actividad: {negocio.ultimaActividad}</p>
-                            </div>
-                            <div>
-                              {negocio.creadoEn && (
-                                <p className="text-[#95a5a6]">
-                                  Creado: {new Date(negocio.creadoEn.seconds * 1000).toLocaleDateString()}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex gap-2 ml-4">
-                        <button
-                          onClick={() => abrirModalDetalle(negocio)}
-                          className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] hover:from-[#8e44ad] hover:to-[#7d3c98] text-white px-3 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
-                        >
-                          👁️ Ver detalle
-                        </button>
-                        
-                        <button
-                          onClick={() => abrirModalEdicion(negocio)}
-                          className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white px-3 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
-                        >
-                          ✏️ Editar
-                        </button>
-                        
-                        {negocio.id !== 'iphonetec' && (
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`font-medium ${color}`}>
+                          {estado === 'exento' && '🔓 Exento'}
+                          {estado === 'activo' && `✅ Activo (${dias}d)`}
+                          {estado === 'por_vencer' && `⚠️ Por vencer (${dias}d)`}
+                          {estado === 'vencido' && `❌ Vencido (${dias}d)`}
+                          {estado === 'sin_plan' && '⭕ Sin plan'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {admin.planActivo || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {formatearFecha(admin.fechaVencimiento)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-2">
                           <button
-                            onClick={() => eliminarNegocio(negocio.id)}
-                            className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white px-3 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
+                            onClick={() => extenderSuscripcion(admin.id, 1)}
+                            disabled={actualizando === admin.id}
+                            className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded hover:bg-green-200 disabled:opacity-50"
+                          >
+                            +1M
+                          </button>
+                          <button
+                            onClick={() => extenderSuscripcion(admin.id, 3)}
+                            disabled={actualizando === admin.id}
+                            className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded hover:bg-blue-200 disabled:opacity-50"
+                          >
+                            +3M
+                          </button>
+                          <button
+                            onClick={() => extenderSuscripcion(admin.id, 12)}
+                            disabled={actualizando === admin.id}
+                            className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded hover:bg-purple-200 disabled:opacity-50"
+                          >
+                            +1A
+                          </button>
+                          <button
+                            onClick={() => marcarExento(admin.id, !admin.esExento)}
+                            disabled={actualizando === admin.id}
+                            className={`px-2 py-1 text-xs rounded disabled:opacity-50 ${
+                              admin.esExento 
+                                ? 'bg-red-100 text-red-800 hover:bg-red-200' 
+                                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                            }`}
+                          >
+                            {admin.esExento ? 'Quitar' : 'Exento'}
+                          </button>
+                          <button
+                            onClick={() => abrirModalDetalle(admin)}
+                            className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded hover:bg-purple-200"
+                          >
+                            👁️ Ver
+                          </button>
+                          <button
+                            onClick={() => abrirModalEdicion(admin)}
+                            className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded hover:bg-blue-200"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button
+                            onClick={() => eliminarNegocio(admin.id, admin.negocioID)}
+                            className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded hover:bg-red-200"
                           >
                             🗑️ Eliminar
                           </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                          {actualizando === admin.id && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -571,9 +578,9 @@ export default function NegociosListPage() {
       </div>
 
       {/* Modal de Detalle */}
-      {detailModal.isOpen && detailModal.negocio && (
+      {detailModal.isOpen && detailModal.admin && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] p-4 rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -581,8 +588,8 @@ export default function NegociosListPage() {
                     <span className="text-white text-lg">👁️</span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Detalle Completo</h3>
-                    <p className="text-purple-100 text-sm">{detailModal.negocio.nombre}</p>
+                    <h3 className="text-lg font-bold text-white">Detalle de Suscripción</h3>
+                    <p className="text-purple-100 text-sm">{detailModal.admin.negocioID}</p>
                   </div>
                 </div>
                 
@@ -595,125 +602,37 @@ export default function NegociosListPage() {
               </div>
             </div>
 
-            <div className="p-6 space-y-6">
-              {/* Información General */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-[#f8f9fa] rounded-xl p-4">
-                  <h4 className="font-bold text-[#2c3e50] mb-3 flex items-center gap-2">
-                    📊 Información General
-                  </h4>
-                  <div className="space-y-2 text-sm text-[#2c3e50]">
-                    <p><strong className="text-[#2c3e50]">ID:</strong> <span className="text-[#34495e]">{detailModal.negocio.id}</span></p>
-                    <p><strong className="text-[#2c3e50]">Nombre:</strong> <span className="text-[#34495e]">{detailModal.negocio.nombre}</span></p>
-                    <p><strong className="text-[#2c3e50]">Estado:</strong> 
-                      <span className={`ml-2 px-2 py-1 rounded text-xs font-bold ${
-                        detailModal.negocio.activo ? "bg-[#27ae60] text-white" : "bg-[#e74c3c] text-white"
-                      }`}>
-                        {detailModal.negocio.activo ? "ACTIVO" : "INACTIVO"}
-                      </span>
-                    </p>
-                    {detailModal.negocio.creadoEn && (
-                      <p><strong className="text-[#2c3e50]">Creado:</strong> <span className="text-[#34495e]">{new Date(detailModal.negocio.creadoEn.seconds * 1000).toLocaleDateString()}</span></p>
-                    )}
-                    <p><strong className="text-[#2c3e50]">Última actividad:</strong> <span className="text-[#34495e]">{detailModal.negocio.ultimaActividad}</span></p>
-                  </div>
-                </div>
-
-                <div className="bg-[#f8f9fa] rounded-xl p-4">
-                  <h4 className="font-bold text-[#2c3e50] mb-3 flex items-center gap-2">
-                    📈 Estadísticas
-                  </h4>
-                  <div className="space-y-2 text-sm text-[#2c3e50]">
-                    <p><strong className="text-[#2c3e50]">Total Usuarios:</strong> <span className="text-[#34495e]">{detailModal.negocio.usuarios.length}</span></p>
-                    <p><strong className="text-[#2c3e50]">Total Clientes:</strong> <span className="text-[#34495e]">{detailModal.negocio.totalClientes}</span></p>
-                    <p><strong className="text-[#2c3e50]">Total Trabajos:</strong> <span className="text-[#34495e]">{detailModal.negocio.totalReparaciones}</span></p>
-                    <p><strong className="text-[#2c3e50]">Items en Stock:</strong> <span className="text-[#34495e]">{detailModal.negocio.totalStock}</span></p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Lista de Usuarios */}
+            <div className="p-6 space-y-4">
               <div className="bg-[#f8f9fa] rounded-xl p-4">
-                <h4 className="font-bold text-[#2c3e50] mb-3 flex items-center gap-2">
-                  👥 Usuarios del Negocio
-                </h4>
-                {detailModal.negocio.usuarios.length === 0 ? (
-                  <p className="text-[#7f8c8d] text-sm font-medium">No hay usuarios registrados</p>
-                ) : (
-                  <div className="space-y-2">
-                    {detailModal.negocio.usuarios.map((usuario) => (
-                      <div key={usuario.id} className="flex items-center justify-between bg-white rounded-lg p-3 border border-[#ecf0f1]">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                            usuario.rol === 'admin' 
-                              ? 'bg-[#f39c12] text-white' 
-                              : 'bg-[#3498db] text-white'
-                          }`}>
-                            {usuario.rol === 'admin' ? '👑' : '👤'}
-                          </div>
-                          <div>
-                            <p className="font-bold text-[#2c3e50]">{usuario.email}</p>
-                            <p className="text-xs text-[#7f8c8d] font-medium">ID: {usuario.id}</p>
-                          </div>
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          usuario.rol === 'admin' 
-                            ? 'bg-[#f39c12] text-white' 
-                            : 'bg-[#3498db] text-white'
-                        }`}>
-                          {usuario.rol.toUpperCase()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Configuración */}
-              {detailModal.negocio.configuracion && (
-                <div className="bg-[#f8f9fa] rounded-xl p-4">
-                  <h4 className="font-bold text-[#2c3e50] mb-3 flex items-center gap-2">
-                    ⚙️ Configuración
-                  </h4>
-                  <div className="grid text-black grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p><strong>Logo URL:</strong> {detailModal.negocio.configuracion.logoURL || 'No configurado'}</p>
-                      <p><strong>Imprimir Etiqueta:</strong> {detailModal.negocio.configuracion.imprimirEtiqueta ? '✅ Sí' : '❌ No'}</p>
-                    </div>
-                    <div>
-                      <p><strong>Imprimir Ticket:</strong> {detailModal.negocio.configuracion.imprimirTicket ? '✅ Sí' : '❌ No'}</p>
-                      <p><strong>Texto Garantía:</strong> {detailModal.negocio.configuracion.textoGarantia ? '✅ Configurado' : '❌ No configurado'}</p>
-                    </div>
-                  </div>
+                <h4 className="font-bold text-[#2c3e50] mb-3">📊 Información del Negocio</h4>
+                <div className="space-y-2 text-sm">
+                  <p><strong>Negocio ID:</strong> {detailModal.admin.negocioID}</p>
+                  <p><strong>Admin Email:</strong> {detailModal.admin.email}</p>
+                  <p><strong>Nombre:</strong> {detailModal.admin.nombre || 'No especificado'}</p>
+                  <p><strong>Plan Activo:</strong> {detailModal.admin.planActivo || 'N/A'}</p>
+                  <p><strong>Estado:</strong> 
+                    <span className={`ml-2 ${obtenerEstadoSuscripcion(detailModal.admin).color}`}>
+                      {obtenerEstadoSuscripcion(detailModal.admin).estado.toUpperCase()}
+                    </span>
+                  </p>
+                  <p><strong>Vencimiento:</strong> {formatearFecha(detailModal.admin.fechaVencimiento)}</p>
+                  <p><strong>Es Exento:</strong> {detailModal.admin.esExento ? '✅ Sí' : '❌ No'}</p>
                 </div>
-              )}
-
-              {/* Acciones Rápidas */}
-              <div className="flex gap-3 pt-4 border-t border-[#ecf0f1]">
-                <button
-                  onClick={() => {
-                    cerrarModales();
-                    if (detailModal.negocio) abrirModalEdicion(detailModal.negocio);
-                  }}
-                  className="flex-1 bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white py-3 px-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
-                >
-                  ✏️ Editar Negocio
-                </button>
-                
-                <button
-                  onClick={cerrarModales}
-                  className="flex-1 bg-gradient-to-r from-[#7f8c8d] to-[#95a5a6] hover:from-[#6c7b7d] hover:to-[#839192] text-white py-3 px-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
-                >
-                  ✅ Cerrar
-                </button>
               </div>
+
+              <button
+                onClick={cerrarModales}
+                className="w-full bg-gradient-to-r from-[#7f8c8d] to-[#95a5a6] hover:from-[#6c7b7d] hover:to-[#839192] text-white py-3 px-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105"
+              >
+                ✅ Cerrar
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* Modal de Edición */}
-      {editModal.isOpen && editModal.negocio && (
+      {editModal.isOpen && editModal.admin && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] p-4 rounded-t-2xl">
@@ -723,8 +642,8 @@ export default function NegociosListPage() {
                     <span className="text-white text-lg">✏️</span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Editar Negocio</h3>
-                    <p className="text-blue-100 text-sm">{editModal.negocio.nombre}</p>
+                    <h3 className="text-lg font-bold text-white">Editar Usuario</h3>
+                    <p className="text-blue-100 text-sm">{editModal.admin.negocioID}</p>
                   </div>
                 </div>
                 
@@ -753,7 +672,7 @@ export default function NegociosListPage() {
 
               <div>
                 <label className="block text-sm font-medium text-[#2c3e50] mb-2">
-                  🔒 Nueva Contraseña (opcional)
+                  🔒 Nueva Contraseña
                 </label>
                 <input
                   type="password"
@@ -764,14 +683,13 @@ export default function NegociosListPage() {
                 />
               </div>
 
-              {/* Información adicional del negocio en edición */}
               <div className="bg-[#f8f9fa] rounded-lg p-3 text-sm">
-                <p className="font-medium text-[#2c3e50] mb-2">📊 Información del negocio:</p>
+                <p className="font-medium text-[#2c3e50] mb-2">📊 Información actual:</p>
                 <div className="space-y-1 text-[#7f8c8d]">
-                  <p>• Usuarios: {editModal.negocio.usuarios.length}</p>
-                  <p>• Clientes: {editModal.negocio.totalClientes}</p>
-                  <p>• Trabajos: {editModal.negocio.totalReparaciones}</p>
-                  <p>• Estado: {editModal.negocio.activo ? "✅ Activo" : "❌ Inactivo"}</p>
+                  <p>• Negocio: {editModal.admin.negocioID}</p>
+                  <p>• Email actual: {editModal.admin.email}</p>
+                  <p>• Plan: {editModal.admin.planActivo || 'N/A'}</p>
+                  <p>• Estado: {obtenerEstadoSuscripcion(editModal.admin).estado}</p>
                 </div>
               </div>
 
@@ -780,7 +698,7 @@ export default function NegociosListPage() {
                   onClick={guardarCambios}
                   className="flex-1 bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white py-3 px-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
                 >
-                  ✅ Guardar Cambios
+                  ✅ Guardar
                 </button>
                 
                 <button

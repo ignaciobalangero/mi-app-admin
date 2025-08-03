@@ -18,6 +18,7 @@ import Header from "../Header";
 import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
 import ModalRepuestos from "./componentes/ModalRepuestos";
+import ModalPago from "./componentes/ModalPago";
 
 interface Trabajo {
   firebaseId: string;
@@ -42,7 +43,6 @@ export default function ResumenPage() {
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [paginaActual, setPaginaActual] = useState(1);
   const ITEMS_POR_PAGINA = 40;
-  const [mostrarPagados, setMostrarPagados] = useState(false);
 
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
@@ -50,6 +50,10 @@ export default function ResumenPage() {
   const router = useRouter();
   const [mostrarModalRepuestos, setMostrarModalRepuestos] = useState(false);
   const [trabajoSeleccionado, setTrabajoSeleccionado] = useState<string | null>(null);
+  
+  // Estados para modal de pago
+  const [mostrarModalPago, setMostrarModalPago] = useState(false);
+  const [trabajoParaPagar, setTrabajoParaPagar] = useState<Trabajo | null>(null);
 
   useEffect(() => {
     if (rol?.negocioID) {
@@ -80,14 +84,8 @@ export default function ResumenPage() {
         });
       });
 
-      let filtrados = lista;
-      if (!mostrarPagados) {
-        filtrados = lista.filter(
-          (t) => !(t.estado === "ENTREGADO" && t.estadoCuentaCorriente === "PAGADO")
-        );
-      }
-
-      const ordenados = filtrados.sort((a, b) => {
+      // ✅ CORREGIDO: Ordenar sin filtrar pagados automáticamente
+      const ordenados = lista.sort((a, b) => {
         if (a.estado !== b.estado) {
           return a.estado === "PENDIENTE" ? -1 : 1;
         }
@@ -100,7 +98,7 @@ export default function ResumenPage() {
     });
 
     return () => unsubscribe();
-  }, [negocioID, mostrarPagados]);
+  }, [negocioID]);
   
   const recargarTrabajos = async () => {
     const snap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
@@ -148,6 +146,12 @@ export default function ResumenPage() {
     router.push(`/gestion-trabajos/editar?id=${firebaseId}&origen=resumen`);
   };
 
+  // ✅ NUEVA: Función para abrir modal de pago
+  const abrirModalPago = (trabajo: Trabajo) => {
+    setTrabajoParaPagar(trabajo);
+    setMostrarModalPago(true);
+  };
+
   const exportarCSV = () => {
     const encabezado = ["Fecha", "Cliente", "Modelo", "Trabajo", "Clave", "Observaciones", "Estado", "Precio", "Costo", "Ganancia"];
     const filas = trabajosFiltrados.map((t) => [
@@ -183,7 +187,10 @@ export default function ResumenPage() {
     )
     .filter((t) => {
       if (filtroEstado === "TODOS") return true;
-      if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "PAGADO";
+      // ✅ CORREGIDO: Filtro de PAGADO mejorado para leer ambos campos
+      if (filtroEstado === "PAGADO") {
+        return t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO";
+      }
       return t.estado === filtroEstado;
     })
     .sort((a, b) => {
@@ -215,7 +222,7 @@ export default function ResumenPage() {
                   Resumen de Clientes
                 </h1>
                 <p className="text-blue-100 text-xs sm:text-sm">
-                  Gestión completa de trabajos y servicios técnicos
+                  Gestión completa de trabajos con pagos integrados
                 </p>
               </div>
             </div>
@@ -437,7 +444,7 @@ export default function ResumenPage() {
                       : "";
 
                     let bgClass = "";
-                    if (t.estadoCuentaCorriente === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
+                    if (t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
                     else if (t.estado === "ENTREGADO") bgClass = "bg-green-100 border-l-4 border-[#1B5E20]";
                     else if (t.estado === "REPARADO") bgClass = "bg-orange-100 border-l-4 border-[#D84315]";
                     else if (t.estado === "PENDIENTE") bgClass = "bg-red-100 border-l-4 border-[#B71C1C]";
@@ -493,20 +500,20 @@ export default function ResumenPage() {
                         {/* Estado */}
                         <td className="p-1 sm:p-2 md:p-3 border border-black">
                           <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
-                            t.estadoCuentaCorriente === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
+                            t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                             t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                             t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
                             t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
                             "bg-[#424242] text-white border-2 border-[#212121]"
                           }`}>
                             <span className="sm:hidden">
-                              {t.estadoCuentaCorriente === "PAGADO" ? "💰" :
+                              {t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO" ? "💰" :
                                t.estado === "ENTREGADO" ? "📦" :
                                t.estado === "REPARADO" ? "🔧" :
                                t.estado === "PENDIENTE" ? "⏳" : "❓"}
                             </span>
                             <span className="hidden sm:inline">
-                              {t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
+                              {t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO" ? "PAGADO" : t.estado}
                             </span>
                           </span>
                         </td>
@@ -557,7 +564,7 @@ export default function ResumenPage() {
                             
                             {/* Selector de estado */}
                             <select
-                              value={t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
+                              value={t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO" ? "PAGADO" : t.estado}
                               onChange={async (e) => {
                                 const nuevoEstado = e.target.value;
                                 const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
@@ -637,6 +644,17 @@ export default function ResumenPage() {
                               >
                                 🗑️
                               </button>
+                              
+                              {/* ✅ NUEVO: Botón Pagar */}
+                              {(t.estadoCuentaCorriente !== "PAGADO" && t.estado !== "PAGADO") && t.precio && t.precio > 0 && (
+                                <button
+                                  onClick={() => abrirModalPago(t)}
+                                  className="bg-[#27ae60] hover:bg-[#229954] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
+                                  title="Pagar"
+                                >
+                                  💰
+                                </button>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -688,6 +706,20 @@ export default function ResumenPage() {
             }}
           />
         )}
+
+      {/* Modal de Pago Real */}
+{mostrarModalPago && trabajoParaPagar && (
+  <ModalPago
+    mostrar={mostrarModalPago}
+    trabajo={trabajoParaPagar}
+    negocioID={negocioID}
+    onClose={() => {
+      setMostrarModalPago(false);
+      setTrabajoParaPagar(null);
+    }}
+    onPagoGuardado={recargarTrabajos}
+  />
+)}
       </main>
     </RequireAdmin>
   );

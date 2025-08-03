@@ -10,12 +10,8 @@ import { useRol } from "@/lib/useRol";
 import {
   collection,
   getDocs,
-  query,
-  where,
-  updateDoc,
   deleteDoc,
   doc,
-  addDoc,
 } from "firebase/firestore";
 import TablaTrabajos from "./componentes/TablaTrabajos";
 import FiltroTrabajos from "./componentes/FiltroTrabajos";
@@ -28,10 +24,14 @@ interface Trabajo {
   modelo: string;
   imei?: string;
   trabajo: string;
-  estado: string;
+  clave?: string;
   observaciones?: string;
+  estado: string;
+  estadoCuentaCorriente?: string;
   precio?: number;
-  estadoCuentaCorriente?: "PENDEINTE" | "PAGADO";
+  costo?: number;
+  repuestosUsados?: any[];
+  fechaModificacion?: string;
 }
 
 export default function GestionTrabajosPage() {
@@ -42,15 +42,11 @@ export default function GestionTrabajosPage() {
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroTrabajo, setFiltroTrabajo] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADO">("TODOS");
+  
+  // Estados actualizados para el nuevo modal
   const [modalPagoVisible, setModalPagoVisible] = useState(false);
-  const [pagoData, setPagoData] = useState({
-    cliente: "",
-    monto: "",
-    moneda: "ARS",
-    formaPago: "",
-    destino: "Pago cliente desde gestión de trabajos",
-    observaciones: "",
-  });
+  const [trabajoSeleccionadoPago, setTrabajoSeleccionadoPago] = useState<Trabajo | null>(null);
+  
   const router = useRouter();
 
   const parsearFecha = (fechaStr: string) => {
@@ -100,102 +96,45 @@ export default function GestionTrabajosPage() {
     cargarTrabajos();
   }, [negocioID]);
 
+  // Esta función ahora no se usa más, pero la mantengo por compatibilidad con TablaTrabajos
   const cambiarEstado = async (firebaseId: string, nuevoEstado: string) => {
-    if (!firebaseId || !negocioID) return;
-    try {
-      const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
-      await updateDoc(ref, { estado: nuevoEstado });
-      setTrabajos((prev) => prev.map((t) => (t.firebaseId === firebaseId ? { ...t, estado: nuevoEstado } : t)));
-    } catch (error) {
-      console.error("Error actualizando estado:", error);
-      alert("No se pudo cambiar el estado del trabajo. Verificá la conexión o el ID.");
-    }
+    // La lógica de cambio de estado ahora está directamente en TablaTrabajos
+    // Esta función puede eliminarse en el futuro si no se usa en otros lugares
+    console.log("cambiarEstado legacy called:", firebaseId, nuevoEstado);
   };
 
   const eliminarTrabajo = async (firebaseId: string) => {
     if (!firebaseId || !negocioID) return;
+    
+    const confirmar = window.confirm("¿Estás seguro que querés eliminar este trabajo? Esta acción no se puede deshacer.");
+    if (!confirmar) return;
+
     try {
       await deleteDoc(doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`));
       setTrabajos((prev) => prev.filter((t) => t.firebaseId !== firebaseId));
+      console.log("✅ Trabajo eliminado correctamente");
     } catch (error) {
       console.error("Error eliminando trabajo:", error);
-      alert("No se pudo eliminar el trabajo.");
+      alert("No se pudo eliminar el trabajo. Intenta nuevamente.");
     }
   };
 
+  // Función actualizada para abrir el modal con el trabajo seleccionado
   const onPagar = (trabajo: Trabajo) => {
-    setPagoData({
-      cliente: trabajo.cliente,
-      monto: "",
-      moneda: "ARS",
-      formaPago: "",
-      destino: "Pago cliente desde gestión de trabajos",
-      observaciones: `Pago por ${trabajo.modelo} - ${trabajo.trabajo}`,
-    });
+    setTrabajoSeleccionadoPago(trabajo);
     setModalPagoVisible(true);
   };
 
-  const handlePagoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setPagoData((prev) => ({ ...prev, [name]: value }));
+  // Función para cerrar el modal y limpiar el estado
+  const cerrarModalPago = () => {
+    setModalPagoVisible(false);
+    setTrabajoSeleccionadoPago(null);
   };
 
-  const guardarPago = async () => {
-    if (!negocioID || !pagoData.cliente || !pagoData.monto) {
-      alert("Faltan datos para registrar el pago.");
-      return;
-    }
-
-    const clientesSnap = await getDocs(
-      query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", pagoData.cliente))
-    );
-    const clienteDoc = clientesSnap.docs[0];
-
-    if (!clienteDoc) {
-      alert("❌ Cliente no encontrado. Verificá el nombre.");
-      return;
-    }
-
-    const clienteID = clienteDoc.id;
-
-    const pago = {
-      fecha: new Date().toLocaleDateString("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }),
-      cliente: pagoData.cliente,
-      monto: pagoData.moneda === "ARS" ? Number(pagoData.monto) : null,
-      montoUSD: pagoData.moneda === "USD" ? Number(pagoData.monto) : null,
-      forma: pagoData.formaPago,
-      destino: pagoData.destino,
-      moneda: pagoData.moneda,
-      cotizacion: 1000,
-      observaciones: pagoData.observaciones || "",
-    };
-
-    try {
-      await addDoc(collection(db, `negocios/${negocioID}/pagos`), pago);
-
-      alert("✅ Pago registrado correctamente");
-
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("trabajosActualizados"));
-      }
-
-      setModalPagoVisible(false);
-      setPagoData({
-        cliente: "",
-        monto: "",
-        moneda: "ARS",
-        formaPago: "",
-        destino: "Pago cliente desde gestión de trabajos",
-        observaciones: "",
-      });
-    } catch (error) {
-      console.error("Error al guardar el pago:", error);
-      alert("❌ No se pudo guardar el pago");
-    }
+  // Función que se ejecuta después de guardar un pago exitosamente
+  const onPagoGuardado = async () => {
+    await cargarTrabajos(); // Recargar todos los trabajos
+    console.log("🔄 Trabajos recargados después del pago");
   };
 
   const trabajosFiltrados = useMemo(() => {
@@ -217,7 +156,10 @@ export default function GestionTrabajosPage() {
         if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE" && (t.estadoCuentaCorriente !== "PAGADO");
         if (filtroEstado === "ENTREGADO") return t.estado === "ENTREGADO" && (t.estadoCuentaCorriente !== "PAGADO");
         if (filtroEstado === "REPARADO") return t.estado === "REPARADO" && (t.estadoCuentaCorriente !== "PAGADO");
-        if (filtroEstado === "PAGADO") return t.estadoCuentaCorriente === "PAGADO";
+        if (filtroEstado === "PAGADO") {
+          // Filtro corregido como en ResumenPage
+          return t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO";
+        }
         return true;
       })
       .sort((a, b) => parsearFecha(b.fecha).getTime() - parsearFecha(a.fecha).getTime());
@@ -239,6 +181,9 @@ export default function GestionTrabajosPage() {
                 <h1 className="text-2xl font-bold text-white mb-1/2">
                   Gestión de Trabajos
                 </h1>
+                <p className="text-blue-100 text-sm">
+                  {trabajosFiltrados.length} {trabajosFiltrados.length === 1 ? 'trabajo encontrado' : 'trabajos encontrados'}
+                </p>
               </div>
             </div>
           </div>
@@ -293,6 +238,36 @@ export default function GestionTrabajosPage() {
             </div>
           </div>
 
+          {/* Estadísticas rápidas */}
+          <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg border border-[#ecf0f1]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-[#e74c3c]">
+                  {trabajosFiltrados.filter(t => t.estado === "PENDIENTE" && t.estadoCuentaCorriente !== "PAGADO").length}
+                </div>
+                <div className="text-sm text-[#7f8c8d]">Pendientes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-[#f39c12]">
+                  {trabajosFiltrados.filter(t => t.estado === "REPARADO" && t.estadoCuentaCorriente !== "PAGADO").length}
+                </div>
+                <div className="text-sm text-[#7f8c8d]">Reparados</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-[#27ae60]">
+                  {trabajosFiltrados.filter(t => t.estado === "ENTREGADO" && t.estadoCuentaCorriente !== "PAGADO").length}
+                </div>
+                <div className="text-sm text-[#7f8c8d]">Entregados</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-[#3498db]">
+                  {trabajosFiltrados.filter(t => t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO").length}
+                </div>
+                <div className="text-sm text-[#7f8c8d]">Pagados</div>
+              </div>
+            </div>
+          </div>
+
           {/* Componente Tabla */}
           <TablaTrabajos
             trabajos={trabajosFiltrados.map(t => ({ ...t, fecha: formatearFecha(t.fecha) }))}
@@ -304,16 +279,14 @@ export default function GestionTrabajosPage() {
             recargarTrabajos={cargarTrabajos}
           />
 
-          {/* Modal de pago */}
-          {modalPagoVisible && (
-            <ModalPago
-              mostrar={modalPagoVisible}
-              pago={pagoData}
-              onClose={() => setModalPagoVisible(false)}
-              onGuardar={guardarPago}
-              handlePagoChange={handlePagoChange}
-            />
-          )}
+          {/* Modal de pago - Nuevo ModalPago */}
+          <ModalPago
+            mostrar={modalPagoVisible}
+            trabajo={trabajoSeleccionadoPago}
+            negocioID={negocioID}
+            onClose={cerrarModalPago}
+            onPagoGuardado={onPagoGuardado}
+          />
         </div>
       </main>
     </>
