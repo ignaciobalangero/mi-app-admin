@@ -326,7 +326,7 @@ export default function ModalVenta({
           <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-3 bg-[#f8f9fa] min-h-0">
             
             {/* Información del Cliente - CON BOTÓN AGREGAR */}
-            <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm">
+            <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm relative z-[10000]">
               <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] mb-2 sm:mb-3 flex items-center gap-2">
                 <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-md flex items-center justify-center text-white text-xs">👤</span>
                 <span className="text-sm sm:text-base">Datos del Cliente</span>
@@ -336,7 +336,7 @@ export default function ModalVenta({
               <div className="flex gap-2">
                 <div className="flex-1">
                   <Combobox value={cliente} onChange={setCliente}>
-                    <div className="relative z-[9900]">
+                  <div className="relative z-[10001]">
                       <Combobox.Input
                         className="w-full p-2 sm:p-3 border border-[#bdc3c7] rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
                         onChange={(e) => setQueryCliente(e.target.value)}
@@ -346,7 +346,7 @@ export default function ModalVenta({
                         autoCorrect="off"
                         spellCheck={false}
                       />
-                      <Combobox.Options className="absolute z-[9901] w-full bg-white border border-[#bdc3c7] rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
+                      <Combobox.Options className="absolute z-[10002] w-full bg-white border border-[#bdc3c7] rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
                         {listaClientes
                           .filter((c) => c.toLowerCase().includes(queryCliente.toLowerCase()))
                           .map((c, i) => (
