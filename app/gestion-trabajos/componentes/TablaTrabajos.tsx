@@ -31,6 +31,7 @@ interface TablaProps {
   router: ReturnType<typeof useRouter>;
   negocioID: string;
   recargarTrabajos: () => Promise<void>; 
+  tipoFecha?: "ingreso" | "modificacion";
 }
 
 export default function TablaTrabajos({
@@ -43,7 +44,7 @@ export default function TablaTrabajos({
   recargarTrabajos,
 }: TablaProps) {
   const obtenerClaseEstado = (trabajo: Trabajo) => {
-    if (trabajo.estadoCuentaCorriente === "PAGADO") return "bg-blue-100 border-l-4 border-[#1565C0]";
+    if (trabajo.estado === "PAGADO") return "bg-blue-100 border-l-4 border-[#1565C0]";
     if (trabajo.estado === "ENTREGADO") return "bg-green-100 border-l-4 border-[#1B5E20]";
     if (trabajo.estado === "REPARADO") return "bg-orange-100 border-l-4 border-[#D84315]";
     return "bg-red-100 border-l-4 border-[#B71C1C]";
@@ -69,7 +70,7 @@ export default function TablaTrabajos({
     if (!trabajoAConfirmarPago) return;
     try {
       const ref = doc(db, `negocios/${negocioID}/trabajos/${trabajoAConfirmarPago.firebaseId}`);
-      await updateDoc(ref, { estadoCuentaCorriente: "PAGADO" });
+      await updateDoc(ref, { estado: "PAGADO" });
       setModalConfirmarPagoVisible(false);
       setTrabajoAConfirmarPago(null);
       await recargarTrabajos();
@@ -193,8 +194,8 @@ export default function TablaTrabajos({
                 {/* Fecha Modificación - Oculto en móvil y tablet */}
                 <th className="hidden md:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[60px] md:w-[80px] max-w-[80px]">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs sm:text-sm">📝</span>
-                    <span className="text-xs">Obs</span>
+                    <span className="text-xs sm:text-sm">📅</span>
+                    <span className="text-xs">F.Mod</span>
                   </div>
                 </th>
                 
@@ -302,22 +303,21 @@ export default function TablaTrabajos({
                     {/* Estado */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
                       <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
-                        t.estadoCuentaCorriente === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
-                        t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
-                        t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
-                        t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
-                        "bg-[#424242] text-white border-2 border-[#212121]"
-                      }`}>
+  t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
+  t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
+  t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
+  t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
+  "bg-[#424242] text-white border-2 border-[#212121]"
+}`}>
                         {/* Solo iconos en pantallas pequeñas */}
                         <span className="sm:hidden">
-                          {t.estadoCuentaCorriente === "PAGADO" ? "💰" : 
-                           t.estado === "ENTREGADO" ? "📦" :
-                           t.estado === "REPARADO" ? "🔧" : "⏳"}
-                        </span>
-                        {/* Texto completo en pantallas medianas+ */}
-                        <span className="hidden sm:inline text-xs">
-                          {t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
-                        </span>
+  {t.estado === "PAGADO" ? "💰" : 
+   t.estado === "ENTREGADO" ? "📦" :
+   t.estado === "REPARADO" ? "🔧" : "⏳"}
+</span>
+<span className="hidden sm:inline text-xs">
+  {t.estado}
+</span>
                       </span>
                     </td>
                     
@@ -334,27 +334,18 @@ export default function TablaTrabajos({
                         
                         {/* Selector de estado */}
                         <select
-                          value={t.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : t.estado}
+                          value={t.estado}
                           onChange={async (e) => {
                             const nuevoEstado = e.target.value;
                             const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
                             const updates: any = {};
 
                             const hoy = new Date();
-                            const fechaModificacion = hoy.toLocaleDateString("es-AR");
-                            updates.fechaModificacion = fechaModificacion;
+const fechaModificacion = hoy.toLocaleDateString("es-AR");
+updates.fechaModificacion = fechaModificacion;
+updates.estado = nuevoEstado;
 
-                            if (nuevoEstado === "PAGADO") {
-                              updates.estadoCuentaCorriente = "PAGADO";
-                              updates.estado = "ENTREGADO"; // Cuando se paga, el estado se mantiene como ENTREGADO
-                            } else {
-                              updates.estado = nuevoEstado;
-                              if (t.estadoCuentaCorriente === "PAGADO") {
-                                updates.estadoCuentaCorriente = "PENDIENTE";
-                              }
-                            }
-
-                            await updateDoc(ref, updates);
+await updateDoc(ref, updates);
 
                             if (nuevoEstado === "PAGADO") {
                               try {
@@ -515,13 +506,13 @@ export default function TablaTrabajos({
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                   <strong className="text-black text-xs sm:text-sm">Estado:</strong>
                   <span className={`px-2 py-1 rounded-lg text-xs font-bold inline-block ${
-                    trabajoSeleccionado.estadoCuentaCorriente === "PAGADO" ? "bg-[#1565C0] text-white" :
-                    trabajoSeleccionado.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white" :
-                    trabajoSeleccionado.estado === "REPARADO" ? "bg-[#D84315] text-white" :
-                    "bg-[#B71C1C] text-white"
-                  }`}>
-                    {trabajoSeleccionado.estadoCuentaCorriente === "PAGADO" ? "PAGADO" : trabajoSeleccionado.estado}
-                  </span>
+  trabajoSeleccionado.estado === "PAGADO" ? "bg-[#1565C0] text-white" :
+  trabajoSeleccionado.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white" :
+  trabajoSeleccionado.estado === "REPARADO" ? "bg-[#D84315] text-white" :
+  "bg-[#B71C1C] text-white"
+}`}>
+  {trabajoSeleccionado.estado}
+</span>
                 </div>
                 <div className="pt-2 border-t border-[#ecf0f1]">
                   <p className="text-xs sm:text-sm"><strong className="text-black">Observaciones:</strong></p>

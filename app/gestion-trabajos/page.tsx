@@ -43,6 +43,11 @@ export default function GestionTrabajosPage() {
   const [filtroTrabajo, setFiltroTrabajo] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADO">("TODOS");
   
+  // ✅ NUEVOS: Estados para filtros de fecha
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
+  const [tipoFecha, setTipoFecha] = useState<"ingreso" | "modificacion">("ingreso");
+  
   // Estados actualizados para el nuevo modal
   const [modalPagoVisible, setModalPagoVisible] = useState(false);
   const [trabajoSeleccionadoPago, setTrabajoSeleccionadoPago] = useState<Trabajo | null>(null);
@@ -137,6 +142,7 @@ export default function GestionTrabajosPage() {
     console.log("🔄 Trabajos recargados después del pago");
   };
 
+  // ✅ ACTUALIZADA: Función trabajosFiltrados con filtros de fecha
   const trabajosFiltrados = useMemo(() => {
     const texto = filtroTexto.trim().toLowerCase();
     const textoTrabajo = filtroTrabajo.trim().toLowerCase();
@@ -150,20 +156,55 @@ export default function GestionTrabajosPage() {
         &&
         (!textoTrabajo || t.trabajo?.toLowerCase().includes(textoTrabajo)) &&
         (!textoIMEI || t.imei?.toLowerCase().includes(textoIMEI))
-      )  
+      )
+      // ✅ NUEVO: Filtro por fechas
       .filter((t) => {
-        if (filtroEstado === "TODOS") return true;
-        if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE" && (t.estadoCuentaCorriente !== "PAGADO");
-        if (filtroEstado === "ENTREGADO") return t.estado === "ENTREGADO" && (t.estadoCuentaCorriente !== "PAGADO");
-        if (filtroEstado === "REPARADO") return t.estado === "REPARADO" && (t.estadoCuentaCorriente !== "PAGADO");
-        if (filtroEstado === "PAGADO") {
-          // Filtro corregido como en ResumenPage
-          return t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO";
+        if (!filtroFechaDesde && !filtroFechaHasta) return true;
+        
+        // Elegir qué fecha usar según el tipo seleccionado
+        const fechaAUsar = tipoFecha === "modificacion" 
+          ? (t.fechaModificacion || t.fecha) 
+          : t.fecha;
+        
+        if (!fechaAUsar) return true;
+        
+        const fechaTrabajo = parsearFecha(fechaAUsar);
+        
+        // Filtro fecha desde
+        if (filtroFechaDesde) {
+          const fechaDesde = new Date(filtroFechaDesde);
+          if (fechaTrabajo < fechaDesde) return false;
         }
+        
+        // Filtro fecha hasta
+        if (filtroFechaHasta) {
+          const fechaHasta = new Date(filtroFechaHasta);
+          fechaHasta.setHours(23, 59, 59, 999); // Incluir todo el día
+          if (fechaTrabajo > fechaHasta) return false;
+        }
+        
         return true;
       })
-      .sort((a, b) => parsearFecha(b.fecha).getTime() - parsearFecha(a.fecha).getTime());
-  }, [trabajos, filtroTexto, filtroEstado, filtroTrabajo, filtroIMEI]);
+      .filter((t) => {
+        if (filtroEstado === "TODOS") return true;
+        if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE";
+        if (filtroEstado === "ENTREGADO") return t.estado === "ENTREGADO";
+        if (filtroEstado === "REPARADO") return t.estado === "REPARADO";
+        if (filtroEstado === "PAGADO") return t.estado === "PAGADO";
+        return true;
+      })
+      .sort((a, b) => {
+        // Usar la fecha según el tipo seleccionado para ordenar
+        const fechaA = tipoFecha === "modificacion" 
+          ? (a.fechaModificacion || a.fecha) 
+          : a.fecha;
+        const fechaB = tipoFecha === "modificacion" 
+          ? (b.fechaModificacion || b.fecha) 
+          : b.fecha;
+        
+        return parsearFecha(fechaB).getTime() - parsearFecha(fechaA).getTime();
+      });
+  }, [trabajos, filtroTexto, filtroEstado, filtroTrabajo, filtroIMEI, filtroFechaDesde, filtroFechaHasta, tipoFecha]);
 
   return (
     <>
@@ -213,6 +254,52 @@ export default function GestionTrabajosPage() {
                   onChange={(e) => setFiltroIMEI(e.target.value)}
                   className="px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
+                
+                {/* ✅ NUEVO: Filtros de fecha */}
+                <div className="flex gap-2 items-center bg-[#f8f9fa] p-2 rounded-lg border border-[#bdc3c7]">
+                  <button
+                    onClick={() => setTipoFecha(tipoFecha === "ingreso" ? "modificacion" : "ingreso")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      tipoFecha === "ingreso" 
+                        ? "bg-[#3498db] text-white" 
+                        : "bg-[#e74c3c] text-white"
+                    }`}
+                    title="Cambiar entre fecha de ingreso y fecha de modificación"
+                  >
+                    {tipoFecha === "ingreso" ? "📅 Ingreso" : "🔄 Modificación"}
+                  </button>
+                  
+                  <input
+                    type="date"
+                    value={filtroFechaDesde}
+                    onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                    className="px-3 py-2 border border-[#bdc3c7] rounded-lg text-sm focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
+                    title="Fecha desde"
+                  />
+                  
+                  <span className="text-[#7f8c8d] text-sm">hasta</span>
+                  
+                  <input
+                    type="date"
+                    value={filtroFechaHasta}
+                    onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                    className="px-3 py-2 border border-[#bdc3c7] rounded-lg text-sm focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
+                    title="Fecha hasta"
+                  />
+                  
+                  {(filtroFechaDesde || filtroFechaHasta) && (
+                    <button
+                      onClick={() => {
+                        setFiltroFechaDesde("");
+                        setFiltroFechaHasta("");
+                      }}
+                      className="text-[#e74c3c] hover:text-[#c0392b] transition-colors text-sm px-2"
+                      title="Limpiar filtros de fecha"
+                    >
+                      ❌
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Botones de estado a la derecha */}
@@ -243,25 +330,25 @@ export default function GestionTrabajosPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-[#e74c3c]">
-                  {trabajosFiltrados.filter(t => t.estado === "PENDIENTE" && t.estadoCuentaCorriente !== "PAGADO").length}
+                  {trabajosFiltrados.filter(t => t.estado === "PENDIENTE").length}
                 </div>
                 <div className="text-sm text-[#7f8c8d]">Pendientes</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-[#f39c12]">
-                  {trabajosFiltrados.filter(t => t.estado === "REPARADO" && t.estadoCuentaCorriente !== "PAGADO").length}
+                  {trabajosFiltrados.filter(t => t.estado === "REPARADO").length}
                 </div>
                 <div className="text-sm text-[#7f8c8d]">Reparados</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-[#27ae60]">
-                  {trabajosFiltrados.filter(t => t.estado === "ENTREGADO" && t.estadoCuentaCorriente !== "PAGADO").length}
+                  {trabajosFiltrados.filter(t => t.estado === "ENTREGADO").length}
                 </div>
                 <div className="text-sm text-[#7f8c8d]">Entregados</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-[#3498db]">
-                  {trabajosFiltrados.filter(t => t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO").length}
+                  {trabajosFiltrados.filter(t => t.estado === "PAGADO").length}
                 </div>
                 <div className="text-sm text-[#7f8c8d]">Pagados</div>
               </div>
@@ -270,13 +357,20 @@ export default function GestionTrabajosPage() {
 
           {/* Componente Tabla */}
           <TablaTrabajos
-            trabajos={trabajosFiltrados.map(t => ({ ...t, fecha: formatearFecha(t.fecha) }))}
+            trabajos={trabajosFiltrados.map(t => {
+              // Mostrar la fecha según el tipo seleccionado
+              const fechaAMostrar = tipoFecha === "modificacion" 
+                ? (t.fechaModificacion || t.fecha) 
+                : t.fecha;
+              return { ...t, fecha: formatearFecha(fechaAMostrar) };
+            })}
             cambiarEstado={cambiarEstado}
             eliminarTrabajo={eliminarTrabajo}
             onPagar={onPagar}
             router={router}
             negocioID={negocioID}
             recargarTrabajos={cargarTrabajos}
+            tipoFecha={tipoFecha}
           />
 
           {/* Modal de pago - Nuevo ModalPago */}

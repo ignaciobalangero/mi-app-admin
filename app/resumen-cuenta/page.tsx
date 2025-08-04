@@ -23,9 +23,11 @@ export default function ResumenSimplificado() {
   const [mesSeleccionado, setMesSeleccionado] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // ✅ FUNCIÓN SIMPLE PARA OBTENER MES/AÑO
+  // ✅ FUNCIÓN CORREGIDA PARA DD/MM/AAAA CON MES SIN CEROS
   const obtenerMes = (fecha: any): string => {
     try {
+      if (!fecha) return "";
+      
       let fechaObj: Date;
       
       if (typeof fecha === "object" && "seconds" in fecha) {
@@ -33,8 +35,21 @@ export default function ResumenSimplificado() {
       } else if (typeof fecha === "string") {
         const partes = fecha.split("/");
         if (partes.length === 3) {
+          // ✅ FORMATO DD/MM/AAAA (tu formato en Firebase)
           const [dia, mes, anio] = partes;
-          fechaObj = new Date(parseInt(anio), parseInt(mes) - 1, parseInt(dia));
+          
+          const diaNum = parseInt(dia);
+          const mesNum = parseInt(mes); // ✅ Puede ser "8" o "08"
+          const anioNum = parseInt(anio);
+          
+          // ✅ Validar rangos
+          if (mesNum >= 1 && mesNum <= 12 && anioNum >= 2020 && anioNum <= 2030 && diaNum >= 1 && diaNum <= 31) {
+            const mesFormateado = `${mesNum.toString().padStart(2, '0')}/${anioNum}`;
+            return mesFormateado;
+          } else {
+            console.log(`❌ Fecha fuera de rango: día=${diaNum}, mes=${mesNum}, año=${anioNum}`);
+            return "";
+          }
         } else {
           fechaObj = new Date(fecha);
         }
@@ -42,10 +57,16 @@ export default function ResumenSimplificado() {
         fechaObj = new Date(fecha);
       }
       
+      // ✅ Verificar que la fecha sea válida
+      if (isNaN(fechaObj.getTime())) {
+        return "";
+      }
+      
       const mes = fechaObj.getMonth() + 1;
       const anio = fechaObj.getFullYear();
+      
       return `${mes.toString().padStart(2, '0')}/${anio}`;
-    } catch {
+    } catch (error) {
       return "";
     }
   };
@@ -55,27 +76,64 @@ export default function ResumenSimplificado() {
       if (!rol?.negocioID || rol?.tipo !== "admin") return;
       
       setLoading(true);
-      console.log("📊 Cargando datos simplificados...");
       
       try {
-        // ✅ CARGAR TRABAJOS - SIMPLE
+        // CARGAR TRABAJOS
         const trabajosSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/trabajos`));
         
-        // ✅ CARGAR VENTAS - SIMPLE
+        // CARGAR VENTAS
         const ventasSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/ventasGeneral`));
         
         const resumen: Record<string, DatosMes> = {};
         
-        // 🔧 PROCESAR TRABAJOS
-        console.log("🔧 Procesando trabajos...");
+        // ✅ DEBUG ESPECÍFICO PARA AGOSTO - SOLO MOSTRAR TRABAJOS DE AGOSTO
+        console.log("\n🎯 === DEBUG ESPECÍFICO PARA AGOSTO ===");
+        let trabajosAgostoEncontrados = 0;
+
         trabajosSnap.docs.forEach(doc => {
           const trabajo = doc.data();
-          const mes = obtenerMes(trabajo.fecha);
+          const fechaParaUsar = trabajo.fechaModificacion;
           
+          // ✅ SOLO PROCESAR SI LA FECHA CONTIENE AGOSTO
+          if (fechaParaUsar && (fechaParaUsar.toString().includes("/8/") || fechaParaUsar.toString().includes("/08/"))) {
+            trabajosAgostoEncontrados++;
+            console.log(`\n🗓️ TRABAJO DE AGOSTO #${trabajosAgostoEncontrados}:`);
+            console.log(`   ID: ${doc.id}`);
+            console.log(`   Cliente: ${trabajo.cliente}`);
+            console.log(`   Estado: ${trabajo.estado}`);
+            console.log(`   FechaModificacion: ${trabajo.fechaModificacion}`);
+            console.log(`   Precio: ${trabajo.precio}`);
+            console.log(`   Costo: ${trabajo.costo}`);
+            
+            const mes = obtenerMes(fechaParaUsar);
+            console.log(`   → Mes calculado: "${mes}"`);
+            
+            if (trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") {
+              const precio = Number(trabajo.precio) || 0;
+              const costo = Number(trabajo.costo) || 0;
+              const ganancia = precio - costo;
+              console.log(`   ✅ VÁLIDO: ${trabajo.estado} - Ganancia: $${ganancia}`);
+            } else {
+              console.log(`   ❌ INVÁLIDO: Estado "${trabajo.estado}" no es ENTREGADO ni PAGADO`);
+            }
+          }
+        });
+
+        console.log(`\n📊 TOTAL TRABAJOS DE AGOSTO ENCONTRADOS: ${trabajosAgostoEncontrados}`);
+        console.log("=== FIN DEBUG AGOSTO ===\n");
+
+        // ✅ PROCESAMIENTO NORMAL
+        trabajosSnap.docs.forEach(doc => {
+          const trabajo = doc.data();
+          const fechaParaUsar = trabajo.fechaModificacion;
+          
+          if (!fechaParaUsar) return;
+          
+          const mes = obtenerMes(fechaParaUsar);
           if (!mes) return;
           
-          // Solo trabajos terminados con precio
-          if ((trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") && trabajo.precio) {
+          // Solo trabajos ENTREGADOS o PAGADOS
+          if (trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") {
             if (!resumen[mes]) {
               resumen[mes] = {
                 mes,
@@ -93,13 +151,21 @@ export default function ResumenSimplificado() {
             
             resumen[mes].trabajos += ganancia;
             resumen[mes].totalTrabajos += 1;
-            
-            console.log(`✅ Trabajo: ${ganancia} (${precio} - ${costo})`);
           }
         });
+
+        // ✅ RESUMEN ESPECÍFICO DE AGOSTO
+        console.log("\n🎯 === RESUMEN FINAL DE AGOSTO ===");
+        if (resumen["08/2025"]) {
+          console.log(`✅ AGOSTO ENCONTRADO EN RESUMEN:`);
+          console.log(`   - Total trabajos: ${resumen["08/2025"].totalTrabajos}`);
+          console.log(`   - Ganancia total: $${resumen["08/2025"].trabajos}`);
+        } else {
+          console.log(`❌ AGOSTO NO ENCONTRADO EN RESUMEN`);
+        }
+        console.log("=== FIN RESUMEN AGOSTO ===\n");
         
-        // 🛍️ PROCESAR VENTAS - COMPATIBILIDAD COMPLETA
-        console.log("🛍️ Procesando ventas...");
+        // PROCESAR VENTAS
         ventasSnap.docs.forEach(doc => {
           const venta = doc.data();
           const mes = obtenerMes(venta.fecha);
@@ -117,71 +183,41 @@ export default function ResumenSimplificado() {
             };
           }
           
-          console.log(`🔍 Procesando venta:`, {
-            id: doc.id,
-            moneda: venta.moneda,
-            totalARS: venta.totalARS,
-            totalUSD: venta.totalUSD,
-            gananciaTotal: venta.gananciaTotal,
-            productosCount: venta.productos.length,
-            sistema: venta.moneda === "DUAL" ? "NUEVO" : "ANTERIOR"
-          });
-          
-          // 🔥 SISTEMA DUAL NUEVO
+          // SISTEMA DUAL NUEVO
           if (venta.moneda === "DUAL" && venta.totalARS !== undefined && venta.totalUSD !== undefined) {
-            // ✅ SUMAR GANANCIA INDIVIDUAL DE CADA PRODUCTO (NO usar gananciaTotal)
             venta.productos.forEach((producto: any) => {
               const ganancia = Number(producto.ganancia) || 0;
-              
-              console.log(`🔍 DEBUG PRODUCTO:`, {
-                categoria: producto.categoria,
-                descripcion: producto.descripcion,
-                moneda: producto.moneda,
-                ganancia: ganancia,
-                precioVenta: producto.precioVenta,
-                precioUnitario: producto.precioUnitario
-              });
               
               if (ganancia > 0) {
                 if (producto.moneda === "USD") {
                   resumen[mes].ventasUSD += ganancia;
-                  console.log(`💵 USD: ${producto.categoria} = ${ganancia}`);
                 } else {
                   resumen[mes].ventasARS += ganancia;
-                  console.log(`💰 ARS: ${producto.categoria} = ${ganancia}`);
                 }
               }
             });
           }
-          // 🔥 SISTEMA ANTERIOR - COMPATIBILIDAD
+          // SISTEMA ANTERIOR
           else {
-            // Procesar por producto (sistema anterior)
             venta.productos.forEach((producto: any) => {
               const ganancia = Number(producto.ganancia) || 0;
               
               if (ganancia > 0) {
-                // 🔍 Determinar moneda del producto (lógica anterior)
                 const hayTelefono = venta.productos.some((p: any) => p.categoria === "Teléfono");
                 let monedaProducto = "ARS";
                 
                 if (producto.categoria === "Teléfono") {
-                  // Teléfonos siempre USD
                   monedaProducto = "USD";
                 } else if (hayTelefono) {
-                  // Si hay teléfono, accesorios mantienen su moneda original
                   monedaProducto = producto.moneda || "USD";
                 } else {
-                  // Venta solo accesorios, usar moneda de venta o ARS
                   monedaProducto = venta.moneda || producto.moneda || "ARS";
                 }
                 
-                // Sumar a la moneda correspondiente
                 if (monedaProducto === "USD") {
                   resumen[mes].ventasUSD += ganancia;
-                  console.log(`💵 Producto USD (anterior): ${producto.categoria} = ${ganancia}`);
                 } else {
                   resumen[mes].ventasARS += ganancia;
-                  console.log(`💰 Producto ARS (anterior): ${producto.categoria} = ${ganancia}`);
                 }
               }
             });
@@ -190,12 +226,19 @@ export default function ResumenSimplificado() {
           resumen[mes].totalVentas += venta.productos.length;
         });
         
-        // ✅ CONVERTIR A ARRAY Y ORDENAR
+        // CONVERTIR A ARRAY Y ORDENAR
         const resultado = Object.values(resumen)
           .sort((a, b) => a.mes.localeCompare(b.mes))
-          .filter(item => item.trabajos > 0 || item.ventasARS > 0 || item.ventasUSD > 0);
+          .filter(item => {
+            const tieneGanancias = item.trabajos > 0 || item.ventasARS > 0 || item.ventasUSD > 0;
+            const tieneTrabajos = item.totalTrabajos > 0;
+            return tieneGanancias || tieneTrabajos;
+          });
         
-        console.log("📊 Resultado final:", resultado);
+        console.log("\n✅ MESES INCLUIDOS EN EL SELECTOR:");
+        resultado.forEach(item => {
+          console.log(`${item.mes}: ${item.totalTrabajos} trabajos, Ganancia: $${item.trabajos}`);
+        });
         
         setDatos(resultado);
         if (resultado.length > 0) {
@@ -203,7 +246,7 @@ export default function ResumenSimplificado() {
         }
         
       } catch (error) {
-        console.error("❌ Error cargando datos:", error);
+        console.error("❌ Error:", error);
       } finally {
         setLoading(false);
       }
@@ -323,9 +366,29 @@ export default function ResumenSimplificado() {
                 </div>
               </div>
 
-              {/* Resumen del mes */}
+              {/* Resumen del mes seleccionado */}
               {mesActual && (
                 <>
+                  <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">
+                      📊 Resumen de {mesSeleccionado}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <span className="font-semibold">Trabajos:</span> {mesActual.totalTrabajos}
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <span className="font-semibold">Ganancia Trabajos:</span> ${mesActual.trabajos.toLocaleString()}
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <span className="font-semibold">Ventas ARS:</span> ${mesActual.ventasARS.toLocaleString()}
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <span className="font-semibold">Ventas USD:</span> USD ${mesActual.ventasUSD.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Trabajos */}
                     <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-6 border-2 border-green-200">
@@ -354,7 +417,7 @@ export default function ResumenSimplificado() {
                             ${mesActual.ventasARS.toLocaleString("es-AR")}
                           </p>
                           <p className="text-xs text-blue-600">
-                            {mesActual.totalVentas} productos vendidos
+                            Productos en pesos
                           </p>
                         </div>
                         <div className="w-12 h-12 bg-blue-200 rounded-full flex items-center justify-center">
@@ -435,11 +498,11 @@ export default function ResumenSimplificado() {
                         />
                         <YAxis 
                           tick={{ fill: '#374151' }}
-                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                          tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
                           axisLine={{ stroke: '#9CA3AF' }}
                         />
                         <Tooltip 
-                          formatter={(value) => [`$${Number(value).toLocaleString("es-AR")}`, ""]}
+                          formatter={(value) => [`${Number(value).toLocaleString("es-AR")}`, ""]}
                           labelStyle={{ color: '#374151', fontWeight: 'bold' }}
                           contentStyle={{ 
                             backgroundColor: 'white', 

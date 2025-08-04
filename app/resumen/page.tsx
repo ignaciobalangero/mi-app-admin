@@ -44,6 +44,11 @@ export default function ResumenPage() {
   const [paginaActual, setPaginaActual] = useState(1);
   const ITEMS_POR_PAGINA = 40;
 
+  // ✅ NUEVOS: Estados para filtros de fecha
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
+  const [tipoFecha, setTipoFecha] = useState<"ingreso" | "modificacion">("ingreso");
+
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
   const { rol } = useRol();
@@ -54,6 +59,15 @@ export default function ResumenPage() {
   // Estados para modal de pago
   const [mostrarModalPago, setMostrarModalPago] = useState(false);
   const [trabajoParaPagar, setTrabajoParaPagar] = useState<Trabajo | null>(null);
+
+  // ✅ NUEVA: Función para parsear fechas (igual que en GestionTrabajosPage)
+  const parsearFecha = (fechaStr: string) => {
+    if (!fechaStr.includes("/")) {
+      return new Date(fechaStr.split("T")[0]);
+    }
+    const [dia, mes, anio] = fechaStr.split("/").map((x) => parseInt(x));
+    return new Date(anio, mes - 1, dia);
+  };
 
   useEffect(() => {
     if (rol?.negocioID) {
@@ -176,6 +190,7 @@ export default function ResumenPage() {
     document.body.removeChild(link);
   };
 
+  // ✅ ACTUALIZADA: Función trabajosFiltrados con filtros de fecha
   const trabajosFiltrados = trabajos
     .filter(
       (t) =>
@@ -185,19 +200,55 @@ export default function ResumenPage() {
           t.trabajo?.toLowerCase().includes(filtroModelo.toLowerCase())
         )
     )
+    // ✅ NUEVO: Filtro por fechas
+    .filter((t) => {
+      if (!filtroFechaDesde && !filtroFechaHasta) return true;
+      
+      // Elegir qué fecha usar según el tipo seleccionado
+      const fechaAUsar = tipoFecha === "modificacion" 
+        ? (t.fechaModificacion || t.fecha) 
+        : t.fecha;
+      
+      if (!fechaAUsar) return true;
+      
+      const fechaTrabajo = parsearFecha(fechaAUsar);
+      
+      // Filtro fecha desde
+      if (filtroFechaDesde) {
+        const fechaDesde = new Date(filtroFechaDesde);
+        if (fechaTrabajo < fechaDesde) return false;
+      }
+      
+      // Filtro fecha hasta
+      if (filtroFechaHasta) {
+        const fechaHasta = new Date(filtroFechaHasta);
+        fechaHasta.setHours(23, 59, 59, 999); // Incluir todo el día
+        if (fechaTrabajo > fechaHasta) return false;
+      }
+      
+      return true;
+    })
     .filter((t) => {
       if (filtroEstado === "TODOS") return true;
-      // ✅ CORREGIDO: Filtro de PAGADO mejorado para leer ambos campos
+      // ✅ CORREGIDO: Filtro simplificado para usar solo el campo estado
       if (filtroEstado === "PAGADO") {
-        return t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO";
+        return t.estado === "PAGADO";
       }
       return t.estado === filtroEstado;
     })
     .sort((a, b) => {
-      const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
-      const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
-      return fechaB - fechaA;
-    });  
+      // ✅ NUEVO: Ordenar según el tipo de fecha seleccionado
+      const fechaA = tipoFecha === "modificacion" 
+        ? (a.fechaModificacion || a.fecha) 
+        : a.fecha;
+      const fechaB = tipoFecha === "modificacion" 
+        ? (b.fechaModificacion || b.fecha) 
+        : b.fecha;
+      
+      const timeA = new Date(fechaA.split("/").reverse().join("/")).getTime();
+      const timeB = new Date(fechaB.split("/").reverse().join("/")).getTime();
+      return timeB - timeA;
+    });
 
   const totalPaginas = Math.ceil(trabajosFiltrados.length / ITEMS_POR_PAGINA);
   const trabajosPaginados = trabajosFiltrados.slice(
@@ -260,6 +311,52 @@ export default function ResumenPage() {
               >
                 📄 <span className="hidden sm:inline">Exportar</span> CSV
               </button>
+            </div>
+
+            {/* ✅ NUEVO: Filtros de fecha */}
+            <div className="flex gap-2 items-center bg-[#f8f9fa] p-2 rounded-lg border border-[#bdc3c7] mb-4">
+              <button
+                onClick={() => setTipoFecha(tipoFecha === "ingreso" ? "modificacion" : "ingreso")}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  tipoFecha === "ingreso" 
+                    ? "bg-[#3498db] text-white" 
+                    : "bg-[#e74c3c] text-white"
+                }`}
+                title="Cambiar entre fecha de ingreso y fecha de modificación"
+              >
+                {tipoFecha === "ingreso" ? "📅 Ingreso" : "🔄 Modificación"}
+              </button>
+              
+              <input
+                type="date"
+                value={filtroFechaDesde}
+                onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                className="px-3 py-2 border border-[#bdc3c7] rounded-lg text-sm focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
+                title="Fecha desde"
+              />
+              
+              <span className="text-[#7f8c8d] text-sm">hasta</span>
+              
+              <input
+                type="date"
+                value={filtroFechaHasta}
+                onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                className="px-3 py-2 border border-[#bdc3c7] rounded-lg text-sm focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
+                title="Fecha hasta"
+              />
+              
+              {(filtroFechaDesde || filtroFechaHasta) && (
+                <button
+                  onClick={() => {
+                    setFiltroFechaDesde("");
+                    setFiltroFechaHasta("");
+                  }}
+                  className="text-[#e74c3c] hover:text-[#c0392b] transition-colors text-sm px-2"
+                  title="Limpiar filtros de fecha"
+                >
+                  ❌
+                </button>
+              )}
             </div>
 
             {/* Botones de estado - Responsive */}
@@ -344,7 +441,9 @@ export default function ResumenPage() {
                     <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[65px] sm:min-w-[70px] md:min-w-[75px] max-w-[80px]">
                       <div className="flex items-center gap-1">
                         <span className="text-xs sm:text-sm">📅</span>
-                        <span className="hidden sm:inline text-xs">Fecha</span>
+                        <span className="hidden sm:inline text-xs">
+                          {tipoFecha === "ingreso" ? "Ingreso" : "Modificación"}
+                        </span>
                       </div>
                     </th>
                     
@@ -444,10 +543,15 @@ export default function ResumenPage() {
                       : "";
 
                     let bgClass = "";
-                    if (t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
+                    if (t.estado === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
                     else if (t.estado === "ENTREGADO") bgClass = "bg-green-100 border-l-4 border-[#1B5E20]";
                     else if (t.estado === "REPARADO") bgClass = "bg-orange-100 border-l-4 border-[#D84315]";
                     else if (t.estado === "PENDIENTE") bgClass = "bg-red-100 border-l-4 border-[#B71C1C]";
+
+                    // ✅ NUEVO: Mostrar la fecha según el tipo seleccionado
+                    const fechaAMostrar = tipoFecha === "modificacion" 
+                      ? (t.fechaModificacion || t.fecha) 
+                      : t.fecha;
 
                     return (
                       <tr
@@ -457,8 +561,8 @@ export default function ResumenPage() {
                         
                         {/* Fecha */}
                         <td className="p-1 sm:p-1.5 md:p-2 border border-black max-w-[80px]">
-                        <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fecha}>
-                          {t.fecha}
+                        <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={fechaAMostrar}>
+                          {fechaAMostrar}
                         </span>
                       </td>
                         
@@ -500,20 +604,20 @@ export default function ResumenPage() {
                         {/* Estado */}
                         <td className="p-1 sm:p-2 md:p-3 border border-black">
                           <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
-                            t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
+                            t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                             t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                             t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
                             t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
                             "bg-[#424242] text-white border-2 border-[#212121]"
                           }`}>
                             <span className="sm:hidden">
-                              {t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO" ? "💰" :
+                              {t.estado === "PAGADO" ? "💰" :
                                t.estado === "ENTREGADO" ? "📦" :
                                t.estado === "REPARADO" ? "🔧" :
                                t.estado === "PENDIENTE" ? "⏳" : "❓"}
                             </span>
                             <span className="hidden sm:inline">
-                              {t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO" ? "PAGADO" : t.estado}
+                              {t.estado}
                             </span>
                           </span>
                         </td>
@@ -564,7 +668,7 @@ export default function ResumenPage() {
                             
                             {/* Selector de estado */}
                             <select
-                              value={t.estadoCuentaCorriente === "PAGADO" || t.estado === "PAGADO" ? "PAGADO" : t.estado}
+                              value={t.estado}
                               onChange={async (e) => {
                                 const nuevoEstado = e.target.value;
                                 const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
@@ -573,16 +677,7 @@ export default function ResumenPage() {
                                 const hoy = new Date();
                                 const fechaModificacion = hoy.toLocaleDateString("es-AR");
                                 updates.fechaModificacion = fechaModificacion;
-
-                                if (nuevoEstado === "PAGADO") {
-                                  updates.estadoCuentaCorriente = "PAGADO";
-                                  updates.estado = "PAGADO";
-                                } else {
-                                  updates.estado = nuevoEstado;
-                                  if (t.estadoCuentaCorriente === "PAGADO") {
-                                    updates.estadoCuentaCorriente = "PENDIENTE";
-                                  }
-                                }
+                                updates.estado = nuevoEstado;
 
                                 await updateDoc(ref, updates);
 
@@ -646,7 +741,7 @@ export default function ResumenPage() {
                               </button>
                               
                               {/* ✅ NUEVO: Botón Pagar */}
-                              {(t.estadoCuentaCorriente !== "PAGADO" && t.estado !== "PAGADO") && t.precio && t.precio > 0 && (
+                              {t.estado !== "PAGADO" && t.precio && t.precio > 0 && (
                                 <button
                                   onClick={() => abrirModalPago(t)}
                                   className="bg-[#27ae60] hover:bg-[#229954] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
@@ -707,19 +802,19 @@ export default function ResumenPage() {
           />
         )}
 
-      {/* Modal de Pago Real */}
-{mostrarModalPago && trabajoParaPagar && (
-  <ModalPago
-    mostrar={mostrarModalPago}
-    trabajo={trabajoParaPagar}
-    negocioID={negocioID}
-    onClose={() => {
-      setMostrarModalPago(false);
-      setTrabajoParaPagar(null);
-    }}
-    onPagoGuardado={recargarTrabajos}
-  />
-)}
+        {/* Modal de Pago Real */}
+        {mostrarModalPago && trabajoParaPagar && (
+          <ModalPago
+            mostrar={mostrarModalPago}
+            trabajo={trabajoParaPagar}
+            negocioID={negocioID}
+            onClose={() => {
+              setMostrarModalPago(false);
+              setTrabajoParaPagar(null);
+            }}
+            onPagoGuardado={recargarTrabajos}
+          />
+        )}
       </main>
     </RequireAdmin>
   );
