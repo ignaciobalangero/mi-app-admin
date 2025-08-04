@@ -434,7 +434,27 @@ export default function SelectorProductoVentaGeneral({
 
       {/* Lista de resultados */}
       {mostrar && filtrados.length > 0 && (
-        <div className="absolute z-50 w-full bg-white border-2 border-[#3498db] rounded-lg shadow-2xl max-h-80 overflow-auto text-sm mt-2">
+      <div 
+      className="fixed bg-white border-2 border-[#3498db] rounded-lg shadow-2xl max-h-80 overflow-auto text-sm" 
+      style={{ 
+        zIndex: 999999,
+        width: 'auto',
+        minWidth: '300px',
+        maxWidth: '800px',
+      }}
+      ref={(el) => {
+        if (el) {
+          // Obtener la posición del input de búsqueda
+          const input = el.parentElement?.querySelector('input[type="text"]');
+          if (input) {
+            const inputRect = input.getBoundingClientRect();
+            el.style.left = `${inputRect.left}px`;
+            el.style.top = `${inputRect.bottom + 4}px`;
+            el.style.width = `${inputRect.width}px`;
+          }
+        }
+      }}
+    >
           {filtrados.map((p, i) => (
             <div
               key={i}

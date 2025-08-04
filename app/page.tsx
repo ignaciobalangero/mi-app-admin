@@ -43,9 +43,11 @@ function Home() {
         const data = doc.data();
         const fecha = data.fecha || "";
         const estado = data.estado || "";
-
+        const estadoCuentaCorriente = data.estadoCuentaCorriente || "";
+      
         if (
-          (estado === "ENTREGADO" || estado === "PAGADO") &&
+          (estado === "REPARADO" || estado === "ENTREGADO" || estado === "PAGADO" || estadoCuentaCorriente === "PAGADO") &&
+
           fecha.endsWith(mesAnioActual)
         ) {
           contador++;

@@ -46,6 +46,37 @@ export default function BotonGuardarVenta({
   const { rol } = useRol();
   const [guardando, setGuardando] = useState(false);
 
+  // ✅ NUEVA FUNCIÓN: Calcular totales duales separados CORREGIDA
+  const calcularTotalesCorrectos = (productos: any[]) => {
+    let totalARS = 0;
+    let totalUSD = 0;
+    
+    console.log('🔍 Calculando totales duales:', productos.map(p => ({
+      producto: p.producto || p.descripcion,
+      categoria: p.categoria,
+      moneda: p.moneda,
+      precioVenta: p.precioVenta || (p.precioUnitario * (p.cantidad || 1))
+    })));
+    
+    productos.forEach((p) => {
+      const cantidad = Number(p.cantidad || 1);
+      const precioVenta = p.precioVenta || (p.precioUnitario * cantidad);
+      
+      // ✅ CORREGIDO: Respetar la moneda ESPECÍFICA de cada producto
+      if (p.moneda === "USD") {
+        totalUSD += precioVenta;
+        console.log(`💵 Producto USD: ${p.producto} = ${precioVenta}`);
+      } else {
+        // Todos los demás (ARS, undefined, null) van a ARS
+        totalARS += precioVenta;
+        console.log(`💰 Producto ARS: ${p.producto} = ${precioVenta}`);
+      }
+    });
+    
+    console.log('✅ Totales calculados:', { totalARS, totalUSD });
+    return { totalARS, totalUSD };
+  };
+
   const calcularTotalCorrect = (productos: any[]) => {
     const hayTelefono = productos.some(p => p.categoria === "Teléfono");
     
@@ -230,7 +261,7 @@ export default function BotonGuardarVenta({
         precioCosto,           // Costo unitario original
         precioCostoPesos,      // Costo unitario en ARS
         ganancia,              // Ganancia calculada correcta
-        moneda: hayTelefono ? (producto.moneda || moneda) : moneda, // Moneda contextual
+        moneda: hayTelefono ? (producto.moneda || (producto.categoria === "Teléfono" ? "USD" : "ARS")) : "ARS", // ✅ CORREGIDO: Sin teléfono = TODO ARS
         cotizacionUsada: cotizacionActual,
       };
     });
@@ -313,26 +344,41 @@ export default function BotonGuardarVenta({
       await deleteDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos/${datosVentaTelefono.stockID}`));
     }
 
-    // 4. Registrar pago
-    const montoPagado = pagoTelefono.moneda === "USD" 
-      ? Number(pagoTelefono.montoUSD || 0)
-      : Number(pagoTelefono.monto || 0);
-    
+    // ✅ 4. REGISTRAR PAGOS DUALES PARA TELÉFONOS
+    const pagoARS_Tel = Number(pagoTelefono.monto || 0);
+    const pagoUSD_Tel = Number(pagoTelefono.montoUSD || 0);
     const valorTelefonoEntregado = Number(datosVentaTelefono.telefonoRecibido?.precioCompra || 0);
-    const totalPagado = montoPagado + valorTelefonoEntregado;
 
-    if (totalPagado > 0) {
+    // Guardar pago ARS si existe
+    if (pagoARS_Tel > 0 || valorTelefonoEntregado > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
         fecha: fecha,
         cliente: cliente,
-        monto: moneda === "USD" ? null : totalPagado,
-        montoUSD: moneda === "USD" ? totalPagado : null,
+        monto: pagoARS_Tel + valorTelefonoEntregado,
+        montoUSD: null,
         forma: valorTelefonoEntregado > 0 ? "Efectivo + Entrega equipo" : pagoTelefono.formaPago || "Efectivo",
         destino: "ventaTelefonos",
-        moneda: moneda,
+        moneda: "ARS",
         cotizacion: cotizacion,
         observaciones: pagoTelefono.observaciones || "",
         timestamp: serverTimestamp(),
+        nroVenta: nroVenta,
+      });
+    }
+
+    // Guardar pago USD si existe
+    if (pagoUSD_Tel > 0) {
+      await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+        fecha: fecha,
+        cliente: cliente,
+        monto: null,
+        montoUSD: pagoUSD_Tel,
+        forma: pagoTelefono.formaPago || "Efectivo",
+        destino: "ventaTelefonos", 
+        moneda: "USD",
+        cotizacion: cotizacion,
+        observaciones: pagoTelefono.observaciones || "",
+        timestamp: serverTimestamp(),  
         nroVenta: nroVenta,
       });
     }
@@ -405,12 +451,17 @@ export default function BotonGuardarVenta({
       cotizacion: pago?.cotizacion || cotizacion,
     };
 
-    // 🔥 CALCULAR TOTALES CORRECTOS
-    const total = productosConCodigo.reduce((acc, p) => acc + p.precioVenta, 0);
+    // ✅ CALCULAR TOTALES DUALES
+    const { totalARS, totalUSD } = calcularTotalesCorrectos(productosConCodigo);
     const gananciaTotal = productosConCodigo.reduce((acc, p) => acc + p.ganancia, 0);
+    
+    // Total aproximado para referencia (mantener compatibilidad)
+    const totalAproximado = totalARS + (totalUSD * cotizacion);
 
     console.log('💰 Totales calculados:', {
-      total,
+      totalARS,
+      totalUSD,
+      totalAproximado,
       gananciaTotal,
       productos: productosConCodigo.length
     });
@@ -438,30 +489,49 @@ export default function BotonGuardarVenta({
       fecha,
       observaciones,
       pago: pagoLimpio,
-      moneda: moneda,
+      totalARS,                    // ✅ NUEVO: Total en pesos
+      totalUSD,                    // ✅ NUEVO: Total en dólares  
+      total: totalAproximado,      // ✅ MANTENER: Para compatibilidad
+      gananciaTotal,
+      moneda: totalUSD > 0 ? "DUAL" : "ARS",     // ✅ NUEVO: Indicar si es dual
       estado: "pendiente",
       nroVenta,
-      total,
-      gananciaTotal,
       timestamp: serverTimestamp(),
     });
 
-    // Guardar pago si existe
-    const montoAGuardar = pago?.moneda === "USD" 
-      ? Number(pago?.montoUSD || 0) 
-      : Number(pago?.monto || 0);
+    // ✅ GUARDAR PAGOS DUALES (ARS + USD separados)
+    const pagoARS = Number(pago?.monto || 0);
+    const pagoUSD = Number(pago?.montoUSD || 0);
 
-    if (montoAGuardar > 0) {
+    // Guardar pago en ARS si existe
+    if (pagoARS > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
         cliente,
         fecha,
-        monto: pago?.moneda === "USD" ? null : montoAGuardar,
-        montoUSD: pago?.moneda === "USD" ? montoAGuardar : null,
-        moneda: pago?.moneda || "ARS",
+        monto: pagoARS,
+        montoUSD: null,
+        moneda: "ARS",
         forma: pago?.formaPago || "Efectivo",
         destino: pago?.destino || "",
         observaciones: pago?.observaciones || "",
-        cotizacion: pago?.cotizacion || cotizacion,
+        cotizacion: cotizacion,
+        timestamp: serverTimestamp(),
+        nroVenta: nroVenta,
+      });
+    }
+
+    // Guardar pago en USD si existe
+    if (pagoUSD > 0) {
+      await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+        cliente,
+        fecha,
+        monto: null,
+        montoUSD: pagoUSD,
+        moneda: "USD",
+        forma: pago?.formaPago || "Efectivo",
+        destino: pago?.destino || "",
+        observaciones: pago?.observaciones || "",
+        cotizacion: cotizacion,
         timestamp: serverTimestamp(),
         nroVenta: nroVenta,
       });
@@ -548,14 +618,18 @@ export default function BotonGuardarVenta({
               }))
             ];
             
-            const nuevoTotal = productosCompletos.reduce((acc, p) => acc + p.precioVenta, 0);
+            // ✅ RECALCULAR TOTALES DUALES
+            const { totalARS: nuevoTotalARS, totalUSD: nuevoTotalUSD } = calcularTotalesCorrectos(productosCompletos);
             const nuevaGananciaTotal = productosCompletos.reduce((acc, p) => acc + p.ganancia, 0);
+            const nuevoTotalAproximado = nuevoTotalARS + (nuevoTotalUSD * cotizacion);
             
             await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${telefonoID}`), {
               productos: productosCompletos,
-              total: nuevoTotal,
+              totalARS: nuevoTotalARS,
+              totalUSD: nuevoTotalUSD,
+              total: nuevoTotalAproximado,
               gananciaTotal: nuevaGananciaTotal,
-              moneda: moneda,
+              moneda: nuevoTotalUSD > 0 ? "DUAL" : "ARS",
             });
           }
         }

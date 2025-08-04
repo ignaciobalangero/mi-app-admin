@@ -45,8 +45,18 @@ export default function ModalVenta({
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
   const { cotizacion } = useCotizacion(rol?.negocioID || "");
 
+  // ✅ ESTADO DE COTIZACIÓN EDITABLE
+  const [cotizacionManual, setCotizacionManual] = useState(cotizacion || 1000);
+
   // Estado para el teléfono como parte de pago
   const [telefonoComoPago, setTelefonoComoPago] = useState<any>(null);
+
+  // ✅ SINCRONIZAR CON COTIZACIÓN AUTOMÁTICA
+  useEffect(() => {
+    if (cotizacion && cotizacion > 0) {
+      setCotizacionManual(cotizacion);
+    }
+  }, [cotizacion]);
 
   // 🔥 useEffect para detectar cliente recién agregado
   useEffect(() => {
@@ -98,6 +108,7 @@ export default function ModalVenta({
 
   const pagoInicialCompleto = pagoInicial || {
     monto: "",
+    montoUSD: "",
     moneda: "ARS",
     formaPago: "",
     destino: "",
@@ -127,22 +138,6 @@ export default function ModalVenta({
     
     console.log('✅ Datos temporales limpiados');
   };
-
-  // 🔥 CORRECCIÓN PRINCIPAL: useEffect para detectar teléfono y cambiar moneda automáticamente
-  useEffect(() => {
-    const hayTelefono = productos.some((p) => p.categoria === "Teléfono");
-    
-    console.log('🔍 Detectando teléfono en productos:', hayTelefono);
-    console.log('📱 Productos actuales:', productos);
-    
-    if (hayTelefono) {
-      console.log('📱 TELÉFONO DETECTADO - Cambiando moneda a USD');
-      setMoneda("USD");
-    } else {
-      console.log('🛍️ SIN TELÉFONO - Cambiando moneda a ARS');
-      setMoneda("ARS");
-    }
-  }, [productos]); // 🔥 CRÍTICO: Se ejecuta cada vez que cambian los productos
 
   useEffect(() => {
     const clienteDesdeTelefono = localStorage.getItem("clienteDesdeTelefono");
@@ -189,7 +184,6 @@ export default function ModalVenta({
       
       console.log('📱 Cargando teléfono desde localStorage:', productoTelefono);
       setProductos([productoTelefono]);
-      // 🔥 NOTA: No establecer moneda aquí, se hará automáticamente en el useEffect de arriba
     }
     
     if (clienteDesdeTelefono) {
@@ -249,47 +243,96 @@ export default function ModalVenta({
   }, [rol?.negocioID]);
 
   if (!rol || !rol.negocioID || numeroVenta === "") return null;
-  
-  const hayTelefono = productos.some((p) => p.categoria === "Teléfono");
 
-  // 🔧 CORRECCIÓN 3: Cálculo del subtotal
-  const subtotal = productos.reduce((acc, p) => {
-    if (hayTelefono) {
-      // 📱 CON TELÉFONO: Usar precio USD
-      const precioUSD = p.categoria === "Teléfono" 
-        ? p.precioUnitario 
-        : (p.precioUSD || p.precioUnitario);
-      return acc + (precioUSD * p.cantidad);
+  // ✅ CÁLCULOS SEPARADOS POR MONEDA
+  const calcularTotales = () => {
+    let totalARS = 0;
+    let totalUSD = 0;
+    
+    // 🔍 Detectar si hay teléfonos para determinar el tipo de venta
+    const hayTelefono = productos.some(p => p.categoria === "Teléfono");
+    
+    productos.forEach((p) => {
+      const cantidad = Number(p.cantidad || 1);
+      
+      if (hayTelefono) {
+        // 🔥 VENTA MIXTA (con teléfono): Sistema dual puro
+        if (p.moneda === "USD" || p.categoria === "Teléfono") {
+          const precioUSD = Number(p.precioUSD || p.precioUnitario || 0);
+          totalUSD += precioUSD * cantidad;
+        } else {
+          const precioARS = Number(p.precioARS || p.precioUnitario || 0);
+          totalARS += precioARS * cantidad;
+        }
+      } else {
+        // 🛍️ VENTA SOLO ACCESORIOS: Convertir USD a ARS
+        if (p.moneda === "USD") {
+          const precioUSD = Number(p.precioUSD || p.precioUnitario || 0);
+          const precioConvertidoARS = precioUSD * cotizacionManual;
+          totalARS += precioConvertidoARS * cantidad;
+        } else {
+          const precioARS = Number(p.precioARS || p.precioUnitario || 0);
+          totalARS += precioARS * cantidad;
+        }
+      }
+    });
+    
+    return { totalARS, totalUSD };
+  };
+  const { totalARS, totalUSD } = calcularTotales();
+
+  // ✅ CÁLCULO DE PAGOS DUALES
+  const pagoARS = Number(pago.monto || 0);
+  const pagoUSD = Number(pago.montoUSD || 0);
+
+  // ✅ TELÉFONO COMO PAGO (mantener lógica existente)
+  const descuentoTelefonoPago = telefonoComoPago ? Number(telefonoComoPago.valorPago || 0) : 0;
+  const monedaTelefonoPago = telefonoComoPago?.moneda || "ARS";
+
+  // ✅ APLICAR DESCUENTOS POR MONEDA
+  let saldoARS = totalARS - pagoARS;
+  let saldoUSD = totalUSD - pagoUSD;
+
+  // Aplicar teléfono como pago según su moneda
+  if (telefonoComoPago) {
+    if (monedaTelefonoPago === "USD") {
+      saldoUSD -= descuentoTelefonoPago;
     } else {
-      // 🛍️ SIN TELÉFONO: Usar precio ARS
-      return acc + (p.precioUnitario * p.cantidad);
+      saldoARS -= descuentoTelefonoPago;
     }
-  }, 0);
+  }
 
-  // Calcular descuentos
-  const descuentoPago = pago.moneda === "USD" 
-    ? Number(pago.montoUSD || 0) 
-    : Number(pago.monto || 0);
-  const descuentoTelefono = telefonoComoPago ? Number(telefonoComoPago.valorPago || 0) : 0;
-  const totalDescuentos = descuentoPago + descuentoTelefono;
+  // ✅ TOTAL APROXIMADO EN ARS (para referencia)
+  const totalAproximadoARS = totalARS + (totalUSD * cotizacionManual);
+  const pagosAproximadosARS = pagoARS + (pagoUSD * cotizacionManual) + 
+    (telefonoComoPago ? (monedaTelefonoPago === "USD" ? descuentoTelefonoPago * cotizacionManual : descuentoTelefonoPago) : 0);
+  const saldoAproximadoARS = totalAproximadoARS - pagosAproximadosARS;
 
-  // Total final
-  const totalFinal = subtotal - totalDescuentos;
-
-  console.log('🔍 DEBUG EN MODALVENTA:');
-  console.log('📱 hayTelefono:', hayTelefono);
-  console.log('💰 moneda que se pasa:', hayTelefono ? "USD" : "ARS");
-  console.log('📦 productos actuales:', productos);
+  console.log('💰 DEBUG CÁLCULOS DUALES:', {
+    totalARS,
+    totalUSD,
+    pagoARS,
+    pagoUSD,
+    saldoARS,
+    saldoUSD,
+    cotizacionManual,
+    totalAproximadoARS,
+    productos: productos.map(p => ({
+      producto: p.producto,
+      moneda: p.moneda || (p.categoria === "Teléfono" ? "USD" : "ARS"),
+      precio: p.precioUnitario
+    }))
+  });
 
   return (
     <>
       <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
         {/* 🔧 CORRECCIÓN: Tamaño más proporcionado del modal */}
-        <div className="w-full h-full sm:w-[95%] md:w-[85%] lg:w-[75%] xl:w-[65%] 2xl:w-[55%] sm:h-[95vh] bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
+        <div className="w-full h-full sm:w-[95%] md:w-[85%] lg:w-[75%] xl:w-[65%] 2xl:w-[55%] sm:h-[95vh] bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col" style={{ isolation: 'isolate' }}>
           
-          {/* Header del Remito - Más compacto */}
+          {/* Header del Remito - Con cotización editable */}
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-3 flex justify-between items-center flex-shrink-0">
-          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {/* Logo mini de GestiOne */}
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex overflow-hidden shadow-lg">
                 <div className="w-1/2 h-full bg-[#2c3e50] flex items-center justify-center">
@@ -304,6 +347,24 @@ export default function ModalVenta({
                 <p className="text-blue-100 text-sm">N° {numeroVenta}</p>
               </div>
             </div>
+            
+            {/* Centro: Cotización editable */}
+            <div className="hidden sm:flex items-center gap-3 bg-white/20 rounded-lg px-3 py-2">
+              <span className="text-blue-100 text-xs font-medium">💱 USD:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-white text-sm">$</span>
+                <input
+                  type="number"
+                  value={cotizacionManual}
+                  onChange={(e) => setCotizacionManual(Number(e.target.value) || 1000)}
+                  className="w-16 bg-transparent text-white text-sm font-bold border-b border-white/30 focus:border-white outline-none text-center"
+                  min="1"
+                  step="1"
+                  title="Cotización USD a ARS"
+                />
+              </div>
+            </div>
+            
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="text-right hidden sm:block">
                 <p className="text-xs text-blue-100">Fecha</p>
@@ -311,7 +372,6 @@ export default function ModalVenta({
               </div>
               <button
                 onClick={() => {
-                  // ✅ LIMPIAR DATOS ANTES DE CERRAR
                   limpiarDatosTemporales();
                   onClose?.();
                 }}
@@ -322,11 +382,31 @@ export default function ModalVenta({
             </div>
           </div>
 
-          {/* Contenido scrolleable - Más compacto */}
-          <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-3 bg-[#f8f9fa] min-h-0">
+          {/* Cotización móvil - Solo visible en pantallas pequeñas */}
+          <div className="sm:hidden bg-[#34495e] text-white p-2 flex justify-center items-center gap-2">
+            <span className="text-xs font-medium">💱 Cotización USD:</span>
+            <div className="flex items-center gap-1">
+              <span className="text-sm">$</span>
+              <input
+                type="number"
+                value={cotizacionManual}
+                onChange={(e) => setCotizacionManual(Number(e.target.value) || 1000)}
+                className="w-16 bg-transparent text-white text-sm font-bold border-b border-white/30 focus:border-white outline-none text-center"
+                min="1"
+                step="1"
+              />
+            </div>
+          </div>
+
+          {/* Contenido scrolleable - Con padding extra para dropdowns */}
+          <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-3 bg-[#f8f9fa] min-h-0 pb-[200px]">
             
             {/* Información del Cliente - CON BOTÓN AGREGAR */}
-            <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm relative z-[10000]">
+            <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm"
+                 style={{ 
+                   zIndex: queryCliente ? 50000 : 'auto', 
+                   position: queryCliente ? 'relative' : 'static' 
+                 }}>
               <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] mb-2 sm:mb-3 flex items-center gap-2">
                 <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-md flex items-center justify-center text-white text-xs">👤</span>
                 <span className="text-sm sm:text-base">Datos del Cliente</span>
@@ -336,7 +416,10 @@ export default function ModalVenta({
               <div className="flex gap-2">
                 <div className="flex-1">
                   <Combobox value={cliente} onChange={setCliente}>
-                  <div className="relative z-[10001]">
+                    <div className="relative" 
+                         style={{ 
+                           zIndex: queryCliente ? 50001 : 'auto' 
+                         }}>
                       <Combobox.Input
                         className="w-full p-2 sm:p-3 border border-[#bdc3c7] rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
                         onChange={(e) => setQueryCliente(e.target.value)}
@@ -346,7 +429,10 @@ export default function ModalVenta({
                         autoCorrect="off"
                         spellCheck={false}
                       />
-                      <Combobox.Options className="absolute z-[10002] w-full bg-white border border-[#bdc3c7] rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
+                      <Combobox.Options 
+                        className="absolute w-full bg-white border border-[#bdc3c7] rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl"
+                        style={{ zIndex: 50002 }}
+                      >
                         {listaClientes
                           .filter((c) => c.toLowerCase().includes(queryCliente.toLowerCase()))
                           .map((c, i) => (
@@ -393,28 +479,30 @@ export default function ModalVenta({
             </div>
 
             {/* Selector de Productos - Con z-index corregido */}
-            <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm relative z-[9999]">
+            <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm">
               <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] mb-2 sm:mb-3 flex items-center gap-2">
                 <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#27ae60] rounded-md flex items-center justify-center text-white text-xs">🛍️</span>
                 <span className="text-sm sm:text-base">Agregar Productos</span>
               </h3>
-              <SelectorProductoVentaGeneral
-                productos={productos}
-                setProductos={setProductos}
-                setPrecio={setPrecio}
-                setMarca={setMarca}
-                setModelo={setModelo}
-                setCategoria={setCategoria}
-                setColor={setColor}
-                setCodigo={setCodigo}
-                setMoneda={setMoneda}
-                filtroTexto={filtroTexto}
-                setFiltroTexto={setFiltroTexto}
-                hayTelefono={hayTelefono}
-              />
+              <div className="relative" style={{ zIndex: 100000 }}>
+                <SelectorProductoVentaGeneral
+                  productos={productos}
+                  setProductos={setProductos}
+                  setPrecio={setPrecio}
+                  setMarca={setMarca}
+                  setModelo={setModelo}
+                  setCategoria={setCategoria}
+                  setColor={setColor}
+                  setCodigo={setCodigo}
+                  setMoneda={setMoneda}
+                  filtroTexto={filtroTexto}
+                  setFiltroTexto={setFiltroTexto}
+                  hayTelefono={false}
+                />
+              </div>
             </div>
 
-            {/* Tabla de Productos - Más compacta */}
+            {/* Tabla de Productos - Con precios duales */}
             <div className="bg-white rounded-lg border border-[#ecf0f1] shadow-sm overflow-hidden">
               <div className="bg-[#2c3e50] p-2 sm:p-3 text-white">
                 <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2">
@@ -466,36 +554,66 @@ export default function ModalVenta({
                                 {p.color}
                               </span>
                             </td>
-                            {/* 🔧 CORRECCIÓN 1: Mostrar precios correctos - PRECIO */}
+                            {/* PRECIO - Mostrar en moneda nativa */}
                             <td className="p-2 border border-[#bdc3c7] text-right font-medium">
-                              <span className="text-[#27ae60] font-semibold text-xs">
-                                {hayTelefono ? (
-                                  // 📱 CON TELÉFONO: Todo en USD
-                                  p.categoria === "Teléfono" 
-                                    ? `USD $${Number(p.precioUnitario).toLocaleString("es-AR")}`
-                                    : `USD $${Number(p.precioUSD || p.precioUnitario).toLocaleString("es-AR")}`
-                                ) : (
-                                  // 🛍️ SIN TELÉFONO: Todo en ARS
-                                  `$${Number(p.precioUnitario).toLocaleString("es-AR")}`
-                                )}
-                              </span>
+                              <div className="space-y-1">
+                                {/* Precio principal en moneda nativa */}
+                                <div className="text-[#27ae60] font-semibold text-xs">
+                                  {(p.moneda === "USD" || p.categoria === "Teléfono") ? (
+                                    <>
+                                      <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-blue-100 text-blue-800 mr-1">USD</span>
+                                      ${Number(p.precioUSD || p.precioUnitario).toLocaleString("es-AR")}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-green-100 text-green-800 mr-1">ARS</span>
+                                      ${Number(p.precioARS || p.precioUnitario).toLocaleString("es-AR")}
+                                    </>
+                                  )}
+                                </div>
+                                
+                                {/* Precio convertido (más pequeño, para referencia) */}
+                                <div className="text-[#7f8c8d] text-xs">
+                                  {(p.moneda === "USD" || p.categoria === "Teléfono") ? (
+                                    `≈ ${(Number(p.precioUSD || p.precioUnitario) * cotizacionManual).toLocaleString("es-AR")} ARS`
+                                  ) : (
+                                    `≈ USD ${(Number(p.precioARS || p.precioUnitario) / cotizacionManual).toFixed(2)}`
+                                  )}
+                                </div>
+                              </div>
                             </td>
                             <td className="p-2 border border-[#bdc3c7] text-right">
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-[#3498db] text-white">
                                 {p.cantidad}
                               </span>
                             </td>
-                            {/* 🔧 CORRECCIÓN 1: Mostrar precios correctos - TOTAL */}
-                            <td className="p-2 border border-[#bdc3c7] text-right font-bold text-[#27ae60] text-xs">
-                              {hayTelefono ? (
-                                // 📱 CON TELÉFONO: Todo en USD
-                                p.categoria === "Teléfono"
-                                  ? `USD $${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-                                  : `USD $${((p.precioUSD || p.precioUnitario) * p.cantidad).toLocaleString("es-AR")}`  
-                              ) : (
-                                // 🛍️ SIN TELÉFONO: Todo en ARS
-                                `$${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-                              )}
+                            {/* TOTAL - Mostrar en moneda nativa */}
+                            <td className="p-2 border border-[#bdc3c7] text-right font-bold text-xs">
+                              <div className="space-y-1">
+                                {/* Total principal en moneda nativa */}
+                                <div className="text-[#27ae60]">
+                                  {(p.moneda === "USD" || p.categoria === "Teléfono") ? (
+                                    <>
+                                      <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-blue-100 text-blue-800 mr-1">USD</span>
+                                      ${((p.precioUSD || p.precioUnitario) * p.cantidad).toLocaleString("es-AR")}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-green-100 text-green-800 mr-1">ARS</span>
+                                      ${((p.precioARS || p.precioUnitario) * p.cantidad).toLocaleString("es-AR")}
+                                    </>
+                                  )}
+                                </div>
+                                
+                                {/* Total convertido (más pequeño) */}
+                                <div className="text-[#7f8c8d] text-xs">
+                                  {(p.moneda === "USD" || p.categoria === "Teléfono") ? (
+                                    `≈ ${((p.precioUSD || p.precioUnitario) * p.cantidad * cotizacionManual).toLocaleString("es-AR")}`
+                                  ) : (
+                                    `≈ USD ${(((p.precioARS || p.precioUnitario) * p.cantidad) / cotizacionManual).toFixed(2)}`
+                                  )}
+                                </div>
+                              </div>
                             </td>
                             <td className="p-2 border border-[#bdc3c7] text-center">
                               <button
@@ -588,34 +706,56 @@ export default function ModalVenta({
                           
                           <div className="flex justify-between items-center pt-2 border-t border-[#ecf0f1]">
                             <span className="text-[#7f8c8d] text-xs">Precio unitario:</span>
-                            {/* 🔧 CORRECCIÓN 2: Vista móvil - PRECIO */}
-                            <span className="text-[#27ae60] font-semibold text-sm">
-                              {hayTelefono ? (
-                                // 📱 CON TELÉFONO: Todo en USD
-                                p.categoria === "Teléfono"
-                                  ? `USD ${Number(p.precioUnitario).toLocaleString("es-AR")}`
-                                  : `USD ${Number(p.precioUSD || p.precioUnitario).toLocaleString("es-AR")}`
-                              ) : (
-                                // 🛍️ SIN TELÉFONO: Todo en ARS
-                                `${Number(p.precioUnitario).toLocaleString("es-AR")}`
-                              )}
-                            </span>
+                            {/* Vista móvil - PRECIO */}
+                            <div className="text-right">
+                              <div className="text-[#27ae60] font-semibold text-sm">
+                                {(p.moneda === "USD" || p.categoria === "Teléfono") ? (
+                                  <>
+                                    <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-blue-100 text-blue-800 mr-1">USD</span>
+                                    ${Number(p.precioUSD || p.precioUnitario).toLocaleString("es-AR")}
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-green-100 text-green-800 mr-1">ARS</span>
+                                    ${Number(p.precioARS || p.precioUnitario).toLocaleString("es-AR")}
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-[#7f8c8d] text-xs">
+                                {(p.moneda === "USD" || p.categoria === "Teléfono") ? (
+                                  `≈ ${(Number(p.precioUSD || p.precioUnitario) * cotizacionManual).toLocaleString("es-AR")} ARS`
+                                ) : (
+                                  `≈ USD ${(Number(p.precioARS || p.precioUnitario) / cotizacionManual).toFixed(2)}`
+                                )}
+                              </div>
+                            </div>
                           </div>
                           
                           <div className="flex justify-between items-center font-bold">
                             <span className="text-[#2c3e50] text-sm">Total:</span>
-                            {/* 🔧 CORRECCIÓN 2: Vista móvil - TOTAL */}
-                            <span className="text-[#27ae60] text-base">
-                              {hayTelefono ? (
-                                // 📱 CON TELÉFONO: Todo en USD
-                                p.categoria === "Teléfono"
-                                  ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-                                  : `USD ${((p.precioUSD || p.precioUnitario) * p.cantidad).toLocaleString("es-AR")}`
-                              ) : (
-                                // 🛍️ SIN TELÉFONO: Todo en ARS
-                                `${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-                              )}
-                            </span>
+                            {/* Vista móvil - TOTAL */}
+                            <div className="text-right">
+                              <div className="text-[#27ae60] text-base">
+                                {(p.moneda === "USD" || p.categoria === "Teléfono") ? (
+                                  <>
+                                    <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-blue-100 text-blue-800 mr-1">USD</span>
+                                    ${((p.precioUSD || p.precioUnitario) * p.cantidad).toLocaleString("es-AR")}
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-green-100 text-green-800 mr-1">ARS</span>
+                                    ${((p.precioARS || p.precioUnitario) * p.cantidad).toLocaleString("es-AR")}
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-[#7f8c8d] text-xs">
+                                {(p.moneda === "USD" || p.categoria === "Teléfono") ? (
+                                  `≈ ${((p.precioUSD || p.precioUnitario) * p.cantidad * cotizacionManual).toLocaleString("es-AR")}`
+                                ) : (
+                                  `≈ USD ${(((p.precioARS || p.precioUnitario) * p.cantidad) / cotizacionManual).toFixed(2)}`
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -643,21 +783,35 @@ export default function ModalVenta({
                   <span className="text-sm sm:text-base">Pagos Registrados</span>
                 </h3>
                 <div className="space-y-2">
-                  {((pago.monto && pago.monto > 0) || (pago.montoUSD && pago.montoUSD > 0)) && (
+                  {pago.monto && pago.monto > 0 && (
                     <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs">💰</span>
                           <div>
-                            <p className="font-medium text-[#2c3e50] text-sm">Pago en {pago.formaPago}</p>
+                            <p className="font-medium text-[#2c3e50] text-sm">Pago ARS en {pago.formaPago}</p>
                             <p className="text-xs text-[#7f8c8d]">{pago.observaciones}</p>
                           </div>
                         </div>
                         <span className="text-sm sm:text-base font-bold text-[#27ae60]">
-                          {pago.moneda === "USD" 
-                            ? `USD ${Number(pago.montoUSD || 0).toLocaleString("es-AR")}`
-                            : `${Number(pago.monto || 0).toLocaleString("es-AR")} ARS`
-                          }
+                          ${Number(pago.monto).toLocaleString("es-AR")} ARS
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {pago.montoUSD && pago.montoUSD > 0 && (
+                    <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">💵</span>
+                          <div>
+                            <p className="font-medium text-[#2c3e50] text-sm">Pago USD en {pago.formaPago}</p>
+                            <p className="text-xs text-[#7f8c8d]">{pago.observaciones}</p>
+                          </div>
+                        </div>
+                        <span className="text-sm sm:text-base font-bold text-[#3498db]">
+                          USD ${Number(pago.montoUSD).toLocaleString("es-AR")}
                         </span>
                       </div>
                     </div>
@@ -667,15 +821,16 @@ export default function ModalVenta({
                     <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">📱</span>
+                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#9b59b6] rounded-full flex items-center justify-center text-white text-xs">📱</span>
                           <div>
                             <p className="font-medium text-[#2c3e50] text-sm">Teléfono como parte de pago</p>
                             <p className="text-xs text-[#7f8c8d]">{telefonoComoPago.marca} {telefonoComoPago.modelo}</p>
                           </div>
                         </div>
-                        <span className="text-sm sm:text-base font-bold text-[#3498db]">
+                        <span className="text-sm sm:text-base font-bold text-[#9b59b6]">
                           {telefonoComoPago.moneda === "USD" ? "USD $" : "$"}
                           {Number(telefonoComoPago.valorPago).toLocaleString("es-AR")}
+                          {telefonoComoPago.moneda === "ARS" ? " ARS" : ""}
                         </span>
                       </div>
                     </div>
@@ -685,51 +840,143 @@ export default function ModalVenta({
             )}
           </div>
 
-          {/* Footer con Totales y Acciones - Más compacto */}
+          {/* Footer con Totales Duales */}
           <div className="bg-[#ecf0f1] border-t border-[#bdc3c7] p-3 flex-shrink-0">
-            {/* Resumen de Totales */}
+            {/* Resumen de Totales Duales */}
             <div className="bg-white rounded-lg border border-[#bdc3c7] p-3 mb-3 shadow-sm">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-sm sm:text-base">
-                  <span className="font-medium text-[#2c3e50]">Subtotal:</span>
-                  <span className="font-bold text-[#2c3e50]">
-                    {hayTelefono ? "USD $" : "$"}{subtotal.toLocaleString("es-AR")}
-                  </span>
-                </div>
+              
+              {/* Subtotales por moneda */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 
-                {totalDescuentos > 0 && (
-                  <>
-                    <div className="border-t border-[#ecf0f1] pt-2">
-                      <div className="flex justify-between items-center text-xs sm:text-sm text-[#27ae60]">
-                        <span>Descuentos aplicados:</span>
-                        <span className="font-medium">-${totalDescuentos.toLocaleString("es-AR")}</span>
+                {/* Columna ARS */}
+                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-3 border border-green-200">
+                  <h4 className="text-sm font-bold text-green-800 mb-2 flex items-center gap-2">
+                    <span className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center text-white text-xs">$</span>
+                    Pesos Argentinos (ARS)
+                  </h4>
+                  
+                  <div className="space-y-2 text-sm">
+                    
+                    {pagoARS > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Pagado:</span>
+                        <span className="font-medium">-${pagoARS.toLocaleString("es-AR")}</span>
                       </div>
-                    </div>
-                    <div className="border-t border-[#bdc3c7] pt-2">
-                      <div className="flex justify-between items-center text-base sm:text-lg">
-                        <span className="font-bold text-[#2c3e50]">TOTAL A PAGAR:</span>
-                        <span className="font-bold text-[#3498db] text-lg sm:text-xl">
-                          {hayTelefono ? "USD $" : "$"}{Math.max(0, totalFinal).toLocaleString("es-AR")}
+                    )}
+                    
+                    {telefonoComoPago && monedaTelefonoPago === "ARS" && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Teléfono pago:</span>
+                        <span className="font-medium">-${descuentoTelefonoPago.toLocaleString("es-AR")}</span>
+                      </div>
+                    )}
+                    
+                    <div className="border-t border-green-300 pt-2">
+                      <div className="flex justify-between">
+                        <span className="font-bold text-green-800">Saldo ARS:</span>
+                        <span className={`font-bold text-lg ${saldoARS > 0 ? 'text-red-600' : saldoARS < 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                          ${Math.abs(saldoARS).toLocaleString("es-AR")}
+                          {saldoARS < 0 && <span className="text-xs ml-1">(favor)</span>}
                         </span>
                       </div>
                     </div>
-                  </>
-                )}
+                  </div>
+                </div>
                 
-                {totalDescuentos === 0 && (
-                  <div className="border-t border-[#bdc3c7] pt-2">
-                    <div className="flex justify-between items-center text-base sm:text-lg">
-                      <span className="font-bold text-[#2c3e50]">TOTAL:</span>
-                      <span className="font-bold text-[#3498db] text-lg sm:text-xl">
-                        {hayTelefono ? "USD $" : "$"}{subtotal.toLocaleString("es-AR")}
-                      </span>
+                {/* Columna USD */}
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
+                  <h4 className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-2">
+                    <span className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs">$</span>
+                    Dólares Estadounidenses (USD)
+                  </h4>
+                  
+                  <div className="space-y-2 text-sm">
+                    
+                    {pagoUSD > 0 && (
+                      <div className="flex justify-between text-blue-600">
+                        <span>Pagado:</span>
+                        <span className="font-medium">-USD ${pagoUSD.toLocaleString("es-AR")}</span>
+                      </div>
+                    )}
+                    
+                    {telefonoComoPago && monedaTelefonoPago === "USD" && (
+                      <div className="flex justify-between text-blue-600">
+                        <span>Teléfono pago:</span>
+                        <span className="font-medium">-USD ${descuentoTelefonoPago.toLocaleString("es-AR")}</span>
+                      </div>
+                    )}
+                    
+                    <div className="border-t border-blue-300 pt-2">
+                      <div className="flex justify-between">
+                        <span className="font-bold text-blue-800">Saldo USD:</span>
+                        <span className={`font-bold text-lg ${saldoUSD > 0 ? 'text-red-600' : saldoUSD < 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                          USD ${Math.abs(saldoUSD).toLocaleString("es-AR")}
+                          {saldoUSD < 0 && <span className="text-xs ml-1">(favor)</span>}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
+              
+              {/* Total aproximado en ARS para referencia */}
+              {/* Total - Condicional según tipo de venta */}
+<div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+  {totalUSD > 0 && totalARS > 0 ? (
+    // 🔥 VENTA MIXTA: Mostrar ambos totales
+    <div className="space-y-3">
+      <div className="text-center">
+        <span className="text-gray-600 text-sm font-semibold">Total de la Venta (Dual)</span>
+        <div className="text-xs text-gray-500">Cotización: $1 USD = ${cotizacionManual.toLocaleString("es-AR")} ARS</div>
+      </div>
+      
+      <div className="flex justify-between items-center">
+        <div className="text-lg font-bold text-blue-700">
+          USD ${totalUSD.toLocaleString("es-AR")}
+        </div>
+        <div className="text-gray-400 mx-4">+</div>
+        <div className="text-lg font-bold text-green-700">
+          ARS ${totalARS.toLocaleString("es-AR")}
+        </div>
+      </div>
+      
+      <div className="text-center border-t pt-2">
+        {pagosAproximadosARS > 0 && (
+          <div className="text-sm text-gray-600">
+            Saldo: ${Math.abs(saldoAproximadoARS).toLocaleString("es-AR")}
+            {saldoAproximadoARS < 0 && " (favor)"}
+          </div>
+        )}
+      </div>
+    </div>
+  ) : (
+    // 🛍️ VENTA SIMPLE: Mostrar total único
+    <div className="flex justify-between items-center">
+      <div>
+        <span className="text-gray-600 text-sm">Total de la Venta:</span>
+        <div className="text-xs text-gray-500">
+          {totalUSD > 0 ? "Venta en dólares" : "Venta en pesos"}
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="text-xl font-bold text-gray-800">
+          {totalUSD > 0 
+            ? `USD $${totalUSD.toLocaleString("es-AR")}` 
+            : `$${totalARS.toLocaleString("es-AR")} ARS`
+          }
+        </div>
+        {totalUSD > 0 && (
+          <div className="text-sm text-gray-600">
+            ≈ ${(totalUSD * cotizacionManual).toLocaleString("es-AR")} ARS
+          </div>
+        )}
+      </div>
+    </div>
+  )}
+</div>
             </div>
 
-            {/* Botones de Acción - Más compactos */}
+            {/* Botones de Acción */}
             <div className="flex flex-col sm:flex-row justify-end gap-2">
               <button
                 onClick={() => {
@@ -746,12 +993,16 @@ export default function ModalVenta({
 
               <button
                 onClick={() => {
-                  console.log("COBRAR PRESIONADO");
+                  console.log("COBRAR PRESIONADO - Sistema Dual", {
+                    totalARS,
+                    totalUSD,
+                    cotizacionManual
+                  });
                   setModalPagoAbierto(true);
                 }}
                 className="w-full sm:w-auto bg-[#27ae60] hover:bg-[#229954] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center justify-center gap-2 text-sm"
-             >
-                💳 COBRAR
+              >
+                💳 COBRAR (Dual)
               </button>
 
               <BotonGuardarVenta
@@ -760,10 +1011,9 @@ export default function ModalVenta({
                 fecha={new Date().toLocaleDateString("es-AR")}
                 observaciones=""
                 pago={pago}
-                moneda={hayTelefono ? "USD" : "ARS"}
-                cotizacion={cotizacion} 
+                moneda={totalUSD > 0 ? "USD" : "ARS"}
+                cotizacion={cotizacionManual}
                 onGuardar={() => {
-                  // ✅ LIMPIAR DATOS DESPUÉS DE GUARDAR EXITOSAMENTE
                   limpiarDatosTemporales();
                   setRefrescar(prev => !prev);
                   onClose?.();
@@ -777,44 +1027,49 @@ export default function ModalVenta({
       {/* Modal de pago - Con z-index superior */}
       {modalPagoAbierto && (
         <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <ModalPago
-            mostrar={modalPagoAbierto}
-            pago={pago}
-            onClose={() => setModalPagoAbierto(false)}
-            handlePagoChange={(e) => {
-              const { name, value } = e.target;
-              setPago((prev) => ({
-                ...prev,
-                [name]: value,
-              }));
-            }}
-            onGuardarPago={(nuevoPago) => {
-              console.log('💰 Pago recibido del ModalPago:', nuevoPago);
-              
-              const pagoConvertido = {
-                monto: nuevoPago.moneda === "ARS" ? (nuevoPago.monto || "") : "",
-                montoUSD: nuevoPago.moneda === "USD" ? (nuevoPago.montoUSD || "") : "",
-                moneda: nuevoPago.moneda || "ARS",
-                formaPago: nuevoPago.formaPago || "",
-                destino: nuevoPago.destino || "",
-                observaciones: nuevoPago.observaciones || "",
-              };
-              console.log('🔄 Pago convertido para ModalVenta:', pagoConvertido);
-              
-              // ✅ ACTUALIZAR ESTADO LOCAL
-              setPago(pagoConvertido);
-              
-              // ✅ MOSTRAR FEEDBACK VISUAL
-              setGuardadoConExito(true);
-              setTimeout(() => setGuardadoConExito(false), 2000);
-              
-              // ✅ CERRAR MODAL
-              setModalPagoAbierto(false);
-              
-              console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
-            }}
-            guardadoConExito={guardadoConExito}
-          />
+      <ModalPago
+  mostrar={modalPagoAbierto}
+  pago={pago}
+  totalesVenta={{          // ✅ AGREGAR ESTA LÍNEA
+    totalARS,
+    totalUSD,
+    cotizacion: cotizacionManual
+  }}
+  onClose={() => setModalPagoAbierto(false)}
+  handlePagoChange={(e) => {
+    const { name, value } = e.target;
+    setPago((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  }}
+  onGuardarPago={(nuevoPago) => {
+    console.log('💰 Pago recibido del ModalPago:', nuevoPago);
+    
+    const pagoConvertido = {
+      monto: nuevoPago.monto || "",
+      montoUSD: nuevoPago.montoUSD || "",
+      moneda: nuevoPago.moneda || "ARS",
+      formaPago: nuevoPago.formaPago || "",
+      destino: nuevoPago.destino || "",
+      observaciones: nuevoPago.observaciones || "",
+    };
+    console.log('🔄 Pago convertido para ModalVenta:', pagoConvertido);
+    
+    // ✅ ACTUALIZAR ESTADO LOCAL
+    setPago(pagoConvertido);
+    
+    // ✅ MOSTRAR FEEDBACK VISUAL
+    setGuardadoConExito(true);
+    setTimeout(() => setGuardadoConExito(false), 2000);
+    
+    // ✅ CERRAR MODAL
+    setModalPagoAbierto(false);
+    
+    console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
+  }}
+  guardadoConExito={guardadoConExito}
+/>
         </div>
       )}
     </>
