@@ -60,6 +60,7 @@ export default function FormularioVenta({ onVentaGuardada, cerrarModal }: Props)
     formaPago: "",
     destino: "",
     observaciones: "",
+    montoUSD: "", 
   });
 
   const { rol } = useRol();
@@ -181,7 +182,7 @@ export default function FormularioVenta({ onVentaGuardada, cerrarModal }: Props)
       setProductos([]);
       setObservaciones("");
       setFecha(new Date().toISOString().split("T")[0]);
-      setPago({ monto: "", moneda: "ARS", formaPago: "", destino: "", observaciones: "" });
+      setPago({ monto: "", moneda: "ARS", formaPago: "", destino: "", observaciones: "", montoUSD: ""  });
       setMostrarModalPago(false);
       setGuardadoConExito(false);
       setGuardadoExitoso(true);
