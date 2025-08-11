@@ -46,14 +46,13 @@ export default function BotonGuardarVenta({
   const { rol } = useRol();
   const [guardando, setGuardando] = useState(false);
 
-  // ✅ NUEVA FUNCIÓN: Calcular totales duales separados CORREGIDA
-  const calcularTotalesCorrectos = (productos: any[]) => {
+  // ✅ FUNCIÓN CORREGIDA: Calcular totales SEPARADOS por moneda (para guardado)
+  const calcularTotalesSeparados = (productos: any[]) => {
     let totalARS = 0;
     let totalUSD = 0;
     
-    console.log('🔍 Calculando totales duales:', productos.map(p => ({
+    console.log('💰 Calculando totales SEPARADOS por moneda:', productos.map(p => ({
       producto: p.producto || p.descripcion,
-      categoria: p.categoria,
       moneda: p.moneda,
       precioVenta: p.precioVenta || (p.precioUnitario * (p.cantidad || 1))
     })));
@@ -62,114 +61,104 @@ export default function BotonGuardarVenta({
       const cantidad = Number(p.cantidad || 1);
       const precioVenta = p.precioVenta || (p.precioUnitario * cantidad);
       
-      // ✅ CORREGIDO: Respetar la moneda ESPECÍFICA de cada producto
+      // ✅ RESPETAR MONEDA ORIGINAL SELECCIONADA
       if (p.moneda === "USD") {
         totalUSD += precioVenta;
-        console.log(`💵 Producto USD: ${p.producto} = ${precioVenta}`);
+        console.log(`💵 Producto USD: ${p.producto} = ${precioVenta} USD`);
       } else {
-        // Todos los demás (ARS, undefined, null) van a ARS
         totalARS += precioVenta;
-        console.log(`💰 Producto ARS: ${p.producto} = ${precioVenta}`);
+        console.log(`💰 Producto ARS: ${p.producto} = ${precioVenta} ARS`);
       }
     });
     
-    console.log('✅ Totales calculados:', { totalARS, totalUSD });
+    console.log('✅ Totales SEPARADOS:', { totalARS, totalUSD });
     return { totalARS, totalUSD };
   };
 
-  const calcularTotalCorrect = (productos: any[]) => {
-    const hayTelefono = productos.some(p => p.categoria === "Teléfono");
-    
-    return productos.reduce((acc, p) => {
-      if (moneda === "USD" && hayTelefono) {
-        const precioUSD = p.categoria === "Teléfono" 
-          ? p.precioUnitario 
-          : (p.precioUSD || p.precioUnitario);
-        return acc + (precioUSD * p.cantidad);
-      } else {
-        return acc + (p.precioUnitario * p.cantidad);
-      }
-    }, 0);
-  };
-
-  // 🔥 FUNCIÓN MEJORADA: Calcular ganancia correcta según contexto
-  const calcularGananciaOptimizada = (producto: any, hayTelefono: boolean, stockData: any, cotizacionActual: number) => {
+  // ✅ FUNCIÓN ULTRA SIMPLIFICADA: Calcular ganancia sin errores
+  const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizacionActual: number) => {
     const precioVenta = producto.precioUnitario || 0;
     const cantidad = producto.cantidad || 1;
 
-    console.log('🔍 Calculando ganancia optimizada:', {
-      producto: producto.producto || producto.codigo,
-      categoria: producto.categoria,
-      hayTelefono,
-      precioVenta,
-      cantidad,
-      monedaVenta: moneda
-    });
+    console.log('🔍 === INICIO CÁLCULO GANANCIA ===');
+    console.log('📦 Producto:', producto.producto || producto.codigo);
+    console.log('💰 Precio venta unitario:', precioVenta);
+    console.log('📊 Cantidad:', cantidad);
+    console.log('🏷️ Moneda del producto:', producto.moneda);
 
     // 📱 CASO 1: TELÉFONO
     if (producto.categoria === "Teléfono") {
       const precioCosto = producto.precioCosto || 0;
       const ganancia = (precioVenta - precioCosto) * cantidad;
-      console.log('📱 Ganancia teléfono:', ganancia);
+      console.log('📱 TELÉFONO - Costo:', precioCosto, 'Ganancia:', ganancia);
       return ganancia;
     }
 
-    // 🔌 CASO 2: ACCESORIO/REPUESTO con datos de stock
-    if (stockData) {
-      const costoOriginal = stockData.precioCosto || 0;
-      const costoARS = stockData.precioCostoPesos || (costoOriginal * cotizacionActual);
+    // 🔌 CASO 2: ACCESORIO/REPUESTO
+    if (!stockData) {
+      console.log('❌ No hay datos de stock');
+      return 0;
+    }
 
-      if (hayTelefono) {
-        // 🔥 VENTA MIXTA (con teléfono): Respetar monedas originales
-        if (producto.moneda?.toUpperCase() === "USD" || stockData.moneda === "USD") {
-          // Producto en USD: usar costo USD
-          const ganancia = (precioVenta - costoOriginal) * cantidad;
-          console.log('💵 Ganancia accesorio USD en venta mixta:', ganancia);
-          return ganancia;
-        } else {
-          // Producto en ARS: usar costo ARS
-          const ganancia = (precioVenta - costoARS) * cantidad;
-          console.log('💰 Ganancia accesorio ARS en venta mixta:', ganancia);
-          return ganancia;
-        }
-      } else {
-        // 🛍️ VENTA SOLO ACCESORIOS: Todo se convierte a ARS según moneda principal
-        if (moneda === "USD") {
-          // Venta en USD: mantener todo en USD
-          const ganancia = (precioVenta - costoOriginal) * cantidad;
-          console.log('💵 Ganancia venta USD pura:', ganancia);
-          return ganancia;
-        } else {
-          // Venta en ARS: convertir costos USD a ARS
-          if (stockData.moneda === "USD") {
-            const ganancia = (precioVenta - costoARS) * cantidad;
-            console.log('💱 Ganancia producto USD convertido a ARS:', ganancia);
-            return ganancia;
-          } else {
-            const ganancia = (precioVenta - costoOriginal) * cantidad;
-            console.log('💰 Ganancia producto ARS nativo:', ganancia);
-            return ganancia;
-          }
-        }
+    console.log('📋 Datos de stock:', {
+      precioCosto: stockData.precioCosto,
+      precioCostoPesos: stockData.precioCostoPesos,
+      monedaStock: stockData.moneda
+    });
+
+    // ✅ LÓGICA CORREGIDA - NO convertir costos ARS
+    let costoFinal = 0;
+    
+    if (producto.moneda === "USD") {
+      // ===== PRODUCTO VENDIDO EN USD =====
+      costoFinal = Number(stockData.precioCosto || 0);
+      console.log('💵 PRODUCTO USD - Usando costo USD:', costoFinal);
+    } else {
+      // ===== PRODUCTO VENDIDO EN ARS =====
+      // ✅ PRIMERO: Intentar usar costo directo en pesos
+      if (stockData.precioCostoPesos && stockData.precioCostoPesos > 0) {
+        costoFinal = Number(stockData.precioCostoPesos);
+        console.log('💰 PRODUCTO ARS - Usando costo directo en pesos:', costoFinal);
+      } 
+      // ✅ SEGUNDO: Si el stock es nativo ARS, usar precio costo directo
+      else if (stockData.moneda === "ARS") {
+        costoFinal = Number(stockData.precioCosto || 0);
+        console.log('💰 PRODUCTO ARS - Stock nativo ARS, usando costo directo:', costoFinal);
+      }
+      // ✅ TERCERO: Solo convertir si el stock es realmente USD
+      else if (stockData.moneda === "USD") {
+        const costoUSD = Number(stockData.precioCosto || 0);
+        costoFinal = costoUSD * cotizacionActual;
+        console.log('💱 PRODUCTO ARS - Stock USD, convirtiendo:', costoUSD, 'x', cotizacionActual, '=', costoFinal);
+      }
+      // ✅ FALLBACK: usar costo directo sin conversión
+      else {
+        costoFinal = Number(stockData.precioCosto || 0);
+        console.log('💰 PRODUCTO ARS - Fallback, usando costo directo:', costoFinal);
       }
     }
 
-    // 🔥 FALLBACK: Sin datos de stock
-    console.log('❌ Sin datos de stock, ganancia = 0');
-    return 0;
+    // ✅ CÁLCULO FINAL SIMPLE
+    const ganancia = (precioVenta - costoFinal) * cantidad;
+    
+    console.log('🎯 CÁLCULO FINAL:');
+    console.log('   Precio venta:', precioVenta);
+    console.log('   Costo final:', costoFinal);
+    console.log('   Cantidad:', cantidad);
+    console.log('   Ganancia:', ganancia);
+    console.log('🔍 === FIN CÁLCULO GANANCIA ===');
+    
+    return ganancia;
   };
 
-  // 🔥 FUNCIÓN COMPLETAMENTE CORREGIDA: Obtener datos con costos y ganancias
-  const obtenerDatosConCostos = async (productos: any[]) => {
+  // ✅ FUNCIÓN CORREGIDA: Obtener datos respetando monedas originales
+  const obtenerDatosRespetandoMonedas = async (productos: any[]) => {
     if (!rol?.negocioID) return productos;
 
     const cotizacionActual = cotizacion || 1000;
-    const hayTelefono = productos.some(p => p.categoria === "Teléfono");
-
-    console.log('🔍 Procesando venta:', {
+    
+    console.log("🔍 Procesando venta respetando monedas originales:", {
       cotizacion: cotizacionActual,
-      monedaPrincipal: moneda,
-      hayTelefono,
       totalProductos: productos.length
     });
 
@@ -211,29 +200,35 @@ export default function BotonGuardarVenta({
       const precioUnitario = producto.precioUnitario || 0;
       const stockData = mapaStock[producto.codigo];
 
-      // 🔥 CALCULAR COSTOS Y GANANCIA
+      // ✅ CALCULAR COSTOS Y GANANCIA RESPETANDO MONEDAS ORIGINALES
       let precioCosto = 0;
       let precioCostoPesos = 0;
       let ganancia = 0;
+      let precioVentaReal = precioUnitario;
 
       if (producto.categoria === "Teléfono") {
         // 📱 TELÉFONO: Usar datos existentes
         precioCosto = producto.precioCosto || 0;
         precioCostoPesos = precioCosto;
-        ganancia = (precioUnitario - precioCosto) * cantidad;
+        ganancia = (precioVentaReal - precioCosto) * cantidad;
+        
+        console.log('📱 Teléfono procesado:', {
+          modelo: producto.modelo,
+          moneda: producto.moneda,
+          precioVenta: precioVentaReal
+        });
       } else {
-        // 🔌 ACCESORIO/REPUESTO: Usar datos de stock
+        // 🔌 ACCESORIO/REPUESTO: Respetando moneda seleccionada
         if (stockData) {
-          precioCosto = stockData.precioCosto;
-          
+          precioCosto = stockData.precioCosto || 0;
           if (stockData.moneda === "USD") {
             precioCostoPesos = stockData.precioCostoPesos || (precioCosto * cotizacionActual);
           } else {
             precioCostoPesos = precioCosto;
           }
-
-          // 🔥 CALCULAR GANANCIA OPTIMIZADA
-          ganancia = calcularGananciaOptimizada(producto, hayTelefono, stockData, cotizacionActual);
+          
+          // Calcular ganancia respetando moneda
+          ganancia = calcularGananciaRespetandoMoneda(producto, stockData, cotizacionActual);
         } else {
           console.log('❌ No se encontró stock para:', producto.codigo);
           precioCosto = 0;
@@ -242,13 +237,15 @@ export default function BotonGuardarVenta({
         }
       }
 
-      const precioVenta = precioUnitario * cantidad; // Precio total
+      // ✅ PRECIO VENTA RESPETANDO MONEDA ORIGINAL (SIN CONVERSIONES)
+      const precioVentaTotal = precioVentaReal * cantidad;
 
-      console.log('✅ Producto procesado:', {
+      console.log('✅ Producto procesado respetando moneda (SIN conversiones):', {
         codigo: producto.codigo,
         categoria: producto.categoria,
-        precioUnitario,
-        precioVenta,
+        monedaOriginal: producto.moneda,
+        precioUnitario: precioVentaReal,
+        precioVentaTotal,        // ✅ En moneda original, SIN convertir
         precioCosto,
         precioCostoPesos,
         ganancia,
@@ -257,16 +254,17 @@ export default function BotonGuardarVenta({
 
       return {
         ...producto,
-        precioVenta,           // Precio total (unitario * cantidad)
-        precioCosto,           // Costo unitario original
-        precioCostoPesos,      // Costo unitario en ARS
-        ganancia,              // Ganancia calculada correcta
-        moneda: hayTelefono ? (producto.moneda || (producto.categoria === "Teléfono" ? "USD" : "ARS")) : "ARS", // ✅ CORREGIDO: Sin teléfono = TODO ARS
+        precioUnitario: precioVentaReal,
+        precioVenta: precioVentaTotal,      // ✅ En moneda original
+        precioCosto,
+        precioCostoPesos,
+        ganancia,                          // ✅ En moneda original
         cotizacionUsada: cotizacionActual,
       };
     });
   };
 
+  // ✅ FUNCIÓN SIMPLIFICADA: Guardar venta de teléfono
   const guardarVentaTelefono = async (datosVentaTelefono: any, pagoTelefono: any) => {
     if (!rol?.negocioID) return;
 
@@ -278,6 +276,37 @@ export default function BotonGuardarVenta({
     const precioVentaTelefono = precioUnitarioTelefono * cantidad;
     const gananciaTelefono = (precioUnitarioTelefono - precioCostoTelefono) * cantidad;
 
+    // ✅ CALCULAR VALOR DEL TELÉFONO ENTREGADO COMO PARTE DE PAGO (RESPETANDO MONEDA)
+    const valorTelefonoEntregado = Number(datosVentaTelefono.telefonoRecibido?.precioCompra || 0);
+    const monedaTelefonoEntregado = datosVentaTelefono.telefonoRecibido?.moneda || "ARS";
+    
+    console.log('📱 Teléfono entregado como parte de pago:', {
+      valor: valorTelefonoEntregado,
+      moneda: monedaTelefonoEntregado,
+      modelo: datosVentaTelefono.telefonoRecibido?.modelo
+    });
+    
+    // ✅ CALCULAR SALDO A PAGAR (considerando moneda del teléfono entregado)
+    let saldoAPagar = 0;
+    if (monedaTelefonoEntregado === "USD" && moneda === "USD") {
+      // Ambos en USD: resta directa
+      saldoAPagar = precioVentaTelefono - valorTelefonoEntregado;
+    } else if (monedaTelefonoEntregado === "ARS" && moneda === "ARS") {
+      // Ambos en ARS: resta directa
+      saldoAPagar = precioVentaTelefono - valorTelefonoEntregado;
+    } else if (monedaTelefonoEntregado === "USD" && moneda === "ARS") {
+      // Teléfono entregado USD, venta ARS: convertir teléfono a ARS
+      const valorTelefonoEnARS = valorTelefonoEntregado * cotizacion;
+      saldoAPagar = precioVentaTelefono - valorTelefonoEnARS;
+    } else if (monedaTelefonoEntregado === "ARS" && moneda === "USD") {
+      // Teléfono entregado ARS, venta USD: convertir teléfono a USD
+      const valorTelefonoEnUSD = valorTelefonoEntregado / cotizacion;
+      saldoAPagar = precioVentaTelefono - valorTelefonoEnUSD;
+    } else {
+      // Fallback: resta directa
+      saldoAPagar = precioVentaTelefono - valorTelefonoEntregado;
+    }
+    
     // 1. Crear venta en ventaTelefonos
     const ventaTelefonosRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventaTelefonos`), {
       fecha: datosVentaTelefono.fecha,
@@ -295,10 +324,12 @@ export default function BotonGuardarVenta({
       precioCosto: precioCostoTelefono,
       precioVenta: precioVentaTelefono,
       ganancia: gananciaTelefono,
-      moneda: moneda,
+      moneda: datosVentaTelefono.moneda || "USD", // ✅ Respetar moneda seleccionada
       stockID: datosVentaTelefono.stockID || "",
       observaciones: pagoTelefono.observaciones || observaciones || "",
       telefonoRecibido: datosVentaTelefono.telefonoRecibido || null,
+      valorTelefonoEntregado: valorTelefonoEntregado,
+      saldoPendiente: saldoAPagar,
       nroVenta: nroVenta,
       creadoEn: Timestamp.now(),
       id: "",
@@ -323,20 +354,24 @@ export default function BotonGuardarVenta({
           precioCostoPesos: precioCostoTelefono,
           precioVenta: precioVentaTelefono,
           ganancia: gananciaTelefono,
-          moneda: moneda,
+          moneda: datosVentaTelefono.moneda || "USD", // ✅ Respetar moneda seleccionada
           gb: datosVentaTelefono.gb || "",
           codigo: datosVentaTelefono.stockID || datosVentaTelefono.modelo,
           tipo: "telefono",
         },
       ],
       total: precioVentaTelefono,
+      totalARS: datosVentaTelefono.moneda === "ARS" ? precioVentaTelefono : 0,
+      totalUSD: datosVentaTelefono.moneda === "USD" ? precioVentaTelefono : 0,
       gananciaTotal: gananciaTelefono,
       tipo: "telefono",
       observaciones: pagoTelefono.observaciones || observaciones || "",
       timestamp: serverTimestamp(),
-      estado: "pendiente",
-      moneda: moneda,
+      estado: saldoAPagar > 0 ? "pendiente" : "pagado",
+      moneda: datosVentaTelefono.moneda || "USD", // ✅ Respetar moneda seleccionada
       nroVenta: nroVenta,
+      valorTelefonoEntregado: valorTelefonoEntregado,
+      saldoPendiente: saldoAPagar,
     });
 
     // 3. Eliminar del stock
@@ -344,19 +379,27 @@ export default function BotonGuardarVenta({
       await deleteDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos/${datosVentaTelefono.stockID}`));
     }
 
-    // ✅ 4. REGISTRAR PAGOS DUALES PARA TELÉFONOS
+    // ✅ 4. REGISTRAR PAGOS SEPARADOS POR MONEDA (RESPETANDO MONEDA TELÉFONO)
     const pagoARS_Tel = Number(pagoTelefono.monto || 0);
     const pagoUSD_Tel = Number(pagoTelefono.montoUSD || 0);
-    const valorTelefonoEntregado = Number(datosVentaTelefono.telefonoRecibido?.precioCompra || 0);
 
-    // Guardar pago ARS si existe
-    if (pagoARS_Tel > 0 || valorTelefonoEntregado > 0) {
+    console.log('💰 Registrando pagos del teléfono (respetando monedas):', {
+      pagoARS: pagoARS_Tel,
+      pagoUSD: pagoUSD_Tel,
+      valorTelefonoEntregado,
+      monedaTelefonoEntregado,
+      cliente,
+      nroVenta
+    });
+
+    // ✅ GUARDAR PAGO ARS si existe
+    if (pagoARS_Tel > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
         fecha: fecha,
         cliente: cliente,
-        monto: pagoARS_Tel + valorTelefonoEntregado,
+        monto: pagoARS_Tel,
         montoUSD: null,
-        forma: valorTelefonoEntregado > 0 ? "Efectivo + Entrega equipo" : pagoTelefono.formaPago || "Efectivo",
+        forma: pagoTelefono.formaPago || "Efectivo",
         destino: "ventaTelefonos",
         moneda: "ARS",
         cotizacion: cotizacion,
@@ -364,9 +407,10 @@ export default function BotonGuardarVenta({
         timestamp: serverTimestamp(),
         nroVenta: nroVenta,
       });
+      console.log('✅ Pago ARS guardado:', pagoARS_Tel);
     }
 
-    // Guardar pago USD si existe
+    // ✅ GUARDAR PAGO USD si existe
     if (pagoUSD_Tel > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
         fecha: fecha,
@@ -381,6 +425,36 @@ export default function BotonGuardarVenta({
         timestamp: serverTimestamp(),  
         nroVenta: nroVenta,
       });
+      console.log('✅ Pago USD guardado:', pagoUSD_Tel);
+    }
+
+    // ✅ GUARDAR TELÉFONO COMO PARTE DE PAGO (RESPETANDO SU MONEDA)
+    if (valorTelefonoEntregado > 0) {
+      await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+        fecha: fecha,
+        cliente: cliente,
+        monto: monedaTelefonoEntregado === "ARS" ? valorTelefonoEntregado : null,
+        montoUSD: monedaTelefonoEntregado === "USD" ? valorTelefonoEntregado : null,
+        forma: "Entrega equipo",
+        destino: "ventaTelefonos",
+        moneda: monedaTelefonoEntregado, // ✅ RESPETA LA MONEDA ORIGINAL
+        cotizacion: cotizacion,
+        observaciones: `Teléfono entregado: ${datosVentaTelefono.telefonoRecibido?.modelo || ""}`,
+        timestamp: serverTimestamp(),
+        nroVenta: nroVenta,
+        // Detalles del teléfono entregado
+        detallesPago: {
+          tipoEquipo: "telefono",
+          modeloEntregado: datosVentaTelefono.telefonoRecibido?.modelo || "",
+          marcaEntregada: datosVentaTelefono.telefonoRecibido?.marca || "",
+          valorOriginal: valorTelefonoEntregado,
+          monedaOriginal: monedaTelefonoEntregado
+        }
+      });
+      console.log('✅ Teléfono como pago guardado:', {
+        valor: valorTelefonoEntregado,
+        moneda: monedaTelefonoEntregado
+      });
     }
 
     return ventaTelefonosRef.id;
@@ -389,11 +463,9 @@ export default function BotonGuardarVenta({
   const guardarVentaNormal = async () => {
     if (!rol?.negocioID) return;
 
-    console.log('🔍 Guardando venta normal:', {
+    console.log('🔍 Guardando venta normal con monedas separadas:', {
       productos: productos.length,
-      moneda,
-      cotizacion,
-      hayTelefono: productos.some(p => p.categoria === "Teléfono")
+      cotizacion
     });
   
     const nroVenta = await obtenerYSumarNumeroVenta(rol.negocioID);
@@ -402,13 +474,13 @@ export default function BotonGuardarVenta({
     const snap = await getDoc(configRef);
     const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
 
-    // 🔥 OBTENER PRODUCTOS CON COSTOS Y GANANCIAS OPTIMIZADAS
-    const productosConCodigo = await obtenerDatosConCostos(productos.map((p) => ({
+    // ✅ OBTENER PRODUCTOS RESPETANDO MONEDAS ORIGINALES
+    const productosConCodigo = await obtenerDatosRespetandoMonedas(productos.map((p) => ({
       ...p,
       codigo: p.codigo || p.id || "",
     })));
 
-    console.log('✅ Productos procesados:', productosConCodigo);
+    console.log('✅ Productos procesados respetando monedas:', productosConCodigo);
 
     // Descontar del stock
     for (const producto of productosConCodigo) {
@@ -440,31 +512,24 @@ export default function BotonGuardarVenta({
       }
     }
 
-    // Preparar pago
-    const pagoLimpio = {
-      monto: pago?.moneda === "USD" ? null : (pago?.monto || pago?.montoUSD || 0),
-      montoUSD: pago?.moneda === "USD" ? (pago?.montoUSD || pago?.monto || 0) : null,
-      moneda: pago?.moneda || "ARS",
-      forma: pago?.formaPago || "",
-      destino: pago?.destino || "",
-      observaciones: pago?.observaciones || "",
-      cotizacion: pago?.cotizacion || cotizacion,
-    };
-
-    // ✅ CALCULAR TOTALES DUALES
-    const { totalARS, totalUSD } = calcularTotalesCorrectos(productosConCodigo);
+    // ✅ CALCULAR TOTALES SEPARADOS POR MONEDA
+    const { totalARS, totalUSD } = calcularTotalesSeparados(productosConCodigo);
     const gananciaTotal = productosConCodigo.reduce((acc, p) => acc + p.ganancia, 0);
     
-    // Total aproximado para referencia (mantener compatibilidad)
+    // Total aproximado para compatibilidad (convertir USD a ARS)
     const totalAproximado = totalARS + (totalUSD * cotizacion);
 
-    console.log('💰 Totales calculados:', {
+    console.log('💰 Totales separados calculados:', {
       totalARS,
       totalUSD,
       totalAproximado,
       gananciaTotal,
       productos: productosConCodigo.length
     });
+
+    // ✅ PREPARAR PAGOS SEPARADOS
+    const pagoARS = Number(pago?.monto || 0);
+    const pagoUSD = Number(pago?.montoUSD || 0);
 
     // Crear la venta
     const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
@@ -475,34 +540,47 @@ export default function BotonGuardarVenta({
         modelo: p.modelo || "—", 
         color: p.color || "—",
         cantidad: p.cantidad,
-        precioUnitario: p.precioUnitario,
+        precioUnitario: p.precioUnitario,     // ✅ En moneda original
         precioCosto: p.precioCosto,
         precioCostoPesos: p.precioCostoPesos,
-        precioVenta: p.precioVenta,
-        ganancia: p.ganancia,
-        moneda: p.moneda,
+        precioVenta: p.precioVenta,           // ✅ En moneda original 
+        ganancia: p.ganancia,                 // ✅ En moneda original
+        moneda: p.moneda,                     // ✅ USD o ARS según lo elegido
         codigo: p.codigo || p.id || "",
         tipo: p.tipo,
         hoja: p.hoja || "",
+        // ✅ AGREGAR CAMPOS SEPARADOS PARA CLARIDAD
+        precioUnitarioUSD: p.moneda === "USD" ? p.precioUnitario : null,
+        precioUnitarioARS: p.moneda === "ARS" ? p.precioUnitario : null,
+        precioVentaUSD: p.moneda === "USD" ? p.precioVenta : null,
+        precioVentaARS: p.moneda === "ARS" ? p.precioVenta : null,
       })),
       cliente,
       fecha,
       observaciones,
-      pago: pagoLimpio,
-      totalARS,                    // ✅ NUEVO: Total en pesos
-      totalUSD,                    // ✅ NUEVO: Total en dólares  
-      total: totalAproximado,      // ✅ MANTENER: Para compatibilidad
+      pago: {
+        monto: pagoARS || null,
+        montoUSD: pagoUSD || null,
+        moneda: pagoUSD > 0 && pagoARS > 0 ? "DUAL" : pagoUSD > 0 ? "USD" : "ARS",
+        forma: pagoUSD > 0 && pagoARS > 0 ? "Efectivo ARS + USD" : 
+               pagoUSD > 0 ? "Efectivo USD" : 
+               pago?.formaPago || "Efectivo",
+        destino: pago?.destino || "",
+        observaciones: pago?.observaciones || "",
+        cotizacion: cotizacion,
+      },
+      totalARS,                    // ✅ Total en pesos
+      totalUSD,                    // ✅ Total en dólares  
+      total: totalAproximado,      // ✅ Para compatibilidad
       gananciaTotal,
-      moneda: totalUSD > 0 ? "DUAL" : "ARS",     // ✅ NUEVO: Indicar si es dual
+      moneda: totalUSD > 0 && totalARS > 0 ? "DUAL" : totalUSD > 0 ? "USD" : "ARS", // ✅ Detectar tipo
       estado: "pendiente",
       nroVenta,
       timestamp: serverTimestamp(),
     });
 
-    // ✅ GUARDAR PAGOS DUALES (ARS + USD separados)
-    const pagoARS = Number(pago?.monto || 0);
-    const pagoUSD = Number(pago?.montoUSD || 0);
-
+    // ✅ GUARDAR PAGOS SEPARADOS (ARS + USD independientes)
+    
     // Guardar pago en ARS si existe
     if (pagoARS > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
@@ -518,6 +596,7 @@ export default function BotonGuardarVenta({
         timestamp: serverTimestamp(),
         nroVenta: nroVenta,
       });
+      console.log('✅ Pago ARS guardado:', pagoARS);
     }
 
     // Guardar pago en USD si existe
@@ -535,6 +614,7 @@ export default function BotonGuardarVenta({
         timestamp: serverTimestamp(),
         nroVenta: nroVenta,
       });
+      console.log('✅ Pago USD guardado:', pagoUSD);
     }
 
     return ventaRef.id;
@@ -557,7 +637,7 @@ export default function BotonGuardarVenta({
         
         // Si hay otros productos, agregarlos
         if (otrosProductos.length > 0) {
-          const otrosProductosConDatos = await obtenerDatosConCostos(otrosProductos);
+          const otrosProductosConDatos = await obtenerDatosRespetandoMonedas(otrosProductos);
           
           // Descontar del stock
           const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
@@ -618,18 +698,24 @@ export default function BotonGuardarVenta({
               }))
             ];
             
-            // ✅ RECALCULAR TOTALES DUALES
-            const { totalARS: nuevoTotalARS, totalUSD: nuevoTotalUSD } = calcularTotalesCorrectos(productosCompletos);
+            // ✅ RECALCULAR TOTALES SEPARADOS
+            const { totalARS: nuevoTotalARS, totalUSD: nuevoTotalUSD } = calcularTotalesSeparados(productosCompletos);
             const nuevaGananciaTotal = productosCompletos.reduce((acc, p) => acc + p.ganancia, 0);
             const nuevoTotalAproximado = nuevoTotalARS + (nuevoTotalUSD * cotizacion);
+            
+            // ✅ CALCULAR SALDO PENDIENTE CONSIDERANDO TELÉFONO ENTREGADO
+            const valorTelefonoEntregado = datosExistentes.valorTelefonoEntregado || 0;
+            const saldoPendiente = nuevoTotalAproximado - valorTelefonoEntregado;
             
             await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${telefonoID}`), {
               productos: productosCompletos,
               totalARS: nuevoTotalARS,
-              totalUSD: nuevoTotalUSD,
-              total: nuevoTotalAproximado,
+              totalUSD: nuevoTotalUSD,           // ✅ Totales separados
+              total: nuevoTotalAproximado,      // ✅ Total aproximado
               gananciaTotal: nuevaGananciaTotal,
-              moneda: nuevoTotalUSD > 0 ? "DUAL" : "ARS",
+              moneda: nuevoTotalUSD > 0 && nuevoTotalARS > 0 ? "DUAL" : nuevoTotalUSD > 0 ? "USD" : "ARS", // ✅ Detectar tipo
+              saldoPendiente: saldoPendiente,
+              estado: saldoPendiente > 0 ? "pendiente" : "pagado",
             });
           }
         }
@@ -670,7 +756,16 @@ export default function BotonGuardarVenta({
             maxHeight: "40px"
           }}
         >
-          {guardando ? "Guardando..." : "Guardar Venta"}
+          {guardando ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+              Guardando...
+            </>
+          ) : (
+            <>
+              💾 Guardar Venta
+            </>
+          )}
         </button>
       </div>
     </div>

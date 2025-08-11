@@ -688,7 +688,6 @@ export default function TablaVentas({ refrescar }: Props) {
                       const esProductoPrincipal = i === 0;
                       const tieneMultiplesProductos = venta.productos.length > 1;
                       const isEven = ventasFiltradas.indexOf(venta) % 2 === 0;
-                      const hayTelefono = venta.productos.some((prod: any) => prod.categoria === "Teléfono");
                       
                       return (
                         <tr
@@ -798,93 +797,55 @@ export default function TablaVentas({ refrescar }: Props) {
                           </td>
                           
                           {/* Precio */}
-                          <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
-                            <span className="text-xs text-[#2c3e50]">
-                              {(() => {
-                                if (hayTelefono) {
-                                  if (p.categoria === "Teléfono") {
-                                    return `USD ${p.precioUnitario.toLocaleString("es-AR")}`;
-                                  } else {
-                                    return p.moneda?.toUpperCase() === "USD"
-                                      ? `USD ${p.precioUnitario.toLocaleString("es-AR")}`
-                                      : `${p.precioUnitario.toLocaleString("es-AR")}`;
-                                  }
-                                } else {
-                                  if (p.moneda?.toUpperCase() === "USD") {
-                                    return `${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
-                                  } else {
-                                    return `${p.precioUnitario.toLocaleString("es-AR")}`;
-                                  }
-                                }
-                              })()}
-                            </span>
-                          </td>
+                         {/* Precio - SIMPLIFICADO: Siempre mostrar en moneda nativa */}
+<td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
+  <span className="text-xs text-[#2c3e50]">
+    {p.moneda?.toUpperCase() === "USD" 
+      ? `USD $${p.precioUnitario.toLocaleString("es-AR")}`
+      : `$${p.precioUnitario.toLocaleString("es-AR")} ARS`
+    }
+  </span>
+</td>
 
                           {/* Total */}
-                          <td className="p-1 text-center border border-[#bdc3c7]">
-                            <div className="text-xs font-bold text-[#27ae60]">
-                              {(() => {
-                                if (hayTelefono) {
-                                  if (p.categoria === "Teléfono") {
-                                    return `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-                                  } else {
-                                    return p.moneda?.toUpperCase() === "USD"
-                                      ? `USD ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`
-                                      : `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-                                  }
-                                } else {
-                                  if (p.moneda?.toUpperCase() === "USD") {
-                                    return `$ ${((p.precioUSD || p.precioUnitario) * p.cantidad * cotizacion).toLocaleString("es-AR")}`;
-                                  } else {
-                                    return `$ ${(p.precioUnitario * p.cantidad).toLocaleString("es-AR")}`;
-                                  }
-                                }
-                              })()}
-                              <div className="text-xs text-[#7f8c8d] lg:hidden">
-                                {(() => {
-                                  if (hayTelefono) {
-                                    if (p.categoria === "Teléfono") {
-                                      return `@ USD ${p.precioUnitario.toLocaleString("es-AR")}`;
-                                    } else {
-                                      return p.moneda?.toUpperCase() === "USD"
-                                        ? `@ USD ${p.precioUnitario.toLocaleString("es-AR")}`
-                                        : `@ ${p.precioUnitario.toLocaleString("es-AR")}`;
-                                    }
-                                  } else {
-                                    if (p.moneda?.toUpperCase() === "USD") {
-                                      return `@ ${((p.precioUSD || p.precioUnitario) * cotizacion).toLocaleString("es-AR")}`;
-                                    } else {
-                                      return `@ ${p.precioUnitario.toLocaleString("es-AR")}`;
-                                    }
-                                  }
-                                })()}
-                              </div>
-                            </div>
-                          </td>
+                         {/* Total - SIMPLIFICADO: Siempre mostrar en moneda nativa */}
+<td className="p-1 text-center border border-[#bdc3c7]">
+  <div className="text-xs font-bold text-[#27ae60]">
+    {(() => {
+      const total = p.precioUnitario * p.cantidad;
+      return p.moneda?.toUpperCase() === "USD" 
+        ? `USD $${total.toLocaleString("es-AR")}`
+        : `$${total.toLocaleString("es-AR")} ARS`;
+    })()}
+    
+    {/* Precio unitario en vista móvil */}
+    <div className="text-xs text-[#7f8c8d] lg:hidden">
+      @ {p.moneda?.toUpperCase() === "USD" 
+        ? `USD $${p.precioUnitario.toLocaleString("es-AR")}`
+        : `$${p.precioUnitario.toLocaleString("es-AR")} ARS`
+      }
+    </div>
+  </div>
+</td>
 
                           {/* Ganancia */}
-                          <td className="p-1 text-center border border-[#bdc3c7]">
-                            <div className="text-xs font-bold">
-                              {(() => {
-                                const ganancia = p.ganancia || 0;
-                                const esPositiva = ganancia > 0;
-                                const esNegativa = ganancia < 0;
-                                
-                                return (
-                                  <span className={`${
-                                    esPositiva ? 'text-[#27ae60]' : 
-                                    esNegativa ? 'text-[#e74c3c]' : 
-                                    'text-[#7f8c8d]'
-                                  }`}>
-                                    {hayTelefono && p.categoria === "Teléfono" 
-                                      ? `USD ${ganancia.toLocaleString("es-AR")}` 
-                                      : `$ ${ganancia.toLocaleString("es-AR")}`
-                                    }
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          </td>
+                          {/* Ganancia - SIMPLIFICADO: Mostrar en moneda nativa */}
+<td className="p-1 text-center border border-[#bdc3c7]">
+  <div className="text-xs font-bold">
+    {(() => {
+      const ganancia = p.ganancia || 0;
+      const colorClass = ganancia > 0 ? 'text-[#27ae60]' : 
+                       ganancia < 0 ? 'text-[#e74c3c]' : 
+                       'text-[#7f8c8d]';
+      
+      const montoFormateado = p.moneda?.toUpperCase() === "USD" 
+        ? `USD $${ganancia.toLocaleString("es-AR")}`
+        : `$${ganancia.toLocaleString("es-AR")} ARS`;
+      
+      return <span className={colorClass}>{montoFormateado}</span>;
+    })()}
+  </div>
+</td>
 
                           {/* Acciones */}
                           <td className="p-1 text-center border border-[#bdc3c7]">

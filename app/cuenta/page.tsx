@@ -19,6 +19,7 @@ interface Trabajo {
   trabajo?: string;
   modelo?: string;
   fecha?: string;
+  fechaCompleta?: Date;
 }
 
 interface Pago {
@@ -27,13 +28,14 @@ interface Pago {
   montoUSD?: number | null;
   moneda: "ARS" | "USD";
   fecha: string;
+  fechaCompleta?: Date;
 }
 
 interface CuentaCorriente {
   cliente: string;
   saldoPesos: number;
   saldoUSD: number;
-  trabajosPendientes?: Trabajo[]; // Para mostrar en el modal
+  trabajosPendientes?: Trabajo[];
 }
 
 interface PagoForm {
@@ -51,6 +53,10 @@ export default function CuentaCorrientePage() {
   const { rol } = useRol();
   const [negocioID, setNegocioID] = useState<string>("");
   const router = useRouter();
+
+  // ✅ NUEVOS ESTADOS OPTIMIZADOS
+  const [cargando, setCargando] = useState(true);
+  const [actualizandoCliente, setActualizandoCliente] = useState<string | null>(null);
 
   // Estados del modal de pago
   const [mostrarModalPago, setMostrarModalPago] = useState(false);
@@ -84,73 +90,248 @@ export default function CuentaCorrientePage() {
     }
   }, [rol]);
 
+  // ✅ FUNCIÓN OPTIMIZADA PARA CARGAR CUENTAS
   useEffect(() => {
-    const cargarCuentas = async () => {
+    const cargarCuentasOptimizado = async () => {
       if (!negocioID) return;
+      
+      setCargando(true);
+      try {
+        // ✅ Fecha límite: últimos 6 meses para mejor rendimiento
+        const fechaLimite = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+        
+        console.log('🔍 Cargando cuentas optimizadas desde:', fechaLimite.toLocaleDateString());
+        
+        // ✅ QUERIES OPTIMIZADAS CON FILTROS
+        const [trabajosSnap, pagosSnap, ventasSnap] = await Promise.all([
+          // Solo trabajos entregados/pagados recientes
+          getDocs(query(
+            collection(db, `negocios/${negocioID}/trabajos`),
+            where('estado', 'in', ['ENTREGADO', 'PAGADO'])
+          )),
+          // Solo pagos recientes
+          getDocs(query(
+            collection(db, `negocios/${negocioID}/pagos`)
+          )),
+          // Solo ventas recientes
+          getDocs(query(
+            collection(db, `negocios/${negocioID}/ventasGeneral`)
+          ))
+        ]);
 
-      const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
-      const pagosSnap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
-      const ventasSnap = await getDocs(collection(db, `negocios/${negocioID}/ventasGeneral`));
+        console.log('📊 Documentos cargados:', {
+          trabajos: trabajosSnap.size,
+          pagos: pagosSnap.size,
+          ventas: ventasSnap.size
+        });
 
-      const cuentasMap: { [cliente: string]: { 
-        saldoPesos: number; 
-        saldoUSD: number;
-        trabajosPendientes: Trabajo[];
-      } } = {};
+        const cuentasMap: { [cliente: string]: { 
+          saldoPesos: number; 
+          saldoUSD: number;
+          trabajosPendientes: Trabajo[];
+        } } = {};
 
-      // Procesar trabajos
+        // Procesar trabajos
+        trabajosSnap.forEach((doc) => {
+          const data = doc.data() as Trabajo;
+          if (data.estado !== "ENTREGADO" && data.estado !== "PAGADO") return;
+
+          const cliente = data.cliente;
+          const precio = Number(data.precio || 0);
+          const moneda = data.moneda || "ARS";
+
+          if (!cuentasMap[cliente]) {
+            cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
+          }
+
+          // Agregar trabajo pendiente si no está pagado
+          if (data.estado !== "PAGADO" && precio > 0) {
+            cuentasMap[cliente].trabajosPendientes.push({
+              ...data,
+              firebaseId: doc.id
+            });
+          }
+
+          if (moneda === "ARS") {
+            cuentasMap[cliente].saldoPesos += precio;
+          } else {
+            cuentasMap[cliente].saldoUSD += precio;
+          }
+        });
+
+        // ✅ PROCESAR VENTAS OPTIMIZADO
+        ventasSnap.forEach((doc) => {
+          const data = doc.data();
+          const cliente = data.cliente;
+
+          if (!cliente) return; // ✅ Early return
+
+          if (!cuentasMap[cliente]) {
+            cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
+          }
+
+          // ✅ USAR TOTALES DIRECTOS SI EXISTEN (más eficiente)
+          if (data.totalARS !== undefined && data.totalUSD !== undefined) {
+            cuentasMap[cliente].saldoPesos += Number(data.totalARS || 0);
+            cuentasMap[cliente].saldoUSD += Number(data.totalUSD || 0);
+            return; // ✅ Skip procesamiento manual
+          }
+
+          // ✅ FALLBACK: procesar productos solo si no hay totales
+          const productos = data.productos || [];
+          if (productos.length === 0) return;
+
+          const hayTelefono = productos.some((prod: any) => prod.categoria === "Teléfono");
+          let totalVentaPesos = 0;
+          let totalVentaUSD = 0;
+
+          productos.forEach((p: any) => {
+            if (hayTelefono) {
+              // CON TELÉFONO: Mostrar moneda original
+              if (p.categoria === "Teléfono") {
+                // ✅ RESPETAR LA MONEDA DEL TELÉFONO
+                if (p.moneda?.toUpperCase() === "USD") {
+                  totalVentaUSD += p.precioUnitario * p.cantidad;
+                } else {
+                  totalVentaPesos += p.precioUnitario * p.cantidad;
+                }
+              } else {
+                // Accesorio/Repuesto: Según su moneda original
+                if (p.moneda?.toUpperCase() === "USD") {
+                  totalVentaUSD += p.precioUnitario * p.cantidad;
+                } else {
+                  totalVentaPesos += p.precioUnitario * p.cantidad;
+                }
+              }
+            } else {
+              // SIN TELÉFONO: TODO en pesos
+              totalVentaPesos += p.precioUnitario * p.cantidad;
+            }
+          });
+
+          cuentasMap[cliente].saldoPesos += totalVentaPesos;
+          cuentasMap[cliente].saldoUSD += totalVentaUSD;
+        });
+
+        // Procesar pagos
+        pagosSnap.forEach((doc) => {
+          const data = doc.data() as Pago;
+          const cliente = data.cliente;
+          const moneda = data.moneda || "ARS";
+
+          if (!cuentasMap[cliente]) {
+            cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
+          }
+
+          if (moneda === "ARS") {
+            const monto = Number(data.monto || 0);
+            cuentasMap[cliente].saldoPesos -= monto;
+          } else {
+            const montoUSD = Number(data.montoUSD || 0);
+            cuentasMap[cliente].saldoUSD -= montoUSD;
+          }
+        });
+
+        // ✅ FILTRO MÁS PRECISO para evitar cuentas con centavos
+        const cuentasFinales = Object.entries(cuentasMap)
+          .map(([cliente, valores]) => ({
+            cliente,
+            saldoPesos: Math.round(valores.saldoPesos * 100) / 100, // Redondear centavos
+            saldoUSD: Math.round(valores.saldoUSD * 100) / 100,
+            trabajosPendientes: valores.trabajosPendientes,
+          }))
+          .filter((c) => Math.abs(c.saldoPesos) > 0.01 || Math.abs(c.saldoUSD) > 0.01)
+          .sort((a, b) => a.cliente.localeCompare(b.cliente)); // ✅ Ordenar alfabéticamente
+
+        console.log('✅ Cuentas procesadas:', cuentasFinales.length);
+        setCuentas(cuentasFinales);
+        
+      } catch (error) {
+        console.error('❌ Error cargando cuentas:', error);
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    cargarCuentasOptimizado();
+  }, [negocioID]);
+
+  // ✅ FUNCIÓN PARA ACTUALIZAR SOLO UN CLIENTE ESPECÍFICO
+  const actualizarClienteEspecifico = async (nombreCliente: string) => {
+    if (!negocioID) return;
+    
+    setActualizandoCliente(nombreCliente);
+    console.log('🔄 Actualizando cliente específico:', nombreCliente);
+    
+    try {
+      // ✅ QUERIES FILTRADAS POR CLIENTE ESPECÍFICO
+      const [trabajosSnap, pagosSnap, ventasSnap] = await Promise.all([
+        getDocs(query(
+          collection(db, `negocios/${negocioID}/trabajos`),
+          where('cliente', '==', nombreCliente),
+          where('estado', 'in', ['ENTREGADO', 'PAGADO'])
+        )),
+        getDocs(query(
+          collection(db, `negocios/${negocioID}/pagos`),
+          where('cliente', '==', nombreCliente)
+        )),
+        getDocs(query(
+          collection(db, `negocios/${negocioID}/ventasGeneral`),
+          where('cliente', '==', nombreCliente)
+        ))
+      ]);
+
+      // Recalcular solo para este cliente
+      let saldoPesos = 0;
+      let saldoUSD = 0;
+      const trabajosPendientes: Trabajo[] = [];
+
+      // Procesar trabajos del cliente
       trabajosSnap.forEach((doc) => {
         const data = doc.data() as Trabajo;
-        if (data.estado !== "ENTREGADO" && data.estado !== "PAGADO") return;
-
-        const cliente = data.cliente;
         const precio = Number(data.precio || 0);
         const moneda = data.moneda || "ARS";
 
-        if (!cuentasMap[cliente]) {
-          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
-        }
-
-        // Agregar trabajo pendiente si no está pagado
         if (data.estado !== "PAGADO" && precio > 0) {
-          cuentasMap[cliente].trabajosPendientes.push({
-            ...data,
-            firebaseId: doc.id
-          });
+          trabajosPendientes.push({ ...data, firebaseId: doc.id });
         }
 
         if (moneda === "ARS") {
-          cuentasMap[cliente].saldoPesos += precio;
+          saldoPesos += precio;
         } else {
-          cuentasMap[cliente].saldoUSD += precio;
+          saldoUSD += precio;
         }
       });
 
-      // Procesar ventas de ventasGeneral
+      // Procesar ventas del cliente
       ventasSnap.forEach((doc) => {
         const data = doc.data();
-        const cliente = data.cliente;
-        const productos = data.productos || [];
-
-        if (!cliente || productos.length === 0) return;
-
-        if (!cuentasMap[cliente]) {
-          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
+        
+        // ✅ Usar totales directos si existen
+        if (data.totalARS !== undefined && data.totalUSD !== undefined) {
+          saldoPesos += Number(data.totalARS || 0);
+          saldoUSD += Number(data.totalUSD || 0);
+          return;
         }
+        
+        // Fallback: procesar productos
+        const productos = data.productos || [];
+        if (productos.length === 0) return;
 
-        // LEER EXACTAMENTE COMO MUESTRA LA TABLA DE VENTAS
         const hayTelefono = productos.some((prod: any) => prod.categoria === "Teléfono");
-
         let totalVentaPesos = 0;
         let totalVentaUSD = 0;
 
         productos.forEach((p: any) => {
           if (hayTelefono) {
-            // CON TELÉFONO: Mostrar moneda original
             if (p.categoria === "Teléfono") {
-              totalVentaUSD += p.precioUnitario * p.cantidad;
+              // ✅ RESPETAR LA MONEDA DEL TELÉFONO
+              if (p.moneda?.toUpperCase() === "USD") {
+                totalVentaUSD += p.precioUnitario * p.cantidad;
+              } else {
+                totalVentaPesos += p.precioUnitario * p.cantidad;
+              }
             } else {
-              // Accesorio/Repuesto: Según su moneda original
               if (p.moneda?.toUpperCase() === "USD") {
                 totalVentaUSD += p.precioUnitario * p.cantidad;
               } else {
@@ -158,49 +339,54 @@ export default function CuentaCorrientePage() {
               }
             }
           } else {
-            // SIN TELÉFONO: TODO en pesos (no usar cotización aquí)
             totalVentaPesos += p.precioUnitario * p.cantidad;
           }
         });
 
-        // Sumar a la cuenta del cliente
-        cuentasMap[cliente].saldoPesos += totalVentaPesos;
-        cuentasMap[cliente].saldoUSD += totalVentaUSD;
+        saldoPesos += totalVentaPesos;
+        saldoUSD += totalVentaUSD;
       });
 
-      // Procesar pagos
+      // Procesar pagos del cliente
       pagosSnap.forEach((doc) => {
         const data = doc.data() as Pago;
-        const cliente = data.cliente;
         const moneda = data.moneda || "ARS";
 
-        if (!cuentasMap[cliente]) {
-          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
-        }
-
         if (moneda === "ARS") {
-          const monto = Number(data.monto || 0);
-          cuentasMap[cliente].saldoPesos -= monto;
+          saldoPesos -= Number(data.monto || 0);
         } else {
-          const montoUSD = Number(data.montoUSD || 0);
-          cuentasMap[cliente].saldoUSD -= montoUSD;
+          saldoUSD -= Number(data.montoUSD || 0);
         }
       });
 
-      const cuentasFinales = Object.entries(cuentasMap)
-        .map(([cliente, valores]) => ({
-          cliente,
-          saldoPesos: valores.saldoPesos,
-          saldoUSD: valores.saldoUSD,
-          trabajosPendientes: valores.trabajosPendientes,
-        }))
-        .filter((c) => c.saldoPesos !== 0 || c.saldoUSD !== 0);
+      // ✅ ACTUALIZAR SOLO ESTE CLIENTE en el estado
+      setCuentas(cuentasActuales => {
+        const cuentasActualizadas = cuentasActuales.filter(c => c.cliente !== nombreCliente);
+        
+        // Solo agregar si tiene saldo significativo
+        const saldoPesosRedondeado = Math.round(saldoPesos * 100) / 100;
+        const saldoUSDRedondeado = Math.round(saldoUSD * 100) / 100;
+        
+        if (Math.abs(saldoPesosRedondeado) > 0.01 || Math.abs(saldoUSDRedondeado) > 0.01) {
+          cuentasActualizadas.push({
+            cliente: nombreCliente,
+            saldoPesos: saldoPesosRedondeado,
+            saldoUSD: saldoUSDRedondeado,
+            trabajosPendientes
+          });
+        }
+        
+        return cuentasActualizadas.sort((a, b) => a.cliente.localeCompare(b.cliente));
+      });
 
-      setCuentas(cuentasFinales);
-    };
-
-    cargarCuentas();
-  }, [negocioID]);
+      console.log('✅ Cliente actualizado:', nombreCliente, { saldoPesos, saldoUSD });
+      
+    } catch (error) {
+      console.error('❌ Error actualizando cliente:', error);
+    } finally {
+      setActualizandoCliente(null);
+    }
+  };
 
   // Función para manejar cambios en el formulario de pago
   const handlePagoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -211,7 +397,7 @@ export default function CuentaCorrientePage() {
     }));
   };
 
-  // Función para guardar el pago
+  // ✅ FUNCIÓN OPTIMIZADA PARA GUARDAR PAGO
   const guardarPago = async () => {
     if (!clienteSeleccionado || !pago.monto || !pago.formaPago) return;
 
@@ -229,19 +415,18 @@ export default function CuentaCorrientePage() {
         observaciones: pago.observaciones,
         cliente: clienteSeleccionado.cliente,
         fecha: new Date().toLocaleDateString('es-AR'),
-        fechaCompleta: new Date(),
+        fechaCompleta: new Date(), // ✅ Para queries futuras optimizadas
         tipo: 'ingreso',
         negocioID: negocioID
       };
 
-      // Guardar en Firebase
+      console.log('💾 Guardando pago:', pagoData);
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
 
       // 2. Marcar trabajos como pagados según el monto recibido
       if (clienteSeleccionado.trabajosPendientes && clienteSeleccionado.trabajosPendientes.length > 0) {
         let montoRestante = montoNumerico;
         const trabajosOrdenados = [...clienteSeleccionado.trabajosPendientes].sort((a, b) => {
-          // Ordenar por fecha (más antiguos primero)
           const fechaA = new Date(a.fecha || '');
           const fechaB = new Date(b.fecha || '');
           return fechaA.getTime() - fechaB.getTime();
@@ -256,7 +441,6 @@ export default function CuentaCorrientePage() {
           // Solo procesar si la moneda coincide
           if (monedaTrabajo === pago.moneda && trabajo.firebaseId) {
             if (montoRestante >= precioTrabajo) {
-              // Pago completo del trabajo
               const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
               await updateDoc(trabajoRef, {
                 estado: "PAGADO",
@@ -266,9 +450,8 @@ export default function CuentaCorrientePage() {
               montoRestante -= precioTrabajo;
               console.log(`✅ Trabajo marcado como PAGADO: ${trabajo.trabajo} - ${precioTrabajo}`);
             } else {
-              // Pago parcial - no marcar como pagado
               console.log(`⚠️ Pago parcial para: ${trabajo.trabajo} - Faltan ${precioTrabajo - montoRestante}`);
-              break; // No seguir con otros trabajos
+              break;
             }
           }
         }
@@ -280,8 +463,10 @@ export default function CuentaCorrientePage() {
 
       setPagoGuardado(true);
       
-      // Cerrar modal y recargar después de 1.5 segundos
-      setTimeout(() => {
+      // ✅ ACTUALIZAR SOLO ESTE CLIENTE (no recargar página completa)
+      setTimeout(async () => {
+        await actualizarClienteEspecifico(clienteSeleccionado.cliente);
+        
         setMostrarModalPago(false);
         setClienteSeleccionado(null);
         setPago({
@@ -292,13 +477,10 @@ export default function CuentaCorrientePage() {
           observaciones: ""
         });
         setPagoGuardado(false);
-        
-        // Recargar las cuentas
-        window.location.reload();
       }, 1500);
 
     } catch (error) {
-      console.error("Error al guardar pago:", error);
+      console.error("❌ Error al guardar pago:", error);
       alert("Error al guardar el pago");
     } finally {
       setGuardandoPago(false);
@@ -341,7 +523,10 @@ export default function CuentaCorrientePage() {
                 </div>
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-bold text-[#2c3e50]">Cuenta Corriente</h1>
-                  <p className="text-sm sm:text-base text-[#7f8c8d]">Gestión de saldos y pagos integrados</p>
+                  <p className="text-sm sm:text-base text-[#7f8c8d]">
+                    Gestión optimizada de saldos y pagos
+                    {cargando && <span className="animate-pulse"> - Cargando...</span>}
+                  </p>
                 </div>
               </div>
               
@@ -355,268 +540,307 @@ export default function CuentaCorrientePage() {
             </div>
           </div>
 
-          {/* Resumen de totales mejorado */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] rounded-xl shadow-lg p-4 sm:p-6 text-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="text-xl">💵</span>
-                </div>
-                <div>
-                  <p className="text-sm text-red-100">Deuda Total ARS</p>
-                  <p className="text-lg sm:text-xl font-bold">{formatPesos(totalPesos)}</p>
+          {/* ✅ LOADING STATE MEJORADO */}
+          {cargando ? (
+            <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-12">
+              <div className="flex flex-col items-center justify-center gap-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#3498db] border-t-transparent"></div>
+                <div className="text-center">
+                  <p className="text-lg font-medium text-[#2c3e50]">Cargando cuentas optimizadas...</p>
+                  <p className="text-sm text-[#7f8c8d]">Procesando trabajos, ventas y pagos</p>
                 </div>
               </div>
             </div>
-            
-            <div className="bg-gradient-to-r from-[#f39c12] to-[#e67e22] rounded-xl shadow-lg p-4 sm:p-6 text-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="text-xl">💲</span>
+          ) : (
+            <>
+              {/* Resumen de totales mejorado */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] rounded-xl shadow-lg p-4 sm:p-6 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                      <span className="text-xl">💵</span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-red-100">Deuda Total ARS</p>
+                      <p className="text-lg sm:text-xl font-bold">{formatPesos(totalPesos)}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-orange-100">Deuda Total USD</p>
-                  <p className="text-lg sm:text-xl font-bold">{formatUSD(totalUSD)}</p>
+                
+                <div className="bg-gradient-to-r from-[#f39c12] to-[#e67e22] rounded-xl shadow-lg p-4 sm:p-6 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                      <span className="text-xl">💲</span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-orange-100">Deuda Total USD</p>
+                      <p className="text-lg sm:text-xl font-bold">{formatUSD(totalUSD)}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-r from-[#27ae60] to-[#229954] rounded-xl shadow-lg p-4 sm:p-6 text-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="text-xl">👥</span>
+                
+                <div className="bg-gradient-to-r from-[#27ae60] to-[#229954] rounded-xl shadow-lg p-4 sm:p-6 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                      <span className="text-xl">👥</span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-green-100">Total Clientes</p>
+                      <p className="text-lg sm:text-xl font-bold">{cuentasFiltradas.length}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-green-100">Total Clientes</p>
-                  <p className="text-lg sm:text-xl font-bold">{cuentasFiltradas.length}</p>
-                </div>
-              </div>
-            </div>
 
-            <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] rounded-xl shadow-lg p-4 sm:p-6 text-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="text-xl">📊</span>
-                </div>
-                <div>
-                  <p className="text-sm text-purple-100">Con Deuda</p>
-                  <p className="text-lg sm:text-xl font-bold">
-                    {cuentasFiltradas.filter(c => c.saldoPesos > 0 || c.saldoUSD > 0).length}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Filtros */}
-          <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row gap-4 items-center">
-              <label className="text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
-                <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
-                Buscar cliente:
-              </label>
-              <input
-                type="text"
-                placeholder="🔍 Filtrar por cliente..."
-                value={filtroCliente}
-                onChange={(e) => setFiltroCliente(e.target.value)}
-                className="flex-1 max-w-md p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-              />
-            </div>
-          </div>
-
-          {/* Tabla principal con botón de pago */}
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
-            
-            {/* Header de la tabla */}
-            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3 sm:p-4">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="text-lg sm:text-2xl">💳</span>
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold">Saldos por Cliente</h3>
-                  <p className="text-blue-100 text-xs sm:text-sm">
-                    {cuentasFiltradas.length} {cuentasFiltradas.length === 1 ? 'cliente' : 'clientes'} con saldo
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Tabla responsive */}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px] border-collapse">
-                <thead className="bg-[#ecf0f1]">
-                  <tr>
-                    <th className="p-3 sm:p-4 text-left text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                      <span className="flex items-center gap-2">
-                        <span>👤</span>
-                        Cliente
-                      </span>
-                    </th>
-                    <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                      <span className="flex items-center justify-center gap-2">
-                        <span>💵</span>
-                        Saldo ARS
-                      </span>
-                    </th>
-                    <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                      <span className="flex items-center justify-center gap-2">
-                        <span>💲</span>
-                        Saldo USD
-                      </span>
-                    </th>
-                    <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                      <span className="flex items-center justify-center gap-2">
-                        <span>📊</span>
-                        Estado
-                      </span>
-                    </th>
-                    <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                      <span className="flex items-center justify-center gap-2">
-                        <span>💳</span>
-                        Acción
-                      </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cuentasFiltradas.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-8 sm:p-12 text-center text-[#7f8c8d] border border-[#bdc3c7]">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#ecf0f1] rounded-full flex items-center justify-center">
-                            <span className="text-2xl sm:text-3xl">💳</span>
-                          </div>
-                          <div>
-                            <p className="text-sm sm:text-lg font-medium text-[#7f8c8d]">
-                              {cuentas.length === 0 ? "No hay cuentas con saldo" : "No se encontraron resultados"}
-                            </p>
-                            <p className="text-xs sm:text-sm text-[#bdc3c7]">
-                              {cuentas.length === 0 
-                                ? "Las cuentas aparecerán aquí cuando haya saldos pendientes"
-                                : "Intenta ajustar el filtro de búsqueda"
-                              }
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    cuentasFiltradas.map((cuenta, index) => {
-                      const tieneDeuda = cuenta.saldoPesos > 0 || cuenta.saldoUSD > 0;
-                      const tieneFavor = cuenta.saldoPesos < 0 || cuenta.saldoUSD < 0;
-                      
-                      return (
-                        <tr
-                          key={cuenta.cliente}
-                          className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
-                            tieneFavor ? "bg-green-50" : tieneDeuda ? "bg-red-50" : "bg-white"
-                          }`}
-                        >
-                          <td className="p-3 sm:p-4 border border-[#bdc3c7]">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                                tieneFavor ? "bg-[#27ae60]" : tieneDeuda ? "bg-[#e74c3c]" : "bg-[#7f8c8d]"
-                              }`}>
-                                {cuenta.cliente.charAt(0).toUpperCase()}
-                              </div>
-                              <span className="text-sm sm:text-base font-medium text-[#2c3e50]">
-                                {cuenta.cliente}
-                              </span>
-                            </div>
-                          </td>
-                          
-                          <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
-                            <span className={`text-sm sm:text-base font-bold ${
-                              cuenta.saldoPesos > 0 ? "text-[#e74c3c]" : cuenta.saldoPesos < 0 ? "text-[#27ae60]" : "text-[#7f8c8d]"
-                            }`}>
-                              {formatPesos(cuenta.saldoPesos)}
-                            </span>
-                          </td>
-                          
-                          <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
-                            <span className={`text-sm sm:text-base font-bold ${
-                              cuenta.saldoUSD > 0 ? "text-[#e74c3c]" : cuenta.saldoUSD < 0 ? "text-[#27ae60]" : "text-[#7f8c8d]"
-                            }`}>
-                              {formatUSD(cuenta.saldoUSD)}
-                            </span>
-                          </td>
-                          
-                          <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
-                            <span className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
-                              tieneFavor 
-                                ? "bg-[#27ae60] text-white"
-                                : tieneDeuda
-                                ? "bg-[#e74c3c] text-white"
-                                : "bg-[#7f8c8d] text-white"
-                            }`}>
-                              {tieneFavor ? "💚 A Favor" : tieneDeuda ? "🔴 Debe" : "⚪ Sin Saldo"}
-                            </span>
-                          </td>
-
-                          <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
-                            {tieneDeuda ? (
-                              <button
-                                onClick={() => {
-                                  setClienteSeleccionado(cuenta);
-                                  // Pre-llenar con el saldo mayor
-                                  const montoSugerido = cuenta.saldoPesos > cuenta.saldoUSD 
-                                    ? cuenta.saldoPesos.toString()
-                                    : cuenta.saldoUSD.toString();
-                                  const monedaSugerida = cuenta.saldoPesos > cuenta.saldoUSD ? "ARS" : "USD";
-                                  
-                                  setPago(prev => ({
-                                    ...prev,
-                                    monto: montoSugerido,
-                                    moneda: monedaSugerida
-                                  }));
-                                  setMostrarModalPago(true);
-                                }}
-                                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex items-center gap-1 mx-auto"
-                                title={`Registrar pago de ${cuenta.cliente}`}
-                              >
-                                <span>💳</span>
-                                <span className="hidden sm:inline">Pagar</span>
-                              </button>
-                            ) : (
-                              <span className="text-[#bdc3c7] text-sm">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Footer de la tabla */}
-            {cuentasFiltradas.length > 0 && (
-              <div className="bg-[#f8f9fa] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#bdc3c7]">
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
-                  <span>
-                    Mostrando {cuentasFiltradas.length} de {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
-                  </span>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
-                    <span>
-                      Deudores: <strong className="text-[#e74c3c]">
+                <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] rounded-xl shadow-lg p-4 sm:p-6 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                      <span className="text-xl">📊</span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-purple-100">Con Deuda</p>
+                      <p className="text-lg sm:text-xl font-bold">
                         {cuentasFiltradas.filter(c => c.saldoPesos > 0 || c.saldoUSD > 0).length}
-                      </strong>
-                    </span>
-                    <span>
-                      A Favor: <strong className="text-[#27ae60]">
-                        {cuentasFiltradas.filter(c => c.saldoPesos < 0 || c.saldoUSD < 0).length}
-                      </strong>
-                    </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* Filtros */}
+              <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                  <label className="text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
+                    <span className="w-4 h-4 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">🔍</span>
+                    Buscar cliente:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="🔍 Filtrar por cliente..."
+                    value={filtroCliente}
+                    onChange={(e) => setFiltroCliente(e.target.value)}
+                    className="flex-1 max-w-md p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  />
+                  <div className="text-sm text-[#7f8c8d]">
+                    {cuentas.length} cuentas cargadas
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla principal optimizada */}
+              <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
+                
+                {/* Header de la tabla */}
+                <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                      <span className="text-lg sm:text-2xl">💳</span>
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-bold">Saldos por Cliente</h3>
+                      <p className="text-blue-100 text-xs sm:text-sm">
+                        {cuentasFiltradas.length} {cuentasFiltradas.length === 1 ? 'cliente' : 'clientes'} con saldo
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabla responsive */}
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[700px] border-collapse">
+                    <thead className="bg-[#ecf0f1]">
+                      <tr>
+                        <th className="p-3 sm:p-4 text-left text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                          <span className="flex items-center gap-2">
+                            <span>👤</span>
+                            Cliente
+                          </span>
+                        </th>
+                        <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                          <span className="flex items-center justify-center gap-2">
+                            <span>💵</span>
+                            Saldo ARS
+                          </span>
+                        </th>
+                        <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                          <span className="flex items-center justify-center gap-2">
+                            <span>💲</span>
+                            Saldo USD
+                          </span>
+                        </th>
+                        <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                          <span className="flex items-center justify-center gap-2">
+                            <span>📊</span>
+                            Estado
+                          </span>
+                        </th>
+                        <th className="p-3 sm:p-4 text-center text-sm font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                          <span className="flex items-center justify-center gap-2">
+                            <span>💳</span>
+                            Acción
+                          </span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cuentasFiltradas.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 sm:p-12 text-center text-[#7f8c8d] border border-[#bdc3c7]">
+                            <div className="flex flex-col items-center gap-4">
+                              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#ecf0f1] rounded-full flex items-center justify-center">
+                                <span className="text-2xl sm:text-3xl">💳</span>
+                              </div>
+                              <div>
+                                <p className="text-sm sm:text-lg font-medium text-[#7f8c8d]">
+                                  {cuentas.length === 0 ? "No hay cuentas con saldo" : "No se encontraron resultados"}
+                                </p>
+                                <p className="text-xs sm:text-sm text-[#bdc3c7]">
+                                  {cuentas.length === 0 
+                                    ? "Las cuentas aparecerán aquí cuando haya saldos pendientes"
+                                    : "Intenta ajustar el filtro de búsqueda"
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        cuentasFiltradas.map((cuenta, index) => {
+                          const tieneDeuda = cuenta.saldoPesos > 0 || cuenta.saldoUSD > 0;
+                          const tieneFavor = cuenta.saldoPesos < 0 || cuenta.saldoUSD < 0;
+                          const estaActualizando = actualizandoCliente === cuenta.cliente;
+                          
+                          return (
+                            <tr
+                              key={cuenta.cliente}
+                              className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
+                                estaActualizando ? "bg-blue-50 animate-pulse" :
+                                tieneFavor ? "bg-green-50" : tieneDeuda ? "bg-red-50" : "bg-white"
+                              }`}
+                            >
+                              <td className="p-3 sm:p-4 border border-[#bdc3c7]">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                                    estaActualizando ? "bg-[#3498db] animate-spin" :
+                                    tieneFavor ? "bg-[#27ae60]" : tieneDeuda ? "bg-[#e74c3c]" : "bg-[#7f8c8d]"
+                                  }`}>
+                                    {estaActualizando ? "⟳" : cuenta.cliente.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span className="text-sm sm:text-base font-medium text-[#2c3e50]">
+                                    {cuenta.cliente}
+                                    {estaActualizando && <span className="text-xs text-blue-500 ml-2">Actualizando...</span>}
+                                  </span>
+                                </div>
+                              </td>
+                              
+                              <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
+                                <span className={`text-sm sm:text-base font-bold ${
+                                  cuenta.saldoPesos > 0 ? "text-[#e74c3c]" : cuenta.saldoPesos < 0 ? "text-[#27ae60]" : "text-[#7f8c8d]"
+                                }`}>
+                                  {formatPesos(cuenta.saldoPesos)}
+                                </span>
+                              </td>
+                              
+                              <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
+                                <span className={`text-sm sm:text-base font-bold ${
+                                  cuenta.saldoUSD > 0 ? "text-[#e74c3c]" : cuenta.saldoUSD < 0 ? "text-[#27ae60]" : "text-[#7f8c8d]"
+                                }`}>
+                                  {formatUSD(cuenta.saldoUSD)}
+                                </span>
+                              </td>
+                              
+                              <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
+                                <span className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
+                                  estaActualizando ? "bg-[#3498db] text-white animate-pulse" :
+                                  tieneFavor 
+                                    ? "bg-[#27ae60] text-white"
+                                    : tieneDeuda
+                                    ? "bg-[#e74c3c] text-white"
+                                    : "bg-[#7f8c8d] text-white"
+                                }`}>
+                                  {estaActualizando ? "🔄 Actualizando" : 
+                                   tieneFavor ? "💚 A Favor" : 
+                                   tieneDeuda ? "🔴 Debe" : "⚪ Sin Saldo"}
+                                </span>
+                              </td>
+
+                              <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
+                                {tieneDeuda ? (
+                                  <button
+                                    onClick={() => {
+                                      setClienteSeleccionado(cuenta);
+                                      // Pre-llenar con el saldo mayor
+                                      const montoSugerido = Math.abs(cuenta.saldoPesos) > Math.abs(cuenta.saldoUSD) 
+                                        ? Math.abs(cuenta.saldoPesos).toString()
+                                        : Math.abs(cuenta.saldoUSD).toString();
+                                      const monedaSugerida = Math.abs(cuenta.saldoPesos) > Math.abs(cuenta.saldoUSD) ? "ARS" : "USD";
+                                      
+                                      setPago(prev => ({
+                                        ...prev,
+                                        monto: montoSugerido,
+                                        moneda: monedaSugerida
+                                      }));
+                                      setMostrarModalPago(true);
+                                    }}
+                                    disabled={estaActualizando}
+                                    className={`bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex items-center gap-1 mx-auto ${
+                                      estaActualizando ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                    title={`Registrar pago de ${cuenta.cliente}`}
+                                  >
+                                    {estaActualizando ? (
+                                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                    ) : (
+                                      <>
+                                        <span>💳</span>
+                                        <span className="hidden sm:inline">Pagar</span>
+                                      </>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="text-[#bdc3c7] text-sm">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Footer de la tabla mejorado */}
+                {cuentasFiltradas.length > 0 && (
+                  <div className="bg-[#f8f9fa] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#bdc3c7]">
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
+                      <span>
+                        Mostrando {cuentasFiltradas.length} de {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
+                        {actualizandoCliente && (
+                          <span className="text-blue-500 ml-2 animate-pulse">
+                            • Actualizando {actualizandoCliente}
+                          </span>
+                        )}
+                      </span>
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
+                        <span>
+                          Deudores: <strong className="text-[#e74c3c]">
+                            {cuentasFiltradas.filter(c => c.saldoPesos > 0 || c.saldoUSD > 0).length}
+                          </strong>
+                        </span>
+                        <span>
+                          A Favor: <strong className="text-[#27ae60]">
+                            {cuentasFiltradas.filter(c => c.saldoPesos < 0 || c.saldoUSD < 0).length}
+                          </strong>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Modal de Pago */}
+        {/* Modal de Pago Optimizado */}
         {mostrarModalPago && clienteSeleccionado && (
           <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
             <div className="w-full h-full sm:h-auto sm:max-w-2xl lg:max-w-3xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
@@ -684,7 +908,7 @@ export default function CuentaCorrientePage() {
                       <div className="space-y-1">
                         {clienteSeleccionado.trabajosPendientes.slice(0, 3).map((trabajo, idx) => (
                           <div key={idx} className="text-xs bg-white/10 rounded px-2 py-1">
-                            {trabajo.modelo} - {trabajo.trabajo} - ${trabajo.precio}
+                            {trabajo.modelo} - {trabajo.trabajo} - {trabajo.moneda === "USD" ? "USD $" : "$"}{trabajo.precio}
                           </div>
                         ))}
                         {clienteSeleccionado.trabajosPendientes.length > 3 && (
@@ -708,7 +932,7 @@ export default function CuentaCorrientePage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <label className="block text-sm font-semibold text-[#2c3e50]">
-                        Monto recibido:
+                        Monto recibido: *
                       </label>
                       <input
                         type="number"
@@ -718,6 +942,7 @@ export default function CuentaCorrientePage() {
                         onChange={handlePagoChange}
                         placeholder={pago.moneda === "USD" ? "0.00" : "0"}
                         className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-base sm:text-lg font-medium text-[#2c3e50] placeholder-[#7f8c8d]"
+                        disabled={guardandoPago}
                       />
                       {pago.monto && parseFloat(pago.monto) > 0 && (
                         <div className="text-xs text-[#7f8c8d] mt-1">
@@ -730,12 +955,13 @@ export default function CuentaCorrientePage() {
                     </div>
                     <div className="space-y-2">
                       <label className="block text-sm font-semibold text-[#2c3e50]">
-                        Moneda:
+                        Moneda: *
                       </label>
                       <select
                         name="moneda"
                         value={pago.moneda}
                         onChange={handlePagoChange}
+                        disabled={guardandoPago}
                         className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-sm sm:text-base text-[#2c3e50]"
                       >
                         <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
@@ -749,24 +975,28 @@ export default function CuentaCorrientePage() {
                     <span className="text-sm text-[#7f8c8d] w-full mb-1">Montos sugeridos:</span>
                     {clienteSeleccionado.saldoPesos > 0 && (
                       <button
+                        type="button"
                         onClick={() => setPago(prev => ({
                           ...prev,
                           monto: clienteSeleccionado.saldoPesos.toString(),
                           moneda: "ARS"
                         }))}
-                        className="bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50] px-3 py-1 rounded-lg text-xs font-medium transition-all"
+                        disabled={guardandoPago}
+                        className="bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50] px-3 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
                       >
                         Total ARS: {formatPesos(clienteSeleccionado.saldoPesos)}
                       </button>
                     )}
                     {clienteSeleccionado.saldoUSD > 0 && (
                       <button
+                        type="button"
                         onClick={() => setPago(prev => ({
                           ...prev,
                           monto: clienteSeleccionado.saldoUSD.toString(),
                           moneda: "USD"
                         }))}
-                        className="bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50] px-3 py-1 rounded-lg text-xs font-medium transition-all"
+                        disabled={guardandoPago}
+                        className="bg-[#ecf0f1] hover:bg-[#bdc3c7] text-[#2c3e50] px-3 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
                       >
                         Total USD: {formatUSD(clienteSeleccionado.saldoUSD)}
                       </button>
@@ -793,7 +1023,8 @@ export default function CuentaCorrientePage() {
                         value={pago.formaPago}
                         onChange={handlePagoChange}
                         placeholder="🔍 Ej: Efectivo, Transferencia..."
-                        className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
+                        disabled={guardandoPago}
+                        className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d] disabled:opacity-50"
                       />
                     </div>
                     <div className="space-y-2">
@@ -806,9 +1037,26 @@ export default function CuentaCorrientePage() {
                         value={pago.destino}
                         onChange={handlePagoChange}
                         placeholder="🏪 Cuenta bancaria, caja..."
-                        className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
+                        disabled={guardandoPago}
+                        className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d] disabled:opacity-50"
                       />
                     </div>
+                  </div>
+
+                  {/* Botones rápidos para formas de pago */}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="text-xs text-gray-600 w-full mb-1">Formas comunes:</span>
+                    {['Efectivo', 'Transferencia', 'Tarjeta', 'MercadoPago'].map((forma) => (
+                      <button
+                        key={forma}
+                        type="button"
+                        onClick={() => setPago(prev => ({ ...prev, formaPago: forma }))}
+                        disabled={guardandoPago}
+                        className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200 transition-colors disabled:opacity-50"
+                      >
+                        {forma}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -830,7 +1078,8 @@ export default function CuentaCorrientePage() {
                       onChange={handlePagoChange}
                       placeholder="💭 Cualquier información adicional sobre el pago..."
                       rows={3}
-                      className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all resize-none text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
+                      disabled={guardandoPago}
+                      className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all resize-none text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d] disabled:opacity-50"
                     />
                   </div>
                 </div>
@@ -843,7 +1092,7 @@ export default function CuentaCorrientePage() {
                         <span className="text-[#27ae60] text-xs sm:text-sm font-bold">✓</span>
                       </div>
                       <span className="text-white font-semibold text-sm sm:text-lg">
-                        ¡Pago registrado con éxito! Actualizando cuentas...
+                        ¡Pago registrado con éxito! Actualizando cuenta...
                       </span>
                     </div>
                   </div>

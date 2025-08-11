@@ -15,6 +15,12 @@ interface Props {
     totalUSD: number;
     cotizacion: number;
   };
+  telefonoComoPago?: {  // ✅ NUEVO - Teléfono como parte de pago
+    marca: string;
+    modelo: string;
+    valorPago: number;
+    moneda: string;
+  } | null;
   onClose: () => void;
   handlePagoChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -27,6 +33,7 @@ export default function ModalPago({
   mostrar,
   pago,
   totalesVenta,
+  telefonoComoPago,  // ✅ NUEVO
   onClose,
   handlePagoChange,
   onGuardarPago,
@@ -44,17 +51,33 @@ export default function ModalPago({
     observaciones: pago.observaciones || "",
   };
 
-  // ✅ CÁLCULOS DE SALDOS DUALES
+  // ✅ CÁLCULOS DE SALDOS DUALES (incluyendo teléfono como parte de pago)
   const pagoARS = parseFloat(pagoSeguro.monto) || 0;
   const pagoUSD = parseFloat(pagoSeguro.montoUSD) || 0;
   
-  const saldoARS = totalesVenta ? totalesVenta.totalARS - pagoARS : 0;
-  const saldoUSD = totalesVenta ? totalesVenta.totalUSD - pagoUSD : 0;
+  // ✅ TELÉFONO COMO PARTE DE PAGO
+  const valorTelefonoPago = telefonoComoPago ? telefonoComoPago.valorPago : 0;
+  const monedaTelefonoPago = telefonoComoPago ? telefonoComoPago.moneda : "ARS";
+  
+  // ✅ APLICAR DESCUENTO DEL TELÉFONO SEGÚN SU MONEDA
+  let saldoARS = totalesVenta ? totalesVenta.totalARS - pagoARS : 0;
+  let saldoUSD = totalesVenta ? totalesVenta.totalUSD - pagoUSD : 0;
+  
+  // Descontar teléfono según su moneda
+  if (telefonoComoPago) {
+    if (monedaTelefonoPago === "USD") {
+      saldoUSD -= valorTelefonoPago;
+    } else {
+      saldoARS -= valorTelefonoPago;
+    }
+  }
   
   const totalAproximado = totalesVenta ? 
     totalesVenta.totalARS + (totalesVenta.totalUSD * totalesVenta.cotizacion) : 0;
   const pagoAproximado = pagoARS + (pagoUSD * (totalesVenta?.cotizacion || 1000));
-  const saldoAproximado = totalAproximado - pagoAproximado;
+  const telefonoAproximado = telefonoComoPago ? 
+    (monedaTelefonoPago === "USD" ? valorTelefonoPago * (totalesVenta?.cotizacion || 1000) : valorTelefonoPago) : 0;
+  const saldoAproximado = totalAproximado - pagoAproximado - telefonoAproximado;
 
   // ✅ FUNCIÓN PARA FORMATEAR PAGO DUAL
   const handleGuardarPago = () => {
@@ -114,7 +137,7 @@ export default function ModalPago({
         {/* Contenido del Modal - Scrolleable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-[#f8f9fa] min-h-0">
           
-          {/* Resumen de Totales - NUEVO */}
+          {/* Resumen de Totales - ACTUALIZADO con teléfono */}
           {totalesVenta && (
             <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border-2 border-blue-200 p-4 sm:p-6 shadow-sm">
               <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 flex items-center gap-2">
@@ -137,9 +160,15 @@ export default function ModalPago({
                       <span className="font-bold text-green-700">${totalesVenta.totalARS.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Pagando:</span>
+                      <span className="text-gray-600">Pagando efectivo:</span>
                       <span className="font-medium text-blue-600">${pagoARS.toLocaleString()}</span>
                     </div>
+                    {telefonoComoPago && monedaTelefonoPago === "ARS" && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Teléfono entregado:</span>
+                        <span className="font-medium text-purple-600">${valorTelefonoPago.toLocaleString()}</span>
+                      </div>
+                    )}
                     <div className="border-t pt-1">
                       <div className="flex justify-between">
                         <span className="font-semibold">Saldo ARS:</span>
@@ -164,9 +193,15 @@ export default function ModalPago({
                       <span className="font-bold text-blue-700">USD ${totalesVenta.totalUSD.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Pagando:</span>
+                      <span className="text-gray-600">Pagando efectivo:</span>
                       <span className="font-medium text-green-600">USD ${pagoUSD.toLocaleString()}</span>
                     </div>
+                    {telefonoComoPago && monedaTelefonoPago === "USD" && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Teléfono entregado:</span>
+                        <span className="font-medium text-purple-600">USD ${valorTelefonoPago.toLocaleString()}</span>
+                      </div>
+                    )}
                     <div className="border-t pt-1">
                       <div className="flex justify-between">
                         <span className="font-semibold">Saldo USD:</span>
@@ -179,6 +214,34 @@ export default function ModalPago({
                   </div>
                 </div>
               </div>
+              
+              {/* Teléfono como parte de pago - Sección destacada */}
+              {telefonoComoPago && (
+                <div className="mt-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border-2 border-purple-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs">📱</span>
+                    <span className="font-semibold text-purple-800">Teléfono como Parte de Pago</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-gray-600">Equipo:</span>
+                      <div className="font-medium text-purple-700">{telefonoComoPago.marca} {telefonoComoPago.modelo}</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Valor:</span>
+                      <div className="font-bold text-purple-800">
+                        {monedaTelefonoPago === "USD" ? "USD $" : "$"}{valorTelefonoPago.toLocaleString()}
+                        {monedaTelefonoPago === "ARS" ? " ARS" : ""}
+                      </div>
+                      {monedaTelefonoPago === "USD" && totalesVenta && (
+                        <div className="text-xs text-gray-500">
+                          ≈ ${(valorTelefonoPago * totalesVenta.cotizacion).toLocaleString()} ARS
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* Total aproximado */}
               <div className="mt-4 bg-gray-100 rounded-lg p-3">

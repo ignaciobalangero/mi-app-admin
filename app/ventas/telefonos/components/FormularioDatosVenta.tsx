@@ -579,7 +579,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                             ? 'border-[#bdc3c7] bg-[#ecf0f1] cursor-not-allowed text-[#7f8c8d]' 
                             : 'border-[#bdc3c7] hover:shadow-xl focus:ring-4 focus:ring-[#f39c12]/20 focus:border-[#f39c12] text-[#2c3e50]'
                         }`}
-                        disabled={!!form.stockID}
+                        disabled={false}
                       >
                         <option value="ARS">🇦🇷 Pesos Argentinos (ARS)</option>
                         <option value="USD">🇺🇸 Dólares Estadounidenses (USD)</option>
