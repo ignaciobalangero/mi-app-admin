@@ -159,59 +159,42 @@ export default function CuentaCorrientePage() {
           }
         });
 
-        // ✅ PROCESAR VENTAS OPTIMIZADO
-        ventasSnap.forEach((doc) => {
-          const data = doc.data();
-          const cliente = data.cliente;
+      // ✅ PROCESAR VENTAS - LECTURA DIRECTA CON SOPORTE DUAL
+ventasSnap.forEach((doc) => {
+  const data = doc.data();
+  const cliente = data.cliente;
+  const moneda = data.moneda || "ARS";
 
-          if (!cliente) return; // ✅ Early return
+  if (!cliente) return; // ✅ Skip si no hay cliente
 
-          if (!cuentasMap[cliente]) {
-            cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
-          }
+  if (!cuentasMap[cliente]) {
+    cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
+  }
 
-          // ✅ USAR TOTALES DIRECTOS SI EXISTEN (más eficiente)
-          if (data.totalARS !== undefined && data.totalUSD !== undefined) {
-            cuentasMap[cliente].saldoPesos += Number(data.totalARS || 0);
-            cuentasMap[cliente].saldoUSD += Number(data.totalUSD || 0);
-            return; // ✅ Skip procesamiento manual
-          }
-
-          // ✅ FALLBACK: procesar productos solo si no hay totales
-          const productos = data.productos || [];
-          if (productos.length === 0) return;
-
-          const hayTelefono = productos.some((prod: any) => prod.categoria === "Teléfono");
-          let totalVentaPesos = 0;
-          let totalVentaUSD = 0;
-
-          productos.forEach((p: any) => {
-            if (hayTelefono) {
-              // CON TELÉFONO: Mostrar moneda original
-              if (p.categoria === "Teléfono") {
-                // ✅ RESPETAR LA MONEDA DEL TELÉFONO
-                if (p.moneda?.toUpperCase() === "USD") {
-                  totalVentaUSD += p.precioUnitario * p.cantidad;
-                } else {
-                  totalVentaPesos += p.precioUnitario * p.cantidad;
-                }
-              } else {
-                // Accesorio/Repuesto: Según su moneda original
-                if (p.moneda?.toUpperCase() === "USD") {
-                  totalVentaUSD += p.precioUnitario * p.cantidad;
-                } else {
-                  totalVentaPesos += p.precioUnitario * p.cantidad;
-                }
-              }
-            } else {
-              // SIN TELÉFONO: TODO en pesos
-              totalVentaPesos += p.precioUnitario * p.cantidad;
-            }
-          });
-
-          cuentasMap[cliente].saldoPesos += totalVentaPesos;
-          cuentasMap[cliente].saldoUSD += totalVentaUSD;
-        });
+  // ✅ MANEJAR LOS 3 TIPOS DE VENTAS
+  if (moneda === "DUAL") {
+    // 🔄 VENTA MIXTA: Usar totalARS y totalUSD por separado
+    const totalARS = Number(data.totalARS || 0);
+    const totalUSD = Number(data.totalUSD || 0);
+    
+    cuentasMap[cliente].saldoPesos += totalARS;
+    cuentasMap[cliente].saldoUSD += totalUSD;
+    
+    console.log(`🔄 Venta DUAL - Cliente: ${cliente}, ARS: $${totalARS}, USD: US$${totalUSD}`);
+    
+  } else if (moneda === "USD") {
+    // 💵 VENTA SIMPLE USD: Usar total
+    const total = Number(data.total || 0);
+    cuentasMap[cliente].saldoUSD += total;
+    console.log(`💵 Venta USD - Cliente: ${cliente}, Total: US$${total}`);
+    
+  } else {
+    // 💰 VENTA SIMPLE ARS: Usar total
+    const total = Number(data.total || 0);
+    cuentasMap[cliente].saldoPesos += total;
+    console.log(`💰 Venta ARS - Cliente: ${cliente}, Total: $${total}`);
+  }
+});
 
         // Procesar pagos
         pagosSnap.forEach((doc) => {

@@ -5,6 +5,7 @@ import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import * as XLSX from "xlsx";
 import { useRol } from "@/lib/useRol";
+import ModalEditarTelefono from "./ModalEditarTelefono"; // ✅ AGREGAR
 
 // Importar los componentes fraccionados
 import { useServicios } from "./servicios/useServicios";
@@ -35,7 +36,8 @@ export default function TablaStockTelefonos({
   const [mensaje, setMensaje] = useState("");
   const [ordenarPorModelo, setOrdenarPorModelo] = useState(true);
   const { rol } = useRol();
-
+  const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
+  const [telefonoAEditar, setTelefonoAEditar] = useState<any | null>(null);
   // Hook de servicios técnicos
   const servicios = useServicios({ 
     negocioID, 
@@ -591,11 +593,14 @@ export default function TablaStockTelefonos({
                               </button>
                               {onEditar && (
                                 <button
-                                  onClick={() => onEditar(t)}
-                                  className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors duration-200 whitespace-nowrap"
-                                >
-                                  ✏️
-                                </button>
+                                onClick={() => {
+                                  setTelefonoAEditar(t);
+                                  setMostrarModalEditar(true);
+                                }}
+                                className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors duration-200 whitespace-nowrap"
+                              >
+                                ✏️
+                              </button>
                               )}
                               <button
                                 onClick={() => servicios.abrirModalServicio(t)}
