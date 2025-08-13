@@ -202,93 +202,354 @@ export default function ClienteDetalle() {
       img.onerror = () => reject("No se pudo cargar el logo");
     });
   };
+// ✅ FUNCIÓN PARA OBTENER HISTORIAL DESDE ÚLTIMO SALDO CERO (para PDF)
+const obtenerHistorialParaPDF = () => {
+  const historial: any[] = [];
 
-  const generarPDF = async () => {
-    setGenerandoPDF(true);
+  // 🔧 Agregar trabajos
+  trabajos.forEach(trabajo => {
+    if (trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") {
+      historial.push({
+        ...trabajo,
+        tipo: "trabajo",
+        fechaOrden: new Date(trabajo.fecha || "1970-01-01"),
+        descripcion: `${trabajo.modelo} - ${trabajo.trabajo}`,
+        monto: Number(trabajo.precio || 0),
+        monedaItem: trabajo.moneda || "ARS",
+        esDeuda: true
+      });
+    }
+  });
+
+  // 🛍️ Agregar ventas usando lógica optimizada
+  ventas.forEach(venta => {
+    const monedaVenta = venta.moneda || "ARS";
     
-    try {
-      const doc = new jsPDF();
-      const colorEncabezado = "#60a5fa";
-
-      doc.setFillColor(colorEncabezado);
-      doc.rect(0, 0, 210, 40, "F");
-
-      const logoUrl = localStorage.getItem("logoUrl");
-
-      try {
-        if (logoUrl) {
-          const base64 = await cargarImagenComoBase64(logoUrl);
-          const maxAncho = 65;
-          const maxAlto = 25;
-
-          const img = new Image();
-          img.src = base64;
-          await new Promise((res) => (img.onload = res));
-
-          const proporción = img.width / img.height;
-          let ancho = maxAncho;
-          let alto = maxAncho / proporción;
-
-          if (alto > maxAlto) {
-            alto = maxAlto;
-            ancho = maxAlto * proporción;
-          }
-
-          doc.addImage(base64, "PNG", 15, 8, ancho, alto);
-        }
-      } catch (error) {
-        console.warn("⚠️ No se pudo cargar el logo:", error);
+    if (monedaVenta === "DUAL") {
+      // Venta DUAL: agregar entradas separadas
+      const montoARS = Number(venta.totalARS || 0);
+      const montoUSD = Number(venta.totalUSD || 0);
+      
+      if (montoARS > 0) {
+        historial.push({
+          ...venta,
+          tipo: "venta",
+          fechaOrden: new Date(venta.fecha || "1970-01-01"),
+          descripcion: venta.productos?.map((p: any) => p.modelo || p.producto).join(", ") || "Venta general",
+          monto: montoARS,
+          monedaItem: "ARS",
+          esDeuda: true
+        });
       }
+      if (montoUSD > 0) {
+        historial.push({
+          ...venta,
+          tipo: "venta",
+          fechaOrden: new Date(venta.fecha || "1970-01-01"),
+          descripcion: venta.productos?.map((p: any) => p.modelo || p.producto).join(", ") || "Venta general",
+          monto: montoUSD,
+          monedaItem: "USD",
+          esDeuda: true
+        });
+      }
+    } else {
+      // Venta simple
+      const monto = Number(venta.total || 0);
+      if (monto > 0) {
+        historial.push({
+          ...venta,
+          tipo: "venta",
+          fechaOrden: new Date(venta.fecha || "1970-01-01"),
+          descripcion: venta.productos?.map((p: any) => p.modelo || p.producto).join(", ") || "Venta general",
+          monto: monto,
+          monedaItem: monedaVenta,
+          esDeuda: true
+        });
+      }
+    }
+  });
 
-      doc.setFontSize(16);
-      doc.setTextColor(0);
-      doc.text(`Historial de ${nombreCliente}`, 200, 18, { align: "right" });
+  // 💳 Agregar pagos
+  pagos.forEach(pago => {
+    const monto = pago.moneda === "USD" ? Number(pago.montoUSD || 0) : Number(pago.monto || 0);
+    if (monto > 0) {
+      historial.push({
+        ...pago,
+        tipo: "pago",
+        fechaOrden: new Date(pago.fecha || "1970-01-01"),
+        descripcion: `Pago recibido - ${pago.formaPago || pago.forma || "Efectivo"}`,
+        monto: monto,
+        monedaItem: pago.moneda || "ARS",
+        esDeuda: false
+      });
+    }
+  });
 
+  // 📅 Ordenar por fecha
+  historial.sort((a, b) => a.fechaOrden.getTime() - b.fechaOrden.getTime());
+
+  // 🎯 ENCONTRAR DESDE EL ÚLTIMO SALDO CERO
+  let saldoARS = 0;
+  let saldoUSD = 0;
+  let ultimoIndiceCero = -1;
+
+  for (let i = 0; i < historial.length; i++) {
+    const item = historial[i];
+    
+    if (item.monedaItem === "ARS") {
+      saldoARS += item.esDeuda ? item.monto : -item.monto;
+    } else {
+      saldoUSD += item.esDeuda ? item.monto : -item.monto;
+    }
+
+    // Si ambos saldos llegaron a cero, marcar este punto
+    if (Math.abs(saldoARS) < 0.01 && Math.abs(saldoUSD) < 0.01) {
+      ultimoIndiceCero = i;
+    }
+  }
+
+  // 🔄 Retornar solo desde el último punto de saldo cero
+  const historialDesdeCero = historial.slice(ultimoIndiceCero + 1);
+  
+  // Agregar información de saldo acumulado
+  let saldoAcumARS = 0;
+  let saldoAcumUSD = 0;
+  
+  return historialDesdeCero.map(item => {
+    if (item.monedaItem === "ARS") {
+      saldoAcumARS += item.esDeuda ? item.monto : -item.monto;
+    } else {
+      saldoAcumUSD += item.esDeuda ? item.monto : -item.monto;
+    }
+    
+    return {
+      ...item,
+      saldoAcumuladoARS: saldoAcumARS,
+      saldoAcumuladoUSD: saldoAcumUSD
+    };
+  });
+};
+// ✅ FUNCIÓN MEJORADA PARA GENERAR PDF LEGIBLE
+const generarPDF = async () => {
+  setGenerandoPDF(true);
+  
+  try {
+    const doc = new jsPDF();
+    let yPosition = 50;
+    
+    // 🎨 HEADER LIMPIO SIN EMOJIS
+    doc.setFillColor(79, 70, 229); // Indigo
+    doc.rect(0, 0, 210, 45, "F");
+
+    // Logo si existe
+    const logoUrl = localStorage.getItem("logoUrl");
+    try {
+      if (logoUrl) {
+        const base64 = await cargarImagenComoBase64(logoUrl);
+        doc.addImage(base64, "PNG", 15, 8, 50, 28);
+      }
+    } catch (error) {
+      console.warn("No se pudo cargar el logo:", error);
+    }
+
+    // Título principal SIN EMOJIS
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.text("HISTORIAL DESDE ULTIMO SALDO CERO", 210 - 15, 18, { align: "right" });
+    
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Cliente: ${nombreCliente}`, 210 - 15, 28, { align: "right" });
+    
+    doc.setFontSize(11);
+    doc.text(`Generado: ${new Date().toLocaleDateString("es-AR")}`, 210 - 15, 36, { align: "right" });
+
+    // 📊 OBTENER HISTORIAL DESDE ÚLTIMO SALDO CERO
+    const historialPDF = obtenerHistorialParaPDF();
+    
+    yPosition = 60;
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("MOVIMIENTOS DESDE ULTIMO SALDO CERO", 15, yPosition);
+    yPosition += 5;
+    
+    if (historialPDF.length === 0) {
+      // Caso: Cuenta al día
+      yPosition += 30;
+      doc.setFontSize(18);
+      doc.setTextColor(39, 174, 96);
+      doc.setFont("helvetica", "bold");
+      doc.text("CUENTA AL DIA", 105, yPosition, { align: "center" });
+      
+      yPosition += 15;
       doc.setFontSize(12);
-      doc.text(`Saldo: $${saldo.toLocaleString("es-AR")}`, 200, 26, { align: "right" });
-
-      const trabajosAdeudados = trabajos.filter(
-        (t) => t.precio && (t.estado === "PENDIENTE" || t.estado === "ENTREGADO")
-      );
-
-      const ventasPendientes = ventas.filter(v => v.estado !== "PAGADO");
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+      doc.text("No hay movimientos pendientes desde el ultimo saldo en cero", 105, yPosition, { align: "center" });
+      
+      // Mostrar resumen de totales históricos
+      yPosition += 25;
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("RESUMEN HISTORICO TOTAL", 15, yPosition);
+      
+      const totalesHistoricos = calcularTotales();
+      const resumenHistorico = [
+        ["Concepto", "Total ARS", "Total USD"],
+        [`Trabajos realizados (${trabajos.length})`, `$${totalesHistoricos.totalTrabajosARS.toLocaleString("es-AR")}`, `US$${totalesHistoricos.totalTrabajosUSD.toLocaleString("es-AR")}`],
+        [`Ventas realizadas (${ventas.length})`, `$${totalesHistoricos.totalVentasARS.toLocaleString("es-AR")}`, `US$${totalesHistoricos.totalVentasUSD.toLocaleString("es-AR")}`],
+        [`Pagos recibidos (${pagos.length})`, `$${totalesHistoricos.totalPagosARS.toLocaleString("es-AR")}`, `US$${totalesHistoricos.totalPagosUSD.toLocaleString("es-AR")}`]
+      ];
 
       autoTable(doc, {
-        startY: 50,
-        head: [["Fecha", "Tipo", "Descripción", "Estado", "Precio"]],
-        body: [
-          ...trabajosAdeudados.map((t) => [
-            t.fecha,
-            "Trabajo",
-            `${t.modelo} - ${t.trabajo}`,
-            t.estado,
-            `$${t.precio}`,
-          ]),
-          ...ventasPendientes.map((v) => [
-            v.fecha,
-            "Venta",
-            `${v.productos?.map((p: any) => p.modelo).join(", ") || "Venta general"}`,
-            v.estado || "PENDIENTE",
-            `$${v.total}`,
-          ])
-        ],
-        styles: {
-          halign: "left",
+        startY: yPosition + 10,
+        head: [resumenHistorico[0]],
+        body: resumenHistorico.slice(1),
+        styles: { 
+          fontSize: 10, 
+          cellPadding: 4
         },
-        headStyles: {
-          fillColor: colorEncabezado,
-          textColor: "#000",
+        headStyles: { 
+          fillColor: [39, 174, 96], 
+          textColor: 255,
+          fontStyle: 'bold'
         },
+        alternateRowStyles: { 
+          fillColor: [248, 250, 252] 
+        }
+      });
+      
+    } else {
+      // Tabla de movimientos desde último saldo cero
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Se encontraron ${historialPDF.length} movimientos desde el ultimo saldo en cero:`, 15, yPosition + 15);
+      
+      const historialData = historialPDF.map((item, index) => {
+        const tipoTexto = item.tipo === "trabajo" ? "Trabajo" : 
+                         item.tipo === "venta" ? "Venta" : "Pago";
+        
+        const montoTexto = item.esDeuda ? `+${item.monto.toLocaleString("es-AR")}` : 
+                          `-${item.monto.toLocaleString("es-AR")}`;
+        
+        const saldoARS = item.saldoAcumuladoARS.toLocaleString("es-AR");
+        const saldoUSD = item.saldoAcumuladoUSD.toLocaleString("es-AR");
+        
+        return [
+          item.fecha,
+          tipoTexto,
+          item.descripcion.length > 35 ? item.descripcion.substring(0, 32) + "..." : item.descripcion,
+          montoTexto,
+          item.monedaItem,
+          `${saldoARS} ARS`,
+          `${saldoUSD} USD`
+        ];
       });
 
-      doc.save(`Historial-${nombreCliente}.pdf`);
+      autoTable(doc, {
+        startY: yPosition + 25,
+        head: [["Fecha", "Tipo", "Descripcion", "Monto", "Moneda", "Saldo ARS", "Saldo USD"]],
+        body: historialData,
+        styles: { 
+          fontSize: 9, 
+          cellPadding: 3,
+          textColor: [0, 0, 0]
+        },
+        headStyles: { 
+          fillColor: [79, 70, 229], 
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: { 
+          fillColor: [250, 252, 255] 
+        },
+        columnStyles: {
+          0: { cellWidth: 25, halign: 'center' },
+          1: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
+          4: { cellWidth: 15, halign: 'center' },
+          5: { cellWidth: 25, halign: 'right' },
+          6: { cellWidth: 25, halign: 'right' }
+        },
+        didParseCell: function(data) {
+          // Colorear según tipo sin usar emojis problemáticos
+          if (data.row.index >= 0 && data.column.index === 1) {
+            const tipo = historialPDF[data.row.index]?.tipo;
+            if (tipo === "pago") {
+              data.cell.styles.textColor = [39, 174, 96]; // Verde
+              data.cell.styles.fontStyle = 'bold';
+            } else if (tipo === "trabajo") {
+              data.cell.styles.textColor = [52, 152, 219]; // Azul
+            } else if (tipo === "venta") {
+              data.cell.styles.textColor = [155, 89, 182]; // Morado
+            }
+          }
+        }
+      });
+
+      // 📊 RESUMEN FINAL DE MOVIMIENTOS
+      const yFinal = (doc as any).lastAutoTable.finalY + 15;
       
-    } catch (error) {
-      console.error("Error generando PDF:", error);
-    } finally {
-      setGenerandoPDF(false);
+      // Caja de resumen
+      doc.setFillColor(248, 249, 250);
+      doc.rect(15, yFinal, 180, 30, "F");
+      doc.setDrawColor(200, 200, 200);
+      doc.rect(15, yFinal, 180, 30);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "bold");
+      doc.text("RESUMEN DE MOVIMIENTOS:", 20, yFinal + 10);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text(`Total movimientos desde ultimo saldo cero: ${historialPDF.length}`, 20, yFinal + 18);
+      
+      // Saldo actual
+      const saldoFinalARS = historialPDF.length > 0 ? historialPDF[historialPDF.length - 1].saldoAcumuladoARS : 0;
+      const saldoFinalUSD = historialPDF.length > 0 ? historialPDF[historialPDF.length - 1].saldoAcumuladoUSD : 0;
+      
+      doc.setFont("helvetica", "bold");
+      if (saldoFinalARS !== 0 || saldoFinalUSD !== 0) {
+        doc.setTextColor(231, 76, 60);
+        doc.text(`SALDO ACTUAL: $${Math.abs(saldoFinalARS).toLocaleString("es-AR")} ARS / US$${Math.abs(saldoFinalUSD).toLocaleString("es-AR")} USD`, 20, yFinal + 25);
+      } else {
+        doc.setTextColor(39, 174, 96);
+        doc.text("SALDO ACTUAL: CLIENTE AL DIA", 20, yFinal + 25);
+      }
     }
-  };
+
+    // 📄 FOOTER SIMPLE Y LEGIBLE
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      
+      doc.setDrawColor(150, 150, 150);
+      doc.setLineWidth(0.5);
+      doc.line(15, 285, 195, 285);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Historial de ${nombreCliente} - Pagina ${i} de ${totalPages} - ${new Date().toLocaleDateString("es-AR")} ${new Date().toLocaleTimeString("es-AR")}`, 
+        105, 290, 
+        { align: "center" }
+      );
+    }
+
+    doc.save(`Historial-Desde-Ultimo-Cero-${nombreCliente}.pdf`);
+    
+  } catch (error) {
+    console.error("Error generando PDF:", error);
+    alert("Error al generar el PDF. Por favor, intenta nuevamente.");
+  } finally {
+    setGenerandoPDF(false);
+  }
+};
 
   return (
     <>

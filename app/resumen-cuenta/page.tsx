@@ -165,7 +165,7 @@ export default function ResumenSimplificado() {
         }
         console.log("=== FIN RESUMEN AGOSTO ===\n");
         
-        // PROCESAR VENTAS
+        // ✅ PROCESAR VENTAS - CORREGIDO PARA LEER MONEDAS CORRECTAMENTE
         ventasSnap.docs.forEach(doc => {
           const venta = doc.data();
           const mes = obtenerMes(venta.fecha);
@@ -183,7 +183,7 @@ export default function ResumenSimplificado() {
             };
           }
           
-          // SISTEMA DUAL NUEVO
+          // ✅ SISTEMA DUAL NUEVO - YA ESTÁ CORRECTO
           if (venta.moneda === "DUAL" && venta.totalARS !== undefined && venta.totalUSD !== undefined) {
             venta.productos.forEach((producto: any) => {
               const ganancia = Number(producto.ganancia) || 0;
@@ -197,26 +197,33 @@ export default function ResumenSimplificado() {
               }
             });
           }
-          // SISTEMA ANTERIOR
+          // ✅ SISTEMA ANTERIOR - CORREGIDO PARA RESPETAR MONEDA DE TELÉFONOS
           else {
             venta.productos.forEach((producto: any) => {
               const ganancia = Number(producto.ganancia) || 0;
               
               if (ganancia > 0) {
                 const hayTelefono = venta.productos.some((p: any) => p.categoria === "Teléfono");
-                let monedaProducto = "ARS";
                 
-                if (producto.categoria === "Teléfono") {
-                  monedaProducto = "USD";
-                } else if (hayTelefono) {
-                  monedaProducto = producto.moneda || "USD";
+                if (hayTelefono) {
+                  // CON TELÉFONO: Respetar moneda original de cada producto
+                  if (producto.categoria === "Teléfono") {
+                    // ✅ VERIFICAR LA MONEDA DEL TELÉFONO, NO ASUMIR USD
+                    if (producto.moneda?.toUpperCase() === "USD") {
+                      resumen[mes].ventasUSD += ganancia;
+                    } else {
+                      resumen[mes].ventasARS += ganancia;
+                    }
+                  } else {
+                    // Accesorio/Repuesto: Según su moneda original
+                    if (producto.moneda?.toUpperCase() === "USD") {
+                      resumen[mes].ventasUSD += ganancia;
+                    } else {
+                      resumen[mes].ventasARS += ganancia;
+                    }
+                  }
                 } else {
-                  monedaProducto = venta.moneda || producto.moneda || "ARS";
-                }
-                
-                if (monedaProducto === "USD") {
-                  resumen[mes].ventasUSD += ganancia;
-                } else {
+                  // SIN TELÉFONO: TODO en pesos
                   resumen[mes].ventasARS += ganancia;
                 }
               }
