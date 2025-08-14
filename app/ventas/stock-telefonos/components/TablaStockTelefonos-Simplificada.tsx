@@ -5,7 +5,7 @@ import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import * as XLSX from "xlsx";
 import { useRol } from "@/lib/useRol";
-import ModalEditarTelefono from "./ModalEditarTelefono"; // ✅ AGREGAR
+import ModalEditarTelefono from "./ModalEditarTelefono"; // ✅ IMPORTADO
 
 // Importar los componentes fraccionados
 import { useServicios } from "./servicios/useServicios";
@@ -36,14 +36,46 @@ export default function TablaStockTelefonos({
   const [mensaje, setMensaje] = useState("");
   const [ordenarPorModelo, setOrdenarPorModelo] = useState(true);
   const { rol } = useRol();
+  
+  // 🆕 ESTADOS PARA EL MODAL DE EDICIÓN - CORREGIDOS
   const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
   const [telefonoAEditar, setTelefonoAEditar] = useState<any | null>(null);
+
   // Hook de servicios técnicos
   const servicios = useServicios({ 
     negocioID, 
     setTelefonos, 
     setMensaje 
   });
+
+  // 🆕 FUNCIONES PARA EL MODAL DE EDICIÓN
+  const abrirModalEditar = (telefono: any) => {
+    setTelefonoAEditar(telefono);
+    setMostrarModalEditar(true);
+  };
+
+  const cerrarModalEditar = () => {
+    setMostrarModalEditar(false);
+    setTelefonoAEditar(null);
+  };
+
+  // 🆕 FUNCIÓN PARA RECARGAR DATOS DESPUÉS DE EDITAR
+  const recargarTelefonos = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, `negocios/${negocioID}/stockTelefonos`));
+      const nuevosDatos = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const sinDuplicados = nuevosDatos.filter((item, index, self) =>
+        index === self.findIndex((t) => t.id === item.id)
+      );
+      setTelefonos(sinDuplicados);
+      setMensaje("✅ Teléfono actualizado correctamente");
+      setTimeout(() => setMensaje(""), 2000);
+    } catch (error) {
+      console.error("❌ Error al recargar teléfonos:", error);
+      setMensaje("❌ Error al recargar los datos");
+      setTimeout(() => setMensaje(""), 2000);
+    }
+  };
 
   useEffect(() => {
     const keys = telefonos.map(t => t.id);
@@ -105,6 +137,7 @@ export default function TablaStockTelefonos({
       
     XLSX.writeFile(wb, nombreArchivo);
   };
+  
   const copiarAlPortapapeles = async (texto: string) => {
     try {
       await navigator.clipboard.writeText(texto);
@@ -231,6 +264,16 @@ export default function TablaStockTelefonos({
             <span className="text-green-800 font-semibold">{mensaje}</span>
           </div>
         </div>
+      )}
+
+      {/* 🆕 MODAL DE EDICIÓN DE TELÉFONO */}
+      {mostrarModalEditar && telefonoAEditar && (
+        <ModalEditarTelefono
+          telefono={telefonoAEditar}
+          negocioID={negocioID}
+          onClose={cerrarModalEditar}
+          onTelefonoActualizado={recargarTelefonos}
+        />
       )}
 
       {/* Modales de servicios técnicos */}
@@ -549,7 +592,7 @@ export default function TablaStockTelefonos({
                         ) : (
                             <span className="text-xs font-mono bg-[#ecf0f1] px-1 py-1 rounded block text-center">-</span>
                         )}
-                        </td>
+                      </td>
                       {rol?.tipo === "admin" && (
                         <td className="p-2 border border-gray-300 text-right text-xs" style={{minWidth: '80px'}}>
                           <span className="font-medium text-gray-700 whitespace-nowrap">
@@ -591,17 +634,13 @@ export default function TablaStockTelefonos({
                               >
                                 🗑️
                               </button>
-                              {onEditar && (
-                                <button
-                                onClick={() => {
-                                  setTelefonoAEditar(t);
-                                  setMostrarModalEditar(true);
-                                }}
+                              {/* 🆕 BOTÓN EDITAR ACTUALIZADO - AHORA ABRE MODAL */}
+                              <button
+                                onClick={() => abrirModalEditar(t)}
                                 className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors duration-200 whitespace-nowrap"
                               >
                                 ✏️
                               </button>
-                              )}
                               <button
                                 onClick={() => servicios.abrirModalServicio(t)}
                                 className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors duration-200 whitespace-nowrap"

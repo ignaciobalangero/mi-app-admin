@@ -19,6 +19,8 @@ import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
 import ModalRepuestos from "./componentes/ModalRepuestos";
 import ModalPago from "./componentes/ModalPago";
+// 🆕 IMPORTAR EL MODAL DE EDICIÓN
+import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
 
 interface Trabajo {
   firebaseId: string;
@@ -60,6 +62,10 @@ export default function ResumenPage() {
   const [mostrarModalPago, setMostrarModalPago] = useState(false);
   const [trabajoParaPagar, setTrabajoParaPagar] = useState<Trabajo | null>(null);
 
+  // 🆕 NUEVOS: Estados para el modal de edición
+  const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
+  const [trabajoEditando, setTrabajoEditando] = useState<Trabajo | null>(null);
+
   // ✅ NUEVA: Función para parsear fechas (igual que en GestionTrabajosPage)
   const parsearFecha = (fechaStr: string) => {
     if (!fechaStr.includes("/")) {
@@ -67,6 +73,17 @@ export default function ResumenPage() {
     }
     const [dia, mes, anio] = fechaStr.split("/").map((x) => parseInt(x));
     return new Date(anio, mes - 1, dia);
+  };
+
+  // 🆕 NUEVAS: Funciones para el modal de edición
+  const manejarClickEditar = (trabajo: Trabajo) => {
+    setTrabajoEditando(trabajo);
+    setModalEditarAbierto(true);
+  };
+
+  const cerrarModalEditar = () => {
+    setModalEditarAbierto(false);
+    setTrabajoEditando(null);
   };
 
   useEffect(() => {
@@ -156,8 +173,9 @@ export default function ResumenPage() {
     }
   };
 
-  const editarTrabajo = (firebaseId: string) => {
-    router.push(`/gestion-trabajos/editar?id=${firebaseId}&origen=resumen`);
+  // 🆕 FUNCIÓN ACTUALIZADA: Ahora abre el modal en lugar de redirigir
+  const editarTrabajo = (trabajo: Trabajo) => {
+    manejarClickEditar(trabajo);
   };
 
   // ✅ NUEVA: Función para abrir modal de pago
@@ -580,11 +598,31 @@ export default function ResumenPage() {
                           </span>
                         </td>
                         
-                        {/* Trabajo */}
+                        {/* Trabajo - Con hover igual que en la otra tabla */}
                         <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[150px]">
-                          <span className="text-xs truncate block" title={t.trabajo}>
-                            {t.trabajo}
-                          </span>
+                          {t.trabajo ? (
+                            <span
+                              className="text-xs bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
+                              title={`Trabajo completo: ${t.trabajo}`}
+                              onMouseEnter={(e) => {
+                                // Mostrar trabajo completo en hover
+                                e.currentTarget.textContent = t.trabajo;
+                                e.currentTarget.classList.remove('truncate');
+                              }}
+                              onMouseLeave={(e) => {
+                                // Volver a mostrar truncado
+                                const trabajoTruncado = t.trabajo.length > 25 ? t.trabajo.substring(0, 25) + "..." : t.trabajo;
+                                e.currentTarget.textContent = trabajoTruncado;
+                                e.currentTarget.classList.add('truncate');
+                              }}
+                            >
+                              {t.trabajo.length > 25 ? t.trabajo.substring(0, 25) + "..." : t.trabajo}
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center">
+                              —
+                            </span>
+                          )}
                         </td>
                         
                         {/* Clave - Oculto en móvil */}
@@ -724,8 +762,9 @@ export default function ResumenPage() {
                                 ➕
                               </button>
 
+                              {/* 🆕 BOTÓN EDITAR ACTUALIZADO - AHORA ABRE MODAL */}
                               <button
-                                onClick={() => editarTrabajo(t.firebaseId)}
+                                onClick={() => manejarClickEditar(t)}
                                 className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
                                 title="Editar"
                               >
@@ -789,6 +828,15 @@ export default function ResumenPage() {
             )}
           </div>
         </div>
+
+        {/* 🆕 MODAL DE EDICIÓN */}
+        <ModalEditar
+          trabajo={trabajoEditando}
+          isOpen={modalEditarAbierto}
+          onClose={cerrarModalEditar}
+          onSave={recargarTrabajos}
+          negocioID={negocioID}
+        />
 
         {/* Modal de repuestos - Responsive */}
         {mostrarModalRepuestos && trabajoSeleccionado && (

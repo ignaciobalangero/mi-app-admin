@@ -345,19 +345,19 @@ export default function ResumenSimplificado() {
           ) : (
             <>
               {/* Controles */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-gray-300">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-base font-bold text-gray-900 mb-3">
                       📅 Seleccionar mes:
                     </label>
                     <select
                       value={mesSeleccionado}
                       onChange={(e) => setMesSeleccionado(e.target.value)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="px-4 py-3 border-2 border-blue-400 rounded-xl focus:ring-4 focus:ring-blue-500 focus:border-blue-600 bg-white text-gray-900 font-semibold text-base shadow-md transition-all"
                     >
                       {datos.map(item => (
-                        <option key={item.mes} value={item.mes}>
+                        <option key={item.mes} value={item.mes} className="font-semibold text-gray-900">
                           {item.mes}
                         </option>
                       ))}
@@ -366,7 +366,7 @@ export default function ResumenSimplificado() {
                   
                   <button
                     onClick={exportarExcel}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 text-base"
                   >
                     📊 Exportar Excel
                   </button>
@@ -376,77 +376,81 @@ export default function ResumenSimplificado() {
               {/* Resumen del mes seleccionado */}
               {mesActual && (
                 <>
-                  <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">
+                  <div className="bg-white rounded-2xl p-6 shadow-lg mb-6 border-2 border-gray-300">
+                    <h2 className="text-xl font-bold text-gray-900 mb-4">
                       📊 Resumen de {mesSeleccionado}
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <span className="font-semibold">Trabajos:</span> {mesActual.totalTrabajos}
+                      <div className="bg-slate-100 p-4 rounded-lg border-2 border-slate-300 shadow-sm">
+                        <span className="font-bold text-slate-900 text-base">Trabajos:</span>
+                        <div className="font-bold text-slate-800 text-lg">{mesActual.totalTrabajos}</div>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <span className="font-semibold">Ganancia Trabajos:</span> ${mesActual.trabajos.toLocaleString()}
+                      <div className="bg-emerald-100 p-4 rounded-lg border-2 border-emerald-400 shadow-sm">
+                        <span className="font-bold text-emerald-900 text-base">Ganancia Trabajos:</span>
+                        <div className="font-bold text-emerald-800 text-lg">${mesActual.trabajos.toLocaleString()}</div>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <span className="font-semibold">Ventas ARS:</span> ${mesActual.ventasARS.toLocaleString()}
+                      <div className="bg-sky-100 p-4 rounded-lg border-2 border-sky-400 shadow-sm">
+                        <span className="font-bold text-sky-900 text-base">Ventas ARS:</span>
+                        <div className="font-bold text-sky-800 text-lg">${mesActual.ventasARS.toLocaleString()}</div>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <span className="font-semibold">Ventas USD:</span> USD ${mesActual.ventasUSD.toLocaleString()}
+                      <div className="bg-amber-100 p-4 rounded-lg border-2 border-amber-400 shadow-sm">
+                        <span className="font-bold text-amber-900 text-base">Ventas USD:</span>
+                        <div className="font-bold text-amber-800 text-lg">USD ${mesActual.ventasUSD.toLocaleString()}</div>
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Trabajos */}
-                    <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-6 border-2 border-green-200">
+                    <div className="bg-white rounded-2xl p-6 border-4 border-emerald-300 shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-green-600 mb-1">🔧 Trabajos</p>
-                          <p className="text-2xl font-bold text-green-700">
+                          <p className="text-base font-bold text-emerald-900 mb-2 uppercase tracking-wide">🔧 Trabajos</p>
+                          <p className="text-3xl font-black text-emerald-800">
                             ${mesActual.trabajos.toLocaleString("es-AR")}
                           </p>
-                          <p className="text-xs text-green-600">
+                          <p className="text-sm text-emerald-700 font-semibold mt-1">
                             {mesActual.totalTrabajos} trabajos terminados
                           </p>
                         </div>
-                        <div className="w-12 h-12 bg-green-200 rounded-full flex items-center justify-center">
-                          <span className="text-xl">🔧</span>
+                        <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg">
+                          <span className="text-2xl">🔧</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Ventas ARS */}
-                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl p-6 border-2 border-blue-200">
+                    <div className="bg-white rounded-2xl p-6 border-4 border-sky-300 shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-blue-600 mb-1">💰 Ventas ARS</p>
-                          <p className="text-2xl font-bold text-blue-700">
+                          <p className="text-base font-bold text-sky-900 mb-2 uppercase tracking-wide">💰 Ventas ARS</p>
+                          <p className="text-3xl font-black text-sky-800">
                             ${mesActual.ventasARS.toLocaleString("es-AR")}
                           </p>
-                          <p className="text-xs text-blue-600">
+                          <p className="text-sm text-sky-700 font-semibold mt-1">
                             Productos en pesos
                           </p>
                         </div>
-                        <div className="w-12 h-12 bg-blue-200 rounded-full flex items-center justify-center">
-                          <span className="text-xl">💰</span>
+                        <div className="w-16 h-16 bg-sky-500 rounded-2xl flex items-center justify-center shadow-lg">
+                          <span className="text-2xl">💰</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Ventas USD */}
-                    <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-2xl p-6 border-2 border-orange-200">
+                    <div className="bg-white rounded-2xl p-6 border-4 border-amber-300 shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-orange-600 mb-1">💵 Ventas USD</p>
-                          <p className="text-2xl font-bold text-orange-700">
+                          <p className="text-base font-bold text-amber-900 mb-2 uppercase tracking-wide">💵 Ventas USD</p>
+                          <p className="text-3xl font-black text-amber-800">
                             USD ${mesActual.ventasUSD.toLocaleString("es-AR")}
                           </p>
-                          <p className="text-xs text-orange-600">
+                          <p className="text-sm text-amber-700 font-semibold mt-1">
                             Teléfonos y productos en USD
                           </p>
                         </div>
-                        <div className="w-12 h-12 bg-orange-200 rounded-full flex items-center justify-center">
-                          <span className="text-xl">💵</span>
+                        <div className="w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg">
+                          <span className="text-2xl">💵</span>
                         </div>
                       </div>
                     </div>
@@ -454,36 +458,36 @@ export default function ResumenSimplificado() {
 
                   {/* Totales */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-200">
+                    <div className="bg-white rounded-2xl p-6 border-4 border-slate-400 shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-gray-600 mb-1">🏦 Total en Pesos</p>
-                          <p className="text-3xl font-bold text-gray-800">
+                          <p className="text-base font-bold text-slate-900 mb-2 uppercase tracking-wide">🏦 Total en Pesos</p>
+                          <p className="text-4xl font-black text-slate-800">
                             ${totalARS.toLocaleString("es-AR")}
                           </p>
-                          <p className="text-xs text-gray-600">
+                          <p className="text-sm text-slate-700 font-semibold mt-1">
                             Trabajos + Ventas ARS
                           </p>
                         </div>
-                        <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                          <span className="text-xl">🏦</span>
+                        <div className="w-16 h-16 bg-slate-600 rounded-2xl flex items-center justify-center shadow-lg">
+                          <span className="text-2xl text-white">🏦</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-2xl p-6 border-2 border-yellow-200">
+                    <div className="bg-white rounded-2xl p-6 border-4 border-yellow-400 shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-yellow-600 mb-1">🌟 Total en USD</p>
-                          <p className="text-3xl font-bold text-yellow-700">
+                          <p className="text-base font-bold text-yellow-900 mb-2 uppercase tracking-wide">🌟 Total en USD</p>
+                          <p className="text-4xl font-black text-yellow-800">
                             USD ${totalUSD.toLocaleString("es-AR")}
                           </p>
-                          <p className="text-xs text-yellow-600">
+                          <p className="text-sm text-yellow-700 font-semibold mt-1">
                             Solo ventas en dólares
                           </p>
                         </div>
-                        <div className="w-12 h-12 bg-yellow-200 rounded-full flex items-center justify-center">
-                          <span className="text-xl">🌟</span>
+                        <div className="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center shadow-lg">
+                          <span className="text-2xl">🌟</span>
                         </div>
                       </div>
                     </div>

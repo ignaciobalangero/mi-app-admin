@@ -307,7 +307,7 @@ export default function StockProductosPage() {
               </div>
               
               <button
-                onClick={() => router.push("/ventas")}
+                onClick={() => router.push("/ventas/stock-accesorios-repuestos")}
                 className="ml-auto bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm border border-white/30"
               >
                 ← Atrás

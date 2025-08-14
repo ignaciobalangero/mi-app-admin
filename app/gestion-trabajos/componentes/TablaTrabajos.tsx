@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { doc, updateDoc, getDocs, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ModalAgregarRepuesto from "@/app/resumen/componentes/ModalRepuestos";
+import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
 
 interface Trabajo {
   firebaseId: string;
@@ -50,8 +51,20 @@ export default function TablaTrabajos({
     return "bg-red-100 border-l-4 border-[#B71C1C]";
   };
 
-  const manejarClickEditar = (id: string) => {
-    router.push(`/gestion-trabajos/editar?id=${id}&origen=gestion`);
+  // 🆕 ESTADOS PARA EL MODAL DE EDICIÓN
+  const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
+  const [trabajoEditando, setTrabajoEditando] = useState<Trabajo | null>(null);
+
+  // 🆕 FUNCIÓN PARA ABRIR MODAL DE EDICIÓN
+  const manejarClickEditar = (trabajo: Trabajo) => {
+    setTrabajoEditando(trabajo);
+    setModalEditarAbierto(true);
+  };
+
+  // 🆕 FUNCIÓN PARA CERRAR MODAL DE EDICIÓN
+  const cerrarModalEditar = () => {
+    setModalEditarAbierto(false);
+    setTrabajoEditando(null);
   };
   
   const [pagina, setPagina] = useState(1);
@@ -274,9 +287,29 @@ export default function TablaTrabajos({
                     
                     {/* Trabajo */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[150px]">
-                    <span className="text-xs truncate block" title={t.trabajo}>
-                      {t.trabajo}
-                    </span>
+                      {t.trabajo ? (
+                        <span
+                          className="text-xs bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
+                          title={`Trabajo completo: ${t.trabajo}`}
+                          onMouseEnter={(e) => {
+                            // Mostrar trabajo completo en hover
+                            e.currentTarget.textContent = t.trabajo;
+                            e.currentTarget.classList.remove('truncate');
+                          }}
+                          onMouseLeave={(e) => {
+                            // Volver a mostrar truncado
+                            const trabajoTruncado = t.trabajo.length > 25 ? t.trabajo.substring(0, 25) + "..." : t.trabajo;
+                            e.currentTarget.textContent = trabajoTruncado;
+                            e.currentTarget.classList.add('truncate');
+                          }}
+                        >
+                          {t.trabajo.length > 25 ? t.trabajo.substring(0, 25) + "..." : t.trabajo}
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center">
+                          —
+                        </span>
+                      )}
                     </td>
                     
                     {/* Clave - Oculto en móvil y tablet */}
@@ -390,8 +423,9 @@ await updateDoc(ref, updates);
                             ➕
                           </button>
 
+                          {/* 🆕 BOTÓN EDITAR ACTUALIZADO - AHORA ABRE MODAL */}
                           <button
-                            onClick={() => manejarClickEditar(t.firebaseId)}
+                            onClick={() => manejarClickEditar(t)}
                             className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
                             title="Editar"
                           >
@@ -458,6 +492,15 @@ await updateDoc(ref, updates);
           </div>
         )}
       </div>
+
+      {/* 🆕 MODAL DE EDICIÓN */}
+      <ModalEditar
+        trabajo={trabajoEditando}
+        isOpen={modalEditarAbierto}
+        onClose={cerrarModalEditar}
+        onSave={recargarTrabajos}
+        negocioID={negocioID}
+      />
 
       {/* Modal Ver Más - Responsive */}
       {trabajoSeleccionado && (
