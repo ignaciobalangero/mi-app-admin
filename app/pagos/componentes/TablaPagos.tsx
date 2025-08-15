@@ -8,6 +8,8 @@ import {
   doc,
   updateDoc,
   Timestamp,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { PagoConOrigen } from "../page";
@@ -64,12 +66,67 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
 
   const confirmarEliminar = async () => {
     if (!pagoAEliminar) return;
+    
     try {
+      // 1. 🔍 OBTENER LOS DATOS DEL PAGO ANTES DE ELIMINARLO
+      const pagoDoc = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
+      let pagoData = null;
+      
+      pagoDoc.forEach((doc) => {
+        if (doc.id === pagoAEliminar.id) {
+          pagoData = doc.data();
+        }
+      });
+  
+      console.log("🔍 Datos del pago a eliminar:", pagoData);
+  
+      // 2. ✂️ ELIMINAR DE LA COLECCIÓN PRINCIPAL
       await deleteDoc(doc(db, `negocios/${negocioID}/${pagoAEliminar.origen}`, pagoAEliminar.id));
-      setMensaje("✅ Pago eliminado");
+      console.log("✅ Pago eliminado de colección principal");
+  
+      // 3. 🏢 SI ERA PAGO A PROVEEDOR, ELIMINARLO TAMBIÉN DE pagosProveedores
+      if (pagoData && pagoData.tipoDestino === "proveedor" && pagoData.proveedorDestino) {
+        console.log("🏢 Era pago a proveedor:", pagoData.proveedorDestino);
+        
+        // Obtener lista de proveedores para encontrar el ID
+        const proveedoresSnap = await getDocs(collection(db, `negocios/${negocioID}/proveedores`));
+        let proveedorId = null;
+        
+        proveedoresSnap.forEach((doc) => {
+          if (doc.data().nombre === pagoData.proveedorDestino) {
+            proveedorId = doc.id;
+          }
+        });
+  
+        if (proveedorId) {
+          // Buscar y eliminar el pago correspondiente en pagosProveedores
+          const pagosProveedorSnap = await getDocs(
+            query(
+              collection(db, `negocios/${negocioID}/pagosProveedores`),
+              where("proveedorId", "==", proveedorId),
+              where("fecha", "==", pagoData.fecha)
+            )
+          );
+  
+          console.log("🔍 Pagos de proveedor encontrados:", pagosProveedorSnap.size);
+  
+          // Eliminar todos los pagos coincidentes
+          const deletePromises = [];
+          pagosProveedorSnap.forEach((docProveedor) => {
+            console.log("🗑️ Eliminando pago de proveedor:", docProveedor.id);
+            deletePromises.push(deleteDoc(docProveedor.ref));
+          });
+          
+          await Promise.all(deletePromises);
+          console.log("✅ Pagos eliminados también de pagosProveedores");
+        }
+      }
+  
+      setMensaje("✅ Pago eliminado completamente");
       obtenerPagos();
     } catch (err) {
-      console.error("Error eliminando pago:", err);
+      console.error("❌ Error eliminando pago:", err);
+      setMensaje("❌ Error al eliminar pago");
     } finally {
       setPagoAEliminar(null);
       setTimeout(() => setMensaje(""), 2000);

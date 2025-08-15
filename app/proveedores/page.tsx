@@ -12,6 +12,7 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
+import { useRol } from "@/lib/useRol"; // 🆕 IMPORTAR EL HOOK
 import DetalleProveedor from "./DetalleProveedor"; // Ajusta la ruta según tu estructura
 
 interface Proveedor {
@@ -26,8 +27,9 @@ interface Proveedor {
 }
 
 export default function ProveedoresPage() {
-  // Cambia por tu negocioID real
-  const negocioID = "tu-negocio-id"; // ← CAMBIAR ESTO
+  // 🆕 USAR EL HOOK PARA OBTENER EL NEGOCIO ID DINÁMICAMENTE
+  const { rol } = useRol();
+  const negocioID = rol?.negocioID; // Obtener el negocioID del usuario actual
 
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -53,14 +55,24 @@ export default function ProveedoresPage() {
     "Otros"
   ];
 
+  // 🆕 CARGAR PROVEEDORES SOLO CUANDO TENGAMOS EL NEGOCIO ID
   useEffect(() => {
-    cargarProveedores();
-  }, []);
+    if (negocioID) {
+      cargarProveedores();
+    }
+  }, [negocioID]);
 
   const cargarProveedores = async () => {
+    // 🆕 VERIFICAR QUE TENGAMOS EL NEGOCIO ID ANTES DE HACER LA CONSULTA
+    if (!negocioID) {
+      console.log("No hay negocioID disponible");
+      return;
+    }
+
     try {
+      console.log(`🔍 Cargando proveedores para negocio: ${negocioID}`);
       const q = query(
-        collection(db, `negocios/${negocioID}/proveedores`),
+        collection(db, `negocios/${negocioID}/proveedores`), // ✅ RUTA CORRECTA
         orderBy("nombre", "asc")
       );
       const snap = await getDocs(q);
@@ -68,9 +80,13 @@ export default function ProveedoresPage() {
         id: doc.id,
         ...doc.data()
       })) as Proveedor[];
+      
+      console.log(`✅ ${proveedoresData.length} proveedores cargados`);
       setProveedores(proveedoresData);
     } catch (error) {
-      console.error("Error cargando proveedores:", error);
+      console.error("❌ Error cargando proveedores:", error);
+      setMensaje("❌ Error al cargar proveedores");
+      setTimeout(() => setMensaje(""), 3000);
     }
   };
 
@@ -86,6 +102,13 @@ export default function ProveedoresPage() {
   };
 
   const guardarProveedor = async () => {
+    // 🆕 VERIFICAR QUE TENGAMOS EL NEGOCIO ID
+    if (!negocioID) {
+      setMensaje("❌ Error: No se pudo identificar el negocio");
+      setTimeout(() => setMensaje(""), 3000);
+      return;
+    }
+
     if (!nombre.trim()) {
       setMensaje("❌ El nombre es obligatorio");
       setTimeout(() => setMensaje(""), 2000);
@@ -105,9 +128,11 @@ export default function ProveedoresPage() {
 
     try {
       if (editandoId) {
+        console.log(`📝 Actualizando proveedor ${editandoId} en negocio ${negocioID}`);
         await updateDoc(doc(db, `negocios/${negocioID}/proveedores`, editandoId), datosProveedor);
         setMensaje("✅ Proveedor actualizado");
       } else {
+        console.log(`➕ Creando nuevo proveedor en negocio ${negocioID}`);
         await addDoc(collection(db, `negocios/${negocioID}/proveedores`), datosProveedor);
         setMensaje("✅ Proveedor creado");
       }
@@ -117,7 +142,7 @@ export default function ProveedoresPage() {
       cargarProveedores();
       setTimeout(() => setMensaje(""), 3000);
     } catch (error) {
-      console.error("Error:", error);
+      console.error("❌ Error al guardar proveedor:", error);
       setMensaje("❌ Error al guardar");
       setTimeout(() => setMensaje(""), 3000);
     }
@@ -136,17 +161,26 @@ export default function ProveedoresPage() {
   };
 
   const eliminarProveedor = async (id: string, nombre: string) => {
+    // 🆕 VERIFICAR QUE TENGAMOS EL NEGOCIO ID
+    if (!negocioID) {
+      setMensaje("❌ Error: No se pudo identificar el negocio");
+      setTimeout(() => setMensaje(""), 3000);
+      return;
+    }
+
     const confirmado = window.confirm(`¿Eliminar "${nombre}"?`);
     if (!confirmado) return;
 
     try {
+      console.log(`🗑️ Eliminando proveedor ${id} del negocio ${negocioID}`);
       await deleteDoc(doc(db, `negocios/${negocioID}/proveedores`, id));
       setMensaje("✅ Proveedor eliminado");
       cargarProveedores();
       setTimeout(() => setMensaje(""), 2000);
     } catch (error) {
-      console.error("Error:", error);
+      console.error("❌ Error al eliminar proveedor:", error);
       setMensaje("❌ Error al eliminar");
+      setTimeout(() => setMensaje(""), 3000);
     }
   };
 
@@ -154,12 +188,26 @@ export default function ProveedoresPage() {
     setProveedorSeleccionado(proveedor);
   };
 
+  // 🆕 MOSTRAR LOADING MIENTRAS CARGA EL ROL
+  if (!rol || !negocioID) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="bg-white rounded-2xl p-8 shadow-lg text-center">
+          <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <span className="text-2xl">⏳</span>
+          </div>
+          <p className="text-gray-600 font-medium">Cargando información del negocio...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Si hay un proveedor seleccionado, mostrar su detalle
   if (proveedorSeleccionado) {
     return (
       <DetalleProveedor
         proveedor={proveedorSeleccionado}
-        negocioID={negocioID}
+        negocioID={negocioID} // ✅ PASAR EL NEGOCIO ID DINÁMICO
         onVolver={() => setProveedorSeleccionado(null)}
       />
     );
@@ -179,6 +227,8 @@ export default function ProveedoresPage() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">Proveedores</h1>
                 <p className="text-gray-600">Gestiona tu red de proveedores y lleva la cuenta de compras y pagos</p>
+                {/* 🆕 MOSTRAR EL NEGOCIO ID ACTUAL PARA DEPURACIÓN */}
+                <p className="text-xs text-gray-400 mt-1">Negocio: {negocioID}</p>
               </div>
             </div>
             

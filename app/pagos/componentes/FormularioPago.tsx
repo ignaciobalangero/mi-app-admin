@@ -233,20 +233,42 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
    };
 
    try {
-     let docRef;
-     if (editandoId) {
-       docRef = doc(db, `negocios/${negocioID}/pagos`, editandoId);
-       await updateDoc(docRef, nuevoPago);
-       setEditandoId(null);
-       setMensaje("✅ Pago actualizado con éxito");
-     } else {
-       docRef = await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
-       setMensaje("✅ Pago guardado con éxito");
-       
-       // 🚀 NUEVA FUNCIONALIDAD: Marcar trabajos como pagados
-       await marcarTrabajosComoPagados(monto, moneda);
-     }
-
+    let docRef;
+    if (editandoId) {
+      docRef = doc(db, `negocios/${negocioID}/pagos`, editandoId);
+      await updateDoc(docRef, nuevoPago);
+      setEditandoId(null);
+      setMensaje("✅ Pago actualizado con éxito");
+    } else {
+      // Guardar en la colección principal de pagos
+      docRef = await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
+      
+      // 🆕 SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
+      if (tipoDestino === "proveedor" && proveedorSeleccionado) {
+        const proveedor = proveedores.find(p => p.nombre === proveedorSeleccionado);
+        if (proveedor) {
+          const pagoProveedor = {
+            proveedorId: proveedor.id,
+            proveedorNombre: proveedor.nombre,
+            fecha: new Date().toLocaleDateString("es-AR"),
+            monto: moneda === "ARS" ? monto : 0,
+            montoUSD: moneda === "USD" ? monto : 0,
+            forma: forma,
+            referencia: `Pago desde formulario principal`,
+            notas: `Origen: ${cliente || 'Cliente no especificado'}`,
+            fechaCreacion: new Date().toISOString(),
+          };
+          
+          await addDoc(collection(db, `negocios/${negocioID}/pagosProveedores`), pagoProveedor);
+          console.log("✅ Pago también guardado en pagosProveedores para:", proveedor.nombre);
+        }
+      }
+      
+      setMensaje("✅ Pago guardado con éxito");
+      
+      // 🚀 NUEVA FUNCIONALIDAD: Marcar trabajos como pagados
+      await marcarTrabajosComoPagados(monto, moneda);
+    }
      const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
      const pagosActualizados = snap.docs.map((doc) => ({
        id: doc.id,
@@ -274,43 +296,63 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
  };
 
  const eliminarPago = async (id: string, cliente: string) => {
-   const confirmado = window.confirm(`¿Eliminar el pago de ${cliente}?`);
-   if (!confirmado) return;
+  const confirmado = window.confirm(`¿Eliminar el pago de ${cliente}?`);
+  if (!confirmado) return;
 
-   try {
-     const ref1 = doc(db, `negocios/${negocioID}/pagos`, id);
-     const ref2 = doc(db, `negocios/${negocioID}/pagos`, id);
+  try {
+    // 1. Obtener el pago antes de eliminarlo para ver si era a un proveedor
+    const pagoDoc = await getDocs(
+      query(collection(db, `negocios/${negocioID}/pagos`), where("__name__", "==", id))
+    );
+    
+    let pagoData = null;
+    if (!pagoDoc.empty) {
+      pagoData = pagoDoc.docs[0].data();
+    }
 
-     try {
-       await deleteDoc(ref1);
-     } catch {
-       await deleteDoc(ref2);
-     }
+    // 2. Eliminar de la colección principal
+    const ref1 = doc(db, `negocios/${negocioID}/pagos`, id);
+    await deleteDoc(ref1);
 
-     const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
-     const pagosActualizados = snap.docs.map((doc) => ({
-       id: doc.id,
-       ...doc.data(),
-       origen: "pagos",
-     }));
-     setPagos(pagosActualizados);
+    // 3. 🆕 SI ERA PAGO A PROVEEDOR, ELIMINARLO TAMBIÉN DE pagosProveedores
+    if (pagoData && pagoData.tipoDestino === "proveedor" && pagoData.proveedorDestino) {
+      const proveedor = proveedores.find(p => p.nombre === pagoData.proveedorDestino);
+      if (proveedor) {
+        // Buscar el pago correspondiente en pagosProveedores
+        const pagosProveedorSnap = await getDocs(
+          query(
+            collection(db, `negocios/${negocioID}/pagosProveedores`),
+            where("proveedorId", "==", proveedor.id),
+            where("fecha", "==", pagoData.fecha),
+            where("monto", "==", pagoData.monto || 0),
+            where("montoUSD", "==", pagoData.montoUSD || 0)
+          )
+        );
 
-     const clientesSnap = await getDocs(
-       query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", cliente))
-     );
-     const clienteDoc = clientesSnap.docs[0];
-     if (clienteDoc) {
-       const clienteID = clienteDoc.id;
-     }
+        // Eliminar el pago del proveedor
+        pagosProveedorSnap.forEach(async (doc) => {
+          await deleteDoc(doc.ref);
+          console.log("✅ Pago eliminado también de pagosProveedores");
+        });
+      }
+    }
 
-     setMensaje("✅ Pago eliminado");
-     setTimeout(() => setMensaje(""), 2000);
-   } catch (error) {
-     console.error("❌ Error eliminando pago:", error);
-     setMensaje("❌ Error inesperado al eliminar");
-   }
- };
+    // 4. Actualizar la lista de pagos
+    const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
+    const pagosActualizados = snap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      origen: "pagos",
+    }));
+    setPagos(pagosActualizados);
 
+    setMensaje("✅ Pago eliminado");
+    setTimeout(() => setMensaje(""), 2000);
+  } catch (error) {
+    console.error("❌ Error eliminando pago:", error);
+    setMensaje("❌ Error inesperado al eliminar");
+  }
+};
  // Calcular totales de deuda por moneda
  const totalDeudaARS = trabajosPendientes
    .filter(t => (t.moneda || "ARS") === "ARS")
