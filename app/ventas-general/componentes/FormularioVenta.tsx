@@ -334,17 +334,7 @@ export default function FormularioVenta({ onVentaGuardada, cerrarModal }: Props)
         onAgregar={agregarProducto}
       />
 
-      <ModalPago
-        mostrar={mostrarModalPago}
-        pago={pago}
-        onClose={() => setMostrarModalPago(false)}
-        handlePagoChange={handlePagoChange}
-        onGuardarPago={() => {
-          setGuardadoConExito(true);
-          setTimeout(() => setGuardadoConExito(false), 1500);
-        }}        
-        guardadoConExito={guardadoConExito}
-      />
+
     </div>
   );
 }

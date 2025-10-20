@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc, getDocs } from "firebase/firestore";
 
 interface Trabajo {
   firebaseId: string;
@@ -42,10 +42,35 @@ export default function ModalPago({
     formaPago: "",
     destino: "",
     observaciones: "",
+    tipoDestino: "libre", // libre, proveedor
+    proveedorSeleccionado: "",
+    destinoLibre: "",
   });
 
+  const [proveedores, setProveedores] = useState<any[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
+
+  // Cargar proveedores al abrir el modal
+  useEffect(() => {
+    if (!negocioID || !mostrar) return;
+
+    const fetchProveedores = async () => {
+      try {
+        const snap = await getDocs(collection(db, `negocios/${negocioID}/proveedores`));
+        const proveedoresData = snap.docs.map(doc => ({
+          id: doc.id,
+          nombre: doc.data().nombre,
+          categoria: doc.data().categoria || "",
+        }));
+        setProveedores(proveedoresData);
+      } catch (error) {
+        console.error("Error al cargar proveedores:", error);
+      }
+    };
+
+    fetchProveedores();
+  }, [negocioID, mostrar]);
 
   // Pre-llenar el monto cuando se abre el modal
   useEffect(() => {
@@ -69,13 +94,26 @@ export default function ModalPago({
     }));
   };
 
+  const obtenerDestino = () => {
+    if (pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado) {
+      const proveedor = proveedores.find(p => p.nombre === pago.proveedorSeleccionado);
+      return `Proveedor: ${pago.proveedorSeleccionado}${proveedor?.categoria ? ` (${proveedor.categoria})` : ''}`;
+    }
+    return pago.destinoLibre;
+  };
+
   const handleGuardarPago = async () => {
     if (!pago.monto || !pago.formaPago || guardando) return;
+    
+    // Validar destino según tipo
+    if (pago.tipoDestino === "proveedor" && !pago.proveedorSeleccionado) return;
+    if (pago.tipoDestino === "libre" && !pago.destinoLibre) return;
 
     setGuardando(true);
     
     try {
       const montoNumerico = parseFloat(pago.monto);
+      const destino = obtenerDestino();
       
       // 1. Crear el pago en la colección pagos
       const pagoData = {
@@ -83,8 +121,10 @@ export default function ModalPago({
         monto: pago.moneda === "USD" ? null : montoNumerico,
         montoUSD: pago.moneda === "USD" ? montoNumerico : null,
         moneda: pago.moneda,
-        formaPago: pago.formaPago,
-        destino: pago.destino,
+        forma: pago.formaPago, // Cambié formaPago por forma para consistencia
+        destino: destino,
+        tipoDestino: pago.tipoDestino,
+        proveedorDestino: pago.tipoDestino === "proveedor" ? pago.proveedorSeleccionado : null,
         observaciones: pago.observaciones,
         fecha: new Date().toLocaleDateString('es-AR'),
         fechaCompleta: new Date(),
@@ -102,7 +142,28 @@ export default function ModalPago({
       // Guardar en Firebase
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
 
-      // 2. Actualizar el trabajo específico a PAGADO
+      // 2. 🆕 SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
+      if (pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado) {
+        const proveedor = proveedores.find(p => p.nombre === pago.proveedorSeleccionado);
+        if (proveedor) {
+          const pagoProveedor = {
+            proveedorId: proveedor.id,
+            proveedorNombre: proveedor.nombre,
+            fecha: new Date().toLocaleDateString("es-AR"),
+            monto: pago.moneda === "ARS" ? montoNumerico : 0,
+            montoUSD: pago.moneda === "USD" ? montoNumerico : 0,
+            forma: pago.formaPago,
+            referencia: `Pago desde trabajo: ${trabajo.trabajo}`,
+            notas: `Cliente: ${trabajo.cliente} - Modelo: ${trabajo.modelo}${pago.observaciones ? ` - ${pago.observaciones}` : ''}`,
+            fechaCreacion: new Date().toISOString(),
+          };
+          
+          await addDoc(collection(db, `negocios/${negocioID}/pagosProveedores`), pagoProveedor);
+          console.log("✅ Pago también guardado en pagosProveedores para:", proveedor.nombre);
+        }
+      }
+
+      // 3. Actualizar el trabajo específico a PAGADO
       const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
       await updateDoc(trabajoRef, {
         estado: "PAGADO",
@@ -110,12 +171,12 @@ export default function ModalPago({
         fechaModificacion: new Date().toLocaleDateString('es-AR')
       });
 
-      // 3. Mostrar éxito
+      // 4. Mostrar éxito
       setGuardadoConExito(true);
       
       console.log(`✅ Pago registrado para ${trabajo.cliente} - ${trabajo.trabajo} - $${montoNumerico}`);
       
-      // 4. Cerrar modal después de 1.5 segundos y recargar datos
+      // 5. Cerrar modal después de 1.5 segundos y recargar datos
       setTimeout(() => {
         onPagoGuardado(); // Recargar trabajos
         onClose(); // Cerrar modal
@@ -128,6 +189,9 @@ export default function ModalPago({
           formaPago: "",
           destino: "",
           observaciones: "",
+          tipoDestino: "libre",
+          proveedorSeleccionado: "",
+          destinoLibre: "",
         });
       }, 1500);
 
@@ -141,7 +205,7 @@ export default function ModalPago({
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full h-full sm:h-auto sm:max-w-2xl lg:max-w-3xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
+      <div className="w-full h-full sm:h-auto sm:max-w-2xl lg:max-w-4xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
         
         {/* Header del Modal - Con información del trabajo */}
         <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-4 sm:p-6 flex justify-between items-center flex-shrink-0">
@@ -270,7 +334,7 @@ export default function ModalPago({
               </div>
               <span className="text-sm sm:text-base">Método de Pago</span>
             </h4>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-3 sm:space-y-4">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#2c3e50]">
                   Forma de pago: *
@@ -284,23 +348,8 @@ export default function ModalPago({
                   className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#2c3e50]">
-                  Destino (opcional):
-                </label>
-                <input
-                  type="text"
-                  name="destino"
-                  value={pago.destino}
-                  onChange={handlePagoChange}
-                  placeholder="🏪 Cuenta bancaria, caja..."
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
-                />
-              </div>
-            </div>
 
-            {/* Opciones rápidas de forma de pago */}
-            <div className="mt-4">
+              {/* Opciones rápidas de forma de pago */}
               <div className="flex flex-wrap gap-2">
                 <span className="text-sm text-[#7f8c8d] w-full mb-1">Opciones rápidas:</span>
                 {["Efectivo", "Transferencia", "Tarjeta", "MercadoPago"].map((forma) => (
@@ -313,6 +362,93 @@ export default function ModalPago({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* 🆕 Sección de Destino del Pago */}
+          <div className="bg-white rounded-xl border-2 border-[#e74c3c] p-4 sm:p-6 shadow-sm">
+            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#e74c3c] rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs sm:text-sm">🎯</span>
+              </div>
+              <span className="text-sm sm:text-base">Destino del Pago</span>
+            </h4>
+            
+            <div className="space-y-3 sm:space-y-4">
+              {/* Selector de tipo de destino */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#2c3e50]">
+                  Tipo de destino: *
+                </label>
+                <select
+                  name="tipoDestino"
+                  value={pago.tipoDestino}
+                  onChange={(e) => {
+                    setPago(prev => ({
+                      ...prev,
+                      tipoDestino: e.target.value,
+                      proveedorSeleccionado: "",
+                      destinoLibre: "",
+                    }));
+                  }}
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e74c3c] focus:border-[#e74c3c] transition-all text-sm sm:text-base text-[#2c3e50]"
+                >
+                  <option value="libre">✏️ Escribir destino</option>
+                  <option value="proveedor">🏢 Pagar a proveedor</option>
+                </select>
+              </div>
+
+              {/* Campo dinámico según tipo */}
+              {pago.tipoDestino === "proveedor" ? (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-[#2c3e50]">
+                    🏢 Seleccionar Proveedor: *
+                  </label>
+                  <select
+                    name="proveedorSeleccionado"
+                    value={pago.proveedorSeleccionado}
+                    onChange={handlePagoChange}
+                    className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#8e44ad] focus:border-[#8e44ad] transition-all text-sm sm:text-base text-[#2c3e50]"
+                  >
+                    <option value="">Seleccionar proveedor</option>
+                    {proveedores.map((proveedor) => (
+                      <option key={proveedor.id} value={proveedor.nombre}>
+                        {proveedor.nombre} {proveedor.categoria && `(${proveedor.categoria})`}
+                      </option>
+                    ))}
+                  </select>
+                  {proveedores.length === 0 && (
+                    <p className="text-xs text-[#7f8c8d] mt-1">
+                      No hay proveedores. <span className="text-[#8e44ad] font-medium">Crea uno en la sección Proveedores</span>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-[#2c3e50]">
+                    ✏️ Concepto del Pago: *
+                  </label>
+                  <input
+                    type="text"
+                    name="destinoLibre"
+                    value={pago.destinoLibre}
+                    onChange={handlePagoChange}
+                    placeholder="🏪 Ej: Caja chica, Cuenta bancaria, etc."
+                    className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e74c3c] focus:border-[#e74c3c] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
+                  />
+                </div>
+              )}
+
+              {/* Vista previa del destino */}
+              {((pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado) || 
+                (pago.tipoDestino === "libre" && pago.destinoLibre)) && (
+                <div className="p-3 bg-gradient-to-r from-[#f8f9fa] to-[#e9ecef] rounded-lg border border-[#dee2e6]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#6c757d] text-sm font-medium">Destino seleccionado:</span>
+                    <span className="text-[#2c3e50] font-semibold text-sm">{obtenerDestino()}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -347,7 +483,8 @@ export default function ModalPago({
                   <span className="text-[#27ae60] text-xs sm:text-sm font-bold">✓</span>
                 </div>
                 <span className="text-white font-semibold text-sm sm:text-lg">
-                  ¡Pago registrado con éxito! Trabajo marcado como PAGADO
+                  ¡Pago registrado con éxito! 
+                  {pago.tipoDestino === "proveedor" && " (También registrado para el proveedor)"}
                 </span>
               </div>
             </div>
@@ -366,9 +503,21 @@ export default function ModalPago({
             </button>
             <button
               onClick={handleGuardarPago}
-              disabled={!pago.monto || !pago.formaPago || guardando || guardadoConExito}
+              disabled={
+                !pago.monto || 
+                !pago.formaPago || 
+                guardando || 
+                guardadoConExito ||
+                (pago.tipoDestino === "proveedor" && !pago.proveedorSeleccionado) ||
+                (pago.tipoDestino === "libre" && !pago.destinoLibre)
+              }
               className={`w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium text-white transition-all duration-200 transform shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base ${
-                !pago.monto || !pago.formaPago || guardando || guardadoConExito
+                !pago.monto || 
+                !pago.formaPago || 
+                guardando || 
+                guardadoConExito ||
+                (pago.tipoDestino === "proveedor" && !pago.proveedorSeleccionado) ||
+                (pago.tipoDestino === "libre" && !pago.destinoLibre)
                   ? "bg-[#bdc3c7] cursor-not-allowed"
                   : "bg-[#27ae60] hover:bg-[#229954] hover:scale-105"
               }`}

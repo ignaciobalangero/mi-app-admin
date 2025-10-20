@@ -16,7 +16,7 @@ import { auth } from "@/lib/auth";
 import { guardarTrabajo } from "./guardarTrabajo";
 import CheckInForm from "./CheckInForm";
 import { Combobox } from "@headlessui/react";
-import OpcionesImpresion from "./OpcionesImpresion";
+import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
 
 interface Cliente {
   nombre: string;
@@ -854,57 +854,39 @@ export default function IngresoForm() {
             <CheckInForm checkData={checkData} setCheckData={setCheckData} />
           )}
 
-          {/* ✅ OPCIONES DE IMPRESIÓN SIMPLIFICADAS */}
-          {mostrandoOpcionesImpresion && (
-            <OpcionesImpresion
-              onImprimir={manejarImpresion}
-              mostrandoOpciones={mostrandoOpcionesImpresion}
-              onToggleOpciones={() => setMostrandoOpcionesImpresion(false)}
-              datosTrabajos={{
-                ...form,
-                checkIn: mostrarCheckIn ? checkData : null,
-              }}
-              negocioID={negocioID}
-            />
-          )}
+        
 
-          {/* ✅ BOTONES DE ACCIÓN SIMPLIFICADOS */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1] mb-8">
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              
-              {/* Botón guardar normal */}
-              <button
-                onClick={handleGuardarSolo}
-                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 justify-center"
-              >
-                💾 Guardar Trabajo
-              </button>
+          {/* Sistema de impresión unificado */}
+{/* Sistema de impresión unificado */}
+<div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1] mb-8">
+  <div className="flex flex-col gap-6">
+    
+    {/* Botón guardar solo */}
+    <div className="flex justify-center">
+      <button
+        onClick={handleGuardarSolo}
+        className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 justify-center"
+      >
+        💾 Guardar Solo (Sin Imprimir)
+      </button>
+    </div>
 
-              {/* Botón opciones de impresión */}
-              {!mostrandoOpcionesImpresion && (
-                <OpcionesImpresion
-                  onImprimir={manejarImpresion}
-                  mostrandoOpciones={mostrandoOpcionesImpresion}
-                  onToggleOpciones={() => setMostrandoOpcionesImpresion(true)}
-                  datosTrabajos={{
-                    ...form,
-                    checkIn: mostrarCheckIn ? checkData : null,
-                  }}
-                  negocioID={negocioID}
-                />
-              )}
-            </div>
-            
-            {/* Texto informativo actualizado */}
-            <div className="mt-4 text-center">
-              <p className="text-sm text-[#7f8c8d]">
-                💡 <strong>Tip:</strong> Usa "Guardar Trabajo" para guardar con configuración automática, 
-                o "Opciones de Impresión" para elegir qué documentos imprimir. 
-                <strong>¡Tu EPSON L1250 aparecerá en el diálogo de impresión nativo!</strong>
-              </p>
-            </div>
-          </div>
-
+    {/* Separador */}
+    <div className="border-t border-[#ecf0f1] pt-4">
+      <h4 className="text-center text-[#2c3e50] font-semibold mb-4">O imprimir directamente:</h4>
+      
+      {/* Nuevo sistema de impresión */}
+      <BotonesImpresionTrabajo 
+        trabajo={{
+          ...form,
+          checkIn: mostrarCheckIn ? checkData : null,
+        }}
+        negocioId={negocioID}
+        ocultarEtiquetasA4={true}
+      />
+    </div>
+  </div>
+</div>
           {/* Mensaje de éxito */}
           {mensajeExito && (
             <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] border-2 border-[#27ae60] rounded-xl p-6 shadow-lg mb-8">

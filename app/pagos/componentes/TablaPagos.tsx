@@ -10,6 +10,7 @@ import {
   Timestamp,
   query,
   where,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { PagoConOrigen } from "../page";
@@ -69,19 +70,19 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
     
     try {
       // 1. 🔍 OBTENER LOS DATOS DEL PAGO ANTES DE ELIMINARLO
-      const pagoDoc = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
-      let pagoData = null;
+      const pagoDocRef = doc(db, `negocios/${negocioID}/pagos`, pagoAEliminar.id);
+      const pagoDocSnap = await getDoc(pagoDocRef);
       
-      pagoDoc.forEach((doc) => {
-        if (doc.id === pagoAEliminar.id) {
-          pagoData = doc.data();
-        }
-      });
-  
+      if (!pagoDocSnap.exists()) {
+        console.error("❌ Pago no encontrado");
+        return;
+      }
+      
+      const pagoData = pagoDocSnap.data();
       console.log("🔍 Datos del pago a eliminar:", pagoData);
   
       // 2. ✂️ ELIMINAR DE LA COLECCIÓN PRINCIPAL
-      await deleteDoc(doc(db, `negocios/${negocioID}/${pagoAEliminar.origen}`, pagoAEliminar.id));
+      await deleteDoc(pagoDocRef);
       console.log("✅ Pago eliminado de colección principal");
   
       // 3. 🏢 SI ERA PAGO A PROVEEDOR, ELIMINARLO TAMBIÉN DE pagosProveedores
@@ -99,12 +100,14 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         });
   
         if (proveedorId) {
-          // Buscar y eliminar el pago correspondiente en pagosProveedores
+          // 🆕 BUSQUEDA MEJORADA: Por proveedor, fecha Y montos
           const pagosProveedorSnap = await getDocs(
             query(
               collection(db, `negocios/${negocioID}/pagosProveedores`),
               where("proveedorId", "==", proveedorId),
-              where("fecha", "==", pagoData.fecha)
+              where("fecha", "==", pagoData.fecha),
+              where("monto", "==", pagoData.monto || 0),
+              where("montoUSD", "==", pagoData.montoUSD || 0)
             )
           );
   
@@ -119,6 +122,8 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
           
           await Promise.all(deletePromises);
           console.log("✅ Pagos eliminados también de pagosProveedores");
+        } else {
+          console.log("⚠️ No se encontró el proveedor ID para:", pagoData.proveedorDestino);
         }
       }
   
@@ -132,7 +137,6 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       setTimeout(() => setMensaje(""), 2000);
     }
   };
-
   const convertirFecha = (fecha: string): string => {
     const [dia, mes, anio] = fecha.split("/");
     return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
@@ -451,11 +455,11 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
                       <span className="text-sm font-semibold text-[#3498db]">{pago.cliente}</span>
                     </td>
                     <td className="p-4 border border-black">
-                      <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
-                        {pago.moneda === "USD"
-                          ? `USD ${pago.montoUSD}`
-                          : `${pago.monto}`}
-                      </span>
+                    <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
+  {pago.moneda === "USD"
+    ? `USD ${Number(pago.montoUSD).toLocaleString()}`
+    : `$ ${Number(pago.monto).toLocaleString()}`}
+</span>
                     </td>
                     <td className="p-4 border border-black">
                       <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${

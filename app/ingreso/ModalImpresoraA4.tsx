@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { db } from "../../lib/firebase";
+import { useState, useEffect, useRef } from "react";
 import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import VistaPreviaTicketA4 from "@/app/configuraciones/impresion/components/VistaPreviaTicketA4";
+import ReactDOMServer from 'react-dom/server';
 
 interface ModalImpresoraA4Props {
   isOpen: boolean;
@@ -12,533 +14,371 @@ interface ModalImpresoraA4Props {
   negocioID: string;
 }
 
-export default function ModalImpresoraA4({ 
-  isOpen, 
-  onClose, 
-  onImprimir, 
-  datosTrabajos, 
-  negocioID 
+export default function ModalImpresoraA4({
+  isOpen,
+  onClose,
+  onImprimir,
+  datosTrabajos,
+  negocioID
 }: ModalImpresoraA4Props) {
-  const [impresoras, setImpresoras] = useState<string[]>([]);
-  const [impresorasReales, setImpresorasReales] = useState<string[]>([]);
-  const [impresoraSeleccionada, setImpresoraSeleccionada] = useState("");
-  const [impresoraConfigurada, setImpresoraConfigurada] = useState("");
-  const [cargandoImpresoras, setCargandoImpresoras] = useState(false);
-  const [detectandoReales, setDetectandoReales] = useState(false);
+  
+  const [impresoraSeleccionada, setImpresoraSeleccionada] = useState<string>("");
+  const [plantillaA4, setPlantillaA4] = useState<any>(null);
+  const [cargandoPlantilla, setCargandoPlantilla] = useState(true);
+  const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false);
+  const vistaRef = useRef<HTMLDivElement>(null);
 
-  // ✅ FUNCIÓN PARA DETECTAR IMPRESORAS REALES DEL SISTEMA
-  const detectarImpresorasDelSistema = async () => {
-    setDetectandoReales(true);
-    const impresorasDetectadas: string[] = [];
-
-    try {
-      console.log("🔍 Intentando detectar impresoras del sistema...");
-
-      // ✅ MÉTODO 1: Usar Media Query API para detectar impresoras
-      if ('mediaDevices' in navigator) {
-        try {
-          // Este método puede detectar dispositivos de salida
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          console.log("Dispositivos detectados:", devices);
-        } catch (e) {
-          console.log("MediaDevices no disponible");
-        }
-      }
-
-      // ✅ MÉTODO 2: Crear elemento de impresión temporal para detectar
-      const detectarConIframe = (): Promise<string[]> => {
-        return new Promise((resolve) => {
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.style.position = 'fixed';
-          iframe.style.top = '-9999px';
-          iframe.style.left = '-9999px';
-          iframe.style.width = '1px';
-          iframe.style.height = '1px';
-          
-          document.body.appendChild(iframe);
-          
-          try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-            if (iframeDoc) {
-              iframeDoc.write(`
-                <html>
-                  <head><title>Detector</title></head>
-                  <body>
-                    <script>
-                      try {
-                        // Intentar acceder a las impresoras del sistema
-                        if (window.print) {
-                          window.print();
-                        }
-                      } catch(e) {
-                        console.log('Print API called');
-                      }
-                    </script>
-                  </body>
-                </html>
-              `);
-              iframeDoc.close();
-            }
-          } catch (error) {
-            console.log("No se pudo crear detector iframe");
-          }
-          
-          // Limpiar después de intentar detectar
-          setTimeout(() => {
-            try {
-              document.body.removeChild(iframe);
-            } catch (e) {}
-            resolve([]);
-          }, 1000);
-        });
-      };
-
-      // ✅ MÉTODO 3: Detectar usando Print API moderna (experimental)
-      if ('getDisplayMedia' in navigator.mediaDevices) {
-        try {
-          console.log("🖨️ Intentando detectar con Print API...");
-          // Nota: Esta API está en desarrollo y no está ampliamente soportada
-        } catch (e) {
-          console.log("Print API no disponible");
-        }
-      }
-
-      // ✅ MÉTODO 4: Usar Web Serial API si está disponible (Chrome)
-      if ('serial' in navigator) {
-        try {
-          console.log("🔌 Serial API disponible para impresoras USB");
-          // Nota: Requiere permisos del usuario
-        } catch (e) {
-          console.log("Serial API no accesible");
-        }
-      }
-
-      // Ejecutar detección con iframe
-      await detectarConIframe();
-
-      // ✅ MÉTODO 5: Intentar detectar mediante CSS @media print
-      const detectarMediaPrint = () => {
-        const mediaQuery = window.matchMedia('print');
-        console.log("Media query print:", mediaQuery.matches);
-        return mediaQuery;
-      };
-
-      detectarMediaPrint();
-
-      // ✅ ANÁLISIS DE NAVEGADOR PARA SUGERIR IMPRESORAS COMUNES
-      const analizarNavegador = () => {
-        const userAgent = navigator.userAgent;
-        const plataforma = navigator.platform;
-        
-        console.log("Analizando sistema:", { userAgent, plataforma });
-        
-        if (userAgent.includes('Windows')) {
-          return [
-            "🖨️ [DETECTADA] Impresora predeterminada de Windows",
-            "📄 [SUGERIDA] Microsoft Print to PDF",
-            "📄 [SUGERIDA] Microsoft XPS Document Writer"
-          ];
-        } else if (userAgent.includes('Mac')) {
-          return [
-            "🖨️ [DETECTADA] Impresora predeterminada de macOS",
-            "📄 [SUGERIDA] Guardar como PDF"
-          ];
-        } else if (userAgent.includes('Linux')) {
-          return [
-            "🖨️ [DETECTADA] Impresora predeterminada de Linux",
-            "📄 [SUGERIDA] Imprimir a archivo"
-          ];
-        }
-        
-        return ["🖨️ [DETECTADA] Impresora predeterminada del sistema"];
-      };
-
-      const impresorasDelSistema = analizarNavegador();
-      impresorasDetectadas.push(...impresorasDelSistema);
-
-      console.log("✅ Impresoras detectadas:", impresorasDetectadas);
-      
-    } catch (error) {
-      console.error("❌ Error detectando impresoras:", error);
-      impresorasDetectadas.push("🖨️ [DETECTADA] Impresora predeterminada del sistema");
-    }
-
-    setImpresorasReales(impresorasDetectadas);
-    setDetectandoReales(false);
-    return impresorasDetectadas;
-  };
-
-  // ✅ CARGAR IMPRESORAS Y CONFIGURACIÓN AL ABRIR EL MODAL
   useEffect(() => {
-    if (isOpen) {
-      cargarImpresorasA4();
-      cargarConfiguracion();
-      detectarImpresorasDelSistema();
+    if (isOpen && negocioID) {
+      cargarPlantillaA4();
     }
   }, [isOpen, negocioID]);
 
-  const cargarConfiguracion = async () => {
+  const cargarPlantillaA4 = async () => {
     try {
-      const configRef = doc(db, `negocios/${negocioID}/configuracion/datos`);
-      const configSnap = await getDoc(configRef);
-      if (configSnap.exists()) {
-        const impresoraA4Config = configSnap.data().impresoraA4 || "";
-        setImpresoraConfigurada(impresoraA4Config);
-        setImpresoraSeleccionada(impresoraA4Config);
+      setCargandoPlantilla(true);
+      const plantillasRef = doc(db, `negocios/${negocioID}/configuracion/plantillasImpresion`);
+      const plantillasSnap = await getDoc(plantillasRef);
+
+      if (plantillasSnap.exists()) {
+        const data = plantillasSnap.data();
+        const plantilla = data.ticketA4;
+        
+        if (plantilla) {
+          if (!plantilla.camposSeleccionados && plantilla.campos) {
+            plantilla.camposSeleccionados = plantilla.campos;
+          }
+          setPlantillaA4(plantilla);
+        }
       }
     } catch (error) {
-      console.error("Error cargando configuración:", error);
+      console.error("Error cargando plantilla:", error);
+    } finally {
+      setCargandoPlantilla(false);
     }
   };
 
-  const cargarImpresorasA4 = async () => {
-    setCargandoImpresoras(true);
-    
-    try {
-      // Lista de impresoras A4 WiFi comunes
-      const impresorasA4 = [
-        // Separador para impresoras detectadas
-        "━━━ 🔍 IMPRESORAS DETECTADAS EN TU PC ━━━",
-        // Las impresoras reales se agregarán dinámicamente
-        
-        // Separador visual
-        "━━━ 📄 IMPRESORAS A4 WiFi POPULARES ━━━",
-        "📄 HP LaserJet Pro M404dw (WiFi)",
-        "📄 HP LaserJet Pro M415dw (WiFi)",
-        "📄 HP OfficeJet Pro 9015e (WiFi)",
-        "📄 HP OfficeJet Pro 8025e (WiFi)",
-        "📄 HP DeskJet 2720e (WiFi)",
-        "📄 HP ENVY 6055e (WiFi)",
-        "📄 Canon PIXMA G3020 (WiFi)",
-        "📄 Canon PIXMA G4210 (WiFi)",
-        "📄 Canon MAXIFY MB5420 (WiFi)",
-        "📄 Canon PIXMA TS3320 (WiFi)",
-        "📄 Epson EcoTank L3250 (WiFi)",
-        "📄 Epson EcoTank L4260 (WiFi)",
-        "📄 Epson WorkForce WF-2850 (WiFi)",
-        "📄 Epson Expression Home XP-4105 (WiFi)",
-        "📄 Brother DCP-L2550DW (WiFi)",
-        "📄 Brother MFC-L2750DW (WiFi)",
-        "📄 Brother HL-L2395DW (WiFi)",
-        "📄 Samsung Xpress M2020W (WiFi)",
-        "📄 Samsung Xpress M2070FW (WiFi)",
-        "📄 Xerox WorkCentre 3025 (WiFi)",
-        
-        // Separador visual
-        "━━━ 🔧 OTRAS OPCIONES ━━━",
-        "🖨️ Otra impresora A4 (especificar)",
-        "🔍 Buscar automáticamente en el sistema",
-      ];
-      
-      setImpresoras(impresorasA4);
-      
-    } catch (error) {
-      console.error("Error cargando impresoras:", error);
-      setImpresoras([
-        "🖨️ [DETECTADA] Impresora predeterminada",
-        "📄 HP LaserJet WiFi (A4)",
-        "📄 Canon PIXMA WiFi (A4)",
-        "📄 Epson EcoTank WiFi (A4)"
-      ]);
-    }
-    
-    setCargandoImpresoras(false);
-  };
-
-  // ✅ COMBINAR IMPRESORAS DETECTADAS CON LA LISTA
-  const obtenerListaCompleta = () => {
-    const lista = [...impresoras];
-    
-    // Insertar impresoras reales después del primer separador
-    if (impresorasReales.length > 0) {
-      const indiceDetectadas = lista.findIndex(item => item.includes("DETECTADAS EN TU PC"));
-      if (indiceDetectadas !== -1) {
-        lista.splice(indiceDetectadas + 1, 0, ...impresorasReales);
-      }
-    } else {
-      // Si no se detectaron, agregar mensaje
-      const indiceDetectadas = lista.findIndex(item => item.includes("DETECTADAS EN TU PC"));
-      if (indiceDetectadas !== -1) {
-        lista.splice(indiceDetectadas + 1, 0, "⚠️ No se pudieron detectar impresoras automáticamente");
-      }
-    }
-    
-    return lista;
+  const prepararDatosParaTicket = (trabajo: any) => {
+    return {
+      id: trabajo.id || 'N/A',
+      fecha: trabajo.fecha || new Date().toLocaleDateString('es-AR'),
+      fechaEntrega: trabajo.fechaEntrega || 'A confirmar',
+      cliente: trabajo.cliente || 'No especificado',
+      telefono: trabajo.telefono || 'No especificado',
+      email: trabajo.email || 'No especificado',
+      direccion: trabajo.direccion || 'No especificado',
+      marca: trabajo.marca || 'No especificado',
+      modelo: trabajo.modelo || 'No especificado',
+      numeroSerie: trabajo.imei || trabajo.numeroSerie || 'No especificado',
+      bateria: trabajo.bateria || 'No verificado',
+      bloqueo: trabajo.clave || trabajo.bloqueo || 'No especificado',
+      estadoIngreso: trabajo.estadoIngreso || 'Por verificar',
+      accesorios: trabajo.accesorios || 'Ninguno',
+      trabajo: trabajo.trabajo || 'No especificado',
+      diagnostico: trabajo.diagnostico || 'Pendiente',
+      solucion: trabajo.solucion || 'Pendiente',
+      repuestos: trabajo.repuestos || 'Ninguno',
+      tecnico: trabajo.tecnico || 'Sin asignar',
+      precio: trabajo.precio ? `$${trabajo.precio}` : '$0.00',
+      anticipo: trabajo.anticipo ? `$${trabajo.anticipo}` : '$0.00',
+      saldo: trabajo.saldo ? `$${trabajo.saldo}` : trabajo.precio ? `$${trabajo.precio}` : '$0.00',
+      metodoPago: trabajo.metodoPago || 'Efectivo',
+      observaciones: trabajo.observaciones || '',
+    };
   };
 
   const handleImprimir = () => {
     if (!impresoraSeleccionada) {
-      alert("⚠️ Selecciona una impresora primero");
+      alert("⚠️ Selecciona una impresora");
       return;
     }
-
-    if (impresoraSeleccionada.includes('━━━')) {
-      alert("⚠️ Esa es una categoría, no una impresora. Selecciona una impresora específica.");
+    if (!plantillaA4) {
+      alert("⚠️ No hay plantilla configurada");
       return;
     }
-
-    onImprimir(impresoraSeleccionada);
-    onClose();
+    if (!datosTrabajos || !datosTrabajos.cliente) {
+      alert("⚠️ Faltan datos del trabajo");
+      return;
+    }
+    generarYAbrirTicketA4();
   };
 
-  const probarImpresora = () => {
-    if (!impresoraSeleccionada || impresoraSeleccionada.includes('━━━')) {
-      alert("Selecciona una impresora específica primero");
-      return;
-    }
+  const generarYAbrirTicketA4 = () => {
+    const camposSeleccionados = plantillaA4.camposSeleccionados || plantillaA4.campos;
+    const configuracion = plantillaA4.configuracion;
+    const datosCompletos = prepararDatosParaTicket(datosTrabajos);
 
-    const esImpresoraDetectada = impresoraSeleccionada.includes('[DETECTADA]');
-    const esImpresoraWiFi = impresoraSeleccionada.includes('WiFi') || impresoraSeleccionada.includes('(WiFi)');
+    const componenteHTML = ReactDOMServer.renderToStaticMarkup(
+      <VistaPreviaTicketA4
+        camposSeleccionados={camposSeleccionados}
+        configuracion={configuracion}
+        datosEjemplo={datosCompletos}
+      />
+    );
 
-    // Crear documento de prueba
-    const contenidoPrueba = `
-      <div style="width: 210mm; min-height: 297mm; font-family: Arial, sans-serif; font-size: 12px; line-height: 1.5; padding: 20mm; box-sizing: border-box;">
-        <div style="text-align: center; font-weight: bold; font-size: 24px; margin-bottom: 30px; border-bottom: 3px solid #e67e22; padding-bottom: 10px;">
-          🖨️ PRUEBA DE IMPRESORA A4
-        </div>
-        
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #e67e22; margin-bottom: 30px;">
-          <h3 style="margin: 0 0 15px 0; color: #2c3e50;">📄 Información de la Impresora</h3>
-          <p><strong>Impresora seleccionada:</strong> ${impresoraSeleccionada}</p>
-          <p><strong>Estado:</strong> ${esImpresoraDetectada ? '🔍 Detectada en tu sistema' : '📋 De la lista predefinida'}</p>
-          <p><strong>Tipo:</strong> ${esImpresoraWiFi ? '📶 WiFi (Inalámbrica)' : '🔌 USB/Red'}</p>
-          <p><strong>Formato:</strong> A4 (210mm x 297mm)</p>
-          <p><strong>Fecha de prueba:</strong> ${new Date().toLocaleString('es-AR')}</p>
-        </div>
-        
-        <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff; margin-bottom: 30px;">
-          <h3 style="margin: 0 0 15px 0; color: #2c3e50;">✅ Documento de Prueba</h3>
-          <p>Si puedes ver este documento correctamente y la impresión sale bien, tu impresora está funcionando perfectamente.</p>
-          <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 5px;">
-            <p><strong>ID del trabajo:</strong> ${datosTrabajos?.id || 'PRUEBA-001'}</p>
-            <p><strong>Cliente:</strong> ${datosTrabajos?.cliente || 'Cliente de Prueba'}</p>
-            <p><strong>Modelo:</strong> ${datosTrabajos?.modelo || 'iPhone 14 Pro'}</p>
-          </div>
-        </div>
-        
-        <div style="text-align: center; margin-top: 40px; padding: 20px; background: #d4edda; border-radius: 8px; border: 1px solid #c3e6cb;">
-          <h3 style="margin: 0 0 10px 0; color: #155724;">🎯 Prueba ${esImpresoraDetectada ? 'de Impresora Detectada' : 'Exitosa'}</h3>
-          <p style="margin: 0;">Tu impresora ${impresoraSeleccionada} está lista para imprimir documentos A4</p>
-          ${esImpresoraDetectada ? '<p style="margin: 10px 0 0 0; color: #155724;"><strong>✨ Esta impresora fue detectada automáticamente en tu sistema</strong></p>' : ''}
-        </div>
-      </div>
-    `;
+    const dimensiones = {
+      'media-hoja': {
+        width: configuracion.orientacion === 'vertical' ? '148mm' : '210mm',
+        height: configuracion.orientacion === 'vertical' ? '210mm' : '148mm'
+      },
+      'hoja-completa': {
+        width: configuracion.orientacion === 'vertical' ? '210mm' : '297mm',
+        height: configuracion.orientacion === 'vertical' ? '297mm' : '210mm'
+      }
+    };
 
-    // Abrir ventana de prueba
-    const ventana = window.open('', '_blank', 'width=800,height=1000');
+    const dim = dimensiones[configuracion.tamañoHoja as keyof typeof dimensiones] || dimensiones['hoja-completa'];
+
+    const htmlCompleto = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ticket A4 - ${datosCompletos.id}</title>
+<style>
+/* ========== CONFIGURACIÓN CRÍTICA DE PÁGINA ========== */
+@page {
+  size: ${dim.width} ${dim.height};
+  margin: 3mm;
+}
+
+/* ========== RESET TOTAL ========== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background: white;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* ========== ESTILOS DE IMPRESIÓN ========== */
+@media print {
+  html, body {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  @page {
+    size: ${dim.width} ${dim.height};
+    margin: 3mm;
+  }
+  
+  /* Container principal SIN transform */
+  body > div {
+    width: 100% !important;
+    max-width: ${dim.width} !important;
+    height: auto !important;
+    transform: none !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ========== ESTILOS DE PANTALLA (vista previa) ========== */
+@media screen {
+  body {
+    min-height: 100vh;
+    padding: 15px;
+    background: #e5e7eb;
+  }
+  
+  /* Vista previa con escala reducida SOLO en pantalla */
+  body > div:first-child {
+    background: white;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    transform: scale(0.6);
+    transform-origin: top center;
+    margin-bottom: -250px;
+  }
+}
+
+/* ========== PREVENIR SALTOS DE PÁGINA ========== */
+.no-page-break {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+</style>
+</head>
+<body>
+${componenteHTML}
+<div class="no-print" style="position:fixed;bottom:15px;right:15px;background:#2563eb;color:white;padding:10px 18px;border-radius:8px;font-size:12px;box-shadow:0 4px 10px rgba(0,0,0,0.2);z-index:9999;font-family:Arial,sans-serif;">
+<strong>🖨️</strong> ${impresoraSeleccionada} | <strong>📐</strong> ${dim.width} × ${dim.height}
+</div>
+</body>
+</html>`;
+
+    const ventana = window.open('', '_blank', 'width=900,height=1200');
     if (ventana) {
-      ventana.document.write(`
-        <html>
-          <head>
-            <title>Prueba - ${impresoraSeleccionada}</title>
-            <style>
-              body { margin: 0; padding: 0; }
-              @media print {
-                body { margin: 0; }
-                .no-print { display: none; }
-              }
-            </style>
-          </head>
-          <body>
-            ${contenidoPrueba}
-            <div class="no-print" style="text-align: center; padding: 20px; background: #f8f9fa; border-top: 2px solid #dee2e6;">
-              <div style="margin-bottom: 15px; padding: 10px; background: ${esImpresoraDetectada ? '#d4edda' : '#fff3cd'}; border-radius: 8px; border: 1px solid ${esImpresoraDetectada ? '#c3e6cb' : '#ffc107'};">
-                <p style="margin: 0; font-weight: bold; color: ${esImpresoraDetectada ? '#155724' : '#856404'};">
-                  ${esImpresoraDetectada ? '🔍 Impresora detectada automáticamente' : '📋 Impresora de la lista'}: ${impresoraSeleccionada}
-                </p>
-              </div>
-              <button onclick="window.print()" style="padding: 12px 24px; font-size: 14px; background: #e67e22; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
-                🖨️ Imprimir Prueba
-              </button>
-              <button onclick="window.close()" style="padding: 12px 24px; font-size: 14px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                ❌ Cerrar
-              </button>
-            </div>
-          </body>
-        </html>
-      `);
+      ventana.document.write(htmlCompleto);
       ventana.document.close();
+      ventana.onload = () => {
+        setTimeout(() => {
+          ventana.print();
+          onImprimir(impresoraSeleccionada);
+          onClose();
+          ventana.onafterprint = () => ventana.close();
+        }, 500);
+      };
     }
   };
 
   if (!isOpen) return null;
 
-  const listaCompleta = obtenerListaCompleta();
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-        
-        {/* Header del Modal */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#e67e22] rounded-xl flex items-center justify-center">
-              <span className="text-white text-2xl">📄</span>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-[#2c3e50]">Seleccionar Impresora A4</h2>
-              <p className="text-sm text-[#7f8c8d]">
-                {detectandoReales ? "🔍 Detectando impresoras..." : "Elige la impresora para el documento A4"}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
-          >
-            ❌
-          </button>
-        </div>
-
-        {/* Status de detección */}
-        {detectandoReales && (
-          <div className="bg-gradient-to-r from-[#e7f3ff] to-[#d6eaff] rounded-xl p-4 mb-4 border border-[#3498db]">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 flex-shrink-0">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="animate-spin text-xl">🔍</span>
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <span className="text-2xl">📄</span>
+              </div>
               <div>
-                <p className="font-bold text-[#2c3e50]">Detectando impresoras en tu PC...</p>
-                <p className="text-sm text-[#7f8c8d]">Analizando sistema y buscando impresoras instaladas</p>
+                <h2 className="text-2xl font-bold">Ticket A4</h2>
+                <p className="text-sm opacity-90">Selecciona tu impresora</p>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Resultado de detección */}
-        {!detectandoReales && impresorasReales.length > 0 && (
-          <div className="bg-gradient-to-r from-[#d4edda] to-[#c3e6cb] rounded-xl p-4 mb-4 border border-[#27ae60]">
-            <h4 className="font-bold text-[#155724] mb-2 flex items-center gap-2">
-              ✅ Impresoras detectadas en tu sistema
-            </h4>
-            <p className="text-sm text-[#155724]">
-              Se encontraron {impresorasReales.length} impresora(s) en tu PC
-            </p>
-          </div>
-        )}
-
-        {/* Vista previa del trabajo */}
-        <div className="bg-gradient-to-r from-[#f8f9fa] to-[#ecf0f1] rounded-xl p-4 mb-6 border border-[#bdc3c7]">
-          <h3 className="font-bold text-[#2c3e50] mb-3 flex items-center gap-2">
-            📋 Documento a Imprimir
-          </h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div><strong>ID:</strong> {datosTrabajos?.id || 'N/A'}</div>
-            <div><strong>Cliente:</strong> {datosTrabajos?.cliente || 'N/A'}</div>
-            <div><strong>Modelo:</strong> {datosTrabajos?.modelo || 'N/A'}</div>
-            <div><strong>Trabajo:</strong> {datosTrabajos?.trabajo || 'N/A'}</div>
+            <button onClick={onClose} className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center transition-all">
+              <span className="text-2xl">×</span>
+            </button>
           </div>
         </div>
 
-        {/* Impresora configurada actualmente */}
-        {impresoraConfigurada && (
-          <div className="bg-gradient-to-r from-[#d4edda] to-[#c3e6cb] rounded-xl p-4 mb-4 border border-[#27ae60]">
-            <h4 className="font-bold text-[#155724] mb-2 flex items-center gap-2">
-              ⚙️ Impresora Configurada
-            </h4>
-            <p className="text-sm text-[#155724]">
-              <strong>Actual:</strong> {impresoraConfigurada}
-            </p>
-          </div>
-        )}
-
-        {/* Selector de impresora */}
-        <div className="mb-6">
-          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
-            🖨️ Seleccionar Impresora
-          </label>
-          
-          {cargandoImpresoras ? (
-            <div className="flex items-center justify-center py-8">
-              <span className="animate-spin text-2xl">⏳</span>
-              <span className="ml-2 text-[#7f8c8d]">Cargando impresoras...</span>
+        <div className="flex-1 overflow-y-auto p-6">
+          {cargandoPlantilla ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Cargando configuración...</p>
+              </div>
+            </div>
+          ) : !plantillaA4 ? (
+            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-8 text-center">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">No hay plantilla configurada</h3>
+              <p className="text-gray-600 mb-4">Debes configurar una plantilla A4 en Configuraciones → Impresión</p>
+              <button onClick={onClose} className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-semibold transition-all">Cerrar</button>
             </div>
           ) : (
-            <select
-              value={impresoraSeleccionada}
-              onChange={(e) => setImpresoraSeleccionada(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e67e22] focus:border-[#e67e22] transition-all text-[#2c3e50] text-sm"
-            >
-              <option value="">Seleccionar impresora A4...</option>
-              {listaCompleta.map((impresora, index) => (
-                <option 
-                  key={index} 
-                  value={impresora}
-                  disabled={impresora.includes('━━━') || impresora.includes('⚠️')}
-                  style={(impresora.includes('━━━') || impresora.includes('⚠️')) ? { 
-                    fontWeight: 'bold', 
-                    background: '#f0f0f0', 
-                    color: '#666' 
-                  } : impresora.includes('[DETECTADA]') ? {
-                    background: '#d4edda',
-                    color: '#155724',
-                    fontWeight: 'bold'
-                  } : {}}
+            <div className="space-y-6">
+              <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">✅</span>
+                  <div>
+                    <p className="font-semibold text-green-800">Plantilla cargada</p>
+                    <p className="text-sm text-green-600">
+                      {plantillaA4.configuracion?.nombreNegocio || 'Configuración personalizada'} • {plantillaA4.configuracion?.tamañoHoja === 'media-hoja' ? 'Media Hoja (A5)' : 'Hoja Completa (A4)'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-blue-200">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <span>🖨️</span> Seleccionar Impresora
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {['WiFi', 'Láser', 'Otra'].map((tipo) => (
+                    <button
+                      key={tipo}
+                      onClick={() => setImpresoraSeleccionada(tipo)}
+                      className={`p-4 rounded-lg border-2 transition-all font-semibold ${
+                        impresoraSeleccionada === tipo
+                          ? 'border-blue-500 bg-blue-500 text-white shadow-lg'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300'
+                      }`}
+                    >
+                      {tipo}
+                    </button>
+                  ))}
+                </div>
+                {impresoraSeleccionada && (
+                  <div className="mt-4 bg-white rounded-lg p-3 border border-blue-200">
+                    <p className="text-sm text-gray-600">✅ <strong>Impresora:</strong> {impresoraSeleccionada}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  onClick={() => setMostrarVistaPrevia(!mostrarVistaPrevia)}
+                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2"
                 >
-                  {impresora}
-                </option>
-              ))}
-            </select>
+                  <span>{mostrarVistaPrevia ? '👁️ Ocultar' : '👁️ Mostrar'} Vista Previa</span>
+                </button>
+              </div>
+
+              {mostrarVistaPrevia && (
+                <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">📋 Vista Previa</h3>
+                  <div className="flex justify-center overflow-auto" ref={vistaRef} style={{ 
+                    transform: 'scale(0.35)', 
+                    transformOrigin: 'top center',
+                    marginBottom: '-400px'
+                  }}>
+                    <VistaPreviaTicketA4
+                      camposSeleccionados={plantillaA4.camposSeleccionados || plantillaA4.campos}
+                      configuracion={plantillaA4.configuracion}
+                      datosEjemplo={prepararDatosParaTicket(datosTrabajos)}
+                    />
+                  </div>
+                  <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                    <p className="text-sm text-green-700">✅ <strong>Esta vista es lo que se imprimirá</strong></p>
+                    <p className="text-xs text-green-600 mt-1">Vista reducida solo para previsualización</p>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Información de la impresora seleccionada */}
-        {impresoraSeleccionada && !impresoraSeleccionada.includes('━━━') && !impresoraSeleccionada.includes('⚠️') && (
-          <div className="bg-gradient-to-r from-[#fff3cd] to-[#ffeaa7] rounded-xl p-4 mb-6 border border-[#ffc107]">
-            <h4 className="font-bold text-[#856404] mb-2 flex items-center gap-2">
-              {impresoraSeleccionada.includes('[DETECTADA]') ? '🔍' : impresoraSeleccionada.includes('WiFi') ? '📶' : '🖨️'} Impresora Seleccionada
-            </h4>
-            <p className="text-sm text-[#856404] mb-3">
-              <strong>{impresoraSeleccionada}</strong>
-            </p>
-            
-            {impresoraSeleccionada.includes('[DETECTADA]') && (
-              <div className="bg-white/50 p-3 rounded-lg mb-3">
-                <p className="text-xs text-[#856404]">
-                  🔍 <strong>Impresora detectada:</strong> Esta impresora fue encontrada automáticamente en tu sistema.
-                </p>
-              </div>
-            )}
-            
-            {impresoraSeleccionada.includes('WiFi') && (
-              <div className="bg-white/50 p-3 rounded-lg">
-                <p className="text-xs text-[#856404]">
-                  💡 <strong>Impresora WiFi:</strong> Asegúrate de que esté encendida y conectada a la misma red.
-                </p>
-              </div>
-            )}
-            
-            <button
-              onClick={probarImpresora}
-              className="mt-3 px-4 py-2 bg-[#ffc107] hover:bg-[#e0a800] text-[#856404] rounded-lg transition-all text-sm font-medium"
-            >
-              🧪 Probar Impresora
-            </button>
+        {!cargandoPlantilla && plantillaA4 && (
+          <div className="bg-gray-50 border-t border-gray-200 p-6 flex-shrink-0">
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleImprimir}
+                disabled={!impresoraSeleccionada}
+                className={`px-8 py-3 rounded-lg font-bold transition-all flex items-center gap-2 ${
+                  impresoraSeleccionada
+                    ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                <span>🖨️</span> Imprimir
+              </button>
+              <button
+                onClick={onClose}
+                className="bg-gradient-to-r from-gray-400 to-gray-500 hover:from-gray-500 hover:to-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
-
-        {/* Botones de acción */}
-        <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
-          >
-            ❌ Cancelar
-          </button>
-          
-          <button
-            onClick={handleImprimir}
-            disabled={!impresoraSeleccionada || impresoraSeleccionada.includes('━━━') || impresoraSeleccionada.includes('⚠️')}
-            className="px-6 py-2 bg-[#e67e22] hover:bg-[#d35400] disabled:bg-gray-400 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
-          >
-            🖨️ Imprimir A4
-          </button>
-        </div>
-
-        {/* Tip adicional */}
-        <div className="mt-4 text-xs text-[#7f8c8d] bg-[#f8f9fa] p-3 rounded-lg">
-          💡 <strong>Tip:</strong> Las impresoras marcadas con 🔍 fueron detectadas automáticamente en tu PC. 
-          Si no ves tu impresora, asegúrate de que esté instalada y encendida.
-        </div>
       </div>
     </div>
   );

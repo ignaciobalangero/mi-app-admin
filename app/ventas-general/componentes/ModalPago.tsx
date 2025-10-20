@@ -1,5 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
+
 interface Props {
   mostrar: boolean;
   pago: {
@@ -9,6 +13,9 @@ interface Props {
     formaPago: string;
     destino: string;
     observaciones: string;
+    tipoDestino?: string;         // 🆕 libre, proveedor
+    proveedorSeleccionado?: string; // 🆕
+    destinoLibre?: string;        // 🆕
   } | null;
   totalesVenta?: {      // NUEVO - Props opcionales para mostrar totales
     totalARS: number;
@@ -21,6 +28,7 @@ interface Props {
     valorPago: number;
     moneda: string;
   } | null;
+  negocioID: string;     // 🆕 Para cargar proveedores
   onClose: () => void;
   handlePagoChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -34,14 +42,39 @@ export default function ModalPago({
   pago,
   totalesVenta,
   telefonoComoPago,  // ✅ NUEVO
+  negocioID,         // 🆕
   onClose,
   handlePagoChange,
   onGuardarPago,
   guardadoConExito,
 }: Props) {
+  // 🆕 Estado para proveedores
+  const [proveedores, setProveedores] = useState<any[]>([]);
+
+  // 🆕 Cargar proveedores al abrir el modal
+  useEffect(() => {
+    if (!negocioID || !mostrar) return;
+
+    const fetchProveedores = async () => {
+      try {
+        const snap = await getDocs(collection(db, `negocios/${negocioID}/proveedores`));
+        const proveedoresData = snap.docs.map(doc => ({
+          id: doc.id,
+          nombre: doc.data().nombre,
+          categoria: doc.data().categoria || "",
+        }));
+        setProveedores(proveedoresData);
+      } catch (error) {
+        console.error("Error al cargar proveedores:", error);
+      }
+    };
+
+    fetchProveedores();
+  }, [negocioID, mostrar]);
+
   if (!mostrar || !pago) return null;
 
-  // ✅ ASEGURAR QUE TODOS LOS CAMPOS TENGAN VALORES POR DEFECTO
+  // ✅ ASEGURAR QUE TODOS LOS CAMPOS TENGAN VALORES POR DEFECTO (incluidos los nuevos)
   const pagoSeguro = {
     monto: pago.monto || "",
     montoUSD: pago.montoUSD || "",
@@ -49,6 +82,9 @@ export default function ModalPago({
     formaPago: pago.formaPago || "",
     destino: pago.destino || "",
     observaciones: pago.observaciones || "",
+    tipoDestino: pago.tipoDestino || "libre",           // 🆕
+    proveedorSeleccionado: pago.proveedorSeleccionado || "", // 🆕
+    destinoLibre: pago.destinoLibre || "",              // 🆕
   };
 
   // ✅ CÁLCULOS DE SALDOS DUALES (incluyendo teléfono como parte de pago)
@@ -79,7 +115,16 @@ export default function ModalPago({
     (monedaTelefonoPago === "USD" ? valorTelefonoPago * (totalesVenta?.cotizacion || 1000) : valorTelefonoPago) : 0;
   const saldoAproximado = totalAproximado - pagoAproximado - telefonoAproximado;
 
-  // ✅ FUNCIÓN PARA FORMATEAR PAGO DUAL
+  // 🆕 FUNCIÓN PARA OBTENER DESTINO FORMATEADO
+  const obtenerDestino = () => {
+    if (pagoSeguro.tipoDestino === "proveedor" && pagoSeguro.proveedorSeleccionado) {
+      const proveedor = proveedores.find(p => p.nombre === pagoSeguro.proveedorSeleccionado);
+      return `Proveedor: ${pagoSeguro.proveedorSeleccionado}${proveedor?.categoria ? ` (${proveedor.categoria})` : ''}`;
+    }
+    return pagoSeguro.destinoLibre;
+  };
+
+  // ✅ FUNCIÓN PARA FORMATEAR PAGO DUAL (actualizada con proveedores)
   const handleGuardarPago = () => {
     const pagoFormateado = {
       // ✅ AMBAS MONEDAS SIMULTÁNEAMENTE
@@ -87,15 +132,17 @@ export default function ModalPago({
       montoUSD: pagoSeguro.montoUSD || "0",  // USD
       moneda: pagoUSD > 0 ? "USD" : "ARS", // Moneda principal para compatibilidad
       formaPago: pagoSeguro.formaPago,
-      destino: pagoSeguro.destino,
+      destino: obtenerDestino(),                    // 🆕 Usar destino formateado
+      tipoDestino: pagoSeguro.tipoDestino,          // 🆕
+      proveedorDestino: pagoSeguro.tipoDestino === "proveedor" ? pagoSeguro.proveedorSeleccionado : null, // 🆕
       observaciones: pagoSeguro.observaciones,
     };
 
-    console.log('🎯 Pago dual enviado al ModalVenta:', pagoFormateado);
+    console.log('🎯 Pago dual con proveedores enviado al ModalVenta:', pagoFormateado);
     onGuardarPago(pagoFormateado);
   };
 
-  // ✅ MANEJAR CAMBIOS EN CAMPOS DUALES
+  // ✅ MANEJAR CAMBIOS EN CAMPOS DUALES (actualizado)
   const handleDualChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     handlePagoChange(e);
   };
@@ -373,19 +420,6 @@ export default function ModalPago({
                   className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#2c3e50]">
-                  Destino (opcional):
-                </label>
-                <input
-                  type="text"
-                  name="destino"
-                  value={pagoSeguro.destino}
-                  onChange={handleDualChange}
-                  placeholder="🏪 Cuenta bancaria, caja..."
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
-                />
-              </div>
             </div>
             
             {/* Botones rápidos para formas de pago */}
@@ -403,6 +437,94 @@ export default function ModalPago({
                   {forma}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* 🆕 Sección de Destino del Pago */}
+          <div className="bg-white rounded-xl border-2 border-[#e74c3c] p-4 sm:p-6 shadow-sm">
+            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#e74c3c] rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs sm:text-sm">🎯</span>
+              </div>
+              <span className="text-sm sm:text-base">Destino del Pago</span>
+            </h4>
+            
+            <div className="space-y-3 sm:space-y-4">
+              {/* Selector de tipo de destino */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#2c3e50]">
+                  Tipo de destino: *
+                </label>
+                <select
+                  name="tipoDestino"
+                  value={pagoSeguro.tipoDestino}
+                  onChange={(e) => {
+                    handleDualChange(e);
+                    // Limpiar campos específicos al cambiar tipo
+                    if (e.target.value === "proveedor") {
+                      handleDualChange({ target: { name: 'destinoLibre', value: '' } } as any);
+                    } else {
+                      handleDualChange({ target: { name: 'proveedorSeleccionado', value: '' } } as any);
+                    }
+                  }}
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e74c3c] focus:border-[#e74c3c] transition-all text-sm sm:text-base text-[#2c3e50]"
+                >
+                  <option value="libre">✏️ Escribir destino</option>
+                  <option value="proveedor">🏢 Pagar a proveedor</option>
+                </select>
+              </div>
+
+              {/* Campo dinámico según tipo */}
+              {pagoSeguro.tipoDestino === "proveedor" ? (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-[#2c3e50]">
+                    🏢 Seleccionar Proveedor: *
+                  </label>
+                  <select
+                    name="proveedorSeleccionado"
+                    value={pagoSeguro.proveedorSeleccionado}
+                    onChange={handleDualChange}
+                    className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#8e44ad] focus:border-[#8e44ad] transition-all text-sm sm:text-base text-[#2c3e50]"
+                  >
+                    <option value="">Seleccionar proveedor</option>
+                    {proveedores.map((proveedor) => (
+                      <option key={proveedor.id} value={proveedor.nombre}>
+                        {proveedor.nombre} {proveedor.categoria && `(${proveedor.categoria})`}
+                      </option>
+                    ))}
+                  </select>
+                  {proveedores.length === 0 && (
+                    <p className="text-xs text-[#7f8c8d] mt-1">
+                      No hay proveedores. <span className="text-[#8e44ad] font-medium">Crea uno en la sección Proveedores</span>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-[#2c3e50]">
+                    ✏️ Concepto del Pago: *
+                  </label>
+                  <input
+                    type="text"
+                    name="destinoLibre"
+                    value={pagoSeguro.destinoLibre}
+                    onChange={handleDualChange}
+                    placeholder="🏪 Ej: Caja chica, Cuenta bancaria, etc."
+                    className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e74c3c] focus:border-[#e74c3c] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
+                  />
+                </div>
+              )}
+
+              {/* Vista previa del destino */}
+              {((pagoSeguro.tipoDestino === "proveedor" && pagoSeguro.proveedorSeleccionado) || 
+                (pagoSeguro.tipoDestino === "libre" && pagoSeguro.destinoLibre)) && (
+                <div className="p-3 bg-gradient-to-r from-[#f8f9fa] to-[#e9ecef] rounded-lg border border-[#dee2e6]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#6c757d] text-sm font-medium">Destino seleccionado:</span>
+                    <span className="text-[#2c3e50] font-semibold text-sm">{obtenerDestino()}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -438,6 +560,7 @@ export default function ModalPago({
                 </div>
                 <span className="text-white font-semibold text-sm sm:text-lg">
                   ¡Pago dual registrado con éxito!
+                  {pagoSeguro.tipoDestino === "proveedor" && " (También registrado para el proveedor)"}
                 </span>
               </div>
             </div>
@@ -455,11 +578,19 @@ export default function ModalPago({
             </button>
             <button
               onClick={handleGuardarPago}
-              disabled={((!pagoSeguro.monto || parseFloat(pagoSeguro.monto) === 0) && 
-                       (!pagoSeguro.montoUSD || parseFloat(pagoSeguro.montoUSD) === 0)) || guardadoConExito}
+              disabled={
+                ((!pagoSeguro.monto || parseFloat(pagoSeguro.monto) === 0) && 
+                 (!pagoSeguro.montoUSD || parseFloat(pagoSeguro.montoUSD) === 0)) || 
+                guardadoConExito ||
+                (pagoSeguro.tipoDestino === "proveedor" && !pagoSeguro.proveedorSeleccionado) ||
+                (pagoSeguro.tipoDestino === "libre" && !pagoSeguro.destinoLibre)
+              }
               className={`w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium text-white transition-all duration-200 transform shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base ${
                 ((!pagoSeguro.monto || parseFloat(pagoSeguro.monto) === 0) && 
-                 (!pagoSeguro.montoUSD || parseFloat(pagoSeguro.montoUSD) === 0)) || guardadoConExito
+                 (!pagoSeguro.montoUSD || parseFloat(pagoSeguro.montoUSD) === 0)) || 
+                guardadoConExito ||
+                (pagoSeguro.tipoDestino === "proveedor" && !pagoSeguro.proveedorSeleccionado) ||
+                (pagoSeguro.tipoDestino === "libre" && !pagoSeguro.destinoLibre)
                   ? "bg-[#bdc3c7] cursor-not-allowed"
                   : "bg-[#27ae60] hover:bg-[#229954] hover:scale-105"
               }`}

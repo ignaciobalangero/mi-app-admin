@@ -456,7 +456,10 @@ export default function BotonGuardarVenta({
         moneda: monedaTelefonoEntregado
       });
     }
-
+// ✅ 5. SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
+if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino) {
+  // Misma lógica que arriba pero para teléfonos
+}
     return ventaTelefonosRef.id;
   };
 
@@ -617,6 +620,29 @@ export default function BotonGuardarVenta({
       console.log('✅ Pago USD guardado:', pagoUSD);
     }
 
+    // ✅ 4. SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
+if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
+  // Buscar datos del proveedor
+  const proveedoresSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/proveedores`));
+  const proveedor = proveedoresSnap.docs.find(doc => doc.data().nombre === pago.proveedorDestino);
+  
+  if (proveedor) {
+    const pagoProveedor = {
+      proveedorId: proveedor.id,
+      proveedorNombre: proveedor.data().nombre,
+      fecha: fecha,
+      monto: pagoARS || 0,
+      montoUSD: pagoUSD || 0,
+      forma: pago?.formaPago || "Efectivo",
+      referencia: `Pago desde venta general #${nroVenta}`,
+      notas: `Cliente: ${cliente}${pago?.observaciones ? ` - ${pago.observaciones}` : ''}`,
+      fechaCreacion: new Date().toISOString(),
+    };
+    
+    await addDoc(collection(db, `negocios/${rol.negocioID}/pagosProveedores`), pagoProveedor);
+    console.log("✅ Pago también guardado en pagosProveedores para:", proveedor.data().nombre);
+  }
+}
     return ventaRef.id;
   };
 

@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import * as XLSX from "xlsx";
 import { useRol } from "@/lib/useRol";
 import ModalEditarTelefono from "./ModalEditarTelefono"; // ✅ IMPORTADO
+import { ImpresionGestione } from "../../../configuraciones/impresion/utils/impresionEspecifica"; // 🆕 IMPORT IMPRESIÓN
 
 // Importar los componentes fraccionados
 import { useServicios } from "./servicios/useServicios";
@@ -47,6 +48,19 @@ export default function TablaStockTelefonos({
     setTelefonos, 
     setMensaje 
   });
+
+  // 🆕 FUNCIÓN PARA IMPRIMIR ETIQUETA
+  const imprimirEtiquetaTelefono = (telefono: any) => {
+    try {
+      ImpresionGestione.etiquetaTelefono(telefono);
+      setMensaje("🏷️ Enviando etiqueta a la impresora...");
+      setTimeout(() => setMensaje(""), 2000);
+    } catch (error) {
+      console.error("Error al imprimir etiqueta:", error);
+      setMensaje("❌ Error al imprimir etiqueta");
+      setTimeout(() => setMensaje(""), 2000);
+    }
+  };
 
   // 🆕 FUNCIONES PARA EL MODAL DE EDICIÓN
   const abrirModalEditar = (telefono: any) => {
@@ -468,7 +482,7 @@ export default function TablaStockTelefonos({
                 <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-28">
                   Observaciones
                 </th>
-                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-28">
+                <th className="p-3 text-center text-sm font-semibold text-gray-700 border border-gray-400 bg-gray-200 w-32">
                   ⚙️ Acciones
                 </th>
               </tr>
@@ -555,9 +569,6 @@ export default function TablaStockTelefonos({
                         )}
                       </td>
                       <td className="p-2 border border-gray-300 text-center text-xs" style={{minWidth: '80px'}}>
-                        <span className="text-gray-700 truncate block">
-                          {t.color || "-"}
-                        </span>
                       </td>
                       <td className="p-2 border border-gray-300" style={{minWidth: '140px'}}>
                         {t.imei ? (
@@ -624,7 +635,7 @@ export default function TablaStockTelefonos({
                           {t.observaciones || "-"}
                         </span>
                       </td>
-                      <td className="p-2 border border-gray-300 text-center" style={{minWidth: '120px'}}>
+                      <td className="p-2 border border-gray-300 text-center" style={{minWidth: '140px'}}>
                         <div className="flex flex-wrap gap-1 justify-center">
                           {!t.enServicio ? (
                             <>
@@ -640,6 +651,14 @@ export default function TablaStockTelefonos({
                                 className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors duration-200 whitespace-nowrap"
                               >
                                 ✏️
+                              </button>
+                              {/* 🆕 BOTÓN IMPRIMIR ETIQUETA */}
+                              <button
+                                onClick={() => imprimirEtiquetaTelefono(t)}
+                                className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 transition-colors duration-200 whitespace-nowrap"
+                                title="Imprimir etiqueta"
+                              >
+                                🏷️
                               </button>
                               <button
                                 onClick={() => servicios.abrirModalServicio(t)}
@@ -670,6 +689,14 @@ export default function TablaStockTelefonos({
                                 className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors duration-200 cursor-pointer whitespace-nowrap"
                               >
                                 👁️ Ver
+                              </button>
+                              {/* 🆕 BOTÓN IMPRIMIR ETIQUETA (también disponible cuando está en servicio) */}
+                              <button
+                                onClick={() => imprimirEtiquetaTelefono(t)}
+                                className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 transition-colors duration-200 whitespace-nowrap"
+                                title="Imprimir etiqueta"
+                              >
+                                🏷️
                               </button>
                               {(t.historialServicios && t.historialServicios.length > 0) && (
                                 <button

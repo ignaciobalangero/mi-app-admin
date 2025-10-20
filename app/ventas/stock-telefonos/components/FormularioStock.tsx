@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Timestamp, addDoc, collection, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
+// ✅ Correcto
+import { ImpresionGestione } from "../../../configuraciones/impresion/utils/impresionEspecifica";
 
 interface Props {
   negocioID: string;
@@ -59,6 +61,7 @@ export default function FormularioStock({
   const [form, setForm] = useState<Telefono>(inicial);
   const [editandoID, setEditandoID] = useState<string | null>(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [imprimirEtiquetaAlGuardar, setImprimirEtiquetaAlGuardar] = useState(false); // 🆕 Estado para impresión
   const { rol } = useRol();
 
   // Si se pasan datos para editar, los cargamos automáticamente
@@ -131,11 +134,26 @@ export default function FormularioStock({
 
     if (editandoID) {
       await updateDoc(doc(db, `negocios/${negocioID}/stockTelefonos/${editandoID}`), data);
-      onGuardado?.({ ...data, id: editandoID });
+      const telefonoActualizado = { ...data, id: editandoID };
+      onGuardado?.(telefonoActualizado);
+      
+      // 🆕 Imprimir etiqueta si está marcado
+      if (imprimirEtiquetaAlGuardar) {
+        setTimeout(() => {
+          ImpresionGestione.etiquetaTelefono(telefonoActualizado);
+        }, 500);
+      }
     } else {
       const ref = await addDoc(collection(db, `negocios/${negocioID}/stockTelefonos`), data);
       const nuevoTelefono = { ...data, id: ref.id };
       onGuardado?.(nuevoTelefono);
+      
+      // 🆕 Imprimir etiqueta si está marcado
+      if (imprimirEtiquetaAlGuardar) {
+        setTimeout(() => {
+          ImpresionGestione.etiquetaTelefono(nuevoTelefono);
+        }, 500);
+      }
     }
 
     setForm(inicial);
@@ -289,6 +307,25 @@ export default function FormularioStock({
             placeholder="Observaciones (opcional)"
             className="p-2 border rounded col-span-1 md:col-span-2"
           />
+          
+          {/* 🆕 Checkbox para imprimir etiqueta */}
+          <div className="col-span-1 md:col-span-2">
+            <label className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <input
+                type="checkbox"
+                checked={imprimirEtiquetaAlGuardar}
+                onChange={(e) => setImprimirEtiquetaAlGuardar(e.target.checked)}
+                className="w-4 h-4 text-blue-600"
+              />
+              <span className="text-sm font-medium text-blue-800">
+                🏷️ Imprimir etiqueta al guardar
+              </span>
+              <span className="text-xs text-blue-600">
+                (Se imprimirá automáticamente para impresora Brother)
+              </span>
+            </label>
+          </div>
+          
           <div className="text-center col-span-1 md:col-span-2">
             <button
               onClick={guardar}

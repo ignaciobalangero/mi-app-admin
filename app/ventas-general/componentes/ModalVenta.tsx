@@ -1022,44 +1022,47 @@ export default function ModalVenta({
       {/* Modal de pago - Con z-index superior */}
       {modalPagoAbierto && (
         <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <ModalPago
-            mostrar={modalPagoAbierto}
-            pago={pago}
-            totalesVenta={{
-              totalARS,
-              totalUSD,
-              cotizacion: cotizacionManual
-            }}
-            telefonoComoPago={telefonoComoPago}  
-            onClose={() => setModalPagoAbierto(false)}
-            handlePagoChange={(e) => {
-              const { name, value } = e.target;
-              setPago((prev) => ({
-                ...prev,
-                [name]: value,
-              }));
-            }}
-            onGuardarPago={(nuevoPago) => {
-              console.log('💰 Pago recibido del ModalPago:', nuevoPago);
-              
-              const pagoConvertido = {
-                monto: nuevoPago.monto || "",
-                montoUSD: nuevoPago.montoUSD || "",
-                moneda: nuevoPago.moneda || "ARS",
-                formaPago: nuevoPago.formaPago || "",
-                destino: nuevoPago.destino || "",
-                observaciones: nuevoPago.observaciones || "",
-              };
-              
-              setPago(pagoConvertido);
-              setGuardadoConExito(true);
-              setTimeout(() => setGuardadoConExito(false), 2000);
-              setModalPagoAbierto(false);
-              
-              console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
-            }}
-            guardadoConExito={guardadoConExito}
-          />
+         <ModalPago
+  mostrar={modalPagoAbierto}
+  pago={pago}
+  totalesVenta={{
+    totalARS,
+    totalUSD,
+    cotizacion: cotizacionManual
+  }}
+  telefonoComoPago={telefonoComoPago}
+  negocioID={rol?.negocioID || ""}      // 🆕 AGREGAR ESTA LÍNEA
+  onClose={() => setModalPagoAbierto(false)}
+  handlePagoChange={(e) => {
+    const { name, value } = e.target;
+    setPago((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  }}
+  onGuardarPago={(nuevoPago) => {
+    console.log('💰 Pago recibido del ModalPago:', nuevoPago);
+    
+    const pagoConvertido = {
+      monto: nuevoPago.monto || "",
+      montoUSD: nuevoPago.montoUSD || "",
+      moneda: nuevoPago.moneda || "ARS",
+      formaPago: nuevoPago.formaPago || "",
+      destino: nuevoPago.destino || "",
+      observaciones: nuevoPago.observaciones || "",
+      tipoDestino: nuevoPago.tipoDestino || "libre",                    // 🆕 AGREGAR
+      proveedorDestino: nuevoPago.proveedorDestino || null,             // 🆕 AGREGAR
+    };
+    
+    setPago(pagoConvertido);
+    setGuardadoConExito(true);
+    setTimeout(() => setGuardadoConExito(false), 2000);
+    setModalPagoAbierto(false);
+    
+    console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
+  }}
+  guardadoConExito={guardadoConExito}
+/>
         </div>
       )}
     </>

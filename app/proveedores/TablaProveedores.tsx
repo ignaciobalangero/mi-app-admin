@@ -435,7 +435,10 @@ export default function TablaProveedores({
                       <td className="p-4 font-bold text-gray-900 bg-white border-r border-gray-300">{pago.forma}</td>
                       <td className="p-4 font-semibold text-gray-800 bg-white border-r border-gray-300">{pago.referencia || "-"}</td>
                       <td className="p-4 font-black text-green-700 bg-white border-r border-gray-300 text-lg">
-                        {pago.montoUSD ? `U$D ${pago.montoUSD}` : `${pago.monto.toLocaleString()}`}
+                      {(pago.montoUSD && pago.montoUSD > 0) 
+  ? `U$D ${pago.montoUSD}` 
+  : `$ ${(pago.monto && pago.monto > 0) ? pago.monto.toLocaleString() : '0'}`
+}
                       </td>
                       <td className="p-4 font-semibold text-gray-800 bg-white border-r border-gray-300">{pago.notas || "-"}</td>
                       <td className="p-4 bg-white">
