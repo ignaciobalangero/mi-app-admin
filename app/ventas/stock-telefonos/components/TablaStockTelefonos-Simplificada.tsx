@@ -569,7 +569,8 @@ export default function TablaStockTelefonos({
                         )}
                       </td>
                       <td className="p-2 border border-gray-300 text-center text-xs" style={{minWidth: '80px'}}>
-                      </td>
+                        <span className="text-gray-700">{t.color || "-"}</span>
+                        </td>
                       <td className="p-2 border border-gray-300" style={{minWidth: '140px'}}>
                         {t.imei ? (
                           <button
