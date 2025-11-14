@@ -8,108 +8,212 @@ interface Props {
 
 export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjemplo }: Props) {
   
-  // 🎯 DIMENSIONES REALES según el tamaño seleccionado
+  const formatearMoneda = (valor: string | number): string => {
+    const numero = typeof valor === 'string' ? parseFloat(valor) : valor;
+    if (isNaN(numero)) return '0';
+    return numero.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  // 🎯 DIMENSIONES REALES
   const dimensionesReales = {
     '62x29': { width: '62mm', height: '29mm' },
     '38x90': { width: '38mm', height: '90mm' },
-    'custom': { width: '50mm', height: '50mm' } // placeholder
+    '29x90': { width: '29mm', height: '90mm' },
+    '62x100': { width: '62mm', height: '100mm' }
   };
 
-  // 🔄 APLICAR ORIENTACIÓN
   const esHorizontal = configuracion.orientacion === 'horizontal';
   const dimBase = dimensionesReales[configuracion.tamaño] || dimensionesReales['62x29'];
   
   const dimensiones = esHorizontal 
     ? { width: dimBase.width, height: dimBase.height }
-    : { width: dimBase.height, height: dimBase.width }; // Invertir si es vertical
+    : { width: dimBase.height, height: dimBase.width };
 
-  // 📏 TAMAÑOS DE TEXTO adaptativos
-  const tamañosTexto = {
-    'muy-pequeño': { base: '6px', titulo: '7px', subtitulo: '5px' },
-    'pequeño': { base: '7px', titulo: '8px', subtitulo: '6px' },
-    'mediano': { base: '8px', titulo: '9px', subtitulo: '7px' }
+  // 🧮 CONTAR SOLO CAMPOS DE CONTENIDO (sin numeroOrden ni codigoBarras)
+  const cantidadCampos = campos.filter(c => 
+    c !== 'numeroOrden' && c !== 'codigoBarras'
+  ).length;
+
+  const tieneCodigoBarras = configuracion.incluirCodigoBarras && campos.includes('codigoBarras');
+
+  // 📏 TAMAÑOS DE TEXTO DINÁMICOS (según cantidad de campos)
+  const calcularTamañosTexto = () => {
+    const base = configuracion.tamañoTexto || 'mediano';
+    
+    // Ajuste según cantidad de campos
+    if (cantidadCampos <= 4) {
+      return {
+        'muy-pequeño': { orden: '11px', campo: '9px', pie: '6px', gap: '2px', marginBottom: '1.5mm' },
+        'pequeño': { orden: '12px', campo: '10px', pie: '7px', gap: '2px', marginBottom: '1.5mm' },
+        'mediano': { orden: '13px', campo: '11px', pie: '7px', gap: '3px', marginBottom: '2mm' }
+      };
+    } else if (cantidadCampos <= 7) {
+      return {
+        'muy-pequeño': { orden: '10px', campo: '7.5px', pie: '6px', gap: '1px', marginBottom: '1mm' },
+        'pequeño': { orden: '11px', campo: '8.5px', pie: '6px', gap: '1.5px', marginBottom: '1mm' },
+        'mediano': { orden: '12px', campo: '9px', pie: '6px', gap: '2px', marginBottom: '1.2mm' }
+      };
+    } else {
+      // 8+ campos: máxima compresión
+      return {
+        'muy-pequeño': { orden: '9px', campo: '6.5px', pie: '5px', gap: '0.5px', marginBottom: '0.8mm' },
+        'pequeño': { orden: '10px', campo: '7px', pie: '5px', gap: '1px', marginBottom: '0.8mm' },
+        'mediano': { orden: '11px', campo: '7.5px', pie: '5px', gap: '1px', marginBottom: '1mm' }
+      };
+    }
   };
 
-  const textoSize = tamañosTexto[configuracion.tamañoTexto] || tamañosTexto['pequeño'];
+  const tamañosTexto = calcularTamañosTexto();
+  const baseSize = configuracion.tamañoTexto || 'mediano';
+  const textoSize = tamañosTexto[baseSize];
+
+  // 🎨 RENDERIZAR CAMPO - SIEMPRE MUESTRA, NUNCA FILTRA
+  const renderCampo = (etiqueta: string, valor: any, opciones?: { mono?: boolean; color?: string }) => {
+    // ✅ SIEMPRE renderiza, incluso si valor es null/undefined
+    const valorMostrar = valor || '';
+    
+    return (
+      <div style={{
+        fontSize: textoSize.campo,
+        fontWeight: 'bold',
+        color: opciones?.color || 'black',
+        lineHeight: '1.2',
+        display: 'flex',
+        gap: textoSize.gap,
+        marginBottom: textoSize.marginBottom,
+        fontFamily: opciones?.mono ? 'Courier, monospace' : 'Arial, sans-serif'
+      }}>
+        <span style={{
+          fontWeight: '900',
+          minWidth: 'fit-content',
+          flexShrink: 0
+        }}>
+          {etiqueta}
+        </span>
+        <span style={{
+          fontWeight: 'bold',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flex: 1
+        }}>
+          {valorMostrar}
+        </span>
+      </div>
+    );
+  };
+
+  // 📏 CALCULAR PADDING DINÁMICO
+  const paddingDinamico = cantidadCampos <= 4 ? '1.5mm' : (cantidadCampos <= 7 ? '1mm' : '0.8mm');
+
+  // 🔍 DEBUG
+  console.log('🏷️ VistaPreviaEtiqueta DEBUG:', {
+    camposRecibidos: campos,
+    cantidadCampos,
+    datosEjemplo,
+    textoSize
+  });
 
   return (
-    <div 
-      className={`bg-white font-sans flex flex-col justify-between p-1.5 ${
-        configuracion.mostrarBorde ? 'border-2 border-black' : 'border border-gray-300'
-      }`}
-      style={{
-        width: dimensiones.width,
-        height: dimensiones.height,
-        fontSize: textoSize.base,
-        lineHeight: '1.2'
-      }}
-    >
+    <div style={{
+      width: dimensiones.width,
+      height: dimensiones.height,
+      backgroundColor: 'white',
+      border: configuracion.mostrarBorde ? '2px solid black' : 'none',
+      padding: paddingDinamico,
+      display: 'flex',
+      flexDirection: 'column',
+      fontFamily: 'Arial, sans-serif',
+      boxSizing: 'border-box',
+      overflow: 'hidden'
+    }}>
       
-      {/* NÚMERO DE ORDEN (destacado) */}
+      {/* 📌 CÓDIGO DE ORDEN - COMPACTO */}
       {campos.includes('numeroOrden') && (
-        <div 
-          className={`text-center font-bold ${
-            configuracion.fondoOrden 
-              ? 'bg-black text-white px-1 py-0.5 -mx-1.5 -mt-1.5 mb-1' 
-              : 'border-b border-gray-400 pb-0.5 mb-1'
-          }`}
-          style={{ fontSize: textoSize.titulo }}
-        >
-          {datosEjemplo.numeroOrden}
+        <div style={{
+          fontSize: textoSize.orden,
+          fontWeight: '900',
+          color: 'black',
+          textAlign: 'center',
+          padding: '0.3mm 0',
+          borderBottom: '1.5px solid black',
+          marginBottom: '1mm',
+          letterSpacing: '0.3px',
+          flexShrink: 0
+        }}>
+          {datosEjemplo.numeroOrden || 'ORD-000'}
         </div>
       )}
 
-      {/* INFORMACIÓN PRINCIPAL */}
-      <div className="flex-1 space-y-0.5 overflow-hidden">
+      {/* 📋 CAMPOS - RENDERIZADO SIMPLE SIN FILTROS */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        minHeight: 0
+      }}>
         
-        {campos.includes('cliente') && (
-          <div className="font-bold truncate text-black">
-            👤 {datosEjemplo.cliente}
-          </div>
-        )}
+        {/* CLIENTE */}
+        {campos.includes('cliente') && renderCampo('Cliente:', datosEjemplo.cliente || 'Sin cliente')}
         
-        {campos.includes('modelo') && (
-          <div className="truncate text-black font-medium">
-            📱 {datosEjemplo.modelo}
-          </div>
-        )}
+        {/* MODELO */}
+        {campos.includes('modelo') && renderCampo('Modelo:', datosEjemplo.modelo || 'Sin modelo')}
         
-        {campos.includes('trabajo') && (
-          <div className="truncate text-black" style={{ fontSize: textoSize.subtitulo }}>
-            🔧 {datosEjemplo.trabajo}
-          </div>
-        )}
+        {/* TIPO DE TRABAJO */}
+        {campos.includes('trabajo') && renderCampo('Trabajo:', datosEjemplo.trabajo || 'No especificado')}
         
-        {campos.includes('clave') && datosEjemplo.clave && (
-          <div className="truncate text-black font-semibold">
-            🔑 {datosEjemplo.clave}
-          </div>
-        )}
+        {/* CLAVE/PASSWORD - SIN FILTRO DE DATOS */}
+        {campos.includes('clave') && renderCampo('Clave:', datosEjemplo.clave)}
 
-        {campos.includes('imei') && datosEjemplo.imei && (
-          <div className="truncate text-black" style={{ fontSize: textoSize.subtitulo }}>
-            IMEI: {datosEjemplo.imei.substring(0, 15)}...
-          </div>
-        )}
+        {/* IMEI - SIN FILTRO DE DATOS */}
+        {campos.includes('imei') && renderCampo('IMEI:', datosEjemplo.imei ? datosEjemplo.imei.substring(0, 15) : '', { mono: true })}
         
-        {campos.includes('obs') && datosEjemplo.obs && (
-          <div className="truncate text-black italic" style={{ fontSize: textoSize.subtitulo }}>
-            💬 {datosEjemplo.obs}
-          </div>
-        )}
+        {/* ACCESORIOS - SIN FILTRO DE DATOS */}
+        {campos.includes('accesorios') && renderCampo('Acces:', datosEjemplo.accesorios || '')}
+
+        {/* ANTICIPO */}
+        {campos.includes('anticipo') && renderCampo('Anticipo:', datosEjemplo.anticipo ? '$' + formatearMoneda(datosEjemplo.anticipo) : '$0', { color: '#006400' })}
+
+        {/* SALDO */}
+        {campos.includes('saldo') && renderCampo('Saldo:', datosEjemplo.saldo ? '$' + formatearMoneda(datosEjemplo.saldo) : '$0', { color: '#8B0000' })}
+        
+        {/* OBSERVACIONES - SIN FILTRO DE DATOS */}
+        {campos.includes('obs') && renderCampo('Obs:', datosEjemplo.obs || '')}
       </div>
 
-      {/* CÓDIGO DE BARRAS (futuro - espacio reservado) */}
-      {configuracion.incluirCodigoBarras && campos.includes('codigoBarras') && (
-        <div className="text-center border-t border-gray-300 pt-1 mt-1">
-          <div className="text-xs text-black font-mono tracking-wider">
+      {/* 📊 CÓDIGO DE BARRAS */}
+      {tieneCodigoBarras && (
+        <div style={{
+          textAlign: 'center',
+          borderTop: '1px solid #ccc',
+          paddingTop: '0.3mm',
+          marginTop: '0.3mm',
+          flexShrink: 0
+        }}>
+          <div style={{ 
+            fontSize: cantidadCampos <= 4 ? '8px' : '6px', 
+            fontFamily: 'Courier, monospace',
+            fontWeight: 'bold',
+            letterSpacing: '1px',
+            color: 'black'
+          }}>
             |||| |||| |||| ||||
           </div>
         </div>
       )}
 
-      {/* PIE DE ETIQUETA (fecha o info adicional) */}
-      <div className="text-right text-black mt-auto pt-0.5 border-t border-gray-200" style={{ fontSize: textoSize.subtitulo }}>
+      {/* 🏷️ PIE - COMPACTO */}
+      <div style={{
+        fontSize: textoSize.pie,
+        fontWeight: 'bold',
+        color: '#666',
+        textAlign: 'right',
+        borderTop: '1px solid #ddd',
+        paddingTop: '0.2mm',
+        marginTop: '0.3mm',
+        flexShrink: 0
+      }}>
         GestiOne
       </div>
     </div>

@@ -1,7 +1,6 @@
-// 📁 /app/configuraciones/impresion/components/DiseñadorEtiqueta.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import VistaPreviaEtiqueta from "./VistaPreviaEtiqueta";
 
 const camposDisponiblesEtiqueta = [
@@ -12,6 +11,10 @@ const camposDisponiblesEtiqueta = [
   { id: 'trabajo', nombre: 'Tipo de Trabajo', obligatorio: false },
   { id: 'obs', nombre: 'Observaciones', obligatorio: false },
   { id: 'imei', nombre: 'IMEI', obligatorio: false },
+  // ✨ NUEVOS CAMPOS AGREGADOS
+  { id: 'accesorios', nombre: '📦 Accesorios Incluidos', obligatorio: false },
+  { id: 'anticipo', nombre: '💵 Anticipo', obligatorio: false },
+  { id: 'saldo', nombre: '💳 Saldo', obligatorio: false },
   { id: 'codigoBarras', nombre: 'Código de Barras (futuro)', obligatorio: false },
 ];
 
@@ -23,8 +26,15 @@ const trabajoEjemplo = {
   trabajo: "Cambio de pantalla",
   obs: "Pantalla muy dañada",
   imei: "358240051111110",
+  // ✨ DATOS DE EJEMPLO PARA CAMPOS NUEVOS
+  accesorios: "Cargador, Cable USB-C",
+  anticipo: "50000", // Se guardará como número en Firebase
+  saldo: "30000",    // Calculado automáticamente
   codigoBarras: "|||| |||| ||||"
 };
+
+// 🎯 LOG para debug - ver qué campos se están pasando
+console.log('🔍 DiseñadorEtiqueta - trabajoEjemplo:', trabajoEjemplo);
 
 interface Props {
   plantillaEtiqueta: any;
@@ -41,15 +51,23 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
     orientacion: plantillaEtiqueta?.configuracion?.orientacion || 'horizontal',
     mostrarBorde: plantillaEtiqueta?.configuracion?.mostrarBorde ?? true,
     fondoOrden: plantillaEtiqueta?.configuracion?.fondoOrden ?? true,
-    tamañoTexto: plantillaEtiqueta?.configuracion?.tamañoTexto || 'pequeño',
+    tamañoTexto: plantillaEtiqueta?.configuracion?.tamañoTexto || 'mediano',
     incluirCodigoBarras: plantillaEtiqueta?.configuracion?.incluirCodigoBarras ?? false,
   });
 
+  // 🔄 KEY ÚNICA para forzar re-render de vista previa
+  const [vistaPreviaKey, setVistaPreviaKey] = useState(0);
+
+  // 🎯 Actualizar key cuando cambien campos o configuración
+  useEffect(() => {
+    setVistaPreviaKey(prev => prev + 1);
+  }, [camposSeleccionados, configuracion]);
+
   const toggleCampo = (campoId: string, incluir: boolean) => {
     if (incluir) {
-      setCamposSeleccionados([...camposSeleccionados, campoId]);
+      setCamposSeleccionados(prev => [...prev, campoId]);
     } else {
-      setCamposSeleccionados(camposSeleccionados.filter(id => id !== campoId));
+      setCamposSeleccionados(prev => prev.filter(id => id !== campoId));
     }
   };
 
@@ -63,7 +81,7 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
 
   return (
     <div className="bg-white rounded-xl p-6 border border-gray-200">
-      <h3 className="text-lg font-bold text-[#1a252f] mb-4">🏷️ Diseñador de Etiquetas</h3>
+      <h3 className="text-lg font-bold text-[#1a252f] mb-4">🏷️ Diseñador de Etiquetas Brother</h3>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
@@ -73,9 +91,16 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
           {/* Campos a mostrar */}
           <div>
             <h4 className="font-semibold text-black mb-3">📋 Campos a mostrar:</h4>
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
               {camposDisponiblesEtiqueta.map(campo => (
-                <label key={campo.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <label 
+                  key={campo.id} 
+                  className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                    camposSeleccionados.includes(campo.id)
+                      ? 'bg-green-50 border-green-300 hover:bg-green-100'
+                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
                   <input 
                     type="checkbox"
                     checked={camposSeleccionados.includes(campo.id)}
@@ -85,8 +110,12 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
                   />
                   <div className="flex-1">
                     <span className="text-sm font-medium text-black">{campo.nombre}</span>
-                    {campo.obligatorio && <span className="text-xs text-black font-semibold ml-2">(obligatorio)</span>}
-                    {campo.id === 'codigoBarras' && <span className="text-xs text-black ml-2">(próximamente)</span>}
+                    {campo.obligatorio && (
+                      <span className="text-xs text-green-600 font-semibold ml-2">(obligatorio)</span>
+                    )}
+                    {campo.id === 'codigoBarras' && (
+                      <span className="text-xs text-gray-500 ml-2">(próximamente)</span>
+                    )}
                   </div>
                 </label>
               ))}
@@ -100,15 +129,20 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
               
               {/* Tamaño */}
               <div>
-                <label className="block text-sm font-medium text-black mb-1">Tamaño de etiqueta:</label>
+                <label className="block text-sm font-medium text-black mb-1">Tamaño de etiqueta Brother QL:</label>
                 <select 
                   value={configuracion.tamaño}
                   onChange={(e) => setConfiguracion(prev => ({ ...prev, tamaño: e.target.value }))}
                   className="w-full p-2 border border-gray-300 rounded-lg text-sm text-black"
                 >
-                  <option value="62x29">62x29mm (Brother QL-800 estándar)</option>
-                  <option value="38x90">38x90mm (Brother QL-800 alargada)</option>
+                  <option value="29x90">29x90mm - DK-11201 (1.1" x 3.5") 📍 Dirección estándar</option>
+                  <option value="38x90">38x90mm - DK-11208 (1.5" x 3.5") Multifunción</option>
+                  <option value="62x29">62x29mm - DK-11209 (2.4" x 1.1") Estándar pequeña</option>
+                  <option value="62x100">62x100mm - DK-11202 (2.4" x 3.9") Etiquetas envío</option>
                 </select>
+                <p className="text-xs text-gray-600 mt-1">
+                  ⚠️ <strong>Tu rollo actual parece ser 29x90mm (1.1" x 3.5")</strong> - Selecciona el que corresponda al rollo físico instalado
+                </p>
               </div>
 
              
@@ -162,10 +196,11 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
           </div>
 
           {/* Información adicional */}
-          <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <h5 className="font-semibold text-black text-sm mb-2">💡 Consejos:</h5>
             <ul className="text-xs text-black space-y-1">
               <li>• Menos campos = texto más grande</li>
+              <li>• Los montos se formatean automáticamente ($50.000)</li>
               <li>• IMEI se mostrará parcialmente si es muy largo</li>
               <li>• El código de barras se implementará próximamente</li>
               <li>• Orientación horizontal recomendada para más datos</li>
@@ -181,11 +216,12 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
           </button>
         </div>
 
-        {/* Vista Previa */}
+        {/* Vista Previa - CON KEY ÚNICA PARA FORZAR RE-RENDER */}
         <div>
           <h4 className="font-semibold text-black mb-3">👁️ Vista Previa:</h4>
           <div className="bg-gray-100 p-4 rounded-lg flex justify-center">
             <VistaPreviaEtiqueta 
+              key={vistaPreviaKey}
               campos={camposSeleccionados}
               configuracion={configuracion}
               datosEjemplo={trabajoEjemplo}
@@ -196,9 +232,9 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
           </p>
           
           {/* Información de campos seleccionados */}
-          <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+          <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
             <div className="text-xs text-black">
-              <strong>Campos seleccionados:</strong> {camposSeleccionados.length}/8
+              <strong>Campos seleccionados:</strong> {camposSeleccionados.length}/{camposDisponiblesEtiqueta.length}
             </div>
             <div className="text-xs text-gray-600 mt-1">
               {camposSeleccionados.map(campo => 

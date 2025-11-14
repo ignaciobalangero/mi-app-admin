@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+// ✅ IMPORTS CORRECTOS - Todos en la misma carpeta /ingreso
 import ModalImpresoraA4 from "./ModalImpresoraA4";
+import ModalImpresoraBrother from "./ModalImpresoraBrother";
 
 interface OpcionesImpresionProps {
   onImprimir: (opciones: {
@@ -9,7 +11,6 @@ interface OpcionesImpresionProps {
     etiqueta: boolean;
     ticketA4: boolean;
   }) => void;
-  // ✅ NUEVA FUNCIÓN ESPECÍFICA PARA A4 CON IMPRESORA
   onImprimirA4ConImpresora?: (
     opciones: {
       ticket: boolean;
@@ -26,7 +27,7 @@ interface OpcionesImpresionProps {
 
 export default function OpcionesImpresion({ 
   onImprimir, 
-  onImprimirA4ConImpresora, // ✅ NUEVA PROP
+  onImprimirA4ConImpresora,
   mostrandoOpciones, 
   onToggleOpciones,
   datosTrabajos,
@@ -38,8 +39,9 @@ export default function OpcionesImpresion({
     ticketA4: false,
   });
 
-  // ✅ ESTADOS PARA EL MODAL A4
   const [mostrandoModalA4, setMostrandoModalA4] = useState(false);
+  const [mostrandoModalBrother, setMostrandoModalBrother] = useState(false);
+  
   const [opcionesPendientes, setOpcionesPendientes] = useState({
     ticket: false,
     etiqueta: false,
@@ -53,9 +55,7 @@ export default function OpcionesImpresion({
     }));
   };
 
-  // ✅ FUNCIÓN MEJORADA CON VALIDACIONES
   const handleImprimir = () => {
-    // Verificar que al menos una opción esté seleccionada
     const haySeleccion = Object.values(opciones).some(valor => valor);
     
     if (!haySeleccion) {
@@ -63,9 +63,20 @@ export default function OpcionesImpresion({
       return;
     }
 
+    // ✨ VALIDACIÓN PARA ETIQUETA BROTHER (PRIORIDAD)
+    if (opciones.etiqueta && negocioID) {
+      if (!datosTrabajos || !datosTrabajos.cliente) {
+        alert("⚠️ Falta información del trabajo. Completa al menos el campo cliente.");
+        return;
+      }
+      
+      setOpcionesPendientes(opciones);
+      setMostrandoModalBrother(true);
+      return;
+    }
+
     // ✅ VALIDACIÓN ADICIONAL PARA A4
     if (opciones.ticketA4 && negocioID && onImprimirA4ConImpresora) {
-      // Verificar que tenemos los datos necesarios
       if (!datosTrabajos || !datosTrabajos.cliente) {
         alert("⚠️ Falta información del trabajo. Completa al menos el campo cliente.");
         return;
@@ -76,11 +87,9 @@ export default function OpcionesImpresion({
       return;
     }
 
-    // ✅ SI NO HAY A4 O NO HAY FUNCIÓN ESPECÍFICA, PROCEDER NORMALMENTE
     try {
       onImprimir(opciones);
       
-      // Limpiar opciones después de imprimir exitosamente
       setOpciones({
         ticket: true,
         etiqueta: false,
@@ -92,20 +101,16 @@ export default function OpcionesImpresion({
     }
   };
 
-  // ✅ FUNCIÓN MEJORADA CON MANEJO DE ERRORES
   const manejarSeleccionImpresora = (impresoraSeleccionada: string) => {
-    console.log(`🖨️ Imprimiendo A4 con: ${impresoraSeleccionada}`);
+    console.log(`🖨️ Imprimiendo con: ${impresoraSeleccionada}`);
     
     try {
-      // ✅ USAR LA FUNCIÓN ESPECÍFICA PARA A4 SI EXISTE
       if (onImprimirA4ConImpresora) {
         onImprimirA4ConImpresora(opcionesPendientes, impresoraSeleccionada);
       } else {
-        // Fallback: usar la función normal
         onImprimir(opcionesPendientes);
       }
       
-      // Limpiar estado solo después de éxito
       setOpciones({
         ticket: true,
         etiqueta: false,
@@ -123,9 +128,17 @@ export default function OpcionesImpresion({
     }
   };
 
-  // ✅ FUNCIÓN PARA CERRAR MODAL A4
   const handleCerrarModalA4 = () => {
     setMostrandoModalA4(false);
+    setOpcionesPendientes({
+      ticket: false,
+      etiqueta: false,
+      ticketA4: false,
+    });
+  };
+
+  const handleCerrarModalBrother = () => {
+    setMostrandoModalBrother(false);
     setOpcionesPendientes({
       ticket: false,
       etiqueta: false,
@@ -186,7 +199,7 @@ export default function OpcionesImpresion({
             </label>
           </div>
 
-          {/* Etiqueta */}
+          {/* Etiqueta Brother */}
           <div className={`border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${
             opciones.etiqueta 
               ? 'border-[#27ae60] bg-[#d5f4e6]' 
@@ -208,8 +221,13 @@ export default function OpcionesImpresion({
                   Etiqueta adhesiva con datos básicos del equipo
                 </p>
                 <div className="mt-2 text-xs text-[#27ae60] font-medium">
-                  📐 62mm x 29mm
+                  📐 62mm x 29mm (Brother QL)
                 </div>
+                {opciones.etiqueta && negocioID && (
+                  <div className="mt-2 text-xs bg-[#d5f4e6] text-[#1e7e34] p-2 rounded border border-[#27ae60]">
+                    💡 <strong>Se abrirá selector de impresora Brother</strong>
+                  </div>
+                )}
               </div>
             </label>
           </div>
@@ -238,7 +256,6 @@ export default function OpcionesImpresion({
                 <div className="mt-2 text-xs text-[#e67e22] font-medium">
                   📐 210mm x 297mm
                 </div>
-                {/* Indicador visual cuando A4 está seleccionado */}
                 {opciones.ticketA4 && negocioID && onImprimirA4ConImpresora && (
                   <div className="mt-2 text-xs bg-[#fff3cd] text-[#856404] p-2 rounded border border-[#ffc107]">
                     💡 <strong>Se abrirá selector de impresora</strong>
@@ -260,7 +277,7 @@ export default function OpcionesImpresion({
             )}
             {opciones.etiqueta && (
               <span className="bg-[#27ae60] text-white px-3 py-1 rounded-full text-sm font-medium">
-                🏷️ Etiqueta
+                🏷️ Etiqueta {negocioID ? '(con selector Brother)' : ''}
               </span>
             )}
             {opciones.ticketA4 && (
@@ -274,7 +291,23 @@ export default function OpcionesImpresion({
           </div>
         </div>
 
-        {/* Información adicional para A4 */}
+        {/* Información para Etiqueta Brother */}
+        {opciones.etiqueta && negocioID && (
+          <div className="bg-gradient-to-r from-[#d5f4e6] to-[#a8e6cf] rounded-xl p-4 mb-6 border border-[#27ae60]">
+            <div className="flex items-center gap-3 text-[#1e7e34]">
+              <div className="w-8 h-8 bg-[#27ae60] rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">🏷️</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  <strong>Etiqueta Brother seleccionada:</strong> Se abrirá un modal para que elijas la impresora Brother QL específica
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Información para A4 */}
         {opciones.ticketA4 && negocioID && onImprimirA4ConImpresora && (
           <div className="bg-gradient-to-r from-[#fff3cd] to-[#ffeaa7] rounded-xl p-4 mb-6 border border-[#ffc107]">
             <div className="flex items-center gap-3 text-[#856404]">
@@ -296,7 +329,12 @@ export default function OpcionesImpresion({
             onClick={handleImprimir}
             className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 justify-center"
           >
-            {opciones.ticketA4 && negocioID && onImprimirA4ConImpresora ? (
+            {opciones.etiqueta && negocioID ? (
+              <>
+                🏷️ Continuar con Etiqueta
+                <span className="text-xs bg-white/20 px-2 py-1 rounded">Elegir impresora Brother</span>
+              </>
+            ) : opciones.ticketA4 && negocioID && onImprimirA4ConImpresora ? (
               <>
                 🖨️ Continuar con A4
                 <span className="text-xs bg-white/20 px-2 py-1 rounded">Elegir impresora</span>
@@ -319,18 +357,31 @@ export default function OpcionesImpresion({
         {/* Tip informativo */}
         <div className="mt-4 text-xs text-[#7f8c8d] bg-[#f8f9fa] p-3 rounded-lg">
           💡 <strong>Tip:</strong> 
-          {opciones.ticketA4 && negocioID && onImprimirA4ConImpresora
+          {opciones.etiqueta && negocioID
+            ? " La etiqueta Brother te permitirá elegir entre impresoras QL-800, QL-700 y otras"
+            : opciones.ticketA4 && negocioID && onImprimirA4ConImpresora
             ? " El documento A4 te permitirá elegir entre impresoras WiFi, láser y otras opciones disponibles"
             : " Puedes seleccionar múltiples opciones para imprimir todo a la vez"
           }
         </div>
       </div>
 
-      {/* ✅ MODAL DE SELECCIÓN DE IMPRESORA A4 - USANDO LA FUNCIÓN RENOMBRADA */}
+      {/* MODAL A4 */}
       {negocioID && onImprimirA4ConImpresora && (
         <ModalImpresoraA4
           isOpen={mostrandoModalA4}
           onClose={handleCerrarModalA4}
+          onImprimir={manejarSeleccionImpresora}
+          datosTrabajos={datosTrabajos}
+          negocioID={negocioID}
+        />
+      )}
+
+      {/* MODAL BROTHER */}
+      {negocioID && (
+        <ModalImpresoraBrother
+          isOpen={mostrandoModalBrother}
+          onClose={handleCerrarModalBrother}
           onImprimir={manejarSeleccionImpresora}
           datosTrabajos={datosTrabajos}
           negocioID={negocioID}

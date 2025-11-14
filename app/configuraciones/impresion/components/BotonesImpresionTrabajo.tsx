@@ -5,6 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ImpresionGestione } from "@/app/configuraciones/impresion/utils/impresionEspecifica";
 import ModalImpresoraA4 from "@/app/ingreso/ModalImpresoraA4";
+import ModalImpresoraBrother from "@/app/ingreso/ModalImpresoraBrother"; // ✨ NUEVO IMPORT
 
 interface Props {
   trabajo: any;
@@ -34,8 +35,10 @@ export default function BotonesImpresionTrabajo({
 
   const [imprimiendo, setImprimiendo] = useState('');
   
-  // ✅ NUEVO: Estado para controlar el modal A4
+  // ✅ Estado para controlar el modal A4
   const [mostrarModalA4, setMostrarModalA4] = useState(false);
+  // ✨ NUEVO: Estado para controlar el modal Brother
+  const [mostrarModalBrother, setMostrarModalBrother] = useState(false);
 
   // Cargar configuración al montar el componente
   useEffect(() => {
@@ -104,39 +107,39 @@ export default function BotonesImpresionTrabajo({
     }
   };
 
-  const imprimirEtiquetaBrother = async () => {
+  // ✨ MODIFICADO: Ahora abre el modal en lugar de imprimir directo
+  const abrirModalEtiquetaBrother = () => {
     if (!validarDatos('etiqueta')) return;
-    
-    setImprimiendo('etiqueta');
-    try {
-      if (plantillas.etiqueta) {
-        ImpresionGestione.etiquetaBrother(trabajo);
-      } else {
-        ImpresionGestione.etiquetaBrother(trabajo);
-      }
-    } catch (error) {
-      console.error('Error al imprimir etiqueta:', error);
-      alert('❌ Error al imprimir etiqueta');
-    } finally {
-      setImprimiendo('');
-    }
+    setMostrarModalBrother(true);
   };
 
-  // ✅ MODIFICADO: Ahora abre el modal en lugar de imprimir directamente
+  // ✅ Abre modal A4
   const abrirModalTicketA4 = () => {
     if (!validarDatos('ticketA4')) return;
     setMostrarModalA4(true);
   };
 
-  // ✅ NUEVO: Manejar la impresión desde el modal
+  // ✅ Manejar impresión desde modal A4
   const manejarImpresionA4 = (impresoraSeleccionada: string) => {
     console.log(`✅ Ticket A4 impreso con: ${impresoraSeleccionada}`);
     setImprimiendo('');
   };
 
-  // ✅ NUEVO: Cerrar modal
+  // ✨ NUEVO: Manejar impresión desde modal Brother
+  const manejarImpresionBrother = (impresoraSeleccionada: string) => {
+    console.log(`✅ Etiqueta Brother impresa con: ${impresoraSeleccionada}`);
+    setImprimiendo('');
+  };
+
+  // ✅ Cerrar modal A4
   const cerrarModalA4 = () => {
     setMostrarModalA4(false);
+    setImprimiendo('');
+  };
+
+  // ✨ NUEVO: Cerrar modal Brother
+  const cerrarModalBrother = () => {
+    setMostrarModalBrother(false);
     setImprimiendo('');
   };
 
@@ -196,16 +199,13 @@ export default function BotonesImpresionTrabajo({
             )}
           </button>
 
-          {/* Etiqueta Brother */}
+          {/* ✨ MODIFICADO: Etiqueta Brother - SIEMPRE ACTIVA */}
           <button
-            onClick={imprimirEtiquetaBrother}
-            disabled={!configuracionImpresion.brotherActiva || imprimiendo !== ''}
+            onClick={abrirModalEtiquetaBrother}
+            disabled={imprimiendo !== ''}
             className={`
               flex flex-col items-center gap-2 p-3 rounded-lg font-medium transition-all
-              ${configuracionImpresion.brotherActiva 
-                ? 'bg-green-500 hover:bg-green-600 text-white' 
-                : 'bg-gray-200 text-black cursor-not-allowed'
-              }
+              bg-green-500 hover:bg-green-600 text-white
               ${imprimiendo === 'etiqueta' ? 'opacity-50' : ''}
             `}
           >
@@ -213,12 +213,10 @@ export default function BotonesImpresionTrabajo({
             <span className="text-xs text-center">
               {imprimiendo === 'etiqueta' ? 'Imprimiendo...' : 'Etiqueta Brother'}
             </span>
-            {!configuracionImpresion.brotherActiva && (
-              <span className="text-xs">(Inactiva)</span>
-            )}
+            <span className="text-xs">(Con selector)</span>
           </button>
 
-          {/* ✅ MODIFICADO: Ticket A4 - Ahora abre modal */}
+          {/* ✅ Ticket A4 - Abre modal */}
           <button
             onClick={abrirModalTicketA4}
             disabled={imprimiendo !== ''}
@@ -260,40 +258,46 @@ export default function BotonesImpresionTrabajo({
           <div className="text-xs text-black">
             <strong>Estado:</strong> 
             {configuracionImpresion.zerforceActiva && ' Zerforce ✅'}
-            {configuracionImpresion.brotherActiva && ' Brother ✅'}
+            {' Brother ✅'}
             {' A4 ✅'}
-            {!configuracionImpresion.zerforceActiva && !configuracionImpresion.brotherActiva && ' Configura tus impresoras'}
+            {!configuracionImpresion.zerforceActiva && ' (Ticket térmico inactivo)'}
           </div>
           {plantillas.ticket || plantillas.etiqueta || plantillas.ticketA4 || plantillas.etiquetaA4 ? (
             <div className="text-xs text-black mt-1">
               <strong>Plantillas:</strong> 
               {plantillas.ticket && ' Ticket'}
-              {plantillas.etiqueta && ' Etiqueta'}
+              {plantillas.etiqueta && ' ✅ Etiqueta'}
               {plantillas.ticketA4 && ' ✅ Ticket-A4'}
               {!ocultarEtiquetasA4 && plantillas.etiquetaA4 && ' Etiquetas-A4'}
               {' personalizadas cargadas'}
             </div>
           ) : (
             <div className="text-xs text-black mt-1">
-              ⚠️ No hay plantilla A4 configurada. Ve a Configuraciones → Impresión
+              💡 Configura plantillas personalizadas en Configuraciones → Impresión
             </div>
           )}
         </div>
 
         {/* Ayuda rápida */}
         <div className="mt-3 text-xs text-black">
-          <strong>💡 Tip:</strong> {ocultarEtiquetasA4 
-            ? 'El ticket A4 usa tu plantilla personalizada y te permite elegir la impresora.' 
-            : 'Los formatos A4 siempre están disponibles. Para usar impresoras térmicas, actívalas en configuración.'
-          }
+          <strong>💡 Tip:</strong> Las etiquetas Brother y tickets A4 siempre están disponibles. Te permiten elegir la impresora al momento de imprimir.
         </div>
       </div>
 
-      {/* ✅ NUEVO: Modal de impresión A4 */}
+      {/* ✅ Modal de impresión A4 */}
       <ModalImpresoraA4
         isOpen={mostrarModalA4}
         onClose={cerrarModalA4}
         onImprimir={manejarImpresionA4}
+        datosTrabajos={trabajo}
+        negocioID={negocioId}
+      />
+
+      {/* ✨ NUEVO: Modal de impresión Brother */}
+      <ModalImpresoraBrother
+        isOpen={mostrarModalBrother}
+        onClose={cerrarModalBrother}
+        onImprimir={manejarImpresionBrother}
         datosTrabajos={trabajo}
         negocioID={negocioId}
       />

@@ -41,7 +41,9 @@ const inicialForm = {
   clave: "",
   observaciones: "",
   imei: "",
+  accesorios: "", // ✨ NUEVO CAMPO
   precio: "",
+  anticipo: "", // ✨ NUEVO CAMPO
 };
 
 const inicialCheckData = {
@@ -68,6 +70,27 @@ export default function IngresoForm() {
   const [checkData, setCheckData] = useState(inicialCheckData);
   const [queryCliente, setQueryCliente] = useState("");
   const [mostrandoOpcionesImpresion, setMostrandoOpcionesImpresion] = useState(false);
+
+  // ✨ FUNCIÓN PARA FORMATEAR NÚMEROS CON PUNTOS (50.000)
+  const formatearNumero = (valor: string) => {
+    // Remover todo excepto números
+    const numero = valor.replace(/[^\d]/g, '');
+    // Formatear con puntos cada 3 dígitos
+    return numero.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  // ✨ FUNCIÓN PARA OBTENER VALOR NUMÉRICO (sin puntos)
+  const obtenerValorNumerico = (valorFormateado: string) => {
+    return valorFormateado.replace(/\./g, '');
+  };
+
+  // ✨ FUNCIÓN PARA CALCULAR EL SALDO AUTOMÁTICAMENTE
+  const calcularSaldo = () => {
+    const precio = parseFloat(obtenerValorNumerico(form.precio || "0"));
+    const anticipo = parseFloat(obtenerValorNumerico(form.anticipo || "0"));
+    const saldo = precio - anticipo;
+    return saldo >= 0 ? formatearNumero(saldo.toString()) : "0";
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -556,8 +579,16 @@ export default function IngresoForm() {
       return;
     }
 
+    // ✨ CONVERTIR VALORES FORMATEADOS A NUMÉRICOS PARA FIREBASE
+    const precioNumerico = obtenerValorNumerico(form.precio || "0");
+    const anticipoNumerico = obtenerValorNumerico(form.anticipo || "0");
+    const saldoNumerico = (parseFloat(precioNumerico) - parseFloat(anticipoNumerico)).toString();
+
     const datos = {
       ...form,
+      precio: precioNumerico,      // ✨ Guardar sin puntos
+      anticipo: anticipoNumerico,  // ✨ Guardar sin puntos
+      saldo: saldoNumerico,        // ✨ Guardar sin puntos
       fecha: form.fecha,
       checkIn: mostrarCheckIn ? checkData : null,
     };
@@ -593,8 +624,16 @@ export default function IngresoForm() {
       return;
     }
 
+    // ✨ CONVERTIR VALORES FORMATEADOS A NUMÉRICOS PARA FIREBASE
+    const precioNumerico = obtenerValorNumerico(form.precio || "0");
+    const anticipoNumerico = obtenerValorNumerico(form.anticipo || "0");
+    const saldoNumerico = (parseFloat(precioNumerico) - parseFloat(anticipoNumerico)).toString();
+
     const datos = {
       ...form,
+      precio: precioNumerico,      // ✨ Guardar sin puntos
+      anticipo: anticipoNumerico,  // ✨ Guardar sin puntos
+      saldo: saldoNumerico,        // ✨ Guardar sin puntos
       fecha: form.fecha,
       checkIn: mostrarCheckIn ? checkData : null,
     };
@@ -805,18 +844,80 @@ export default function IngresoForm() {
                 />
               </div>
 
-              {/* Precio */}
+              {/* ✨ NUEVO: Accesorios Incluidos */}
               <div>
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
-                  💰 Precio
+                  📦 Accesorios Incluidos
                 </label>
                 <input
                   type="text"
-                  value={form.precio}
-                  onChange={(e) => setForm((prev) => ({ ...prev, precio: e.target.value }))}
+                  value={form.accesorios}
+                  onChange={(e) => setForm((prev) => ({ ...prev, accesorios: e.target.value }))}
                   className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-                  placeholder="0.00"
+                  placeholder="Ej: Cargador, cable, funda..."
                 />
+              </div>
+
+              {/* Precio */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  💰 Precio Total
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7f8c8d] font-semibold">$</span>
+                  <input
+                    type="text"
+                    value={form.precio}
+                    onChange={(e) => {
+                      const valorFormateado = formatearNumero(e.target.value);
+                      setForm((prev) => ({ ...prev, precio: valorFormateado }));
+                    }}
+                    className="w-full pl-8 pr-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* ✨ NUEVO: Adelanto/Anticipo */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  💵 Adelanto/Anticipo
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7f8c8d] font-semibold">$</span>
+                  <input
+                    type="text"
+                    value={form.anticipo}
+                    onChange={(e) => {
+                      const valorFormateado = formatearNumero(e.target.value);
+                      setForm((prev) => ({ ...prev, anticipo: valorFormateado }));
+                    }}
+                    className="w-full pl-8 pr-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                    placeholder="0"
+                  />
+                </div>
+                <p className="text-xs text-[#7f8c8d] mt-1">
+                  💡 Dinero que deja el cliente al ingresar
+                </p>
+              </div>
+
+              {/* ✨ NUEVO: Saldo Pendiente (calculado automáticamente) */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  💳 Saldo Pendiente
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7f8c8d] font-semibold">$</span>
+                  <input
+                    type="text"
+                    value={calcularSaldo()}
+                    readOnly
+                    className="w-full pl-8 pr-4 py-3 border-2 border-[#ecf0f1] rounded-lg bg-[#f8f9fa] text-[#e74c3c] font-bold"
+                  />
+                </div>
+                <p className="text-xs text-[#7f8c8d] mt-1">
+                  ✅ Calculado automáticamente (Precio - Anticipo)
+                </p>
               </div>
 
               {/* Observaciones - Span completo */}
