@@ -9,12 +9,7 @@ const camposDisponiblesEtiqueta = [
   { id: 'modelo', nombre: 'Modelo', obligatorio: false },
   { id: 'clave', nombre: 'Clave/Password', obligatorio: false },
   { id: 'trabajo', nombre: 'Tipo de Trabajo', obligatorio: false },
-  { id: 'obs', nombre: 'Observaciones', obligatorio: false },
   { id: 'imei', nombre: 'IMEI', obligatorio: false },
-  // ✨ NUEVOS CAMPOS AGREGADOS
-  { id: 'accesorios', nombre: '📦 Accesorios Incluidos', obligatorio: false },
-  { id: 'anticipo', nombre: '💵 Anticipo', obligatorio: false },
-  { id: 'saldo', nombre: '💳 Saldo', obligatorio: false },
   { id: 'codigoBarras', nombre: 'Código de Barras (futuro)', obligatorio: false },
 ];
 
@@ -24,24 +19,17 @@ const trabajoEjemplo = {
   modelo: "iPhone 14 Pro",
   clave: "1234",
   trabajo: "Cambio de pantalla",
-  obs: "Pantalla muy dañada",
   imei: "358240051111110",
-  // ✨ DATOS DE EJEMPLO PARA CAMPOS NUEVOS
-  accesorios: "Cargador, Cable USB-C",
-  anticipo: "50000", // Se guardará como número en Firebase
-  saldo: "30000",    // Calculado automáticamente
   codigoBarras: "|||| |||| ||||"
 };
-
-// 🎯 LOG para debug - ver qué campos se están pasando
-console.log('🔍 DiseñadorEtiqueta - trabajoEjemplo:', trabajoEjemplo);
 
 interface Props {
   plantillaEtiqueta: any;
   onGuardarPlantilla: (plantilla: any) => void;
+  nombreNegocio?: string; // ✨ NUEVO: nombre del negocio
 }
 
-export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantilla }: Props) {
+export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantilla, nombreNegocio }: Props) {
   const [camposSeleccionados, setCamposSeleccionados] = useState(
     plantillaEtiqueta?.campos || ['cliente', 'numeroOrden', 'modelo', 'trabajo']
   );
@@ -55,13 +43,11 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
     incluirCodigoBarras: plantillaEtiqueta?.configuracion?.incluirCodigoBarras ?? false,
   });
 
-  // 🔄 KEY ÚNICA para forzar re-render de vista previa
   const [vistaPreviaKey, setVistaPreviaKey] = useState(0);
 
-  // 🎯 Actualizar key cuando cambien campos o configuración
   useEffect(() => {
     setVistaPreviaKey(prev => prev + 1);
-  }, [camposSeleccionados, configuracion]);
+  }, [camposSeleccionados, configuracion, nombreNegocio]);
 
   const toggleCampo = (campoId: string, incluir: boolean) => {
     if (incluir) {
@@ -135,17 +121,13 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
                   onChange={(e) => setConfiguracion(prev => ({ ...prev, tamaño: e.target.value }))}
                   className="w-full p-2 border border-gray-300 rounded-lg text-sm text-black"
                 >
-                  <option value="29x90">29x90mm - DK-11201 (1.1" x 3.5") 📍 Dirección estándar</option>
-                  <option value="38x90">38x90mm - DK-11208 (1.5" x 3.5") Multifunción</option>
                   <option value="62x29">62x29mm - DK-11209 (2.4" x 1.1") Estándar pequeña</option>
-                  <option value="62x100">62x100mm - DK-11202 (2.4" x 3.9") Etiquetas envío</option>
                 </select>
                 <p className="text-xs text-gray-600 mt-1">
                   ⚠️ <strong>Tu rollo actual parece ser 29x90mm (1.1" x 3.5")</strong> - Selecciona el que corresponda al rollo físico instalado
                 </p>
               </div>
 
-             
               {/* Tamaño de texto */}
               <div>
                 <label className="block text-sm font-medium text-black mb-1">Tamaño de texto:</label>
@@ -175,16 +157,6 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
                 <label className="flex items-center gap-2">
                   <input 
                     type="checkbox"
-                    checked={configuracion.fondoOrden}
-                    onChange={(e) => setConfiguracion(prev => ({ ...prev, fondoOrden: e.target.checked }))}
-                    className="w-4 h-4 text-green-500"
-                  />
-                  <span className="text-sm text-black">Número de orden con fondo negro</span>
-                </label>
-
-                <label className="flex items-center gap-2">
-                  <input 
-                    type="checkbox"
                     checked={configuracion.incluirCodigoBarras}
                     onChange={(e) => setConfiguracion(prev => ({ ...prev, incluirCodigoBarras: e.target.checked }))}
                     className="w-4 h-4 text-green-500"
@@ -199,11 +171,11 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <h5 className="font-semibold text-black text-sm mb-2">💡 Consejos:</h5>
             <ul className="text-xs text-black space-y-1">
-              <li>• Menos campos = texto más grande</li>
+              <li>• Layout de 2 columnas = más espacio para datos</li>
+              <li>• El nombre del negocio aparece arriba</li>
               <li>• Los montos se formatean automáticamente ($50.000)</li>
               <li>• IMEI se mostrará parcialmente si es muy largo</li>
               <li>• El código de barras se implementará próximamente</li>
-              <li>• Orientación horizontal recomendada para más datos</li>
             </ul>
           </div>
 
@@ -216,7 +188,7 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
           </button>
         </div>
 
-        {/* Vista Previa - CON KEY ÚNICA PARA FORZAR RE-RENDER */}
+        {/* Vista Previa */}
         <div>
           <h4 className="font-semibold text-black mb-3">👁️ Vista Previa:</h4>
           <div className="bg-gray-100 p-4 rounded-lg flex justify-center">
@@ -225,10 +197,11 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
               campos={camposSeleccionados}
               configuracion={configuracion}
               datosEjemplo={trabajoEjemplo}
+              nombreNegocio={nombreNegocio || "iPhoneTec"} // ✨ NOMBRE DEL NEGOCIO
             />
           </div>
           <p className="text-xs text-black mt-2 text-center">
-            Vista previa para Brother QL-800
+            Vista previa para Brother QL-800 • Con header de negocio
           </p>
           
           {/* Información de campos seleccionados */}

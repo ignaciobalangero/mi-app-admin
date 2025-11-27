@@ -1,6 +1,6 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { imprimirEtiqueta } from "@/lib/qzPrinter"; // ✅ nuevo import
+import { imprimirEtiqueta } from "@/lib/qzPrinter";
 
 interface TrabajoData {
   fecha: string;
@@ -11,7 +11,9 @@ interface TrabajoData {
   clave: string;
   observaciones: string;
   imei: string;
-  precio: string; // sigue siendo string al recibirlo
+  precio: string;
+  anticipo?: string; // ✨ NUEVO: Campo anticipo
+  saldo?: string;    // ✨ NUEVO: Campo saldo
   estado?: string;
   checkIn?: any;
 }
@@ -22,17 +24,53 @@ export const guardarTrabajo = async (
   configImpresion: boolean
 ): Promise<string | null> => {
   try {
+    // 1️⃣ Guardar el trabajo
     const trabajoConMeta = {
       ...datos,
       fecha: datos.fecha,
-      precio: Number(datos.precio), // ✅ conversión segura a número
+      precio: Number(datos.precio),
+      anticipo: Number(datos.anticipo || 0), // ✨ Guardar anticipo
+      saldo: Number(datos.saldo || datos.precio), // ✨ Guardar saldo
       estado: datos.estado || "PENDIENTE",
       creadoEn: serverTimestamp(),
     };
 
-    await addDoc(collection(db, `negocios/${negocioID}/trabajos`), trabajoConMeta);
+    const trabajoRef = await addDoc(
+      collection(db, `negocios/${negocioID}/trabajos`), 
+      trabajoConMeta
+    );
 
-    // ✅ Nueva lógica para impresión automática con QZ Tray
+    // 2️⃣ ✨ NUEVO: Si hay anticipo, registrarlo como pago
+    const anticipoNumerico = Number(datos.anticipo || 0);
+    if (anticipoNumerico > 0) {
+      const pagoAnticipo = {
+        fecha: datos.fecha,
+        fechaCompleta: new Date(),
+        cliente: datos.cliente,
+        monto: anticipoNumerico,
+        montoUSD: null,
+        forma: "Anticipo",
+        destino: "Anticipo",
+        tipoDestino: "libre",
+        proveedorDestino: null,
+        moneda: "ARS",
+        cotizacion: 1,
+        tipo: "ingreso",
+        negocioID: negocioID,
+        trabajoId: trabajoRef.id,
+        observaciones: `Anticipo del trabajo ${datos.id}`,
+        timestamp: serverTimestamp(),
+      };
+
+      await addDoc(
+        collection(db, `negocios/${negocioID}/pagos`),
+        pagoAnticipo
+      );
+
+      console.log(`✅ Anticipo de $${anticipoNumerico} registrado como pago`);
+    }
+
+    // 3️⃣ Impresión automática
     if (configImpresion) {
       const texto = `ID: ${datos.id}
 Cliente: ${datos.cliente}
@@ -45,14 +83,18 @@ Obs: ${datos.observaciones}`;
         await imprimirEtiqueta(texto);
       } catch (e) {
         console.warn("⚠️ Error al intentar imprimir con QZ Tray:", e);
-        // alert("No se pudo imprimir la etiqueta automáticamente.");
       }
     }
 
+    // 4️⃣ Mensaje de confirmación
+    if (anticipoNumerico > 0) {
+      return `✅ Trabajo guardado. Anticipo de $${anticipoNumerico.toLocaleString("es-AR")} registrado.`;
+    }
+    
     return "✅ Trabajo guardado correctamente.";
+
   } catch (error) {
     console.error("Error al guardar trabajo:", error);
     return null;
   }
 };
-

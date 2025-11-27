@@ -4,9 +4,10 @@ interface Props {
   campos: string[];
   configuracion: any;
   datosEjemplo: any;
+  nombreNegocio?: string; // ✨ NUEVO: nombre del negocio
 }
 
-export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjemplo }: Props) {
+export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjemplo, nombreNegocio }: Props) {
   
   const formatearMoneda = (valor: string | number): string => {
     const numero = typeof valor === 'string' ? parseFloat(valor) : valor;
@@ -29,47 +30,25 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
     ? { width: dimBase.width, height: dimBase.height }
     : { width: dimBase.height, height: dimBase.width };
 
-  // 🧮 CONTAR SOLO CAMPOS DE CONTENIDO (sin numeroOrden ni codigoBarras)
-  const cantidadCampos = campos.filter(c => 
-    c !== 'numeroOrden' && c !== 'codigoBarras'
-  ).length;
-
   const tieneCodigoBarras = configuracion.incluirCodigoBarras && campos.includes('codigoBarras');
 
-  // 📏 TAMAÑOS DE TEXTO DINÁMICOS (según cantidad de campos)
+  // 📏 TAMAÑOS DE TEXTO OPTIMIZADOS PARA MULTILÍNEA
   const calcularTamañosTexto = () => {
     const base = configuracion.tamañoTexto || 'mediano';
     
-    // Ajuste según cantidad de campos
-    if (cantidadCampos <= 4) {
-      return {
-        'muy-pequeño': { orden: '11px', campo: '9px', pie: '6px', gap: '2px', marginBottom: '1.5mm' },
-        'pequeño': { orden: '12px', campo: '10px', pie: '7px', gap: '2px', marginBottom: '1.5mm' },
-        'mediano': { orden: '13px', campo: '11px', pie: '7px', gap: '3px', marginBottom: '2mm' }
-      };
-    } else if (cantidadCampos <= 7) {
-      return {
-        'muy-pequeño': { orden: '10px', campo: '7.5px', pie: '6px', gap: '1px', marginBottom: '1mm' },
-        'pequeño': { orden: '11px', campo: '8.5px', pie: '6px', gap: '1.5px', marginBottom: '1mm' },
-        'mediano': { orden: '12px', campo: '9px', pie: '6px', gap: '2px', marginBottom: '1.2mm' }
-      };
-    } else {
-      // 8+ campos: máxima compresión
-      return {
-        'muy-pequeño': { orden: '9px', campo: '6.5px', pie: '5px', gap: '0.5px', marginBottom: '0.8mm' },
-        'pequeño': { orden: '10px', campo: '7px', pie: '5px', gap: '1px', marginBottom: '0.8mm' },
-        'mediano': { orden: '11px', campo: '7.5px', pie: '5px', gap: '1px', marginBottom: '1mm' }
-      };
-    }
+    return {
+      'muy-pequeño': { orden: '11px', campo: '8px', pie: '6px', gap: '2px' },
+      'pequeño': { orden: '12px', campo: '9px', pie: '6px', gap: '2px' },
+      'mediano': { orden: '13px', campo: '10px', pie: '7px', gap: '3px' }
+    };
   };
 
   const tamañosTexto = calcularTamañosTexto();
   const baseSize = configuracion.tamañoTexto || 'mediano';
   const textoSize = tamañosTexto[baseSize];
 
-  // 🎨 RENDERIZAR CAMPO - SIEMPRE MUESTRA, NUNCA FILTRA
+  // 🎨 RENDERIZAR CAMPO - CON SOPORTE MULTILÍNEA
   const renderCampo = (etiqueta: string, valor: any, opciones?: { mono?: boolean; color?: string }) => {
-    // ✅ SIEMPRE renderiza, incluso si valor es null/undefined
     const valorMostrar = valor || '';
     
     return (
@@ -79,23 +58,25 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
         color: opciones?.color || 'black',
         lineHeight: '1.2',
         display: 'flex',
-        gap: textoSize.gap,
-        marginBottom: textoSize.marginBottom,
-        fontFamily: opciones?.mono ? 'Courier, monospace' : 'Arial, sans-serif'
+        flexDirection: 'column', // ✨ CAMBIO: columna en lugar de fila
+        gap: '0.3mm',
+        fontFamily: opciones?.mono ? 'Courier, monospace' : 'Arial, sans-serif',
+        marginBottom: '1.2mm'
       }}>
         <span style={{
           fontWeight: '900',
-          minWidth: 'fit-content',
+          fontSize: textoSize.campo,
           flexShrink: 0
         }}>
           {etiqueta}
         </span>
         <span style={{
           fontWeight: 'bold',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          flex: 1
+          fontSize: textoSize.campo,
+          wordWrap: 'break-word', // ✨ PERMITE SALTO DE LÍNEA
+          overflowWrap: 'break-word',
+          whiteSpace: 'normal', // ✨ PERMITE MÚLTIPLES LÍNEAS
+          lineHeight: '1.1'
         }}>
           {valorMostrar}
         </span>
@@ -103,16 +84,98 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
     );
   };
 
-  // 📏 CALCULAR PADDING DINÁMICO
-  const paddingDinamico = cantidadCampos <= 4 ? '1.5mm' : (cantidadCampos <= 7 ? '1mm' : '0.8mm');
+  // 📋 ORGANIZAR CAMPOS EN 2 COLUMNAS - SIN TIPAR JSX.Element
+  const organizarCamposEnColumnas = () => {
+    const columnaIzq: any[] = [];
+    const columnaDer: any[] = [];
 
-  // 🔍 DEBUG
-  console.log('🏷️ VistaPreviaEtiqueta DEBUG:', {
-    camposRecibidos: campos,
-    cantidadCampos,
-    datosEjemplo,
-    textoSize
-  });
+    // FILA 1: numeroOrden (izq) + cliente (der)
+    if (campos.includes('numeroOrden')) {
+      columnaIzq.push(
+        <div key="numeroOrden">
+          {renderCampo('Código:', datosEjemplo.numeroOrden || 'ORD-000')}
+        </div>
+      );
+    }
+    if (campos.includes('cliente')) {
+      columnaDer.push(
+        <div key="cliente">
+          {renderCampo('Cliente:', datosEjemplo.cliente || 'Sin cliente')}
+        </div>
+      );
+    }
+
+    // FILA 2: modelo (izq) + clave (der)
+    if (campos.includes('modelo')) {
+      columnaIzq.push(
+        <div key="modelo">
+          {renderCampo('Modelo:', datosEjemplo.modelo || 'Sin modelo')}
+        </div>
+      );
+    }
+    if (campos.includes('clave')) {
+      columnaDer.push(
+        <div key="clave">
+          {renderCampo('Clave:', datosEjemplo.clave)}
+        </div>
+      );
+    }
+
+    // FILA 3: trabajo (izq) + imei (der)
+    if (campos.includes('trabajo')) {
+      columnaIzq.push(
+        <div key="trabajo">
+          {renderCampo('Trabajo:', datosEjemplo.trabajo || 'No especificado')}
+        </div>
+      );
+    }
+    if (campos.includes('imei')) {
+      columnaDer.push(
+        <div key="imei">
+          {renderCampo('IMEI:', datosEjemplo.imei ? datosEjemplo.imei.substring(0, 15) : '', { mono: true })}
+        </div>
+      );
+    }
+
+    // FILA 4: accesorios (izq) + anticipo (der)
+    if (campos.includes('accesorios')) {
+      columnaIzq.push(
+        <div key="accesorios">
+          {renderCampo('Acces:', datosEjemplo.accesorios || '')}
+        </div>
+      );
+    }
+    if (campos.includes('anticipo')) {
+      columnaDer.push(
+        <div key="anticipo">
+          {renderCampo('Anticipo:', datosEjemplo.anticipo ? '$' + formatearMoneda(datosEjemplo.anticipo) : '$0', { color: '#006400' })}
+        </div>
+      );
+    }
+
+    // FILA 5: obs (izq) + saldo (der)
+    if (campos.includes('obs')) {
+      columnaIzq.push(
+        <div key="obs">
+          {renderCampo('Obs:', datosEjemplo.obs || '')}
+        </div>
+      );
+    }
+    if (campos.includes('saldo')) {
+      columnaDer.push(
+        <div key="saldo">
+          {renderCampo('Saldo:', datosEjemplo.saldo ? '$' + formatearMoneda(datosEjemplo.saldo) : '$0', { color: '#8B0000' })}
+        </div>
+      );
+    }
+
+    return { columnaIzq, columnaDer };
+  };
+
+  const { columnaIzq, columnaDer } = organizarCamposEnColumnas();
+
+  // 📏 CALCULAR PADDING COMPACTO
+  const paddingDinamico = '1mm';
 
   return (
     <div style={{
@@ -128,58 +191,55 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
       overflow: 'hidden'
     }}>
       
-      {/* 📌 CÓDIGO DE ORDEN - COMPACTO */}
-      {campos.includes('numeroOrden') && (
+      {/* 🏢 HEADER - NOMBRE DEL NEGOCIO */}
+      {nombreNegocio && (
         <div style={{
-          fontSize: textoSize.orden,
-          fontWeight: '900',
-          color: 'black',
           textAlign: 'center',
-          padding: '0.3mm 0',
-          borderBottom: '1.5px solid black',
           marginBottom: '1mm',
-          letterSpacing: '0.3px',
+          paddingBottom: '0.5mm',
+          borderBottom: '2px solid black',
           flexShrink: 0
         }}>
-          {datosEjemplo.numeroOrden || 'ORD-000'}
+          <div style={{
+            fontSize: textoSize.campo,
+            fontWeight: '900',
+            color: 'black',
+            letterSpacing: '0.3px'
+          }}>
+            {nombreNegocio}
+          </div>
         </div>
       )}
-
-      {/* 📋 CAMPOS - RENDERIZADO SIMPLE SIN FILTROS */}
+      
+      {/* 📋 CONTENIDO EN 2 COLUMNAS CON FLEXBOX */}
       <div style={{
         flex: 1,
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'row',
+        gap: '2mm',
         overflow: 'hidden',
         minHeight: 0
       }}>
         
-        {/* CLIENTE */}
-        {campos.includes('cliente') && renderCampo('Cliente:', datosEjemplo.cliente || 'Sin cliente')}
-        
-        {/* MODELO */}
-        {campos.includes('modelo') && renderCampo('Modelo:', datosEjemplo.modelo || 'Sin modelo')}
-        
-        {/* TIPO DE TRABAJO */}
-        {campos.includes('trabajo') && renderCampo('Trabajo:', datosEjemplo.trabajo || 'No especificado')}
-        
-        {/* CLAVE/PASSWORD - SIN FILTRO DE DATOS */}
-        {campos.includes('clave') && renderCampo('Clave:', datosEjemplo.clave)}
+        {/* COLUMNA IZQUIERDA */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}>
+          {columnaIzq}
+        </div>
 
-        {/* IMEI - SIN FILTRO DE DATOS */}
-        {campos.includes('imei') && renderCampo('IMEI:', datosEjemplo.imei ? datosEjemplo.imei.substring(0, 15) : '', { mono: true })}
-        
-        {/* ACCESORIOS - SIN FILTRO DE DATOS */}
-        {campos.includes('accesorios') && renderCampo('Acces:', datosEjemplo.accesorios || '')}
-
-        {/* ANTICIPO */}
-        {campos.includes('anticipo') && renderCampo('Anticipo:', datosEjemplo.anticipo ? '$' + formatearMoneda(datosEjemplo.anticipo) : '$0', { color: '#006400' })}
-
-        {/* SALDO */}
-        {campos.includes('saldo') && renderCampo('Saldo:', datosEjemplo.saldo ? '$' + formatearMoneda(datosEjemplo.saldo) : '$0', { color: '#8B0000' })}
-        
-        {/* OBSERVACIONES - SIN FILTRO DE DATOS */}
-        {campos.includes('obs') && renderCampo('Obs:', datosEjemplo.obs || '')}
+        {/* COLUMNA DERECHA */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}>
+          {columnaDer}
+        </div>
       </div>
 
       {/* 📊 CÓDIGO DE BARRAS */}
@@ -188,11 +248,11 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
           textAlign: 'center',
           borderTop: '1px solid #ccc',
           paddingTop: '0.3mm',
-          marginTop: '0.3mm',
+          marginTop: '0.5mm',
           flexShrink: 0
         }}>
           <div style={{ 
-            fontSize: cantidadCampos <= 4 ? '8px' : '6px', 
+            fontSize: '7px', 
             fontFamily: 'Courier, monospace',
             fontWeight: 'bold',
             letterSpacing: '1px',
@@ -203,7 +263,7 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
         </div>
       )}
 
-      {/* 🏷️ PIE - COMPACTO */}
+      {/* 🏷️ PIE */}
       <div style={{
         fontSize: textoSize.pie,
         fontWeight: 'bold',
@@ -211,7 +271,7 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
         textAlign: 'right',
         borderTop: '1px solid #ddd',
         paddingTop: '0.2mm',
-        marginTop: '0.3mm',
+        marginTop: '0.5mm',
         flexShrink: 0
       }}>
         GestiOne

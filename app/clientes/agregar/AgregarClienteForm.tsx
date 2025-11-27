@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { doc, getDoc, updateDoc, addDoc, collection } from "firebase/firestore";
+import { doc, getDoc, updateDoc, addDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -65,16 +65,84 @@ export default function AgregarClienteForm() {
 
     try {
       if (clienteId) {
-        await updateDoc(doc(db, `negocios/${negocioID}/clientes`, clienteId), cliente);
-        setMensaje("✅ Cliente actualizado correctamente");
-        setTimeout(() => {
-          router.push("/clientes");
-        }, 1000);        
+        // 🆕 EDICIÓN DE CLIENTE EXISTENTE
+        
+        // 1️⃣ Obtener el nombre anterior
+        const clienteRef = doc(db, `negocios/${negocioID}/clientes`, clienteId);
+        const clienteSnap = await getDoc(clienteRef);
+        const nombreAnterior = clienteSnap.exists() ? clienteSnap.data().nombre : "";
+
+        // 2️⃣ Actualizar el cliente
+        await updateDoc(clienteRef, cliente);
+
+        // 3️⃣ SI CAMBIÓ EL NOMBRE, ACTUALIZAR TODO EL SISTEMA
+        if (nombreAnterior && nombreAnterior !== cliente.nombre) {
+          setMensaje("⏳ Actualizando referencias en el sistema...");
+
+          let totalActualizados = 0;
+
+          // 🔧 Actualizar trabajos
+          const trabajosSnap = await getDocs(
+            query(collection(db, `negocios/${negocioID}/trabajos`), where("cliente", "==", nombreAnterior))
+          );
+          for (const trabajoDoc of trabajosSnap.docs) {
+            await updateDoc(trabajoDoc.ref, { cliente: cliente.nombre });
+            totalActualizados++;
+          }
+
+          // 💰 Actualizar pagos
+          const pagosSnap = await getDocs(
+            query(collection(db, `negocios/${negocioID}/pagos`), where("cliente", "==", nombreAnterior))
+          );
+          for (const pagoDoc of pagosSnap.docs) {
+            await updateDoc(pagoDoc.ref, { cliente: cliente.nombre });
+            totalActualizados++;
+          }
+
+          // 📱 Actualizar ventas de teléfonos
+          try {
+            const ventasTelSnap = await getDocs(
+              query(collection(db, `negocios/${negocioID}/ventaTelefonos`), where("cliente", "==", nombreAnterior))
+            );
+            for (const ventaDoc of ventasTelSnap.docs) {
+              await updateDoc(ventaDoc.ref, { cliente: cliente.nombre });
+              totalActualizados++;
+            }
+          } catch (error) {
+            console.log("Colección ventaTelefonos no existe o sin permisos");
+          }
+
+          // 🛒 Actualizar ventas generales
+          try {
+            const ventasGenSnap = await getDocs(
+              query(collection(db, `negocios/${negocioID}/ventasGeneral`), where("cliente", "==", nombreAnterior))
+            );
+            for (const ventaDoc of ventasGenSnap.docs) {
+              await updateDoc(ventaDoc.ref, { cliente: cliente.nombre });
+              totalActualizados++;
+            }
+          } catch (error) {
+            console.log("Colección ventasGeneral no existe o sin permisos");
+          }
+
+          setMensaje(`✅ Cliente actualizado. Se actualizaron ${totalActualizados} registros en total.`);
+          
+          setTimeout(() => {
+            router.push("/clientes");
+          }, 2500);
+        } else {
+          setMensaje("✅ Cliente actualizado correctamente");
+          setTimeout(() => {
+            router.push("/clientes");
+          }, 1000);
+        }
+        
       } else {
+        // 🆕 CREACIÓN DE CLIENTE NUEVO
         await addDoc(collection(db, `negocios/${negocioID}/clientes`), cliente);
         setMensaje("✅ Cliente guardado con éxito");
 
-        // ✅ Redirección según el origen
+        // Redirección según el origen
         setTimeout(() => {
           if (origen === "ventas-accesorios") {
             localStorage.setItem("clienteNuevo", cliente.nombre);
@@ -88,7 +156,7 @@ export default function AgregarClienteForm() {
           } else {
             router.push("/clientes");
           }
-        }, 1000);        
+        }, 1000);
 
         return;
       }
@@ -102,7 +170,7 @@ export default function AgregarClienteForm() {
 
   const handleInputChange = (field: string, value: string) => {
     setCliente({ ...cliente, [field]: value });
-    if (mensaje) setMensaje(""); // Limpiar mensaje al escribir
+    if (mensaje) setMensaje("");
   };
 
   return (
@@ -111,14 +179,14 @@ export default function AgregarClienteForm() {
       <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
         <div className="w-full px-6 max-w-[800px] mx-auto">
           
-      {/* Header compacto */}
-<div className="mb-6">
-  <h1 className="text-2xl font-bold text-[#2c3e50] mb-2 flex items-center gap-3">
-    <span className="text-2xl">➕</span>
-    {clienteId ? "Editar Cliente" : "Agregar Cliente"}
-  </h1>
-  <div className="h-1 w-20 bg-gradient-to-r from-[#3498db] to-[#2980b9] rounded"></div>
-</div>
+          {/* Header compacto */}
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-[#2c3e50] mb-2 flex items-center gap-3">
+              <span className="text-2xl">➕</span>
+              {clienteId ? "Editar Cliente" : "Agregar Cliente"}
+            </h1>
+            <div className="h-1 w-20 bg-gradient-to-r from-[#3498db] to-[#2980b9] rounded"></div>
+          </div>
 
           {/* Formulario principal - Estilo GestiOne */}
           <div className="bg-white rounded-2xl shadow-lg border border-[#ecf0f1] overflow-hidden">
@@ -241,14 +309,16 @@ export default function AgregarClienteForm() {
                   <div className={`p-4 rounded-xl border-2 ${
                     mensaje.includes("✅") 
                       ? "bg-gradient-to-r from-[#27ae60]/10 to-[#2ecc71]/10 border-[#27ae60] text-[#27ae60]"
+                      : mensaje.includes("⏳")
+                      ? "bg-gradient-to-r from-[#f39c12]/10 to-[#e67e22]/10 border-[#f39c12] text-[#f39c12]"
                       : "bg-gradient-to-r from-[#e74c3c]/10 to-[#c0392b]/10 border-[#e74c3c] text-[#e74c3c]"
                   }`}>
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                        mensaje.includes("✅") ? "bg-[#27ae60]" : "bg-[#e74c3c]"
+                        mensaje.includes("✅") ? "bg-[#27ae60]" : mensaje.includes("⏳") ? "bg-[#f39c12]" : "bg-[#e74c3c]"
                       }`}>
                         <span className="text-white text-sm">
-                          {mensaje.includes("✅") ? "✅" : "❌"}
+                          {mensaje.includes("✅") ? "✅" : mensaje.includes("⏳") ? "⏳" : "❌"}
                         </span>
                       </div>
                       <p className="font-medium text-sm">{mensaje}</p>
@@ -277,7 +347,7 @@ export default function AgregarClienteForm() {
                     {guardando ? (
                       <div className="flex items-center justify-center gap-2">
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Guardando...
+                        {clienteId ? "Actualizando..." : "Guardando..."}
                       </div>
                     ) : (
                       <div className="flex items-center justify-center gap-2">

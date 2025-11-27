@@ -17,6 +17,7 @@ import { guardarTrabajo } from "./guardarTrabajo";
 import CheckInForm from "./CheckInForm";
 import { Combobox } from "@headlessui/react";
 import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
+import ModalConfirmarImpresion from "./ModalConfirmarImpresion";
 
 interface Cliente {
   nombre: string;
@@ -70,6 +71,8 @@ export default function IngresoForm() {
   const [checkData, setCheckData] = useState(inicialCheckData);
   const [queryCliente, setQueryCliente] = useState("");
   const [mostrandoOpcionesImpresion, setMostrandoOpcionesImpresion] = useState(false);
+  const [trabajoParaImprimir, setTrabajoParaImprimir] = useState<any>(null); // ✨ NUEVO ESTADO
+  const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false); // ✨ MODAL ELEGANTE
 
   // ✨ FUNCIÓN PARA FORMATEAR NÚMEROS CON PUNTOS (50.000)
   const formatearNumero = (valor: string) => {
@@ -147,6 +150,8 @@ export default function IngresoForm() {
     setCheckData(inicialCheckData);
     setMostrarCheckIn(false);
     setMostrandoOpcionesImpresion(false);
+    setTrabajoParaImprimir(null);
+    setMostrarModalConfirmacion(false); // ✨ NUEVO
   };
 
   // ✅ FUNCIÓN ACTUALIZADA: Ticket con modal nativo
@@ -541,14 +546,12 @@ export default function IngresoForm() {
           </div>
 
           <script>
-            // ✅ ABRIR MODAL NATIVO AUTOMÁTICAMENTE
             window.addEventListener('load', function() {
               setTimeout(function() {
                 window.print();
               }, 500);
             });
 
-            // ✅ CERRAR VENTANA DESPUÉS DE IMPRIMIR O CANCELAR
             window.addEventListener('afterprint', function() {
               window.close();
             });
@@ -557,7 +560,6 @@ export default function IngresoForm() {
       </html>
     `;
     
-    // ✅ ABRIR EN NUEVA VENTANA Y ACTIVAR IMPRESIÓN INMEDIATAMENTE
     const ventanaImpresion = window.open('', '_blank', 'width=800,height=600');
     if (ventanaImpresion) {
       ventanaImpresion.document.write(contenidoA4);
@@ -579,27 +581,24 @@ export default function IngresoForm() {
       return;
     }
 
-    // ✨ CONVERTIR VALORES FORMATEADOS A NUMÉRICOS PARA FIREBASE
     const precioNumerico = obtenerValorNumerico(form.precio || "0");
     const anticipoNumerico = obtenerValorNumerico(form.anticipo || "0");
     const saldoNumerico = (parseFloat(precioNumerico) - parseFloat(anticipoNumerico)).toString();
 
     const datos = {
       ...form,
-      precio: precioNumerico,      // ✨ Guardar sin puntos
-      anticipo: anticipoNumerico,  // ✨ Guardar sin puntos
-      saldo: saldoNumerico,        // ✨ Guardar sin puntos
+      precio: precioNumerico,
+      anticipo: anticipoNumerico,
+      saldo: saldoNumerico,
       fecha: form.fecha,
       checkIn: mostrarCheckIn ? checkData : null,
     };
 
-    // Primero guardar el trabajo (sin impresión automática)
     const resultado = await guardarTrabajo(negocioID, datos, false);
 
     if (resultado) {
       setMensajeExito(resultado);
       
-      // Luego procesar las impresiones seleccionadas
       if (opciones.ticket) {
         await imprimirTicket(datos);
       }
@@ -612,38 +611,64 @@ export default function IngresoForm() {
         await imprimirTicketA4(datos);
       }
       
-      // Limpiar formulario
       limpiarFormulario();
     }
   };
 
-  // ✅ FUNCIÓN ORIGINAL: Guardar con configuración automática
+  // ✅ FUNCIÓN ACTUALIZADA: Guardar con modal elegante
   const handleGuardarSolo = async () => {
     if (!negocioID) {
       alert("No se encontró un negocio asociado a este usuario");
       return;
     }
 
-    // ✨ CONVERTIR VALORES FORMATEADOS A NUMÉRICOS PARA FIREBASE
+    // ✨ VALIDAR CAMPOS OBLIGATORIOS
+    if (!form.cliente || form.cliente.trim() === "") {
+      alert("⚠️ El campo Cliente es obligatorio");
+      return;
+    }
+
+    if (!form.modelo || form.modelo.trim() === "") {
+      alert("⚠️ El campo Modelo es obligatorio");
+      return;
+    }
+
     const precioNumerico = obtenerValorNumerico(form.precio || "0");
     const anticipoNumerico = obtenerValorNumerico(form.anticipo || "0");
     const saldoNumerico = (parseFloat(precioNumerico) - parseFloat(anticipoNumerico)).toString();
 
     const datos = {
       ...form,
-      precio: precioNumerico,      // ✨ Guardar sin puntos
-      anticipo: anticipoNumerico,  // ✨ Guardar sin puntos
-      saldo: saldoNumerico,        // ✨ Guardar sin puntos
+      precio: precioNumerico,
+      anticipo: anticipoNumerico,
+      saldo: saldoNumerico,
       fecha: form.fecha,
       checkIn: mostrarCheckIn ? checkData : null,
     };
 
-    const resultado = await guardarTrabajo(negocioID, datos, configImpresion);
+    // 1. Guardar en Firebase (SIN impresión automática)
+    const resultado = await guardarTrabajo(negocioID, datos, false);
 
     if (resultado) {
-      setMensajeExito(resultado);
-      limpiarFormulario();
+      // 2. Guardar datos para el modal
+      setTrabajoParaImprimir(datos);
+      
+      // 3. Mostrar modal elegante
+      setMostrarModalConfirmacion(true);
     }
+  };
+
+  // ✨ NUEVA FUNCIÓN: Confirmar impresión desde modal
+  const handleConfirmarImpresion = () => {
+    setMostrarModalConfirmacion(false);
+    setMostrandoOpcionesImpresion(true);
+  };
+
+  // ✨ NUEVA FUNCIÓN: Cancelar impresión desde modal
+  const handleCancelarImpresion = () => {
+    setMostrarModalConfirmacion(false);
+    setMensajeExito("✅ Trabajo guardado exitosamente");
+    limpiarFormulario();
   };
 
   return (
@@ -652,7 +677,7 @@ export default function IngresoForm() {
       <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
         <div className="w-full px-6 max-w-[1200px] mx-auto">
           
-          {/* Header de la página - Estilo GestiOne */}
+          {/* Header de la página */}
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-3 mb-2 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-6">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -683,7 +708,6 @@ export default function IngresoForm() {
                 </div>
               </div>
               
-              {/* Botón agregar cliente */}
               <button
                 className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2"
                 onClick={() => router.push("/clientes/agregar?origen=ingreso")}
@@ -844,7 +868,7 @@ export default function IngresoForm() {
                 />
               </div>
 
-              {/* ✨ NUEVO: Accesorios Incluidos */}
+              {/* Accesorios */}
               <div>
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
                   📦 Accesorios Incluidos
@@ -878,7 +902,7 @@ export default function IngresoForm() {
                 </div>
               </div>
 
-              {/* ✨ NUEVO: Adelanto/Anticipo */}
+              {/* Anticipo */}
               <div>
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
                   💵 Adelanto/Anticipo
@@ -901,7 +925,7 @@ export default function IngresoForm() {
                 </p>
               </div>
 
-              {/* ✨ NUEVO: Saldo Pendiente (calculado automáticamente) */}
+              {/* Saldo Pendiente */}
               <div>
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
                   💳 Saldo Pendiente
@@ -920,7 +944,7 @@ export default function IngresoForm() {
                 </p>
               </div>
 
-              {/* Observaciones - Span completo */}
+              {/* Observaciones */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
                   📝 Observaciones
@@ -955,39 +979,74 @@ export default function IngresoForm() {
             <CheckInForm checkData={checkData} setCheckData={setCheckData} />
           )}
 
-        
+          {/* ✨ MODAL ELEGANTE DE CONFIRMACIÓN */}
+          <ModalConfirmarImpresion
+            isOpen={mostrarModalConfirmacion}
+            onConfirm={handleConfirmarImpresion}
+            onCancel={handleCancelarImpresion}
+            nombreCliente={trabajoParaImprimir?.cliente || ""}
+            numeroOrden={trabajoParaImprimir?.id || ""}
+          />
 
-          {/* Sistema de impresión unificado */}
-{/* Sistema de impresión unificado */}
-<div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1] mb-8">
-  <div className="flex flex-col gap-6">
-    
-    {/* Botón guardar solo */}
-    <div className="flex justify-center">
-      <button
-        onClick={handleGuardarSolo}
-        className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 justify-center"
-      >
-        💾 Guardar Solo (Sin Imprimir)
-      </button>
-    </div>
+          {/* ✨ SECCIÓN SIMPLIFICADA - UN SOLO BOTÓN */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1] mb-8">
+            <div className="flex flex-col items-center gap-4">
+              
+              {/* BOTÓN ÚNICO */}
+              <button
+                onClick={handleGuardarSolo}
+                className="w-full max-w-md bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-8 py-4 rounded-lg font-bold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center justify-center gap-2"
+              >
+                💾 Guardar Trabajo
+              </button>
 
-    {/* Separador */}
-    <div className="border-t border-[#ecf0f1] pt-4">
-      <h4 className="text-center text-[#2c3e50] font-semibold mb-4">O imprimir directamente:</h4>
-      
-      {/* Nuevo sistema de impresión */}
-      <BotonesImpresionTrabajo 
-        trabajo={{
-          ...form,
-          checkIn: mostrarCheckIn ? checkData : null,
-        }}
-        negocioId={negocioID}
-        ocultarEtiquetasA4={true}
-      />
-    </div>
-  </div>
-</div>
+              {/* INFO */}
+              <p className="text-xs text-center text-gray-500 max-w-md">
+                💡 Al guardar, podrás elegir si deseas imprimir inmediatamente
+              </p>
+            </div>
+          </div>
+
+          {/* ✨ MODAL DE OPCIONES DE IMPRESIÓN */}
+          {mostrandoOpcionesImpresion && trabajoParaImprimir && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden">
+                
+                {/* Header */}
+                <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">🖨️</span>
+                      <div>
+                        <h3 className="text-2xl font-bold">Opciones de Impresión</h3>
+                        <p className="text-sm opacity-90">Selecciona qué documentos imprimir</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setMostrandoOpcionesImpresion(false);
+                        setMensajeExito("✅ Trabajo guardado exitosamente");
+                        limpiarFormulario();
+                      }}
+                      className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center transition-all"
+                    >
+                      <span className="text-2xl">×</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Contenido */}
+                <div className="p-6">
+                  <BotonesImpresionTrabajo 
+                    trabajo={trabajoParaImprimir}
+                    negocioId={negocioID}
+                    ocultarEtiquetasA4={true}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Mensaje de éxito */}
           {mensajeExito && (
             <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] border-2 border-[#27ae60] rounded-xl p-6 shadow-lg mb-8">
@@ -1009,7 +1068,7 @@ export default function IngresoForm() {
               <div className="flex-1">
                 <p className="text-sm font-medium">
                   <strong>Tip:</strong> El ID del equipo se genera automáticamente. 
-                  Al imprimir, se abrirá el diálogo nativo donde verás tu EPSON L1250 Series y todas tus impresoras instaladas.
+                  Después de guardar, podrás elegir qué documentos imprimir con las opciones disponibles.
                 </p>
               </div>
             </div>
