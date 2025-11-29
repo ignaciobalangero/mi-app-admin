@@ -33,7 +33,6 @@ export default function BotonesImpresionTrabajo({
 
   const [imprimiendo, setImprimiendo] = useState('');
 
-  // Cargar configuración al montar el componente
   useEffect(() => {
     cargarConfiguracion();
   }, [negocioId]);
@@ -42,7 +41,6 @@ export default function BotonesImpresionTrabajo({
     if (!negocioId) return;
 
     try {
-      // Cargar configuración de impresoras
       const configRef = doc(db, `negocios/${negocioId}/configuracion/impresion`);
       const configSnap = await getDoc(configRef);
       
@@ -50,7 +48,6 @@ export default function BotonesImpresionTrabajo({
         setConfiguracionImpresion(configSnap.data() as any);
       }
 
-      // Cargar plantillas personalizadas
       const plantillasRef = doc(db, `negocios/${negocioId}/configuracion/plantillasImpresion`);
       const plantillasSnap = await getDoc(plantillasRef);
       
@@ -82,7 +79,6 @@ export default function BotonesImpresionTrabajo({
     return true;
   };
 
-  // ✅ TICKET TÉRMICO - Impresión directa
   const imprimirTicketTermico = async () => {
     if (!validarDatos('ticket')) return;
     
@@ -97,13 +93,11 @@ export default function BotonesImpresionTrabajo({
     }
   };
 
-  // ✅ ETIQUETA BROTHER - Impresión DIRECTA (sin modal)
   const imprimirEtiquetaBrother = async () => {
     if (!validarDatos('etiqueta')) return;
     
     setImprimiendo('etiqueta');
     try {
-      // Cargar nombre del negocio
       let nombreNegocio = '';
       try {
         const negocioRef = doc(db, `negocios/${negocioId}`);
@@ -115,10 +109,24 @@ export default function BotonesImpresionTrabajo({
         console.error("Error cargando nombre del negocio:", error);
       }
 
-      // Generar HTML de la etiqueta
-      const contenidoEtiqueta = generarHTMLEtiquetaBrother(trabajo, nombreNegocio);
+      // ✅ LEER CONFIGURACIÓN DE LA ETIQUETA
+      const configuracionEtiqueta = plantillas.etiqueta || {
+        campos: ['cliente', 'numeroOrden', 'modelo', 'trabajo'],
+        configuracion: {
+          tamaño: '62x29',
+          orientacion: 'horizontal',
+          mostrarBorde: true,
+          tamañoTexto: 'mediano'
+        }
+      };
+
+      const contenidoEtiqueta = generarHTMLEtiquetaBrother(
+        trabajo, 
+        nombreNegocio,
+        configuracionEtiqueta.campos,
+        configuracionEtiqueta.configuracion
+      );
       
-      // Abrir ventana de impresión directamente
       const ventana = window.open('', '_blank', 'width=800,height=600');
       if (ventana) {
         ventana.document.write(contenidoEtiqueta);
@@ -135,13 +143,11 @@ export default function BotonesImpresionTrabajo({
     }
   };
 
-  // ✅ TICKET A4 - Impresión DIRECTA (sin modal)
   const imprimirTicketA4 = async () => {
     if (!validarDatos('ticketA4')) return;
     
     setImprimiendo('ticketA4');
     try {
-      // Cargar configuración del negocio
       let logoUrl = '';
       let garantiaServicio = '';
       
@@ -157,10 +163,8 @@ export default function BotonesImpresionTrabajo({
         console.error("Error obteniendo configuración:", error);
       }
 
-      // Generar HTML del ticket A4
       const contenidoA4 = generarHTMLTicketA4(trabajo, logoUrl, garantiaServicio);
       
-      // Abrir ventana de impresión directamente
       const ventana = window.open('', '_blank', 'width=800,height=600');
       if (ventana) {
         ventana.document.write(contenidoA4);
@@ -177,7 +181,6 @@ export default function BotonesImpresionTrabajo({
     }
   };
 
-  // ✅ ETIQUETAS A4 - Múltiples
   const imprimirEtiquetaA4 = async () => {
     const trabajoParaEtiqueta = {
       ...trabajo,
@@ -206,7 +209,6 @@ export default function BotonesImpresionTrabajo({
       
       <div className={`grid gap-3 ${ocultarEtiquetasA4 ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-2 md:grid-cols-4'}`}>
         
-        {/* Ticket Térmico */}
         <button
           onClick={imprimirTicketTermico}
           disabled={!configuracionImpresion.zerforceActiva || imprimiendo !== ''}
@@ -228,7 +230,6 @@ export default function BotonesImpresionTrabajo({
           )}
         </button>
 
-        {/* ✅ Etiqueta Brother - IMPRESIÓN DIRECTA */}
         <button
           onClick={imprimirEtiquetaBrother}
           disabled={imprimiendo !== ''}
@@ -244,7 +245,6 @@ export default function BotonesImpresionTrabajo({
           </span>
         </button>
 
-        {/* ✅ Ticket A4 - IMPRESIÓN DIRECTA */}
         <button
           onClick={imprimirTicketA4}
           disabled={imprimiendo !== ''}
@@ -260,7 +260,6 @@ export default function BotonesImpresionTrabajo({
           </span>
         </button>
 
-        {/* Etiquetas A4 */}
         {!ocultarEtiquetasA4 && (
           <button
             onClick={imprimirEtiquetaA4}
@@ -279,7 +278,6 @@ export default function BotonesImpresionTrabajo({
         )}
       </div>
 
-      {/* Información */}
       <div className="mt-3 p-2 bg-gray-50 rounded-lg">
         <div className="text-xs text-black">
           <strong>💡 Tip:</strong> Al hacer clic, se abrirá directamente el diálogo de impresión de tu navegador para elegir la impresora.
@@ -290,10 +288,61 @@ export default function BotonesImpresionTrabajo({
 }
 
 // ========================================
-// FUNCIONES AUXILIARES PARA GENERAR HTML
+// ✅ FUNCIÓN QUE RESPETA CONFIGURACIÓN
 // ========================================
+function generarHTMLEtiquetaBrother(
+  datos: any, 
+  nombreNegocio: string,
+  camposSeleccionados: string[],
+  configuracion: any
+) {
+  
+  // Mapeo de IDs de campos a datos del trabajo
+  const mapaCampos: any = {
+    'cliente': { label: 'CLIENTE', valor: datos.cliente, large: true },
+    'numeroOrden': { label: 'CÓDIGO', valor: datos.id, large: true },
+    'modelo': { label: 'MODELO', valor: datos.modelo, large: true },
+    'clave': { label: 'CLAVE', valor: datos.clave, large: false },
+    'trabajo': { label: 'TRABAJO', valor: datos.trabajo, large: false },
+    'imei': { label: 'IMEI', valor: datos.imei, large: false, monospace: true }
+  };
 
-function generarHTMLEtiquetaBrother(datos: any, nombreNegocio: string) {
+  // Dividir campos en dos columnas
+  const mitad = Math.ceil(camposSeleccionados.length / 2);
+  const columnaIzq = camposSeleccionados.slice(0, mitad);
+  const columnaDer = camposSeleccionados.slice(mitad);
+
+  // Generar HTML para campos
+  const generarCampos = (campos: string[]) => {
+    return campos.map(campoId => {
+      const campo = mapaCampos[campoId];
+      if (!campo) return '';
+      
+      const claseValue = campo.large ? 'value value-large' : 'value';
+      const claseExtra = campo.monospace ? ' imei' : '';
+      
+      return `
+        <div class="field">
+          <span class="label">${campo.label}:</span>
+          <span class="${claseValue}${claseExtra}">${campo.valor || 'N/A'}</span>
+        </div>
+      `;
+    }).join('');
+  };
+
+  // Obtener tamaño de fuente según configuración
+  const obtenerTamañoFuente = () => {
+    switch(configuracion.tamañoTexto) {
+      case 'muy-pequeño': return { label: '6px', value: '7px', valueLarge: '8px', imei: '6px' };
+      case 'pequeño': return { label: '6.5px', value: '7.5px', valueLarge: '8.5px', imei: '6.5px' };
+      case 'mediano': 
+      default: return { label: '7px', value: '8px', valueLarge: '9px', imei: '7px' };
+    }
+  };
+
+  const tamaños = obtenerTamañoFuente();
+  const mostrarBorde = configuracion.mostrarBorde !== false;
+
   return `
     <!DOCTYPE html>
     <html>
@@ -305,101 +354,108 @@ function generarHTMLEtiquetaBrother(datos: any, nombreNegocio: string) {
             size: 62mm 29mm; 
             margin: 0; 
           }
+          
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
           html, body {
             width: 62mm;
             height: 29mm;
-            margin: 0;
-            padding: 0;
             overflow: hidden;
-          }
-          body { 
             font-family: Arial, sans-serif;
-            padding: 1mm;
-            box-sizing: border-box;
+          }
+          
+          body {
+            ${mostrarBorde ? 'border: 4px solid #000;' : ''}
             display: flex;
             flex-direction: column;
           }
+          
           .header {
+            background: #fff;
+            color: #000;
             text-align: center;
-            font-weight: bold;
-            font-size: 9px;
-            padding-bottom: 1mm;
-            border-bottom: 1px solid #000;
-            margin-bottom: 1mm;
+            padding: 2mm 0;
+            margin-top: 1mm;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 1.5mm;
+            border-bottom: 3px solid #000;
+            flex-shrink: 0;
           }
+          
           .content {
             display: flex;
-            gap: 2mm;
-            font-size: 8px;
             flex: 1;
+            padding: 2.5mm 3mm;
+            gap: 3mm;
+            overflow: hidden;
           }
+          
           .column {
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 1mm;
+            justify-content: space-evenly;
           }
+          
           .field {
             display: flex;
-            flex-direction: column;
+            align-items: baseline;
+            gap: 1.5mm;
+            line-height: 1.3;
+            margin-bottom: 1mm;
           }
+          
           .label {
-            font-weight: bold;
-            font-size: 7px;
-            color: #555;
+            font-weight: 900;
+            color: #000;
+            font-size: ${tamaños.label};
+            text-transform: uppercase;
+            white-space: nowrap;
+            flex-shrink: 0;
           }
+          
           .value {
-            font-size: 8px;
-            line-height: 1.1;
+            color: #000;
+            font-size: ${tamaños.value};
+            font-weight: 900;
             word-wrap: break-word;
-            white-space: normal;
+            overflow: hidden;
           }
-          .footer {
-            text-align: center;
-            font-size: 6px;
-            color: #888;
-            margin-top: 1mm;
-            padding-top: 1mm;
-            border-top: 1px solid #ddd;
+          
+          .value-large {
+            font-size: ${tamaños.valueLarge};
+            font-weight: 900;
+          }
+          
+          .imei {
+            font-family: 'Courier New', monospace;
+            font-size: ${tamaños.imei};
+            font-weight: 900;
+            letter-spacing: 0.2mm;
+            word-break: break-all;
           }
         </style>
       </head>
       <body>
-        <div class="header">${nombreNegocio || 'GestiOne'}</div>
+        
+        <div class="header">${nombreNegocio || 'GESTIONE'}</div>
         
         <div class="content">
+          
           <div class="column">
-            <div class="field">
-              <span class="label">Código:</span>
-              <span class="value">${datos.id || 'N/A'}</span>
-            </div>
-            <div class="field">
-              <span class="label">Modelo:</span>
-              <span class="value">${datos.modelo || 'N/A'}</span>
-            </div>
-            <div class="field">
-              <span class="label">Trabajo:</span>
-              <span class="value">${datos.trabajo || 'N/A'}</span>
-            </div>
+            ${generarCampos(columnaIzq)}
           </div>
           
           <div class="column">
-            <div class="field">
-              <span class="label">Cliente:</span>
-              <span class="value">${datos.cliente || 'N/A'}</span>
-            </div>
-            <div class="field">
-              <span class="label">Clave:</span>
-              <span class="value">${datos.clave || 'N/A'}</span>
-            </div>
-            <div class="field">
-              <span class="label">IMEI:</span>
-              <span class="value">${datos.imei || 'N/A'}</span>
-            </div>
+            ${generarCampos(columnaDer)}
           </div>
+          
         </div>
-        
-        <div class="footer">GestiOne</div>
 
         <script>
           window.addEventListener('load', function() {

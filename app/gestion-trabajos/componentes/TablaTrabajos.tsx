@@ -7,9 +7,11 @@ import { doc, updateDoc, getDocs, collection, query, where } from "firebase/fire
 import { db } from "@/lib/firebase";
 import ModalAgregarRepuesto from "@/app/resumen/componentes/ModalRepuestos";
 import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
+import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo"; // ✨ NUEVO IMPORT
 
 interface Trabajo {
   firebaseId: string;
+  id?: string; // ✨ ID del trabajo (número de orden)
   fecha: string;
   cliente: string;
   modelo: string;
@@ -18,10 +20,10 @@ interface Trabajo {
   clave?: string;
   observaciones?: string;
   precio?: number;
-  estado: string; // Mantener como string para compatibilidad
+  estado: string;
   repuestosUsados?: any[]; 
   fechaModificacion?: string;
-  estadoCuentaCorriente?: string; // Mantener como string para compatibilidad
+  estadoCuentaCorriente?: string;
 }
 
 interface TablaProps {
@@ -51,17 +53,15 @@ export default function TablaTrabajos({
     return "bg-red-100 border-l-4 border-[#B71C1C]";
   };
 
-  // 🆕 ESTADOS PARA EL MODAL DE EDICIÓN
   const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
   const [trabajoEditando, setTrabajoEditando] = useState<Trabajo | null>(null);
+  const [filtroCodigo, setFiltroCodigo] = useState(""); // ✨ NUEVO: Filtro por código
 
-  // 🆕 FUNCIÓN PARA ABRIR MODAL DE EDICIÓN
   const manejarClickEditar = (trabajo: Trabajo) => {
     setTrabajoEditando(trabajo);
     setModalEditarAbierto(true);
   };
 
-  // 🆕 FUNCIÓN PARA CERRAR MODAL DE EDICIÓN
   const cerrarModalEditar = () => {
     setModalEditarAbierto(false);
     setTrabajoEditando(null);
@@ -74,9 +74,25 @@ export default function TablaTrabajos({
   const [mostrarModalRepuestos, setMostrarModalRepuestos] = useState(false);
   const [trabajoIDSeleccionado, setTrabajoIDSeleccionado] = useState<string | null>(null);
 
+  // ✨ NUEVO: Estado para el modal de impresión
+  const [mostrarModalImpresion, setMostrarModalImpresion] = useState(false);
+  const [trabajoParaImprimir, setTrabajoParaImprimir] = useState<Trabajo | null>(null);
+
   const abrirModalConfirmarPago = (trabajo: Trabajo) => {
     setTrabajoAConfirmarPago(trabajo);
     setModalConfirmarPagoVisible(true);
+  };
+
+  // ✨ NUEVA FUNCIÓN: Abrir modal de impresión
+  const abrirModalImpresion = (trabajo: Trabajo) => {
+    setTrabajoParaImprimir(trabajo);
+    setMostrarModalImpresion(true);
+  };
+
+  // ✨ NUEVA FUNCIÓN: Cerrar modal de impresión
+  const cerrarModalImpresion = () => {
+    setMostrarModalImpresion(false);
+    setTrabajoParaImprimir(null);
   };
 
   const confirmarPago = async () => {
@@ -95,8 +111,14 @@ export default function TablaTrabajos({
   };
 
   const itemsPorPagina = 40;
-  const trabajosPaginados = trabajos.slice((pagina - 1) * itemsPorPagina, pagina * itemsPorPagina);
-  const totalPaginas = Math.ceil(trabajos.length / itemsPorPagina);
+  
+  // ✨ NUEVO: Filtrar trabajos por código
+  const trabajosFiltrados = trabajos.filter((t) => 
+    filtroCodigo === "" || t.id?.toLowerCase().includes(filtroCodigo.toLowerCase())
+  );
+  
+  const trabajosPaginados = trabajosFiltrados.slice((pagina - 1) * itemsPorPagina, pagina * itemsPorPagina);
+  const totalPaginas = Math.ceil(trabajosFiltrados.length / itemsPorPagina);
 
   useEffect(() => {
     const listener = () => {
@@ -114,15 +136,32 @@ export default function TablaTrabajos({
         
         {/* Header de la tabla */}
         <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-3 md:p-4 lg:p-6">
-          <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
-            <div className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 bg-white/20 rounded-xl flex items-center justify-center">
-              <span className="text-sm sm:text-lg md:text-xl lg:text-2xl">🔧</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <span className="text-sm sm:text-lg md:text-xl lg:text-2xl">🔧</span>
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm md:text-lg lg:text-xl font-bold">Lista de Trabajos</h3>
+                <p className="text-xs sm:text-sm text-blue-100 mt-1">
+                  {trabajosFiltrados.length} de {trabajos.length} {trabajos.length === 1 ? 'trabajo' : 'trabajos'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xs sm:text-sm md:text-lg lg:text-xl font-bold">Lista de Trabajos</h3>
-              <p className="text-xs sm:text-sm text-blue-100 mt-1">
-                {trabajos.length} {trabajos.length === 1 ? 'trabajo registrado' : 'trabajos registrados'}
-              </p>
+            
+            {/* ✨ NUEVO: Filtro por código */}
+            <div className="w-full sm:w-auto">
+              <input
+                type="text"
+                placeholder="🔢 Filtrar por código..."
+                value={filtroCodigo}
+                onChange={(e) => {
+                  setFiltroCodigo(e.target.value);
+                  setPagina(1); // Resetear a página 1 al filtrar
+                }}
+                className="w-full sm:w-64 px-3 py-2 text-sm border-2 border-white/30 rounded-lg bg-white/10 text-white placeholder-white/70 focus:bg-white/20 focus:border-white/50 transition-all"
+                title="Buscar por código de trabajo (ej: EO-52348)"
+              />
             </div>
           </div>
         </div>
@@ -132,7 +171,6 @@ export default function TablaTrabajos({
           <table className="w-full border-collapse border-2 border-black min-w-fit">
             <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
               <tr>
-                {/* Fecha - Siempre visible */}
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[65px] sm:min-w-[70px] md:min-w-[75px] max-w-[80px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">📅</span>
@@ -140,7 +178,6 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* Cliente - Siempre visible */}
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[80px] sm:min-w-[90px] md:min-w-[100px] max-w-[120px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">👤</span>
@@ -148,7 +185,6 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* Modelo - Siempre visible */}
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[90px] md:min-w-[110px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">📱</span>
@@ -156,7 +192,6 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* IMEI - Oculto en móvil */}
                 <th className="hidden sm:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[60px] md:min-w-[80px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">📲</span>
@@ -164,15 +199,13 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* Trabajo - Siempre visible */}
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[100px] sm:min-w-[110px] md:min-w-[130px] max-w-[150px]">
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">🔧</span>
                     <span className="text-xs">Trabajo</span>
                   </div>
                 </th>
                 
-                {/* Clave - Oculto en móvil y tablet */}
                 <th className="hidden lg:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[60px] md:min-w-[80px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">🔑</span>
@@ -180,7 +213,6 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* Observaciones - Oculto en móvil, ancho reducido */}
                 <th className="hidden md:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[60px] md:w-[80px] max-w-[80px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">📝</span>
@@ -188,7 +220,6 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* Precio - Siempre visible */}
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[80px] md:min-w-[90px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">💰</span>
@@ -196,7 +227,6 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* Estado - Siempre visible */}
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[80px] md:min-w-[90px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">🚦</span>
@@ -204,7 +234,6 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* Fecha Modificación - Oculto en móvil y tablet */}
                 <th className="hidden md:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[60px] md:w-[80px] max-w-[80px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">📅</span>
@@ -212,8 +241,8 @@ export default function TablaTrabajos({
                   </div>
                 </th>
                 
-                {/* Acciones - Mantener compacto en móvil, más ancho en desktop */}
-              <th className="p-1 sm:p-2 md:p-3 text-center text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[120px] sm:w-[130px] md:w-[140px] lg:w-[180px]">
+                {/* ✨ COLUMNA ACCIONES CON MÁS ESPACIO */}
+                <th className="p-1 sm:p-2 md:p-3 text-center text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[180px] sm:w-[200px] md:w-[220px] lg:w-[260px]">
                   <div className="flex items-center justify-center gap-1">
                     <span className="text-xs sm:text-sm">⚙️</span>
                     <span className="hidden sm:inline text-xs">Acciones</span>
@@ -233,17 +262,17 @@ export default function TablaTrabajos({
                     
                     {/* Fecha */}
                     <td className="p-1 sm:p-1.5 md:p-2 border border-black max-w-[85px]">
-  <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fecha}>
-    {t.fecha}
-  </span>
-</td>
+                      <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fecha}>
+                        {t.fecha}
+                      </span>
+                    </td>
                     
                     {/* Cliente */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[120px]">
                       <span className="text-xs truncate block font-medium" title={t.cliente}>
-                       {t.cliente}
-                       </span>
-                        </td>
+                        {t.cliente}
+                      </span>
+                    </td>
                     
                     {/* Modelo */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
@@ -252,38 +281,35 @@ export default function TablaTrabajos({
                       </span>
                     </td>
                     
-                    {/* IMEI - Oculto en móvil */}
+                    {/* IMEI */}
                     <td className="hidden sm:table-cell p-1 sm:p-2 md:p-3 border border-black">
-                    {t.imei ? (
-                      <button
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(t.imei);
-                            // Puedes agregar un mensaje temporal aquí si quieres
-                            console.log(`📋 IMEI copiado: ${t.imei}`);
-                          } catch (error) {
-                            console.error("Error al copiar IMEI:", error);
-                          }
-                        }}
-                        className="text-xs font-mono bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
-                        title={`IMEI completo: ${t.imei} (Click para copiar)`}
-                        onMouseEnter={(e) => {
-                          // Mostrar IMEI completo en hover
-                          e.currentTarget.textContent = t.imei;
-                        }}
-                        onMouseLeave={(e) => {
-                          // Volver a mostrar solo los últimos 4
-                          e.currentTarget.textContent = `...${t.imei.slice(-4)}`;
-                        }}
-                      >
-                        ...{t.imei.slice(-4)}
-                      </button>
-                    ) : (
-                      <span className="text-xs font-mono bg-[#ecf0f1] px-1 py-1 rounded block text-center">
-                        —
-                      </span>
-                    )}
-                  </td>
+                      {t.imei ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(t.imei);
+                              console.log(`📋 IMEI copiado: ${t.imei}`);
+                            } catch (error) {
+                              console.error("Error al copiar IMEI:", error);
+                            }
+                          }}
+                          className="text-xs font-mono bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
+                          title={`IMEI completo: ${t.imei} (Click para copiar)`}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.textContent = t.imei;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.textContent = `...${t.imei.slice(-4)}`;
+                          }}
+                        >
+                          ...{t.imei.slice(-4)}
+                        </button>
+                      ) : (
+                        <span className="text-xs font-mono bg-[#ecf0f1] px-1 py-1 rounded block text-center">
+                          —
+                        </span>
+                      )}
+                    </td>
                     
                     {/* Trabajo */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[150px]">
@@ -292,12 +318,10 @@ export default function TablaTrabajos({
                           className="text-xs bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
                           title={`Trabajo completo: ${t.trabajo}`}
                           onMouseEnter={(e) => {
-                            // Mostrar trabajo completo en hover
                             e.currentTarget.textContent = t.trabajo;
                             e.currentTarget.classList.remove('truncate');
                           }}
                           onMouseLeave={(e) => {
-                            // Volver a mostrar truncado
                             const trabajoTruncado = t.trabajo.length > 25 ? t.trabajo.substring(0, 25) + "..." : t.trabajo;
                             e.currentTarget.textContent = trabajoTruncado;
                             e.currentTarget.classList.add('truncate');
@@ -312,17 +336,17 @@ export default function TablaTrabajos({
                       )}
                     </td>
                     
-                    {/* Clave - Oculto en móvil y tablet */}
+                    {/* Clave */}
                     <td className="hidden lg:table-cell p-1 sm:p-2 md:p-3 border border-black">
                       <span className="text-xs truncate block" title={t.clave || "—"}>
                         {t.clave || "—"}
                       </span>
                     </td>
                     
-                    {/* Observaciones - Oculto en móvil, texto muy corto */}
+                    {/* Observaciones */}
                     <td className="hidden md:table-cell p-1 sm:p-2 md:p-3 border border-black min-w-[120px] max-w-[200px]">
-                    <div className="text-xs break-words" title={t.observaciones || "—"}>
-                      {t.observaciones || "—"}
+                      <div className="text-xs break-words" title={t.observaciones || "—"}>
+                        {t.observaciones || "—"}
                       </div>
                     </td>
                     
@@ -336,33 +360,32 @@ export default function TablaTrabajos({
                     {/* Estado */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
                       <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
-  t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
-  t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
-  t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
-  t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
-  "bg-[#424242] text-white border-2 border-[#212121]"
-}`}>
-                        {/* Solo iconos en pantallas pequeñas */}
+                        t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
+                        t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
+                        t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
+                        t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
+                        "bg-[#424242] text-white border-2 border-[#212121]"
+                      }`}>
                         <span className="sm:hidden">
-  {t.estado === "PAGADO" ? "💰" : 
-   t.estado === "ENTREGADO" ? "📦" :
-   t.estado === "REPARADO" ? "🔧" : "⏳"}
-</span>
-<span className="hidden sm:inline text-xs">
-  {t.estado}
-</span>
+                          {t.estado === "PAGADO" ? "💰" : 
+                           t.estado === "ENTREGADO" ? "📦" :
+                           t.estado === "REPARADO" ? "🔧" : "⏳"}
+                        </span>
+                        <span className="hidden sm:inline text-xs">
+                          {t.estado}
+                        </span>
                       </span>
                     </td>
                     
-                    {/* Fecha Modificación - Oculto en móvil y tablet */}
+                    {/* Fecha Modificación */}
                     <td className="hidden lg:table-cell p-1 sm:p-1.5 md:p-2 border border-black max-w-[80px]">
-                    <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate">
-                      {t.fechaModificacion || "—"}
-                    </span>
-                  </td>
+                      <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate">
+                        {t.fechaModificacion || "—"}
+                      </span>
+                    </td>
                     
-                    {/* Acciones - Compacto en móvil, espacioso en desktop */}
-                    <td className="p-1 sm:p-2 md:p-3 border border-black w-[120px] sm:w-[130px] md:w-[140px] lg:w-[180px]">
+                    {/* ✨ ACCIONES CON BOTÓN DE IMPRESIÓN */}
+                    <td className="p-1 sm:p-2 md:p-3 border border-black w-[180px] sm:w-[200px] md:w-[220px] lg:w-[260px]">
                       <div className="flex flex-col gap-1">
                         
                         {/* Selector de estado */}
@@ -374,11 +397,11 @@ export default function TablaTrabajos({
                             const updates: any = {};
 
                             const hoy = new Date();
-const fechaModificacion = hoy.toLocaleDateString("es-AR");
-updates.fechaModificacion = fechaModificacion;
-updates.estado = nuevoEstado;
+                            const fechaModificacion = hoy.toLocaleDateString("es-AR");
+                            updates.fechaModificacion = fechaModificacion;
+                            updates.estado = nuevoEstado;
 
-await updateDoc(ref, updates);
+                            await updateDoc(ref, updates);
 
                             if (nuevoEstado === "PAGADO") {
                               try {
@@ -406,14 +429,14 @@ await updateDoc(ref, updates);
                           <option value="PAGADO">💰 Pagado</option>
                         </select>
 
-                        {/* Botones de acción - Compacto en móvil, espacioso en desktop */}
-                        <div className="flex flex-wrap gap-0.5 lg:gap-1 justify-center">
+                        {/* Botones de acción - SIN WRAP, UNA SOLA FILA */}
+                        <div className="flex gap-0.5 lg:gap-1 justify-center overflow-x-auto">
                           <button
                             onClick={() => {
                               setTrabajoIDSeleccionado(t.firebaseId);
                               setMostrarModalRepuestos(true);
                             }}
-                            className={`text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm ${
+                            className={`text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0 ${
                               t.repuestosUsados && t.repuestosUsados.length > 0
                                 ? "bg-[#9b59b6] hover:bg-[#8e44ad]"
                                 : "bg-[#27ae60] hover:bg-[#229954]"
@@ -423,10 +446,9 @@ await updateDoc(ref, updates);
                             ➕
                           </button>
 
-                          {/* 🆕 BOTÓN EDITAR ACTUALIZADO - AHORA ABRE MODAL */}
                           <button
                             onClick={() => manejarClickEditar(t)}
-                            className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
+                            className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
                             title="Editar"
                           >
                             ✏️
@@ -434,7 +456,7 @@ await updateDoc(ref, updates);
                           
                           <button
                             onClick={() => eliminarTrabajo(t.firebaseId)}
-                            className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
+                            className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
                             title="Eliminar"
                           >
                             🗑️
@@ -442,15 +464,24 @@ await updateDoc(ref, updates);
                           
                           <button
                             onClick={() => onPagar(t)}
-                            className="bg-[#27ae60] hover:bg-[#229954] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
+                            className="bg-[#27ae60] hover:bg-[#229954] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
                             title="Pagar"
                           >
                             💰
                           </button>
+
+                          {/* ✨ NUEVO: BOTÓN DE IMPRESIÓN */}
+                          <button
+                            onClick={() => abrirModalImpresion(t)}
+                            className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
+                            title="Imprimir"
+                          >
+                            🖨️
+                          </button>
                           
                           <button
                             onClick={() => setTrabajoSeleccionado(t)}
-                            className="bg-[#95a5a6] hover:bg-[#7f8c8d] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
+                            className="bg-[#95a5a6] hover:bg-[#7f8c8d] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
                             title="Ver más"
                           >
                             👁️
@@ -465,12 +496,12 @@ await updateDoc(ref, updates);
           </table>
         </div>
 
-        {/* Footer con paginación responsive */}
+        {/* Footer con paginación */}
         {totalPaginas > 1 && (
           <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 border-t-2 border-[#bdc3c7]">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4">
               <div className="text-xs sm:text-sm text-[#2c3e50] font-medium order-2 sm:order-1">
-                Página {pagina} de {totalPaginas} • {trabajos.length} trabajos
+                Página {pagina} de {totalPaginas} • {trabajosFiltrados.length} {filtroCodigo ? `de ${trabajos.length}` : ''} trabajos
               </div>
               <div className="flex gap-2 order-1 sm:order-2">
                 <button
@@ -493,7 +524,7 @@ await updateDoc(ref, updates);
         )}
       </div>
 
-      {/* 🆕 MODAL DE EDICIÓN */}
+      {/* MODAL DE EDICIÓN */}
       <ModalEditar
         trabajo={trabajoEditando}
         isOpen={modalEditarAbierto}
@@ -502,12 +533,50 @@ await updateDoc(ref, updates);
         negocioID={negocioID}
       />
 
-      {/* Modal Ver Más - Responsive */}
+      {/* ✨ NUEVO: MODAL DE IMPRESIÓN */}
+      {mostrarModalImpresion && trabajoParaImprimir && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden">
+            
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🖨️</span>
+                  <div>
+                    <h3 className="text-2xl font-bold">Opciones de Impresión</h3>
+                    <p className="text-sm opacity-90">Trabajo: {trabajoParaImprimir.cliente} - {trabajoParaImprimir.modelo}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={cerrarModalImpresion}
+                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center transition-all"
+                >
+                  <span className="text-2xl">×</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido */}
+            <div className="p-6">
+              <BotonesImpresionTrabajo 
+                trabajo={{
+                  ...trabajoParaImprimir,
+                  id: trabajoParaImprimir.id || trabajoParaImprimir.firebaseId, // ✨ Usar id del trabajo, fallback a firebaseId
+                }}
+                negocioId={negocioID}
+                ocultarEtiquetasA4={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ver Más */}
       {trabajoSeleccionado && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-2 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-xs sm:max-w-md md:max-w-lg w-full border-2 border-[#ecf0f1] transform transition-all duration-300 max-h-[90vh] overflow-y-auto">
             
-            {/* Header del modal */}
             <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white rounded-t-2xl p-3 sm:p-4 md:p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
@@ -549,13 +618,13 @@ await updateDoc(ref, updates);
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                   <strong className="text-black text-xs sm:text-sm">Estado:</strong>
                   <span className={`px-2 py-1 rounded-lg text-xs font-bold inline-block ${
-  trabajoSeleccionado.estado === "PAGADO" ? "bg-[#1565C0] text-white" :
-  trabajoSeleccionado.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white" :
-  trabajoSeleccionado.estado === "REPARADO" ? "bg-[#D84315] text-white" :
-  "bg-[#B71C1C] text-white"
-}`}>
-  {trabajoSeleccionado.estado}
-</span>
+                    trabajoSeleccionado.estado === "PAGADO" ? "bg-[#1565C0] text-white" :
+                    trabajoSeleccionado.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white" :
+                    trabajoSeleccionado.estado === "REPARADO" ? "bg-[#D84315] text-white" :
+                    "bg-[#B71C1C] text-white"
+                  }`}>
+                    {trabajoSeleccionado.estado}
+                  </span>
                 </div>
                 <div className="pt-2 border-t border-[#ecf0f1]">
                   <p className="text-xs sm:text-sm"><strong className="text-black">Observaciones:</strong></p>
@@ -576,12 +645,11 @@ await updateDoc(ref, updates);
         </div>
       )}
 
-      {/* Modal Confirmar Pago - Responsive */}
+      {/* Modal Confirmar Pago */}
       {modalConfirmarPagoVisible && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-2 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-xs sm:max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
             
-            {/* Header del modal */}
             <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white rounded-t-2xl p-3 sm:p-4 md:p-6">
               <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-white/20 rounded-xl flex items-center justify-center">

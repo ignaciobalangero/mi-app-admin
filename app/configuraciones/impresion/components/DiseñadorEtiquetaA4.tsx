@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import VistaPreviaEtiquetaA4 from "./VistaPreviaEtiquetaA4";
 
 const camposDisponiblesEtiquetaA4 = [
@@ -58,6 +58,38 @@ export default function DiseñadorEtiquetaA4({ plantillaEtiquetaA4, onGuardarPla
     incluirCodigoBarras: plantillaEtiquetaA4?.configuracion?.incluirCodigoBarras ?? false,
   });
 
+  // ========================================
+  // ✅ EFECTO PARA ACTUALIZAR CUANDO CAMBIA plantillaEtiquetaA4
+  // ========================================
+  useEffect(() => {
+    if (plantillaEtiquetaA4) {
+      console.log("📥 Cargando plantilla A4 desde Firebase:", plantillaEtiquetaA4);
+      
+      // Actualizar campos seleccionados
+      if (plantillaEtiquetaA4.campos) {
+        setCamposSeleccionados(plantillaEtiquetaA4.campos);
+      }
+      
+      // Actualizar configuración
+      if (plantillaEtiquetaA4.configuracion) {
+        setConfiguracion({
+          tamañoEtiqueta: plantillaEtiquetaA4.configuracion.tamañoEtiqueta || '62x29',
+          etiquetasPorFila: plantillaEtiquetaA4.configuracion.etiquetasPorFila || 3,
+          etiquetasPorColumna: plantillaEtiquetaA4.configuracion.etiquetasPorColumna || 9,
+          separacionHorizontal: plantillaEtiquetaA4.configuracion.separacionHorizontal || 2,
+          separacionVertical: plantillaEtiquetaA4.configuracion.separacionVertical || 2,
+          margenSuperior: plantillaEtiquetaA4.configuracion.margenSuperior || 15,
+          margenIzquierdo: plantillaEtiquetaA4.configuracion.margenIzquierdo || 8,
+          orientacionEtiqueta: plantillaEtiquetaA4.configuracion.orientacionEtiqueta || 'horizontal',
+          tamañoTexto: plantillaEtiquetaA4.configuracion.tamañoTexto || 'pequeño',
+          mostrarBorde: plantillaEtiquetaA4.configuracion.mostrarBorde ?? true,
+          fondoOrden: plantillaEtiquetaA4.configuracion.fondoOrden ?? true,
+          incluirCodigoBarras: plantillaEtiquetaA4.configuracion.incluirCodigoBarras ?? false,
+        });
+      }
+    }
+  }, [plantillaEtiquetaA4]); // ← Se ejecuta cuando plantillaEtiquetaA4 cambia
+
   const toggleCampo = (campoId: string, incluir: boolean) => {
     if (incluir) {
       setCamposSeleccionados([...camposSeleccionados, campoId]);
@@ -71,6 +103,7 @@ export default function DiseñadorEtiquetaA4({ plantillaEtiquetaA4, onGuardarPla
       campos: camposSeleccionados,
       configuracion
     };
+    console.log("💾 Guardando plantilla A4:", plantilla);
     onGuardarPlantilla(plantilla);
   };
 

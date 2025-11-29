@@ -10,7 +10,6 @@ const camposDisponiblesEtiqueta = [
   { id: 'clave', nombre: 'Clave/Password', obligatorio: false },
   { id: 'trabajo', nombre: 'Tipo de Trabajo', obligatorio: false },
   { id: 'imei', nombre: 'IMEI', obligatorio: false },
-  { id: 'codigoBarras', nombre: 'Código de Barras (futuro)', obligatorio: false },
 ];
 
 const trabajoEjemplo = {
@@ -26,7 +25,7 @@ const trabajoEjemplo = {
 interface Props {
   plantillaEtiqueta: any;
   onGuardarPlantilla: (plantilla: any) => void;
-  nombreNegocio?: string; // ✨ NUEVO: nombre del negocio
+  nombreNegocio?: string;
 }
 
 export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantilla, nombreNegocio }: Props) {
@@ -45,6 +44,32 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
 
   const [vistaPreviaKey, setVistaPreviaKey] = useState(0);
 
+  // ========================================
+  // ✅ EFECTO PARA ACTUALIZAR CUANDO CAMBIA plantillaEtiqueta
+  // ========================================
+  useEffect(() => {
+    if (plantillaEtiqueta) {
+      console.log("📥 Cargando plantilla desde Firebase:", plantillaEtiqueta);
+      
+      // Actualizar campos seleccionados
+      if (plantillaEtiqueta.campos) {
+        setCamposSeleccionados(plantillaEtiqueta.campos);
+      }
+      
+      // Actualizar configuración
+      if (plantillaEtiqueta.configuracion) {
+        setConfiguracion({
+          tamaño: plantillaEtiqueta.configuracion.tamaño || '62x29',
+          orientacion: plantillaEtiqueta.configuracion.orientacion || 'horizontal',
+          mostrarBorde: plantillaEtiqueta.configuracion.mostrarBorde ?? true,
+          fondoOrden: plantillaEtiqueta.configuracion.fondoOrden ?? true,
+          tamañoTexto: plantillaEtiqueta.configuracion.tamañoTexto || 'mediano',
+          incluirCodigoBarras: plantillaEtiqueta.configuracion.incluirCodigoBarras ?? false,
+        });
+      }
+    }
+  }, [plantillaEtiqueta]); // ← Se ejecuta cada vez que plantillaEtiqueta cambia
+
   useEffect(() => {
     setVistaPreviaKey(prev => prev + 1);
   }, [camposSeleccionados, configuracion, nombreNegocio]);
@@ -62,6 +87,7 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
       campos: camposSeleccionados,
       configuracion
     };
+    console.log("💾 Guardando plantilla:", plantilla);
     onGuardarPlantilla(plantilla);
   };
 
@@ -154,30 +180,10 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
                   <span className="text-sm text-black">Mostrar borde</span>
                 </label>
 
-                <label className="flex items-center gap-2">
-                  <input 
-                    type="checkbox"
-                    checked={configuracion.incluirCodigoBarras}
-                    onChange={(e) => setConfiguracion(prev => ({ ...prev, incluirCodigoBarras: e.target.checked }))}
-                    className="w-4 h-4 text-green-500"
-                  />
-                  <span className="text-sm text-black">Reservar espacio para código de barras</span>
-                </label>
               </div>
             </div>
           </div>
 
-          {/* Información adicional */}
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <h5 className="font-semibold text-black text-sm mb-2">💡 Consejos:</h5>
-            <ul className="text-xs text-black space-y-1">
-              <li>• Layout de 2 columnas = más espacio para datos</li>
-              <li>• El nombre del negocio aparece arriba</li>
-              <li>• Los montos se formatean automáticamente ($50.000)</li>
-              <li>• IMEI se mostrará parcialmente si es muy largo</li>
-              <li>• El código de barras se implementará próximamente</li>
-            </ul>
-          </div>
 
           {/* Botón Guardar */}
           <button
@@ -197,7 +203,7 @@ export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantil
               campos={camposSeleccionados}
               configuracion={configuracion}
               datosEjemplo={trabajoEjemplo}
-              nombreNegocio={nombreNegocio || "iPhoneTec"} // ✨ NOMBRE DEL NEGOCIO
+              nombreNegocio={nombreNegocio || "iPhoneTec"}
             />
           </div>
           <p className="text-xs text-black mt-2 text-center">

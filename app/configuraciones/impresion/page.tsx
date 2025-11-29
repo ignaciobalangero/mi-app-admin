@@ -142,6 +142,7 @@ export default function ConfiguracionImpresion() {
       }
     } catch (error) {
       console.error("Error cargando configuración:", error);
+      mostrarToast("❌ Error al cargar configuración", "error");
     }
   };
 
@@ -159,19 +160,24 @@ export default function ConfiguracionImpresion() {
     }
   };
 
+  // ========================================
+  // ✅ FUNCIONES DE GUARDADO CORREGIDAS
+  // ========================================
+  // Ahora cada función SOLO actualiza su propio campo
+  // sin sobrescribir los demás campos en Firebase
+
   const guardarPlantillaTicket = async (plantilla: any) => {
     try {
       const plantillasRef = doc(db, `negocios/${negocioID}/configuracion/plantillasImpresion`);
+      
+      // ✅ Solo actualiza el campo "ticket"
       await setDoc(plantillasRef, { 
-        ticket: plantilla,
-        etiqueta: plantillaEtiqueta,
-        ticketA4: plantillaTicketA4,
-        etiquetaA4: plantillaEtiquetaA4,
-        etiquetaTelefono: plantillaEtiquetaTelefono
+        ticket: plantilla
       }, { merge: true });
       
       setPlantillaTicket(plantilla);
       mostrarToast("✅ Diseño de ticket guardado exitosamente");
+      console.log("✅ Ticket guardado:", plantilla);
     } catch (error) {
       console.error("Error guardando plantilla ticket:", error);
       mostrarToast("❌ Error al guardar diseño de ticket", "error");
@@ -181,16 +187,15 @@ export default function ConfiguracionImpresion() {
   const guardarPlantillaEtiqueta = async (plantilla: any) => {
     try {
       const plantillasRef = doc(db, `negocios/${negocioID}/configuracion/plantillasImpresion`);
+      
+      // ✅ Solo actualiza el campo "etiqueta"
       await setDoc(plantillasRef, { 
-        ticket: plantillaTicket,
-        etiqueta: plantilla,
-        ticketA4: plantillaTicketA4,
-        etiquetaA4: plantillaEtiquetaA4,
-        etiquetaTelefono: plantillaEtiquetaTelefono
+        etiqueta: plantilla
       }, { merge: true });
       
       setPlantillaEtiqueta(plantilla);
       mostrarToast("✅ Diseño de etiqueta guardado exitosamente");
+      console.log("✅ Etiqueta guardada:", plantilla);
     } catch (error) {
       console.error("Error guardando plantilla etiqueta:", error);
       mostrarToast("❌ Error al guardar diseño de etiqueta", "error");
@@ -200,16 +205,15 @@ export default function ConfiguracionImpresion() {
   const guardarPlantillaTicketA4 = async (plantilla: any) => {
     try {
       const plantillasRef = doc(db, `negocios/${negocioID}/configuracion/plantillasImpresion`);
+      
+      // ✅ Solo actualiza el campo "ticketA4"
       await setDoc(plantillasRef, { 
-        ticket: plantillaTicket,
-        etiqueta: plantillaEtiqueta,
-        ticketA4: plantilla,
-        etiquetaA4: plantillaEtiquetaA4,
-        etiquetaTelefono: plantillaEtiquetaTelefono
+        ticketA4: plantilla
       }, { merge: true });
       
       setPlantillaTicketA4(plantilla);
       mostrarToast("✅ Diseño de ticket A4 guardado exitosamente");
+      console.log("✅ Ticket A4 guardado:", plantilla);
     } catch (error) {
       console.error("Error guardando plantilla ticket A4:", error);
       mostrarToast("❌ Error al guardar diseño de ticket A4", "error");
@@ -219,16 +223,15 @@ export default function ConfiguracionImpresion() {
   const guardarPlantillaEtiquetaA4 = async (plantilla: any) => {
     try {
       const plantillasRef = doc(db, `negocios/${negocioID}/configuracion/plantillasImpresion`);
+      
+      // ✅ Solo actualiza el campo "etiquetaA4"
       await setDoc(plantillasRef, { 
-        ticket: plantillaTicket,
-        etiqueta: plantillaEtiqueta,
-        ticketA4: plantillaTicketA4,
-        etiquetaA4: plantilla,
-        etiquetaTelefono: plantillaEtiquetaTelefono
+        etiquetaA4: plantilla
       }, { merge: true });
       
       setPlantillaEtiquetaA4(plantilla);
       mostrarToast("✅ Diseño de etiquetas A4 guardado exitosamente");
+      console.log("✅ Etiquetas A4 guardadas:", plantilla);
     } catch (error) {
       console.error("Error guardando plantilla etiquetas A4:", error);
       mostrarToast("❌ Error al guardar diseño de etiquetas A4", "error");
@@ -238,21 +241,24 @@ export default function ConfiguracionImpresion() {
   const guardarPlantillaEtiquetaTelefono = async (plantilla: any) => {
     try {
       const plantillasRef = doc(db, `negocios/${negocioID}/configuracion/plantillasImpresion`);
+      
+      // ✅ Solo actualiza el campo "etiquetaTelefono"
       await setDoc(plantillasRef, { 
-        ticket: plantillaTicket,
-        etiqueta: plantillaEtiqueta,
-        ticketA4: plantillaTicketA4,
-        etiquetaA4: plantillaEtiquetaA4,
         etiquetaTelefono: plantilla
       }, { merge: true });
       
       setPlantillaEtiquetaTelefono(plantilla);
       mostrarToast("✅ Diseño de etiqueta teléfono guardado exitosamente");
+      console.log("✅ Etiqueta teléfono guardada:", plantilla);
     } catch (error) {
       console.error("Error guardando plantilla etiqueta teléfono:", error);
       mostrarToast("❌ Error al guardar diseño de etiqueta teléfono", "error");
     }
   };
+
+  // ========================================
+  // FUNCIONES DE PRUEBA
+  // ========================================
 
   const probarZerforce = () => {
     const trabajoPrueba = {
@@ -502,109 +508,7 @@ export default function ConfiguracionImpresion() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${configuracion.zerforceActiva ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <div>
-                  <div className="font-semibold text-black text-sm">Zerforce TP85E</div>
-                  <div className="text-xs text-black">
-                    {configuracion.zerforceActiva ? 'Activa' : 'Inactiva'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${configuracion.brotherActiva ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <div>
-                  <div className="font-semibold text-black text-sm">Brother QL-800</div>
-                  <div className="text-xs text-black">
-                    {configuracion.brotherActiva ? 'Activa' : 'Inactiva'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${plantillaTicket && plantillaEtiqueta ? 'bg-blue-500' : 'bg-orange-400'}`}></div>
-                <div>
-                  <div className="font-semibold text-black text-sm">Diseños Térmicos</div>
-                  <div className="text-xs text-black">
-                    {plantillaTicket && plantillaEtiqueta ? 'Configurados' : 'Pendientes'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${plantillaEtiquetaTelefono ? 'bg-orange-500' : 'bg-orange-400'}`}></div>
-                <div>
-                  <div className="font-semibold text-black text-sm">Etiquetas Teléfono</div>
-                  <div className="text-xs text-black">
-                    {plantillaEtiquetaTelefono ? 'Configurado' : 'Por configurar'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${plantillaTicketA4 ? 'bg-purple-500' : 'bg-orange-400'}`}></div>
-                <div>
-                  <div className="font-semibold text-black text-sm">Tickets A4</div>
-                  <div className="text-xs text-black">
-                    {plantillaTicketA4 ? 'Configurado' : 'Por configurar'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${plantillaEtiquetaA4 ? 'bg-indigo-500' : 'bg-orange-400'}`}></div>
-                <div>
-                  <div className="font-semibold text-black text-sm">Etiquetas A4</div>
-                  <div className="text-xs text-black">
-                    {plantillaEtiquetaA4 ? 'Configurado' : 'Por configurar'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-xl border border-green-200">
-            <h3 className="font-bold text-green-800 mb-3">🚀 Guía Rápida</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 text-sm">
-              <div>
-                <div className="font-semibold text-black">1. Configurar</div>
-                <div className="text-black">Activa tus impresoras y prueba funcionamiento</div>
-              </div>
-              <div>
-                <div className="font-semibold text-black">2. Tickets Térmicos</div>
-                <div className="text-black">Para Zerforce TP85E (80mm)</div>
-              </div>
-              <div>
-                <div className="font-semibold text-black">3. Etiquetas Brother</div>
-                <div className="text-black">Para Brother QL-800 (62x29mm)</div>
-              </div>
-              <div>
-                <div className="font-semibold text-black">4. Etiquetas Teléfono</div>
-                <div className="text-black">Etiquetas para stock de teléfonos</div>
-              </div>
-              <div>
-                <div className="font-semibold text-black">5. Tickets A4</div>
-                <div className="text-black">Órdenes completas en formato A4</div>
-              </div>
-              <div>
-                <div className="font-semibold text-black">6. Etiquetas A4</div>
-                <div className="text-black">Múltiples etiquetas en hoja A4</div>
-              </div>
-            </div>
-          </div>
+     
         </div>
       </main>
 

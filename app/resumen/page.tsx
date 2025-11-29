@@ -1,29 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
-import {
-  collection,
-  onSnapshot,
-  updateDoc,
-  deleteDoc,
-  doc,
-  query,
-  where,
-  getDocs,
-} from "firebase/firestore";
+import { collection, onSnapshot, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 import { useRol } from "@/lib/useRol";
-import { useRouter } from "next/navigation";
-import ModalRepuestos from "./componentes/ModalRepuestos";
-import ModalPago from "./componentes/ModalPago";
-// 🆕 IMPORTAR EL MODAL DE EDICIÓN
-import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
+import TablaTrabajos from "./componentes/TablaTrabajos";
 
 interface Trabajo {
   firebaseId: string;
+  id?: string;
   fecha: string;
   cliente: string;
   modelo: string;
@@ -42,11 +30,9 @@ export default function ResumenPage() {
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [filtroCliente, setFiltroCliente] = useState("");
   const [filtroModelo, setFiltroModelo] = useState("");
+  const [filtroCodigo, setFiltroCodigo] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [paginaActual, setPaginaActual] = useState(1);
-  const ITEMS_POR_PAGINA = 40;
-
-  // ✅ NUEVOS: Estados para filtros de fecha
   const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
   const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
   const [tipoFecha, setTipoFecha] = useState<"ingreso" | "modificacion">("ingreso");
@@ -54,36 +40,13 @@ export default function ResumenPage() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState<string>("");
   const { rol } = useRol();
-  const router = useRouter();
-  const [mostrarModalRepuestos, setMostrarModalRepuestos] = useState(false);
-  const [trabajoSeleccionado, setTrabajoSeleccionado] = useState<string | null>(null);
-  
-  // Estados para modal de pago
-  const [mostrarModalPago, setMostrarModalPago] = useState(false);
-  const [trabajoParaPagar, setTrabajoParaPagar] = useState<Trabajo | null>(null);
 
-  // 🆕 NUEVOS: Estados para el modal de edición
-  const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
-  const [trabajoEditando, setTrabajoEditando] = useState<Trabajo | null>(null);
-
-  // ✅ NUEVA: Función para parsear fechas (igual que en GestionTrabajosPage)
   const parsearFecha = (fechaStr: string) => {
     if (!fechaStr.includes("/")) {
       return new Date(fechaStr.split("T")[0]);
     }
     const [dia, mes, anio] = fechaStr.split("/").map((x) => parseInt(x));
     return new Date(anio, mes - 1, dia);
-  };
-
-  // 🆕 NUEVAS: Funciones para el modal de edición
-  const manejarClickEditar = (trabajo: Trabajo) => {
-    setTrabajoEditando(trabajo);
-    setModalEditarAbierto(true);
-  };
-
-  const cerrarModalEditar = () => {
-    setModalEditarAbierto(false);
-    setTrabajoEditando(null);
   };
 
   useEffect(() => {
@@ -100,6 +63,7 @@ export default function ResumenPage() {
         const data = docSnap.data();
         lista.push({
           firebaseId: docSnap.id,
+          id: data.id,
           fecha: data.fecha,
           cliente: data.cliente,
           modelo: data.modelo,
@@ -115,7 +79,6 @@ export default function ResumenPage() {
         });
       });
 
-      // ✅ CORREGIDO: Ordenar sin filtrar pagados automáticamente
       const ordenados = lista.sort((a, b) => {
         if (a.estado !== b.estado) {
           return a.estado === "PENDIENTE" ? -1 : 1;
@@ -138,6 +101,7 @@ export default function ResumenPage() {
       const data = docSnap.data();
       lista.push({
         firebaseId: docSnap.id,
+        id: data.id,
         fecha: data.fecha,
         cliente: data.cliente,
         modelo: data.modelo,
@@ -159,29 +123,6 @@ export default function ResumenPage() {
     });
 
     setTrabajos(ordenados);
-  };
-
-  const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
-    const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
-    await updateDoc(ref, { [campo]: valor });
-  };
-
-  const eliminarTrabajo = async (firebaseId: string) => {
-    const confirmar = confirm("¿Estás seguro de que querés eliminar este trabajo?");
-    if (confirmar) {
-      await deleteDoc(doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`));
-    }
-  };
-
-  // 🆕 FUNCIÓN ACTUALIZADA: Ahora abre el modal en lugar de redirigir
-  const editarTrabajo = (trabajo: Trabajo) => {
-    manejarClickEditar(trabajo);
-  };
-
-  // ✅ NUEVA: Función para abrir modal de pago
-  const abrirModalPago = (trabajo: Trabajo) => {
-    setTrabajoParaPagar(trabajo);
-    setMostrarModalPago(true);
   };
 
   const exportarCSV = () => {
@@ -208,7 +149,6 @@ export default function ResumenPage() {
     document.body.removeChild(link);
   };
 
-  // ✅ ACTUALIZADA: Función trabajosFiltrados con filtros de fecha
   const trabajosFiltrados = trabajos
     .filter(
       (t) =>
@@ -216,13 +156,12 @@ export default function ResumenPage() {
         (
           t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase()) ||
           t.trabajo?.toLowerCase().includes(filtroModelo.toLowerCase())
-        )
+        ) &&
+        (filtroCodigo === "" || t.id?.toLowerCase().includes(filtroCodigo.toLowerCase()))
     )
-    // ✅ NUEVO: Filtro por fechas
     .filter((t) => {
       if (!filtroFechaDesde && !filtroFechaHasta) return true;
       
-      // Elegir qué fecha usar según el tipo seleccionado
       const fechaAUsar = tipoFecha === "modificacion" 
         ? (t.fechaModificacion || t.fecha) 
         : t.fecha;
@@ -231,16 +170,14 @@ export default function ResumenPage() {
       
       const fechaTrabajo = parsearFecha(fechaAUsar);
       
-      // Filtro fecha desde
       if (filtroFechaDesde) {
         const fechaDesde = new Date(filtroFechaDesde);
         if (fechaTrabajo < fechaDesde) return false;
       }
       
-      // Filtro fecha hasta
       if (filtroFechaHasta) {
         const fechaHasta = new Date(filtroFechaHasta);
-        fechaHasta.setHours(23, 59, 59, 999); // Incluir todo el día
+        fechaHasta.setHours(23, 59, 59, 999);
         if (fechaTrabajo > fechaHasta) return false;
       }
       
@@ -248,14 +185,12 @@ export default function ResumenPage() {
     })
     .filter((t) => {
       if (filtroEstado === "TODOS") return true;
-      // ✅ CORREGIDO: Filtro simplificado para usar solo el campo estado
       if (filtroEstado === "PAGADO") {
         return t.estado === "PAGADO";
       }
       return t.estado === filtroEstado;
     })
     .sort((a, b) => {
-      // ✅ NUEVO: Ordenar según el tipo de fecha seleccionado
       const fechaA = tipoFecha === "modificacion" 
         ? (a.fechaModificacion || a.fecha) 
         : a.fecha;
@@ -268,19 +203,13 @@ export default function ResumenPage() {
       return timeB - timeA;
     });
 
-  const totalPaginas = Math.ceil(trabajosFiltrados.length / ITEMS_POR_PAGINA);
-  const trabajosPaginados = trabajosFiltrados.slice(
-    (paginaActual - 1) * ITEMS_POR_PAGINA,
-    paginaActual * ITEMS_POR_PAGINA
-  );
-
   return (
     <RequireAdmin>
       <Header />
       <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
         <div className="w-full px-2 sm:px-4 md:px-6 max-w-[1800px] mx-auto">
           
-          {/* Header de la página - Responsive */}
+          {/* HEADER */}
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-3 sm:p-4 md:p-6 mb-4 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-3 sm:gap-4 md:gap-6">
               <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -297,7 +226,7 @@ export default function ResumenPage() {
             </div>
           </div>
 
-          {/* Filtros y controles - Responsive */}
+          {/* PANEL DE FILTROS */}
           <div className="bg-white rounded-2xl p-3 sm:p-4 md:p-5 mb-4 shadow-lg border border-[#ecf0f1]">
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-5 md:mb-6">
               <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
@@ -306,7 +235,7 @@ export default function ResumenPage() {
               <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-[#2c3e50]">Filtros de Búsqueda</h2>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-5 md:mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-5 md:mb-6">
               <input
                 type="text"
                 placeholder="🔍 Filtrar por cliente"
@@ -323,6 +252,15 @@ export default function ResumenPage() {
                 className="px-3 sm:px-4 py-2 sm:py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm sm:text-base"
               />
               
+              <input
+                type="text"
+                placeholder="🔢 Filtrar por código"
+                value={filtroCodigo}
+                onChange={(e) => setFiltroCodigo(e.target.value)}
+                className="px-3 sm:px-4 py-2 sm:py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm sm:text-base"
+                title="Buscar por código de trabajo (ej: EO-52348)"
+              />
+              
               <button
                 onClick={exportarCSV}
                 className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-md flex items-center justify-center gap-2 text-sm sm:text-base"
@@ -331,7 +269,6 @@ export default function ResumenPage() {
               </button>
             </div>
 
-            {/* ✅ NUEVO: Filtros de fecha */}
             <div className="flex gap-2 items-center bg-[#f8f9fa] p-2 rounded-lg border border-[#bdc3c7] mb-4">
               <button
                 onClick={() => setTipoFecha(tipoFecha === "ingreso" ? "modificacion" : "ingreso")}
@@ -377,7 +314,6 @@ export default function ResumenPage() {
               )}
             </div>
 
-            {/* Botones de estado - Responsive */}
             <div className="flex flex-wrap gap-2 sm:gap-3">
               <button
                 onClick={() => setFiltroEstado("TODOS")}
@@ -432,437 +368,16 @@ export default function ResumenPage() {
             </div>
           </div>
 
-          {/* Tabla principal - Completamente responsive */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1]">
-            
-            {/* Header de la tabla */}
-            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3 sm:p-4 md:p-6">
-              <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="text-lg sm:text-xl md:text-2xl">📋</span>
-                </div>
-                <div>
-                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold">Lista de Trabajos</h3>
-                  <p className="text-blue-100 mt-1 text-xs sm:text-sm">
-                    {trabajosFiltrados.length} {trabajosFiltrados.length === 1 ? 'trabajo encontrado' : 'trabajos encontrados'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Tabla responsive */}
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border-2 border-black min-w-fit">
-                <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
-                  <tr>
-                    {/* Fecha - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[65px] sm:min-w-[70px] md:min-w-[75px] max-w-[80px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">📅</span>
-                        <span className="hidden sm:inline text-xs">
-                          {tipoFecha === "ingreso" ? "Ingreso" : "Modificación"}
-                        </span>
-                      </div>
-                    </th>
-                    
-                    {/* Cliente - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[80px] sm:min-w-[90px] md:min-w-[100px] max-w-[120px]">
-                    <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">👤</span>
-                        <span className="text-xs">Cliente</span>
-                      </div>
-                    </th>
-                    
-                    {/* Modelo - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[90px] md:min-w-[110px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">📱</span>
-                        <span className="text-xs">Modelo</span>
-                      </div>
-                    </th>
-                    
-                    {/* Trabajo - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[100px] sm:min-w-[110px] md:min-w-[130px] max-w-[150px]">
-                     <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">🔧</span>
-                        <span className="text-xs">Trabajo</span>
-                      </div>
-                    </th>
-                    
-                    {/* Clave - Oculto en móvil */}
-                    <th className="hidden sm:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[60px] md:min-w-[80px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">🔑</span>
-                        <span className="hidden md:inline text-xs">Clave</span>
-                      </div>
-                    </th>
-                    
-                    {/* Observaciones - Oculto en móvil, reducido */}
-                    <th className="hidden md:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[120px] max-w-[200px] w-auto">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">📝</span>
-                        <span className="text-xs">Observaciones</span>
-                      </div>
-                    </th>
-                    
-                    {/* Estado - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[80px] md:min-w-[90px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">🚦</span>
-                        <span className="hidden sm:inline text-xs">Estado</span>
-                      </div>
-                    </th>
-                    
-                    {/* Precio - Siempre visible */}
-                    <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[80px] md:min-w-[90px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">💰</span>
-                        <span className="text-xs">Precio</span>
-                      </div>
-                    </th>
-                    
-                    {/* Costo - Oculto en móvil */}
-                    <th className="hidden sm:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] md:min-w-[80px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">💸</span>
-                        <span className="text-xs">Costo</span>
-                      </div>
-                    </th>
-                    
-                    {/* Ganancia - Oculto en móvil */}
-                    <th className="hidden sm:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] md:min-w-[80px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">📈</span>
-                        <span className="text-xs">Ganancia</span>
-                      </div>
-                    </th>
-                    
-                    {/* F.Mod - Oculto en móvil y tablet */}
-                    <th className="hidden lg:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[60px] md:min-w-[80px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs sm:text-sm">📅</span>
-                        <span className="text-xs">F.Mod</span>
-                      </div>
-                    </th>
-                    
-                    {/* Acciones - Compacto en móvil, espacioso en desktop */}
-                    <th className="p-1 sm:p-2 md:p-3 text-center text-xs font-bold text-black border border-black bg-[#ecf0f1] w-[120px] sm:w-[130px] md:w-[140px] lg:w-[180px]">
-                      <div className="flex items-center justify-center gap-1">
-                        <span className="text-xs sm:text-sm">⚙️</span>
-                        <span className="hidden sm:inline text-xs">Acciones</span>
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trabajosPaginados.map((t, index) => {
-                    const ganancia = typeof t.precio === "number" && typeof t.costo === "number"
-                      ? t.precio - t.costo
-                      : "";
-
-                    let bgClass = "";
-                    if (t.estado === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
-                    else if (t.estado === "ENTREGADO") bgClass = "bg-green-100 border-l-4 border-[#1B5E20]";
-                    else if (t.estado === "REPARADO") bgClass = "bg-orange-100 border-l-4 border-[#D84315]";
-                    else if (t.estado === "PENDIENTE") bgClass = "bg-red-100 border-l-4 border-[#B71C1C]";
-
-                    // ✅ NUEVO: Mostrar la fecha según el tipo seleccionado
-                    const fechaAMostrar = tipoFecha === "modificacion" 
-                      ? (t.fechaModificacion || t.fecha) 
-                      : t.fecha;
-
-                    return (
-                      <tr
-                        key={t.firebaseId}
-                        className={`transition-all duration-200 hover:bg-[#ebf3fd] ${bgClass}`}
-                      >
-                        
-                        {/* Fecha */}
-                        <td className="p-1 sm:p-1.5 md:p-2 border border-black max-w-[80px]">
-                        <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={fechaAMostrar}>
-                          {fechaAMostrar}
-                        </span>
-                      </td>
-                        
-                        {/* Cliente */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[120px]">
-                        <span className="text-xs truncate block font-medium text-[#3498db]" title={t.cliente}>
-                          {t.cliente}
-                        </span>
-                      </td>
-                        
-                        {/* Modelo */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black">
-                          <span className="text-xs truncate block" title={t.modelo}>
-                            {t.modelo}
-                          </span>
-                        </td>
-                        
-                        {/* Trabajo - Con hover igual que en la otra tabla */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[150px]">
-                          {t.trabajo ? (
-                            <span
-                              className="text-xs bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
-                              title={`Trabajo completo: ${t.trabajo}`}
-                              onMouseEnter={(e) => {
-                                // Mostrar trabajo completo en hover
-                                e.currentTarget.textContent = t.trabajo;
-                                e.currentTarget.classList.remove('truncate');
-                              }}
-                              onMouseLeave={(e) => {
-                                // Volver a mostrar truncado
-                                const trabajoTruncado = t.trabajo.length > 25 ? t.trabajo.substring(0, 25) + "..." : t.trabajo;
-                                e.currentTarget.textContent = trabajoTruncado;
-                                e.currentTarget.classList.add('truncate');
-                              }}
-                            >
-                              {t.trabajo.length > 25 ? t.trabajo.substring(0, 25) + "..." : t.trabajo}
-                            </span>
-                          ) : (
-                            <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center">
-                              —
-                            </span>
-                          )}
-                        </td>
-                        
-                        {/* Clave - Oculto en móvil */}
-                        <td className="hidden sm:table-cell p-1 sm:p-2 md:p-3 border border-black">
-                          <span className="text-xs truncate block" title={t.clave || "—"}>
-                            {t.clave || "—"}
-                          </span>
-                        </td>
-                        
-                        {/* Observaciones - Oculto en móvil, texto muy corto */}
-                        <td className="hidden md:table-cell p-1 sm:p-2 md:p-3 border border-black min-w-[120px] max-w-[200px]">
-                          <div className="text-xs break-words" title={t.observaciones || "—"}>
-                            {t.observaciones || "—"}
-                          </div>
-                        </td>
-                                                
-                        {/* Estado */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black">
-                          <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
-                            t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
-                            t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
-                            t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
-                            t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
-                            "bg-[#424242] text-white border-2 border-[#212121]"
-                          }`}>
-                            <span className="sm:hidden">
-                              {t.estado === "PAGADO" ? "💰" :
-                               t.estado === "ENTREGADO" ? "📦" :
-                               t.estado === "REPARADO" ? "🔧" :
-                               t.estado === "PENDIENTE" ? "⏳" : "❓"}
-                            </span>
-                            <span className="hidden sm:inline">
-                              {t.estado}
-                            </span>
-                          </span>
-                        </td>
-                        
-                        {/* Precio */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black">
-                          <input
-                            type="number"
-                            defaultValue={typeof t.precio === "number" ? t.precio : ""}
-                            onBlur={(e) => actualizarCampo(t.firebaseId, "precio", Number(e.target.value))}
-                            className="w-full bg-white border-2 border-[#bdc3c7] rounded p-1 text-[#2c3e50] focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-xs"
-                            placeholder="0"
-                          />
-                        </td>
-                        
-                        {/* Costo - Oculto en móvil */}
-                        <td className="hidden sm:table-cell p-1 sm:p-2 md:p-3 border border-black">
-                          <input
-                            type="number"
-                            defaultValue={typeof t.costo === "number" && !isNaN(t.costo) ? t.costo : ""}
-                            onBlur={(e) => actualizarCampo(t.firebaseId, "costo", Number(e.target.value))}
-                            className="w-full bg-white border-2 border-[#bdc3c7] rounded p-1 text-[#2c3e50] focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-xs"
-                            placeholder="0"
-                          />
-                        </td>
-                        
-                        {/* Ganancia - Oculto en móvil */}
-                        <td className="hidden sm:table-cell p-1 sm:p-2 md:p-3 border border-black">
-                          <span className={`font-bold px-1 py-1 rounded text-xs text-center block ${
-                            typeof ganancia === "number" && ganancia > 0 ? "bg-green-50 text-[#27ae60]" :
-                            typeof ganancia === "number" && ganancia < 0 ? "bg-red-50 text-[#e74c3c]" :
-                            "text-[#7f8c8d]"
-                          }`}>
-                            {typeof ganancia === "number" ? `${ganancia}` : "—"}
-                          </span>
-                        </td>
-                        
-                        {/* F.Mod - Oculto en móvil y tablet */}
-                        <td className="hidden lg:table-cell p-1 sm:p-1.5 md:p-2 border border-black max-w-[75px]">
-                          <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center truncate" title={t.fechaModificacion || "—"}>
-                            {t.fechaModificacion || "—"}
-                          </span>
-                        </td>
-                        
-                        {/* Acciones - Compacto en móvil, espacioso en desktop */}
-                        <td className="p-1 sm:p-2 md:p-3 border border-black w-[120px] sm:w-[130px] md:w-[140px] lg:w-[180px]">
-                          <div className="flex flex-col gap-1">
-                            
-                            {/* Selector de estado */}
-                            <select
-                              value={t.estado}
-                              onChange={async (e) => {
-                                const nuevoEstado = e.target.value;
-                                const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
-                                const updates: any = {};
-
-                                const hoy = new Date();
-                                const fechaModificacion = hoy.toLocaleDateString("es-AR");
-                                updates.fechaModificacion = fechaModificacion;
-                                updates.estado = nuevoEstado;
-
-                                await updateDoc(ref, updates);
-
-                                if (nuevoEstado === "PAGADO") {
-                                  try {
-                                    const clientesSnap = await getDocs(
-                                      query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", t.cliente))
-                                    );
-                                    if (!clientesSnap.empty) {
-                                      const clienteID = clientesSnap.docs[0].id;
-                                      console.log("🔁 Recalculando cuenta para:", clienteID);
-                                    } else {
-                                      console.warn("⚠️ Cliente no encontrado para recalcular:", t.cliente);
-                                    }
-                                  } catch (error) {
-                                    console.error("❌ Error al recalcular cuenta:", error);
-                                  }
-                                }
-                                
-                                await recargarTrabajos();
-                              }}
-                              className="w-full px-1 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-black text-xs font-normal"
-                            >
-                              <option value="PENDIENTE">⏳ Pendiente</option>
-                              <option value="REPARADO">🔧 Reparado</option>
-                              <option value="ENTREGADO">📦 Entregado</option>
-                              <option value="PAGADO">💰 Pagado</option>
-                            </select>
-
-                            {/* Botones de acción - Compacto en móvil, espacioso en desktop */}
-                            <div className="flex flex-wrap gap-0.5 lg:gap-1 justify-center">
-                              <button
-                                onClick={() => {
-                                  setTrabajoSeleccionado(t.firebaseId);
-                                  setMostrarModalRepuestos(true);
-                                }}
-                                className={`text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm ${
-                                  t.repuestosUsados && t.repuestosUsados.length > 0
-                                    ? "bg-[#9b59b6] hover:bg-[#8e44ad]"
-                                    : "bg-[#27ae60] hover:bg-[#229954]"
-                                }`}
-                                title="Repuestos"
-                              >
-                                ➕
-                              </button>
-
-                              {/* 🆕 BOTÓN EDITAR ACTUALIZADO - AHORA ABRE MODAL */}
-                              <button
-                                onClick={() => manejarClickEditar(t)}
-                                className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
-                                title="Editar"
-                              >
-                                ✏️
-                              </button>
-                              
-                              <button
-                                onClick={() => eliminarTrabajo(t.firebaseId)}
-                                className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
-                                title="Eliminar"
-                              >
-                                🗑️
-                              </button>
-                              
-                              {/* ✅ NUEVO: Botón Pagar */}
-                              {t.estado !== "PAGADO" && t.precio && t.precio > 0 && (
-                                <button
-                                  onClick={() => abrirModalPago(t)}
-                                  className="bg-[#27ae60] hover:bg-[#229954] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm"
-                                  title="Pagar"
-                                >
-                                  💰
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Footer con paginación - Responsive */}
-            {totalPaginas > 1 && (
-              <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t-2 border-[#bdc3c7]">
-                <div className="flex justify-center items-center gap-2 sm:gap-3 md:gap-4">
-                  <button
-                    disabled={paginaActual === 1}
-                    onClick={() => setPaginaActual((prev) => Math.max(prev - 1, 1))}
-                    className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xs sm:text-sm"
-                  >
-                    <span className="sm:hidden">←</span>
-                    <span className="hidden sm:inline">← Anterior</span>
-                  </button>
-                  <span className="px-2 sm:px-3 md:px-4 py-2 bg-[#3498db] text-white rounded-lg font-semibold text-xs sm:text-sm">
-                    <span className="sm:hidden">{paginaActual}/{totalPaginas}</span>
-                    <span className="hidden sm:inline">Página {paginaActual} de {totalPaginas}</span>
-                  </span>
-                  <button
-                    disabled={paginaActual === totalPaginas}
-                    onClick={() => setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))}
-                    className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xs sm:text-sm"
-                  >
-                    <span className="sm:hidden">→</span>
-                    <span className="hidden sm:inline">Siguiente →</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 🆕 MODAL DE EDICIÓN */}
-        <ModalEditar
-          trabajo={trabajoEditando}
-          isOpen={modalEditarAbierto}
-          onClose={cerrarModalEditar}
-          onSave={recargarTrabajos}
-          negocioID={negocioID}
-        />
-
-        {/* Modal de repuestos - Responsive */}
-        {mostrarModalRepuestos && trabajoSeleccionado && (
-          <ModalRepuestos
-            trabajoID={trabajoSeleccionado}
-            onClose={async () => {
-              setMostrarModalRepuestos(false);
-              setTrabajoSeleccionado(null);
-              await recargarTrabajos();
-            }}
-          />
-        )}
-
-        {/* Modal de Pago Real */}
-        {mostrarModalPago && trabajoParaPagar && (
-          <ModalPago
-            mostrar={mostrarModalPago}
-            trabajo={trabajoParaPagar}
+          {/* TABLA DE TRABAJOS */}
+          <TablaTrabajos
+            trabajos={trabajosFiltrados}
             negocioID={negocioID}
-            onClose={() => {
-              setMostrarModalPago(false);
-              setTrabajoParaPagar(null);
-            }}
-            onPagoGuardado={recargarTrabajos}
+            onRecargar={recargarTrabajos}
+            tipoFecha={tipoFecha}
+            paginaActual={paginaActual}
+            setPaginaActual={setPaginaActual}
           />
-        )}
+        </div>
       </main>
     </RequireAdmin>
   );
