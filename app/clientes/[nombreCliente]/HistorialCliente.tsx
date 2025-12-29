@@ -93,7 +93,7 @@ export default function ClienteDetalle() {
     fetchData();
   }, [nombreCliente, negocioID]);
 
-  // Función para calcular totales
+  // Función para calcular totales - CORREGIDA
   const calcularTotales = () => {
     let totalTrabajosARS = 0;
     let totalTrabajosUSD = 0;
@@ -116,26 +116,22 @@ export default function ClienteDetalle() {
       }
     });
 
+    // CORREGIDO: Calcular producto por producto según su moneda
     ventas.forEach(v => {
-      const hayTelefonoEnVenta = v.productos?.some((p: any) => p.categoria === "Teléfono");
-      
-      if (hayTelefonoEnVenta) {
-        let totalUSDVenta = 0;
-        v.productos?.forEach((p: any) => {
-          totalUSDVenta += (p.precioUnitario * p.cantidad);
-        });
-        totalVentasUSD += totalUSDVenta;
-      } else {
-        let totalPesosVenta = 0;
-        v.productos?.forEach((p: any) => {
-          if (p.moneda?.toUpperCase() === "USD") {
-            totalPesosVenta += ((p.precioUSD || p.precioUnitario) * p.cantidad * 1200);
-          } else {
-            totalPesosVenta += (p.precioUnitario * p.cantidad);
-          }
-        });
-        totalVentasARS += totalPesosVenta;
-      }
+      v.productos?.forEach((p: any) => {
+        // Si el producto es un teléfono, va en USD
+        if (p.categoria === "Teléfono") {
+          totalVentasUSD += (p.precioUnitario * p.cantidad);
+        } 
+        // Si el producto está en USD pero NO es teléfono (accesorios en USD)
+        else if (p.moneda?.toUpperCase() === "USD") {
+          totalVentasUSD += (p.precioUnitario * p.cantidad);
+        }
+        // Todo lo demás va en ARS
+        else {
+          totalVentasARS += (p.precioUnitario * p.cantidad);
+        }
+      });
     });
 
     pagos.forEach(p => {
@@ -332,7 +328,7 @@ export default function ClienteDetalle() {
             </div>
           </div>
 
-          {/* TABLA DE VENTAS */}
+          {/* TABLA DE VENTAS - CORREGIDA */}
           {mostrarVentas && (
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1] mb-8">
               
@@ -422,38 +418,68 @@ export default function ClienteDetalle() {
                                 {v.estado || "PENDIENTE"}
                               </span>
                             </td>
+                            {/* COLUMNA MONEDA CORREGIDA */}
                             <td className="p-3 border border-black">
-                              <span className="text-sm text-[#2c3e50] bg-[#3498db]/10 px-2 py-1 rounded font-mono">
+                              <div className="flex flex-col gap-1">
                                 {(() => {
-                                  const hayTelefono = v.productos?.some((prod: any) => prod.categoria === "Teléfono");
-                                  return hayTelefono ? "USD" : (v.moneda || "ARS");
-                                })()}
-                              </span>
-                            </td>
-                            <td className="p-3 border border-black text-right">
-                              <span className="text-sm font-bold text-[#9b59b6] bg-purple-50 px-3 py-1 rounded-lg">
-                                {(() => {
-                                  const hayTelefono = v.productos?.some((prod: any) => prod.categoria === "Teléfono");
+                                  const monedasUsadas = new Set<string>();
+                                  v.productos?.forEach((p: any) => {
+                                    if (p.categoria === "Teléfono" || p.moneda?.toUpperCase() === "USD") {
+                                      monedasUsadas.add("USD");
+                                    } else {
+                                      monedasUsadas.add("ARS");
+                                    }
+                                  });
                                   
-                                  if (hayTelefono) {
-                                    let totalUSD = 0;
-                                    v.productos?.forEach((p: any) => {
-                                      totalUSD += (p.precioUnitario * p.cantidad);
-                                    });
-                                    return `USD ${totalUSD.toLocaleString("es-AR")}`;
-                                  } else {
-                                    let totalPesos = 0;
-                                    v.productos?.forEach((p: any) => {
-                                      if (p.moneda?.toUpperCase() === "USD") {
-                                        totalPesos += ((p.precioUSD || p.precioUnitario) * p.cantidad * 1200);
-                                      } else {
-                                        totalPesos += (p.precioUnitario * p.cantidad);
-                                      }
-                                    });
-                                    return `$ ${totalPesos.toLocaleString("es-AR")}`;
-                                  }
+                                  return Array.from(monedasUsadas).map((moneda, idx) => (
+                                    <span 
+                                      key={idx}
+                                      className="text-sm text-[#2c3e50] bg-[#3498db]/10 px-2 py-1 rounded font-mono text-center"
+                                    >
+                                      {moneda}
+                                    </span>
+                                  ));
                                 })()}
-                              </span>
+                              </div>
+                            </td>
+                            {/* COLUMNA TOTAL CORREGIDA */}
+                            <td className="p-3 border border-black text-right">
+                              <div className="flex flex-col gap-1 items-end">
+                                {(() => {
+                                  let totalARS = 0;
+                                  let totalUSD = 0;
+                                  
+                                  v.productos?.forEach((p: any) => {
+                                    // Teléfonos o productos explícitamente en USD
+                                    if (p.categoria === "Teléfono" || p.moneda?.toUpperCase() === "USD") {
+                                      totalUSD += (p.precioUnitario * p.cantidad);
+                                    } else {
+                                      // Todo lo demás en ARS
+                                      totalARS += (p.precioUnitario * p.cantidad);
+                                    }
+                                  });
+                                  
+                                  const totales = [];
+                                  
+                                  if (totalUSD > 0) {
+                                    totales.push(
+                                      <span key="usd" className="text-sm font-bold text-[#9b59b6] bg-purple-50 px-3 py-1 rounded-lg">
+                                        USD {totalUSD.toLocaleString("es-AR")}
+                                      </span>
+                                    );
+                                  }
+                                  
+                                  if (totalARS > 0) {
+                                    totales.push(
+                                      <span key="ars" className="text-sm font-bold text-[#9b59b6] bg-purple-50 px-3 py-1 rounded-lg">
+                                        $ {totalARS.toLocaleString("es-AR")}
+                                      </span>
+                                    );
+                                  }
+                                  
+                                  return totales;
+                                })()}
+                              </div>
                             </td>
                           </tr>
                         );

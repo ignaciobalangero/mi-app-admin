@@ -10,13 +10,15 @@ interface Props {
   negocioId: string;
   className?: string;
   ocultarEtiquetasA4?: boolean;
+  onImpresionCompleta?: () => void; // ✨ NUEVA PROP
 }
 
 export default function BotonesImpresionTrabajo({ 
   trabajo, 
   negocioId, 
   className = "", 
-  ocultarEtiquetasA4 = false 
+  ocultarEtiquetasA4 = false,
+  onImpresionCompleta // ✨ NUEVO
 }: Props) {
   const [configuracionImpresion, setConfiguracionImpresion] = useState({
     zerforceActiva: false,
@@ -85,6 +87,11 @@ export default function BotonesImpresionTrabajo({
     setImprimiendo('ticket');
     try {
       ImpresionGestione.ticketZerforce(trabajo);
+      
+      // ✨ CERRAR MODAL DESPUÉS DE IMPRIMIR
+      if (onImpresionCompleta) {
+        setTimeout(() => onImpresionCompleta(), 500);
+      }
     } catch (error) {
       console.error('Error al imprimir ticket:', error);
       alert('❌ Error al imprimir ticket');
@@ -109,7 +116,6 @@ export default function BotonesImpresionTrabajo({
         console.error("Error cargando nombre del negocio:", error);
       }
 
-      // ✅ LEER CONFIGURACIÓN DE LA ETIQUETA
       const configuracionEtiqueta = plantillas.etiqueta || {
         campos: ['cliente', 'numeroOrden', 'modelo', 'trabajo'],
         configuracion: {
@@ -132,6 +138,11 @@ export default function BotonesImpresionTrabajo({
         ventana.document.write(contenidoEtiqueta);
         ventana.document.close();
         ventana.focus();
+        
+        // ✨ CERRAR MODAL DESPUÉS DE IMPRIMIR
+        if (onImpresionCompleta) {
+          setTimeout(() => onImpresionCompleta(), 500);
+        }
       } else {
         alert("⚠️ El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio.");
       }
@@ -170,6 +181,11 @@ export default function BotonesImpresionTrabajo({
         ventana.document.write(contenidoA4);
         ventana.document.close();
         ventana.focus();
+        
+        // ✨ CERRAR MODAL DESPUÉS DE IMPRIMIR
+        if (onImpresionCompleta) {
+          setTimeout(() => onImpresionCompleta(), 500);
+        }
       } else {
         alert("⚠️ El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio.");
       }
@@ -193,6 +209,11 @@ export default function BotonesImpresionTrabajo({
     try {
       const trabajosArray = [trabajoParaEtiqueta];
       ImpresionGestione.etiquetasA4(trabajosArray);
+      
+      // ✨ CERRAR MODAL DESPUÉS DE IMPRIMIR
+      if (onImpresionCompleta) {
+        setTimeout(() => onImpresionCompleta(), 500);
+      }
     } catch (error) {
       console.error('Error al imprimir etiquetas A4:', error);
       alert('❌ Error al imprimir etiquetas A4');

@@ -507,9 +507,9 @@ export default function TablaProductos({
                 <th className="w-[10%] lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   📂 Cat
                 </th>
-                <th className="w-[20%] lg:w-[15%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
-                  📦 Producto
-                </th>
+                  <th className="w-[35%] lg:w-[30%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                    📦 Producto
+                 </th>
                 <th className="w-0 lg:w-[8%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7] hidden lg:table-cell">
                   🏢 Marca
                 </th>
@@ -584,15 +584,27 @@ export default function TablaProductos({
                         </span>
                       </td>
                       
-                      {/* Producto */}
-                      <td className="p-1 text-left border border-[#bdc3c7]">
-                        <div className="text-xs font-medium text-[#2c3e50]">
-                          <div className="font-semibold">
-                            {(p.producto || "").length > 20 ? (p.producto || "").substring(0, 20) + "..." : (p.producto || "—")}
+                    {/* Producto */}
+                      <td className="w-[35%] lg:w-[30%] p-2 text-left border border-[#bdc3c7]">
+                        <div className="relative group">
+                          <div className="text-xs font-medium text-[#2c3e50]">
+                            {/* ✅ TEXTO COMPLETO CON WORD-WRAP */}
+                            <div className="font-semibold break-words whitespace-normal leading-tight">
+                              {p.producto || "—"}
+                            </div>
+                            <div className="text-[10px] text-[#7f8c8d] lg:hidden mt-1">
+                              <div>{p.marca || "—"} • {p.color || ""}</div>
+                              <div>{p.proveedor || "—"}</div>
+                            </div>
                           </div>
-                          <div className="text-xs text-[#7f8c8d] lg:hidden">
-                            <div>{p.marca || "—"} {p.color || ""}</div>
-                            <div>{p.proveedor || "—"}</div>
+                          
+                          {/* Tooltip con código al hacer hover */}
+                          <div className="absolute left-0 top-full mt-1 bg-gray-900 text-white text-xs p-2 rounded shadow-lg z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap">
+                            <div className="font-semibold">📦 {p.producto}</div>
+                            <div className="text-gray-300 text-[10px] mt-1">
+                              Código: {p.codigo || "N/A"}
+                            </div>
+                            <div className="absolute bottom-full left-4 w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-b-4 border-b-gray-900"></div>
                           </div>
                         </div>
                       </td>

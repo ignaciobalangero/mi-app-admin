@@ -580,6 +580,7 @@ export default function TablaTrabajos({
                 }}
                 negocioId={negocioID}
                 ocultarEtiquetasA4={true}
+                onImpresionCompleta={cerrarModalImpresion}
               />
             </div>
           </div>
