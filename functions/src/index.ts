@@ -85,6 +85,7 @@ export const actualizarSaldoPorTrabajo = onDocumentWritten(
     return null;
   }
 );
+
 // ==========================================
 // FUNCIÓN 2: Actualizar saldo cuando cambia una VENTA
 // ==========================================
@@ -170,6 +171,87 @@ export const actualizarSaldoPorPago = onDocumentWritten(
     }
 
     return null;
+  }
+);
+
+// ==========================================
+// FUNCIÓN 4: Actualizar nombre de cliente en todas las colecciones
+// ==========================================
+export const actualizarNombreCliente = onDocumentWritten(
+  "negocios/{negocioID}/clientes/{clienteID}",
+  async (event) => {
+    const negocioID = event.params.negocioID as string;
+
+    const antes = event.data?.before.exists ? event.data.before.data() : null;
+    const despues = event.data?.after.exists ? event.data.after.data() : null;
+
+    // Solo procesar si se modificó el nombre
+    if (!antes || !despues) return null;
+
+    const nombreAntes = antes.nombre;
+    const nombreDespues = despues.nombre;
+
+    // Si el nombre no cambió, no hacer nada
+    if (nombreAntes === nombreDespues) return null;
+
+    console.log(`🔄 Actualizando nombre de cliente: "${nombreAntes}" → "${nombreDespues}"`);
+
+    try {
+      const batch = db.batch();
+      let actualizaciones = 0;
+
+      // Actualizar TRABAJOS
+      const trabajosSnap = await db
+        .collection(`negocios/${negocioID}/trabajos`)
+        .where("cliente", "==", nombreAntes)
+        .get();
+
+      trabajosSnap.forEach((doc) => {
+        batch.update(doc.ref, {cliente: nombreDespues});
+        actualizaciones++;
+      });
+
+      console.log(`  📋 ${trabajosSnap.size} trabajos a actualizar`);
+
+      // Actualizar VENTAS
+      const ventasSnap = await db
+        .collection(`negocios/${negocioID}/ventasGeneral`)
+        .where("cliente", "==", nombreAntes)
+        .get();
+
+      ventasSnap.forEach((doc) => {
+        batch.update(doc.ref, {cliente: nombreDespues});
+        actualizaciones++;
+      });
+
+      console.log(`  🛒 ${ventasSnap.size} ventas a actualizar`);
+
+      // Actualizar PAGOS
+      const pagosSnap = await db
+        .collection(`negocios/${negocioID}/pagos`)
+        .where("cliente", "==", nombreAntes)
+        .get();
+
+      pagosSnap.forEach((doc) => {
+        batch.update(doc.ref, {cliente: nombreDespues});
+        actualizaciones++;
+      });
+
+      console.log(`  💰 ${pagosSnap.size} pagos a actualizar`);
+
+      // Ejecutar todas las actualizaciones
+      if (actualizaciones > 0) {
+        await batch.commit();
+        console.log(`✅ ${actualizaciones} documentos actualizados exitosamente`);
+      } else {
+        console.log("ℹ️ No había documentos para actualizar");
+      }
+
+      return null;
+    } catch (error) {
+      console.error("❌ Error actualizando nombre de cliente:", error);
+      return null;
+    }
   }
 );
 
