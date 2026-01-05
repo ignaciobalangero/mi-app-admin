@@ -63,16 +63,24 @@ export default function GeneradorPDF({
       }
     });
 
-    // Agregar ventas - CORREGIDO para ventas mixtas
+    // ✅ CORREGIDO: Agregar ventas con lógica correcta
     ventas.forEach((venta) => {
+      const productos = venta.productos || [];
+      const hayTelefono = productos.some((p: any) => p.categoria === "Teléfono");
+      
       let totalARS = 0;
       let totalUSD = 0;
 
-      // Calcular totales por moneda
-      venta.productos?.forEach((p: any) => {
-        if (p.categoria === "Teléfono" || p.moneda?.toUpperCase() === "USD") {
-          totalUSD += (p.precioUnitario * p.cantidad);
+      productos.forEach((p: any) => {
+        if (hayTelefono) {
+          // CON TELÉFONO: Respetar moneda de cada producto
+          if (p.moneda?.toUpperCase() === "USD") {
+            totalUSD += (p.precioUnitario * p.cantidad);
+          } else {
+            totalARS += (p.precioUnitario * p.cantidad);
+          }
         } else {
+          // SIN TELÉFONO: Todo en ARS
           totalARS += (p.precioUnitario * p.cantidad);
         }
       });
@@ -177,7 +185,7 @@ export default function GeneradorPDF({
     });
   };
 
-  // Generar PDF Saldo Actual - MEJORADO
+  // Generar PDF Saldo Actual
   const generarPDFSaldoActual = async () => {
     setGenerandoPDF(true);
 
@@ -309,10 +317,8 @@ export default function GeneradorPDF({
         yPosition += 10;
 
         const historialData = historialDesdeCero.map((item) => {
-          // SIN EMOJIS - solo texto
           const tipoTexto = item.tipo === "trabajo" ? "Trabajo" : item.tipo === "venta" ? "Venta" : "Pago";
           
-          // Mostrar el monto con signo y en la columna correcta según moneda
           const signo = item.esDeuda ? "+" : "-";
           const montoARS = item.moneda === "ARS" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
           const montoUSD = item.moneda === "USD" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
@@ -329,14 +335,14 @@ export default function GeneradorPDF({
             saldoARS,
             saldoUSD,
           ];
-        }).reverse(); // INVERTIR para mostrar más reciente primero
+        }).reverse();
 
         autoTable(doc, {
           startY: yPosition,
           head: [["Fecha", "Tipo", "Descripción", "ARS", "USD", "Saldo $", "Saldo U$"]],
           body: historialData,
           theme: 'grid',
-          margin: { left: 5, right: 5 }, // Márgenes mínimos
+          margin: { left: 5, right: 5 },
           styles: {
             fontSize: 8.5,
             cellPadding: 3,
@@ -363,10 +369,8 @@ export default function GeneradorPDF({
             6: { cellWidth: 20.5, halign: "right", fontStyle: "bold" },
           },
           didParseCell: function (data) {
-            // Corregir índice porque invertimos el array
             const realIndex = historialDesdeCero.length - 1 - data.row.index;
             
-            // Colorear según tipo
             if (data.row.index >= 0 && data.column.index === 1) {
               const item = historialDesdeCero[realIndex];
               if (item.tipo === "pago") {
@@ -378,7 +382,6 @@ export default function GeneradorPDF({
               }
             }
 
-            // Colorear montos ARS (deudas en rojo, pagos en verde)
             if (data.row.index >= 0 && data.column.index === 3) {
               const item = historialDesdeCero[realIndex];
               if (item.moneda === "ARS") {
@@ -386,7 +389,6 @@ export default function GeneradorPDF({
               }
             }
 
-            // Colorear montos USD (deudas en rojo, pagos en verde)
             if (data.row.index >= 0 && data.column.index === 4) {
               const item = historialDesdeCero[realIndex];
               if (item.moneda === "USD") {
@@ -394,7 +396,6 @@ export default function GeneradorPDF({
               }
             }
 
-            // Colorear saldos finales (que ahora están en la PRIMERA fila) en negrita
             if (data.row.index === 0 && (data.column.index === 5 || data.column.index === 6)) {
               data.cell.styles.fillColor = [255, 243, 224];
               data.cell.styles.textColor = [231, 76, 60];
@@ -404,7 +405,7 @@ export default function GeneradorPDF({
         });
       }
 
-      // Footer en todas las páginas
+      // Footer
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
@@ -431,7 +432,7 @@ export default function GeneradorPDF({
     }
   };
 
-  // Generar PDF Historial Completo - SIN CAMBIOS MAYORES
+  // Generar PDF Historial Completo
   const generarPDFHistorialCompleto = async () => {
     setGenerandoPDF(true);
 
@@ -469,7 +470,7 @@ export default function GeneradorPDF({
           : "Todo el historial";
       doc.text(rangoTexto, 210 - 15, 36, { align: "right" });
 
-      // Obtener y filtrar historial
+      // Obtener historial
       const historial: any[] = [];
 
       trabajos.forEach((trabajo) => {
@@ -486,13 +487,21 @@ export default function GeneradorPDF({
         }
       });
 
+      // ✅ CORREGIDO: Agregar ventas con lógica correcta
       ventas.forEach((venta) => {
+        const productos = venta.productos || [];
+        const hayTelefono = productos.some((p: any) => p.categoria === "Teléfono");
+        
         let totalARS = 0;
         let totalUSD = 0;
 
-        venta.productos?.forEach((p: any) => {
-          if (p.categoria === "Teléfono" || p.moneda?.toUpperCase() === "USD") {
-            totalUSD += (p.precioUnitario * p.cantidad);
+        productos.forEach((p: any) => {
+          if (hayTelefono) {
+            if (p.moneda?.toUpperCase() === "USD") {
+              totalUSD += (p.precioUnitario * p.cantidad);
+            } else {
+              totalARS += (p.precioUnitario * p.cantidad);
+            }
           } else {
             totalARS += (p.precioUnitario * p.cantidad);
           }
@@ -545,7 +554,7 @@ export default function GeneradorPDF({
         }
       });
 
-      // Filtrar por fechas si se especificaron
+      // Filtrar por fechas
       let historialFiltrado = historial;
       if (fechaDesde || fechaHasta) {
         const desde = fechaDesde ? new Date(fechaDesde) : new Date("1900-01-01");
@@ -556,7 +565,6 @@ export default function GeneradorPDF({
         });
       }
 
-      // Ordenar por fecha
       historialFiltrado.sort((a, b) => a.fechaOrden.getTime() - b.fechaOrden.getTime());
 
       // Calcular saldos acumulados
@@ -577,7 +585,7 @@ export default function GeneradorPDF({
         };
       });
 
-      // Crear tabla
+      // Tabla
       yPosition = 60;
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(16);
@@ -586,10 +594,8 @@ export default function GeneradorPDF({
 
       if (historialConSaldos.length > 0) {
         const historialData = historialConSaldos.map((item) => {
-          // SIN EMOJIS - solo texto
           const tipoTexto = item.tipo === "trabajo" ? "Trabajo" : item.tipo === "venta" ? "Venta" : "Pago";
           
-          // Mostrar el monto con signo y en la columna correcta según moneda
           const signo = item.esDeuda ? "+" : "-";
           const montoARS = item.moneda === "ARS" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
           const montoUSD = item.moneda === "USD" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
@@ -613,7 +619,7 @@ export default function GeneradorPDF({
           head: [["Fecha", "Tipo", "Descripción", "ARS", "USD", "Saldo $", "Saldo U$"]],
           body: historialData,
           theme: 'grid',
-          margin: { left: 5, right: 5 }, // Márgenes mínimos
+          margin: { left: 5, right: 5 },
           styles: {
             fontSize: 8.5,
             cellPadding: 3,
@@ -638,7 +644,6 @@ export default function GeneradorPDF({
             6: { cellWidth: 20.5, halign: "right", fontStyle: "bold" },
           },
           didParseCell: function (data) {
-            // Colorear según tipo
             if (data.row.index >= 0 && data.column.index === 1) {
               const tipo = historialConSaldos[data.row.index]?.tipo;
               if (tipo === "pago") {
@@ -650,7 +655,6 @@ export default function GeneradorPDF({
               }
             }
 
-            // Colorear montos ARS (deudas en rojo, pagos en verde)
             if (data.row.index >= 0 && data.column.index === 3) {
               const item = historialConSaldos[data.row.index];
               if (item.moneda === "ARS") {
@@ -658,7 +662,6 @@ export default function GeneradorPDF({
               }
             }
 
-            // Colorear montos USD (deudas en rojo, pagos en verde)
             if (data.row.index >= 0 && data.column.index === 4) {
               const item = historialConSaldos[data.row.index];
               if (item.moneda === "USD") {

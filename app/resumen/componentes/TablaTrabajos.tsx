@@ -84,7 +84,13 @@ export default function TablaTrabajos({
 
   const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
     const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
-    await updateDoc(ref, { [campo]: valor });
+    const hoy = new Date();
+    const fechaModificacion = hoy.toLocaleDateString("es-AR");
+    
+    await updateDoc(ref, { 
+      [campo]: valor,
+      fechaModificacion: fechaModificacion
+    });
   };
 
   const eliminarTrabajo = async (firebaseId: string) => {

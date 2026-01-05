@@ -54,7 +54,6 @@ export default function CuentaCorrientePage() {
   const [negocioID, setNegocioID] = useState<string>("");
   const router = useRouter();
 
-  // Estados del modal de pago
   const [mostrarModalPago, setMostrarModalPago] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<CuentaCorriente | null>(null);
   const [pago, setPago] = useState<PagoForm>({
@@ -66,9 +65,8 @@ export default function CuentaCorrientePage() {
   });
   const [guardandoPago, setGuardandoPago] = useState(false);
   const [pagoGuardado, setPagoGuardado] = useState(false);
-  const [actualizandoCliente, setActualizandoCliente] = useState<string | null>(null);
+  const [cargandoTrabajos, setCargandoTrabajos] = useState(false);
 
-  // Validación: Solo bloquear clientes, permitir admin y empleado
   useEffect(() => {
     if (rol && rol.tipo === "cliente") {
       router.push("/");
@@ -76,7 +74,6 @@ export default function CuentaCorrientePage() {
     }
   }, [rol, router]);
 
-  // Early return: Si es cliente, no renderizar nada
   if (rol?.tipo === "cliente") {
     return null;
   }
@@ -91,117 +88,20 @@ export default function CuentaCorrientePage() {
     const cargarCuentas = async () => {
       if (!negocioID) return;
 
-      const trabajosSnap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
-      const pagosSnap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
-      const ventasSnap = await getDocs(collection(db, `negocios/${negocioID}/ventasGeneral`));
+      const clientesSnap = await getDocs(
+        collection(db, `negocios/${negocioID}/clientes`)
+      );
 
-      const cuentasMap: { [cliente: string]: { 
-        saldoPesos: number; 
-        saldoUSD: number;
-        trabajosPendientes: Trabajo[];
-      } } = {};
-
-      // Procesar trabajos
-      trabajosSnap.forEach((doc) => {
-        const data = doc.data() as Trabajo;
-        if (data.estado !== "ENTREGADO" && data.estado !== "PAGADO") return;
-
-        const cliente = data.cliente;
-        const precio = Number(data.precio || 0);
-        const moneda = data.moneda || "ARS";
-
-        if (!cuentasMap[cliente]) {
-          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
-        }
-
-        // Agregar trabajo pendiente si no está pagado
-        if (data.estado !== "PAGADO" && precio > 0) {
-          cuentasMap[cliente].trabajosPendientes.push({
-            ...data,
-            firebaseId: doc.id
-          });
-        }
-
-        if (moneda === "ARS") {
-          cuentasMap[cliente].saldoPesos += precio;
-        } else {
-          cuentasMap[cliente].saldoUSD += precio;
-        }
-      });
-
-      // Procesar ventas de ventasGeneral (MANTENER LÓGICA ORIGINAL)
-      ventasSnap.forEach((doc) => {
-        const data = doc.data();
-        const cliente = data.cliente;
-        const productos = data.productos || [];
-
-        if (!cliente || productos.length === 0) return;
-
-        if (!cuentasMap[cliente]) {
-          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
-        }
-
-        // LEER EXACTAMENTE COMO MUESTRA LA TABLA DE VENTAS
-        const hayTelefono = productos.some((prod: any) => prod.categoria === "Teléfono");
-
-        let totalVentaPesos = 0;
-        let totalVentaUSD = 0;
-
-        productos.forEach((p: any) => {
-          if (hayTelefono) {
-            // CON TELÉFONO: Mostrar moneda original
-            if (p.categoria === "Teléfono") {
-              // Verificar la moneda del teléfono, no asumir USD
-              if (p.moneda?.toUpperCase() === "USD") {
-                totalVentaUSD += p.precioUnitario * p.cantidad;
-              } else {
-                totalVentaPesos += p.precioUnitario * p.cantidad;
-              }
-            } else {
-              // Accesorio/Repuesto: Según su moneda original
-              if (p.moneda?.toUpperCase() === "USD") {
-                totalVentaUSD += p.precioUnitario * p.cantidad;
-              } else {
-                totalVentaPesos += p.precioUnitario * p.cantidad;
-              }
-            }
-          } else {
-            // SIN TELÉFONO: TODO en pesos (no usar cotización aquí)
-            totalVentaPesos += p.precioUnitario * p.cantidad;
-          }
-        });
-
-        // Sumar a la cuenta del cliente
-        cuentasMap[cliente].saldoPesos += totalVentaPesos;
-        cuentasMap[cliente].saldoUSD += totalVentaUSD;
-      });
-
-      // Procesar pagos
-      pagosSnap.forEach((doc) => {
-        const data = doc.data() as Pago;
-        const cliente = data.cliente;
-        const moneda = data.moneda || "ARS";
-
-        if (!cuentasMap[cliente]) {
-          cuentasMap[cliente] = { saldoPesos: 0, saldoUSD: 0, trabajosPendientes: [] };
-        }
-
-        if (moneda === "ARS") {
-          const monto = Number(data.monto || 0);
-          cuentasMap[cliente].saldoPesos -= monto;
-        } else {
-          const montoUSD = Number(data.montoUSD || 0);
-          cuentasMap[cliente].saldoUSD -= montoUSD;
-        }
-      });
-
-      const cuentasFinales = Object.entries(cuentasMap)
-        .map(([cliente, valores]) => ({
-          cliente,
-          saldoPesos: Math.round(valores.saldoPesos * 100) / 100,
-          saldoUSD: Math.round(valores.saldoUSD * 100) / 100,
-          trabajosPendientes: valores.trabajosPendientes,
-        }))
+      const cuentasFinales = clientesSnap.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            cliente: data.nombre || doc.id,
+            saldoPesos: data.saldoARS || 0,
+            saldoUSD: data.saldoUSD || 0,
+            trabajosPendientes: [],
+          };
+        })
         .filter((c) => Math.abs(c.saldoPesos) > 0.01 || Math.abs(c.saldoUSD) > 0.01)
         .sort((a, b) => a.cliente.localeCompare(b.cliente));
 
@@ -211,123 +111,33 @@ export default function CuentaCorrientePage() {
     cargarCuentas();
   }, [negocioID]);
 
-  // Función para actualizar solo un cliente específico
-  const actualizarClienteEspecifico = async (nombreCliente: string) => {
-    if (!negocioID) return;
+  const cargarTrabajosPendientes = async (nombreCliente: string) => {
+    if (!negocioID) return [];
     
-    setActualizandoCliente(nombreCliente);
-    
+    setCargandoTrabajos(true);
     try {
-      const [trabajosSnap, pagosSnap, ventasSnap] = await Promise.all([
-        getDocs(query(
+      const trabajosSnap = await getDocs(
+        query(
           collection(db, `negocios/${negocioID}/trabajos`),
-          where('cliente', '==', nombreCliente),
-          where('estado', 'in', ['ENTREGADO', 'PAGADO'])
-        )),
-        getDocs(query(
-          collection(db, `negocios/${negocioID}/pagos`),
-          where('cliente', '==', nombreCliente)
-        )),
-        getDocs(query(
-          collection(db, `negocios/${negocioID}/ventasGeneral`),
-          where('cliente', '==', nombreCliente)
-        ))
-      ]);
-
-      let saldoPesos = 0;
-      let saldoUSD = 0;
-      const trabajosPendientes: Trabajo[] = [];
-
-      // Procesar trabajos del cliente
-      trabajosSnap.forEach((doc) => {
-        const data = doc.data() as Trabajo;
-        const precio = Number(data.precio || 0);
-        const moneda = data.moneda || "ARS";
-
-        if (data.estado !== "PAGADO" && precio > 0) {
-          trabajosPendientes.push({ ...data, firebaseId: doc.id });
-        }
-
-        if (moneda === "ARS") {
-          saldoPesos += precio;
-        } else {
-          saldoUSD += precio;
-        }
-      });
-
-      // Procesar ventas del cliente (MANTENER LÓGICA ORIGINAL)
-      ventasSnap.forEach((doc) => {
-        const data = doc.data();
-        const productos = data.productos || [];
-        if (productos.length === 0) return;
-
-        const hayTelefono = productos.some((prod: any) => prod.categoria === "Teléfono");
-        let totalVentaPesos = 0;
-        let totalVentaUSD = 0;
-
-        productos.forEach((p: any) => {
-          if (hayTelefono) {
-            if (p.categoria === "Teléfono") {
-              if (p.moneda?.toUpperCase() === "USD") {
-                totalVentaUSD += p.precioUnitario * p.cantidad;
-              } else {
-                totalVentaPesos += p.precioUnitario * p.cantidad;
-              }
-            } else {
-              if (p.moneda?.toUpperCase() === "USD") {
-                totalVentaUSD += p.precioUnitario * p.cantidad;
-              } else {
-                totalVentaPesos += p.precioUnitario * p.cantidad;
-              }
-            }
-          } else {
-            totalVentaPesos += p.precioUnitario * p.cantidad;
-          }
-        });
-
-        saldoPesos += totalVentaPesos;
-        saldoUSD += totalVentaUSD;
-      });
-
-      // Procesar pagos del cliente
-      pagosSnap.forEach((doc) => {
-        const data = doc.data() as Pago;
-        const moneda = data.moneda || "ARS";
-
-        if (moneda === "ARS") {
-          saldoPesos -= Number(data.monto || 0);
-        } else {
-          saldoUSD -= Number(data.montoUSD || 0);
-        }
-      });
-
-      // Actualizar solo este cliente en el estado
-      setCuentas(cuentasActuales => {
-        const cuentasActualizadas = cuentasActuales.filter(c => c.cliente !== nombreCliente);
-        
-        const saldoPesosRedondeado = Math.round(saldoPesos * 100) / 100;
-        const saldoUSDRedondeado = Math.round(saldoUSD * 100) / 100;
-        
-        if (Math.abs(saldoPesosRedondeado) > 0.01 || Math.abs(saldoUSDRedondeado) > 0.01) {
-          cuentasActualizadas.push({
-            cliente: nombreCliente,
-            saldoPesos: saldoPesosRedondeado,
-            saldoUSD: saldoUSDRedondeado,
-            trabajosPendientes
-          });
-        }
-        
-        return cuentasActualizadas.sort((a, b) => a.cliente.localeCompare(b.cliente));
-      });
+          where("cliente", "==", nombreCliente),
+          where("estado", "==", "ENTREGADO")
+        )
+      );
       
+      const trabajos = trabajosSnap.docs.map(doc => ({
+        ...doc.data() as Trabajo,
+        firebaseId: doc.id
+      }));
+
+      return trabajos;
     } catch (error) {
-      console.error('Error actualizando cliente:', error);
+      console.error("Error cargando trabajos:", error);
+      return [];
     } finally {
-      setActualizandoCliente(null);
+      setCargandoTrabajos(false);
     }
   };
 
-  // Función para manejar cambios en el formulario de pago
   const handlePagoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setPago(prev => ({
@@ -336,7 +146,6 @@ export default function CuentaCorrientePage() {
     }));
   };
 
-  // Función para guardar pago
   const guardarPago = async () => {
     if (!clienteSeleccionado || !pago.monto || !pago.formaPago) return;
 
@@ -344,12 +153,11 @@ export default function CuentaCorrientePage() {
     try {
       const montoNumerico = parseFloat(pago.monto);
       
-      // Crear registro de pago
       const pagoData = {
         monto: pago.moneda === "USD" ? null : montoNumerico,
         montoUSD: pago.moneda === "USD" ? montoNumerico : null,
         moneda: pago.moneda,
-        formaPago: pago.formaPago,
+        forma: pago.formaPago,
         destino: pago.destino,
         observaciones: pago.observaciones,
         cliente: clienteSeleccionado.cliente,
@@ -361,7 +169,6 @@ export default function CuentaCorrientePage() {
 
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
 
-      // Marcar trabajos como pagados según el monto recibido
       if (clienteSeleccionado.trabajosPendientes && clienteSeleccionado.trabajosPendientes.length > 0) {
         let montoRestante = montoNumerico;
         const trabajosOrdenados = [...clienteSeleccionado.trabajosPendientes].sort((a, b) => {
@@ -385,8 +192,6 @@ export default function CuentaCorrientePage() {
                 fechaModificacion: new Date().toLocaleDateString('es-AR')
               });
               montoRestante -= precioTrabajo;
-            } else {
-              break;
             }
           }
         }
@@ -394,10 +199,7 @@ export default function CuentaCorrientePage() {
 
       setPagoGuardado(true);
       
-      // Actualizar solo este cliente
-      setTimeout(async () => {
-        await actualizarClienteEspecifico(clienteSeleccionado.cliente);
-        
+      setTimeout(() => {
         setMostrarModalPago(false);
         setClienteSeleccionado(null);
         setPago({
@@ -408,6 +210,9 @@ export default function CuentaCorrientePage() {
           observaciones: ""
         });
         setPagoGuardado(false);
+        
+        // Recargar la página para reflejar los cambios actualizados por Cloud Functions
+        window.location.reload();
       }, 1500);
 
     } catch (error) {
@@ -445,7 +250,6 @@ export default function CuentaCorrientePage() {
       <main className="pt-20 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           
-          {/* Header principal */}
           <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -468,7 +272,6 @@ export default function CuentaCorrientePage() {
             </div>
           </div>
 
-          {/* Resumen de totales */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] rounded-xl shadow-lg p-4 sm:p-6 text-white">
               <div className="flex items-center gap-3">
@@ -521,7 +324,6 @@ export default function CuentaCorrientePage() {
             </div>
           </div>
 
-          {/* Filtros */}
           <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row gap-4 items-center">
               <label className="text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
@@ -537,11 +339,8 @@ export default function CuentaCorrientePage() {
               />
             </div>
           </div>
-
-          {/* Tabla principal */}
           <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-[#ecf0f1]">
             
-            {/* Header de la tabla */}
             <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-3 sm:p-4">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -556,7 +355,6 @@ export default function CuentaCorrientePage() {
               </div>
             </div>
 
-            {/* Tabla responsive */}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[700px] border-collapse">
                 <thead className="bg-[#ecf0f1]">
@@ -619,23 +417,20 @@ export default function CuentaCorrientePage() {
                     cuentasFiltradas.map((cuenta, index) => {
                       const tieneDeuda = cuenta.saldoPesos > 0 || cuenta.saldoUSD > 0;
                       const tieneFavor = cuenta.saldoPesos < 0 || cuenta.saldoUSD < 0;
-                      const estaActualizando = actualizandoCliente === cuenta.cliente;
                       
                       return (
                         <tr
                           key={cuenta.cliente}
                           className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
-                            estaActualizando ? "bg-blue-50 animate-pulse" :
                             tieneFavor ? "bg-green-50" : tieneDeuda ? "bg-red-50" : "bg-white"
                           }`}
                         >
                           <td className="p-3 sm:p-4 border border-[#bdc3c7]">
                             <div className="flex items-center gap-3">
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                                estaActualizando ? "bg-[#3498db] animate-spin" :
                                 tieneFavor ? "bg-[#27ae60]" : tieneDeuda ? "bg-[#e74c3c]" : "bg-[#7f8c8d]"
                               }`}>
-                                {estaActualizando ? "⟳" : cuenta.cliente.charAt(0).toUpperCase()}
+                                {cuenta.cliente.charAt(0).toUpperCase()}
                               </div>
                               <span className="text-sm sm:text-base font-medium text-[#2c3e50]">
                                 {cuenta.cliente}
@@ -661,25 +456,27 @@ export default function CuentaCorrientePage() {
                           
                           <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
                             <span className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
-                              estaActualizando ? "bg-[#3498db] text-white animate-pulse" :
                               tieneFavor 
                                 ? "bg-[#27ae60] text-white"
                                 : tieneDeuda
                                 ? "bg-[#e74c3c] text-white"
                                 : "bg-[#7f8c8d] text-white"
                             }`}>
-                              {estaActualizando ? "🔄 Actualizando" : 
-                               tieneFavor ? "💚 A Favor" : 
-                               tieneDeuda ? "🔴 Debe" : "⚪ Sin Saldo"}
+                              {tieneFavor ? "💚 A Favor" : tieneDeuda ? "🔴 Debe" : "⚪ Sin Saldo"}
                             </span>
                           </td>
 
                           <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
                             {tieneDeuda ? (
                               <button
-                                onClick={() => {
-                                  setClienteSeleccionado(cuenta);
-                                  // Pre-llenar con el saldo mayor
+                                onClick={async () => {
+                                  const trabajos = await cargarTrabajosPendientes(cuenta.cliente);
+                                  
+                                  setClienteSeleccionado({
+                                    ...cuenta,
+                                    trabajosPendientes: trabajos
+                                  });
+                                  
                                   const montoSugerido = Math.abs(cuenta.saldoPesos) > Math.abs(cuenta.saldoUSD) 
                                     ? Math.abs(cuenta.saldoPesos).toString()
                                     : Math.abs(cuenta.saldoUSD).toString();
@@ -690,15 +487,15 @@ export default function CuentaCorrientePage() {
                                     monto: montoSugerido,
                                     moneda: monedaSugerida
                                   }));
+                                  
                                   setMostrarModalPago(true);
                                 }}
-                                disabled={estaActualizando}
+                                disabled={cargandoTrabajos}
                                 className={`bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex items-center gap-1 mx-auto ${
-                                  estaActualizando ? 'opacity-50 cursor-not-allowed' : ''
+                                  cargandoTrabajos ? 'opacity-50 cursor-not-allowed' : ''
                                 }`}
-                                title={`Registrar pago de ${cuenta.cliente}`}
                               >
-                                {estaActualizando ? (
+                                {cargandoTrabajos ? (
                                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                                 ) : (
                                   <>
@@ -719,17 +516,11 @@ export default function CuentaCorrientePage() {
               </table>
             </div>
 
-            {/* Footer de la tabla */}
             {cuentasFiltradas.length > 0 && (
               <div className="bg-[#f8f9fa] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#bdc3c7]">
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4 text-xs sm:text-sm text-[#7f8c8d]">
                   <span>
                     Mostrando {cuentasFiltradas.length} de {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
-                    {actualizandoCliente && (
-                      <span className="text-blue-500 ml-2 animate-pulse">
-                        • Actualizando {actualizandoCliente}
-                      </span>
-                    )}
                   </span>
                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-6">
                     <span>
@@ -749,12 +540,10 @@ export default function CuentaCorrientePage() {
           </div>
         </div>
 
-        {/* Modal de Pago */}
         {mostrarModalPago && clienteSeleccionado && (
           <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
             <div className="w-full h-full sm:h-auto sm:max-w-2xl lg:max-w-3xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
               
-              {/* Header del Modal */}
               <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-4 sm:p-6 flex justify-between items-center flex-shrink-0">
                 <div className="flex items-center gap-2 sm:gap-4">
                   <div className="w-8 h-8 sm:w-12 sm:h-12 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center">
@@ -790,10 +579,8 @@ export default function CuentaCorrientePage() {
                 </button>
               </div>
 
-              {/* Contenido del Modal */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-[#f8f9fa] min-h-0">
                 
-                {/* Información de la cuenta */}
                 <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] rounded-xl p-4 text-white">
                   <h4 className="font-bold mb-2 flex items-center gap-2">
                     <span>📋</span>
@@ -810,7 +597,6 @@ export default function CuentaCorrientePage() {
                     </div>
                   </div>
                   
-                  {/* Trabajos pendientes */}
                   {clienteSeleccionado.trabajosPendientes && clienteSeleccionado.trabajosPendientes.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-white/20">
                       <p className="text-blue-100 text-xs mb-2">Trabajos Pendientes:</p>
@@ -830,7 +616,6 @@ export default function CuentaCorrientePage() {
                   )}
                 </div>
 
-                {/* Sección de Monto y Moneda */}
                 <div className="bg-white rounded-xl border-2 border-[#3498db] p-4 sm:p-6 shadow-sm">
                   <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
                     <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
@@ -871,7 +656,6 @@ export default function CuentaCorrientePage() {
                     </div>
                   </div>
 
-                  {/* Botones de montos sugeridos */}
                   <div className="mt-4 flex flex-wrap gap-2">
                     <span className="text-sm text-[#7f8c8d] w-full mb-1">Montos sugeridos:</span>
                     {clienteSeleccionado.saldoPesos > 0 && (
@@ -905,7 +689,6 @@ export default function CuentaCorrientePage() {
                   </div>
                 </div>
 
-                {/* Sección de Método de Pago */}
                 <div className="bg-white rounded-xl border-2 border-[#9b59b6] p-4 sm:p-6 shadow-sm">
                   <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
                     <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#9b59b6] rounded-lg flex items-center justify-center">
@@ -944,7 +727,6 @@ export default function CuentaCorrientePage() {
                     </div>
                   </div>
 
-                  {/* Botones rápidos para formas de pago */}
                   <div className="mt-4 flex flex-wrap gap-2">
                     <span className="text-xs text-gray-600 w-full mb-1">Formas comunes:</span>
                     {['Efectivo', 'Transferencia', 'Tarjeta', 'MercadoPago'].map((forma) => (
@@ -961,7 +743,6 @@ export default function CuentaCorrientePage() {
                   </div>
                 </div>
 
-                {/* Sección de Observaciones */}
                 <div className="bg-white rounded-xl border-2 border-[#f39c12] p-4 sm:p-6 shadow-sm">
                   <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
                     <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#f39c12] rounded-lg flex items-center justify-center">
@@ -985,7 +766,6 @@ export default function CuentaCorrientePage() {
                   </div>
                 </div>
 
-                {/* Mensaje de Éxito */}
                 {pagoGuardado && (
                   <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] border-2 border-[#27ae60] rounded-xl p-3 sm:p-4 animate-pulse">
                     <div className="flex items-center justify-center gap-2 sm:gap-3">
@@ -1000,7 +780,6 @@ export default function CuentaCorrientePage() {
                 )}
               </div>
 
-              {/* Footer con Botones */}
               <div className="bg-[#ecf0f1] border-t-2 border-[#bdc3c7] p-3 sm:p-6 flex-shrink-0">
                 <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-4">
                   <button

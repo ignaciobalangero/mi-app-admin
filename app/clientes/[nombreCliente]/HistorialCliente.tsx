@@ -94,68 +94,90 @@ export default function ClienteDetalle() {
   }, [nombreCliente, negocioID]);
 
   // Función para calcular totales - CORREGIDA
-  const calcularTotales = () => {
-    let totalTrabajosARS = 0;
-    let totalTrabajosUSD = 0;
-    let totalVentasARS = 0;
-    let totalVentasUSD = 0;
-    let totalPagosARS = 0;
-    let totalPagosUSD = 0;
+const calcularTotales = () => {
+  let totalTrabajosARS = 0;
+  let totalTrabajosUSD = 0;
+  let totalVentasARS = 0;
+  let totalVentasUSD = 0;
+  let totalPagosARS = 0;
+  let totalPagosUSD = 0;
 
-    const trabajosParaDeuda = trabajos.filter(t => 
-      t.estado === "ENTREGADO" || t.estado === "PAGADO"
-    );
+  // Trabajos que cuentan para la deuda
+  const trabajosParaDeuda = trabajos.filter(t => 
+    t.estado === "ENTREGADO" || t.estado === "PAGADO"
+  );
+  
+  // ✅ CORREGIDO: Solo usar el campo "moneda" del trabajo
+  trabajosParaDeuda.forEach(t => {
+    const precio = Number(t.precio || 0);
+    const moneda = t.moneda || "ARS";
     
-    trabajosParaDeuda.forEach(t => {
-      const hayTelefonoEnTrabajo = t.productos?.some((p: any) => p.categoria === "Teléfono");
-      
-      if (hayTelefonoEnTrabajo || t.moneda === "USD") {
-        totalTrabajosUSD += Number(t.precio || 0);
-      } else {
-        totalTrabajosARS += Number(t.precio || 0);
-      }
-    });
+    if (moneda === "USD") {
+      totalTrabajosUSD += precio;
+    } else {
+      totalTrabajosARS += precio;
+    }
+  });
 
-    // CORREGIDO: Calcular producto por producto según su moneda
-    ventas.forEach(v => {
-      v.productos?.forEach((p: any) => {
-        // Si el producto es un teléfono, va en USD
+  // ✅ VENTAS - LÓGICA CORREGIDA (igual a Cuenta Corriente)
+  ventas.forEach(v => {
+    const productos = v.productos || [];
+    
+    const hayTelefono = productos.some((p: any) => p.categoria === "Teléfono");
+    
+    let totalVentaPesos = 0;
+    let totalVentaUSD = 0;
+
+    productos.forEach((p: any) => {
+      if (hayTelefono) {
+        // CON TELÉFONO: Respetar moneda original de cada producto
         if (p.categoria === "Teléfono") {
-          totalVentasUSD += (p.precioUnitario * p.cantidad);
-        } 
-        // Si el producto está en USD pero NO es teléfono (accesorios en USD)
-        else if (p.moneda?.toUpperCase() === "USD") {
-          totalVentasUSD += (p.precioUnitario * p.cantidad);
+          if (p.moneda?.toUpperCase() === "USD") {
+            totalVentaUSD += (p.precioUnitario * p.cantidad);
+          } else {
+            totalVentaPesos += (p.precioUnitario * p.cantidad);
+          }
+        } else {
+          // Accesorio/Repuesto: Según su moneda original
+          if (p.moneda?.toUpperCase() === "USD") {
+            totalVentaUSD += (p.precioUnitario * p.cantidad);
+          } else {
+            totalVentaPesos += (p.precioUnitario * p.cantidad);
+          }
         }
-        // Todo lo demás va en ARS
-        else {
-          totalVentasARS += (p.precioUnitario * p.cantidad);
-        }
-      });
-    });
-
-    pagos.forEach(p => {
-      if (p.moneda === "USD") {
-        totalPagosUSD += Number(p.montoUSD || 0);
       } else {
-        totalPagosARS += Number(p.monto || 0);
+        // SIN TELÉFONO: TODO en pesos
+        totalVentaPesos += (p.precioUnitario * p.cantidad);
       }
     });
+    
+    totalVentasARS += totalVentaPesos;
+    totalVentasUSD += totalVentaUSD;
+  });
 
-    return {
-      totalTrabajosARS,
-      totalTrabajosUSD,
-      totalVentasARS,
-      totalVentasUSD,
-      totalPagosARS,
-      totalPagosUSD,
-      totalTrabajos: totalTrabajosARS + totalTrabajosUSD,
-      totalVentas: totalVentasARS + totalVentasUSD,
-      totalPagos: totalPagosARS + totalPagosUSD,
-      saldoARS: (totalTrabajosARS + totalVentasARS) - totalPagosARS,
-      saldoUSD: (totalTrabajosUSD + totalVentasUSD) - totalPagosUSD
-    };
+  // Pagos
+  pagos.forEach(p => {
+    if (p.moneda === "USD") {
+      totalPagosUSD += Number(p.montoUSD || 0);
+    } else {
+      totalPagosARS += Number(p.monto || 0);
+    }
+  });
+
+  return {
+    totalTrabajosARS,
+    totalTrabajosUSD,
+    totalVentasARS,
+    totalVentasUSD,
+    totalPagosARS,
+    totalPagosUSD,
+    totalTrabajos: totalTrabajosARS + totalTrabajosUSD,
+    totalVentas: totalVentasARS + totalVentasUSD,
+    totalPagos: totalPagosARS + totalPagosUSD,
+    saldoARS: (totalTrabajosARS + totalVentasARS) - totalPagosARS,
+    saldoUSD: (totalTrabajosUSD + totalVentasUSD) - totalPagosUSD
   };
+};
 
   const totales = calcularTotales();
   const { saldoARS, saldoUSD, totalTrabajos, totalVentas, totalPagos } = totales;
