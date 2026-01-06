@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useRol } from "../../lib/useRol";
 import { useLogo } from "@/app/components/LogoProvider";
 
@@ -12,6 +13,7 @@ interface SidebarProps {
 export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
   const { rol } = useRol();
   const { logoUrl, cargandoLogo } = useLogo();
+  const [administracionAbierta, setAdministracionAbierta] = useState(false);
 
   if (rol?.tipo === "cliente") return null;
 
@@ -23,15 +25,20 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Administrar $ ordenes", icono: "💵", href: "/resumen" },
     { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
     { label: "Gestion de Pagos", icono: "💳", href: "/pagos" },
-    { label: "Resumen de cuenta", icono: "📈", href: "/resumen-cuenta" },
+    // Aquí va el menú desplegable de Administración
     { label: "Venta de teléfonos", icono: "📱", href: "/ventas/telefonos" },
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },
     { label: "Stock Gral", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
     { label: "Stock Repuestos (Sheet)", icono: "📋", href: "/integracion-sheet/stock-sheet" },
     { label: "Clientes", icono: "👥", href: "/clientes" },
-    { label: "Caja Diaria", icono: "🏦", href: "/CajaDiaria" },
-    { label: "Proveedores", icono: "", href: "/proveedores" },
     { label: "Configuraciones", icono: "⚙️", href: "/configuraciones" },
+  ];
+
+  const subMenuAdministracion = [
+    { label: "Caja Diaria", icono: "💰", href: "/caja-diaria", soloAdmin: false },
+    { label: "Caja Mayor", icono: "💎", href: "/caja-mayor", soloAdmin: true },
+    { label: "Resumen de Cuenta", icono: "📈", href: "/resumen-cuenta", soloAdmin: true },
+    { label: "Proveedores", icono: "🏭", href: "/proveedores", soloAdmin: true },
   ];
  
   const botonesEmpleado = [
@@ -45,10 +52,16 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Stock Grl", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
     { label: "Clientes", icono: "👥", href: "/clientes" },
     { label: "Gestion de Pagos", icono: "💳", href: "/pagos" },
+    // Aquí va el menú desplegable de Administración para empleados
     { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
   ];
 
   const botones = rol?.tipo === "admin" ? botonesAdmin : botonesEmpleado;
+
+  // Filtrar submenú según rol
+  const subMenuFiltrado = subMenuAdministracion.filter(
+    item => !item.soloAdmin || rol?.tipo === "admin"
+  );
 
   if (!rol) return null;
 
@@ -76,8 +89,6 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
         </div>
       </header>
 
-
-
       {/* Sidebar reposicionado */}
       <aside
         className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-gradient-to-b from-[#f0f2f5] to-[#e8eaed] text-[#2c3e50] shadow-xl transition-all duration-300 z-40 ${
@@ -96,9 +107,63 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
         <div className="h-12"></div>
 
         <nav className="flex-1 flex flex-col space-y-1 px-3 overflow-y-auto scrollbar-thin scrollbar-thumb-[#3498db] scrollbar-track-[#e8eaed]">
-          {botones.map((boton, i) => (
+          {botones.slice(0, 7).map((boton, i) => (
             <Link
               key={i}
+              href={boton.href}
+              className="flex items-center p-3 rounded-lg hover:bg-[#3498db] hover:text-white hover:shadow-md text-xs transition-all duration-200 group"
+            >
+              <span className="text-lg group-hover:scale-110 transition-transform">{boton.icono}</span>
+              {abierto && (
+                <span className="ml-3 whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white">
+                  {boton.label}
+                </span>
+              )}
+            </Link>
+          ))}
+
+          {/* Menú desplegable de Administración */}
+          <div>
+            <button
+              onClick={() => setAdministracionAbierta(!administracionAbierta)}
+              className="w-full flex items-center p-3 rounded-lg hover:bg-[#9b59b6] hover:text-white hover:shadow-md text-xs transition-all duration-200 group"
+            >
+              <span className="text-lg group-hover:scale-110 transition-transform">📊</span>
+              {abierto && (
+                <>
+                  <span className="ml-3 flex-1 text-left whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white">
+                    Administración
+                  </span>
+                  <span className="text-xs group-hover:text-white">
+                    {administracionAbierta ? "▼" : "▶"}
+                  </span>
+                </>
+              )}
+            </button>
+
+            {/* Submenú desplegable */}
+            {abierto && administracionAbierta && (
+              <div className="ml-4 mt-1 space-y-1 border-l-2 border-[#9b59b6] pl-2">
+                {subMenuFiltrado.map((item, i) => (
+                  <Link
+                    key={i}
+                    href={item.href}
+                    className="flex items-center p-2 rounded-lg hover:bg-[#8e44ad] hover:text-white text-xs transition-all duration-200 group"
+                  >
+                    <span className="text-base">{item.icono}</span>
+                    <span className="ml-2 whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white">
+                      {item.label}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Resto de botones después de Administración */}
+          {botones.slice(7).map((boton, i) => (
+            <Link
+              key={i + 7}
               href={boton.href}
               className="flex items-center p-3 rounded-lg hover:bg-[#3498db] hover:text-white hover:shadow-md text-xs transition-all duration-200 group"
             >

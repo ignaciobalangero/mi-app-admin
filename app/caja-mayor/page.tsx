@@ -23,6 +23,11 @@ interface EstadisticasInventario {
     totalARS: number;
     cantidad: number;
   };
+  stockExtra?: {
+    totalUSD: number;
+    totalARS: number;
+    cantidad: number;
+  };
   ultimaActualizacion: any;
 }
 
@@ -196,21 +201,23 @@ export default function CajaMayorPage() {
     return `$${valor.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
-// Calcular totales separados por moneda
-const capitalInventarioUSD = inventario
-  ? (inventario.repuestos.totalUSD || 0) +
-    (inventario.accesorios.totalUSD || 0) +
-    (inventario.telefonos.totalUSD || 0)
-  : 0;
+  // Calcular totales separados por moneda
+  const capitalInventarioUSD = inventario
+    ? (inventario.repuestos.totalUSD || 0) +
+      (inventario.accesorios.totalUSD || 0) +
+      (inventario.telefonos.totalUSD || 0) +
+      (inventario.stockExtra?.totalUSD || 0)
+    : 0;
 
-const capitalInventarioARS = inventario
-  ? (inventario.repuestos.totalARS || 0) +
-    (inventario.accesorios.totalARS || 0) +
-    (inventario.telefonos.totalARS || 0)
-  : 0;
+  const capitalInventarioARS = inventario
+    ? (inventario.repuestos.totalARS || 0) +
+      (inventario.accesorios.totalARS || 0) +
+      (inventario.telefonos.totalARS || 0) +
+      (inventario.stockExtra?.totalARS || 0)
+    : 0;
 
-const capitalTotalUSD = capitalInventarioUSD + efectivoEnCaja.USD + cuentasCorrientes.totalUSD;
-const capitalTotalARS = capitalInventarioARS + efectivoEnCaja.ARS + cuentasCorrientes.totalARS;
+  const capitalTotalUSD = capitalInventarioUSD + efectivoEnCaja.USD + cuentasCorrientes.totalUSD;
+  const capitalTotalARS = capitalInventarioARS + efectivoEnCaja.ARS + cuentasCorrientes.totalARS;
 
   if (cargando) {
     return (
@@ -274,12 +281,12 @@ const capitalTotalARS = capitalInventarioARS + efectivoEnCaja.ARS + cuentasCorri
             </div>
           )}
 
-         {/* Capital Total */}
-<div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-2xl p-8 shadow-lg text-white">
-  <p className="text-green-100 text-sm mb-2">💰 CAPITAL TOTAL</p>
-  <p className="text-5xl font-bold mb-2">USD {formatearPrecio(capitalTotalUSD)}</p>
-  <p className="text-2xl text-green-100">ARS {formatearPrecio(capitalTotalARS)}</p>
-</div>
+          {/* Capital Total */}
+          <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-2xl p-8 shadow-lg text-white">
+            <p className="text-green-100 text-sm mb-2">💰 CAPITAL TOTAL</p>
+            <p className="text-5xl font-bold mb-2">USD {formatearPrecio(capitalTotalUSD)}</p>
+            <p className="text-2xl text-green-100">ARS {formatearPrecio(capitalTotalARS)}</p>
+          </div>
 
           {/* Desglose del Capital */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -295,12 +302,12 @@ const capitalTotalARS = capitalInventarioARS + efectivoEnCaja.ARS + cuentasCorri
 
               {inventario ? (
                 <>
-                 <p className="text-3xl font-bold text-[#3498db] mb-2">
-  USD {formatearPrecio(capitalInventarioUSD)}
-</p>
-<p className="text-2xl font-bold text-[#2980b9] mb-4">
-  ARS {formatearPrecio(capitalInventarioARS)}
-</p>
+                  <p className="text-3xl font-bold text-[#3498db] mb-2">
+                    USD {formatearPrecio(capitalInventarioUSD)}
+                  </p>
+                  <p className="text-2xl font-bold text-[#2980b9] mb-4">
+                    ARS {formatearPrecio(capitalInventarioARS)}
+                  </p>
 
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between items-center">
@@ -321,6 +328,14 @@ const capitalTotalARS = capitalInventarioARS + efectivoEnCaja.ARS + cuentasCorri
                         USD {formatearPrecio(inventario.telefonos.totalUSD)}
                       </span>
                     </div>
+                    {inventario.stockExtra && inventario.stockExtra.cantidad > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#7f8c8d]">📊 Stock Extra ({inventario.stockExtra.cantidad}):</span>
+                        <span className="font-bold text-[#2c3e50]">
+                          USD {formatearPrecio(inventario.stockExtra.totalUSD)}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <p className="text-xs text-[#95a5a6] mt-4">

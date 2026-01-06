@@ -60,8 +60,21 @@ export default function ResumenSimplificado() {
         setDatos(resultado);
         
         if (resultado.length > 0) {
-          // Seleccionar el mes más reciente por defecto
-          setMesSeleccionado(resultado[resultado.length - 1].mes);
+          // Obtener mes actual en formato MM-YYYY
+          const hoy = new Date();
+          const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
+          const anioActual = hoy.getFullYear();
+          const mesActualFormato = `${mesActual}-${anioActual}`;
+        
+          // Si existe el mes actual en los datos, seleccionarlo
+          const existeMesActual = resultado.find(m => m.mes === mesActualFormato);
+          
+          if (existeMesActual) {
+            setMesSeleccionado(mesActualFormato);
+          } else {
+            // Si no existe el mes actual, seleccionar el más reciente
+            setMesSeleccionado(resultado[resultado.length - 1].mes);
+          }
         }
         
       } catch (error) {

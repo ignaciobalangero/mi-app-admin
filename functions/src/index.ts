@@ -594,6 +594,57 @@ export const actualizarEstadisticasTelefonos = onDocumentWritten(
     return null;
   }
 );
+
+// ==========================================
+// FUNCIÓN 9: Actualizar estadísticas de STOCK EXTRA
+// ==========================================
+export const actualizarEstadisticasStockExtra = onDocumentWritten(
+  "negocios/{negocioID}/stockExtra/{productoID}",
+  async (event) => {
+    const negocioID = event.params.negocioID as string;
+
+    const antes = event.data?.before.exists ? event.data.before.data() : null;
+    const despues = event.data?.after.exists ? event.data.after.data() : null;
+
+    try {
+      const estadisticasRef = db
+        .collection(`negocios/${negocioID}/estadisticas`)
+        .doc("inventario");
+
+      const estadisticasDoc = await estadisticasRef.get();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stats: any = estadisticasDoc.exists ? estadisticasDoc.data() : {
+        repuestos: {totalUSD: 0, totalARS: 0, cantidad: 0},
+        accesorios: {totalUSD: 0, totalARS: 0, cantidad: 0},
+        telefonos: {totalUSD: 0, totalARS: 0, cantidad: 0},
+        stockExtra: {totalUSD: 0, totalARS: 0, cantidad: 0},
+        ultimaActualizacion: null,
+      };
+
+      const valorAntes = antes ? calcularValorStockExtra(antes) : {usd: 0, ars: 0};
+      const valorDespues = despues ? calcularValorStockExtra(despues) : {usd: 0, ars: 0};
+
+      stats.stockExtra = stats.stockExtra || {totalUSD: 0, totalARS: 0, cantidad: 0};
+      stats.stockExtra.totalUSD = Math.max(0, (stats.stockExtra.totalUSD || 0) + valorDespues.usd - valorAntes.usd);
+      stats.stockExtra.totalARS = 0;
+
+      if (despues && !antes) {
+        stats.stockExtra.cantidad = (stats.stockExtra.cantidad || 0) + 1;
+      } else if (antes && !despues) {
+        stats.stockExtra.cantidad = Math.max(0, (stats.stockExtra.cantidad || 0) - 1);
+      }
+
+      stats.ultimaActualizacion = admin.firestore.FieldValue.serverTimestamp();
+
+      await estadisticasRef.set(stats, {merge: true});
+      console.log("✅ Estadísticas de stockExtra actualizadas");
+    } catch (error) {
+      console.error("❌ Error actualizando estadísticas de stockExtra:", error);
+    }
+
+    return null;
+  }
+);
 // ==========================================
 // FUNCIONES AUXILIARES
 // ==========================================
@@ -702,4 +753,14 @@ function calcularValorTelefono(telefono: any): {usd: number; ars: number} {
       ars: precioCompra,
     };
   }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function calcularValorStockExtra(producto: any): {usd: number; ars: number} {
+  const precioCosto = Number(producto.precioCosto || 0);
+  const cantidad = Number(producto.cantidad || 0);
+
+  return {
+    usd: precioCosto * cantidad,
+    ars: 0,
+  };
 }

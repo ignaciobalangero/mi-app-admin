@@ -43,6 +43,7 @@ export default function CajaDiariaPage() {
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [gastos, setGastos] = useState<Gasto[]>([]);
+  const [pagos, setPagos] = useState<any[]>([]);
   const [mostrarModalGasto, setMostrarModalGasto] = useState(false);
   const [mostrarModalCierre, setMostrarModalCierre] = useState(false);
   const [mostrarHistorial, setMostrarHistorial] = useState(false);
@@ -128,6 +129,20 @@ export default function CajaDiariaPage() {
 
       setGastos(gastosData);
 
+// Cargar pagos del día
+const pagosSnap = await getDocs(
+  query(
+    collection(db, `negocios/${rol.negocioID}/pagos`),
+    where("fecha", "==", hoy)
+  )
+);
+
+const pagosData = pagosSnap.docs.map(doc => ({
+  id: doc.id,
+  ...doc.data()
+}));
+
+setPagos(pagosData);
     } catch (error) {
       console.error("Error cargando datos:", error);
     } finally {
@@ -168,7 +183,28 @@ export default function CajaDiariaPage() {
         cuentaCorrienteUSD += v.totalUSD;
       }
     });
-
+// Sumar pagos según forma de pago
+pagos.forEach(p => {
+  const forma = (p.forma || "").toLowerCase();
+  const moneda = p.moneda || "ARS";
+  const monto = moneda === "USD" ? (p.montoUSD || 0) : (p.monto || 0);
+  
+  if (forma.includes("efectivo")) {
+    if (moneda === "USD") {
+      efectivoUSD += monto;
+    } else {
+      efectivoARS += monto;
+    }
+  } else if (forma.includes("transferencia")) {
+    if (moneda === "USD") {
+      transferenciasUSD += monto;
+    } else {
+      transferenciasARS += monto;
+    }
+  } else if (forma.includes("tarjeta")) {
+    tarjetasARS += monto;
+  }
+});
     // Restar gastos
     const gastosARS = gastos
       .filter(g => g.moneda === "ARS")
