@@ -57,41 +57,7 @@ export default function ResumenPage() {
 
   useEffect(() => {
     if (!negocioID) return;
-    const unsubscribe = onSnapshot(collection(db, `negocios/${negocioID}/trabajos`), (snapshot) => {
-      const lista: Trabajo[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        lista.push({
-          firebaseId: docSnap.id,
-          id: data.id,
-          fecha: data.fecha,
-          cliente: data.cliente,
-          modelo: data.modelo,
-          trabajo: data.trabajo,
-          clave: data.clave,
-          observaciones: data.observaciones,
-          estado: data.estado,
-          estadoCuentaCorriente: data.estadoCuentaCorriente,
-          precio: data.precio,
-          costo: data.costo,
-          repuestosUsados: data.repuestosUsados ?? [],
-          fechaModificacion: data.fechaModificacion,
-        });
-      });
-
-      const ordenados = lista.sort((a, b) => {
-        if (a.estado !== b.estado) {
-          return a.estado === "PENDIENTE" ? -1 : 1;
-        }
-        const fechaA = new Date(a.fecha.split("/").reverse().join("/")).getTime();
-        const fechaB = new Date(b.fecha.split("/").reverse().join("/")).getTime();
-        return fechaB - fechaA;
-      });
-
-      setTrabajos(ordenados);
-    });
-
-    return () => unsubscribe();
+    recargarTrabajos();
   }, [negocioID]);
   
   const recargarTrabajos = async () => {
@@ -376,6 +342,7 @@ export default function ResumenPage() {
             tipoFecha={tipoFecha}
             paginaActual={paginaActual}
             setPaginaActual={setPaginaActual}
+            setTrabajos={setTrabajos}
           />
         </div>
       </main>

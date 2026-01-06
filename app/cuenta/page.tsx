@@ -9,6 +9,7 @@ import Header from "../Header";
 import Link from "next/link";
 import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
+import html2canvas from 'html2canvas';
 
 interface Trabajo {
   firebaseId?: string;
@@ -198,8 +199,31 @@ export default function CuentaCorrientePage() {
       }
 
       setPagoGuardado(true);
-      
+
       setTimeout(() => {
+        // ✅ Actualizar saldo localmente sin recargar
+        setCuentas(prevCuentas => 
+          prevCuentas.map(cuenta => {
+            if (cuenta.cliente === clienteSeleccionado.cliente) {
+              const nuevoSaldoPesos = pago.moneda === "ARS" 
+                ? cuenta.saldoPesos - parseFloat(pago.monto)
+                : cuenta.saldoPesos;
+              
+              const nuevoSaldoUSD = pago.moneda === "USD"
+                ? cuenta.saldoUSD - parseFloat(pago.monto)
+                : cuenta.saldoUSD;
+      
+              return {
+                ...cuenta,
+                saldoPesos: nuevoSaldoPesos,
+                saldoUSD: nuevoSaldoUSD
+              };
+            }
+            return cuenta;
+          })
+        );
+      
+        // ✅ Cerrar modal y limpiar estado
         setMostrarModalPago(false);
         setClienteSeleccionado(null);
         setPago({
@@ -210,9 +234,6 @@ export default function CuentaCorrientePage() {
           observaciones: ""
         });
         setPagoGuardado(false);
-        
-        // Recargar la página para reflejar los cambios actualizados por Cloud Functions
-        window.location.reload();
       }, 1500);
 
     } catch (error) {
@@ -467,47 +488,204 @@ export default function CuentaCorrientePage() {
                           </td>
 
                           <td className="p-3 sm:p-4 text-center border border-[#bdc3c7]">
-                            {tieneDeuda ? (
-                              <button
-                                onClick={async () => {
-                                  const trabajos = await cargarTrabajosPendientes(cuenta.cliente);
-                                  
-                                  setClienteSeleccionado({
-                                    ...cuenta,
-                                    trabajosPendientes: trabajos
-                                  });
-                                  
-                                  const montoSugerido = Math.abs(cuenta.saldoPesos) > Math.abs(cuenta.saldoUSD) 
-                                    ? Math.abs(cuenta.saldoPesos).toString()
-                                    : Math.abs(cuenta.saldoUSD).toString();
-                                  const monedaSugerida = Math.abs(cuenta.saldoPesos) > Math.abs(cuenta.saldoUSD) ? "ARS" : "USD";
-                                  
-                                  setPago(prev => ({
-                                    ...prev,
-                                    monto: montoSugerido,
-                                    moneda: monedaSugerida
-                                  }));
-                                  
-                                  setMostrarModalPago(true);
-                                }}
-                                disabled={cargandoTrabajos}
-                                className={`bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex items-center gap-1 mx-auto ${
-                                  cargandoTrabajos ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
-                              >
-                                {cargandoTrabajos ? (
-                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                ) : (
-                                  <>
-                                    <span>💳</span>
-                                    <span className="hidden sm:inline">Pagar</span>
-                                  </>
-                                )}
-                              </button>
-                            ) : (
-                              <span className="text-[#bdc3c7] text-sm">—</span>
-                            )}
-                          </td>
+  <div className="flex items-center justify-center gap-2">
+    {tieneDeuda ? (
+      <>
+        <button
+          onClick={async () => {
+            const trabajos = await cargarTrabajosPendientes(cuenta.cliente);
+            
+            setClienteSeleccionado({
+              ...cuenta,
+              trabajosPendientes: trabajos
+            });
+            
+            const montoSugerido = Math.abs(cuenta.saldoPesos) > Math.abs(cuenta.saldoUSD) 
+              ? Math.abs(cuenta.saldoPesos).toString()
+              : Math.abs(cuenta.saldoUSD).toString();
+            const monedaSugerida = Math.abs(cuenta.saldoPesos) > Math.abs(cuenta.saldoUSD) ? "ARS" : "USD";
+            
+            setPago(prev => ({
+              ...prev,
+              monto: montoSugerido,
+              moneda: monedaSugerida
+            }));
+            
+            setMostrarModalPago(true);
+          }}
+          disabled={cargandoTrabajos}
+          className={`bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex items-center gap-1 ${
+            cargandoTrabajos ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {cargandoTrabajos ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+          ) : (
+            <>
+              <span>💳</span>
+              <span className="hidden sm:inline">Pagar</span>
+            </>
+          )}
+        </button>
+
+        <button
+  onClick={async () => {
+    try {
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'fixed';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.background = 'white';
+      tempDiv.style.padding = '20px';
+      tempDiv.style.borderRadius = '12px';
+      tempDiv.style.width = '400px';
+      
+      // ✅ Determinar qué saldos mostrar
+      const tienePesos = Math.abs(cuenta.saldoPesos) > 0.01;
+      const tieneUSD = Math.abs(cuenta.saldoUSD) > 0.01;
+      
+      let saldosHTML = '';
+      
+      if (tienePesos) {
+        saldosHTML += `
+          <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; ${tieneUSD ? 'margin-bottom: 12px;' : ''}">
+            <p style="color: #7f8c8d; font-size: 12px; margin: 0 0 4px 0;">Saldo en Pesos</p>
+            <p style="color: ${cuenta.saldoPesos > 0 ? '#e74c3c' : '#27ae60'}; font-size: 24px; font-weight: bold; margin: 0;">
+              ${formatPesos(cuenta.saldoPesos)}
+            </p>
+          </div>
+        `;
+      }
+      
+      if (tieneUSD) {
+        saldosHTML += `
+          <div style="background: #f8f9fa; padding: 16px; border-radius: 8px;">
+            <p style="color: #7f8c8d; font-size: 12px; margin: 0 0 4px 0;">Saldo en Dólares</p>
+            <p style="color: ${cuenta.saldoUSD > 0 ? '#e74c3c' : '#27ae60'}; font-size: 24px; font-weight: bold; margin: 0;">
+              ${formatUSD(cuenta.saldoUSD)}
+            </p>
+          </div>
+        `;
+      }
+      
+      tempDiv.innerHTML = `
+        <div style="font-family: system-ui, -apple-system, sans-serif;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="font-size: 24px; color: #2c3e50; margin: 0 0 8px 0;">Estado de Cuenta</h2>
+            <p style="font-size: 14px; color: #7f8c8d; margin: 0;">${new Date().toLocaleDateString('es-AR')}</p>
+          </div>
+          
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px; margin-bottom: 16px;">
+            <p style="color: rgba(255,255,255,0.8); font-size: 14px; margin: 0 0 8px 0;">Cliente</p>
+            <p style="color: white; font-size: 20px; font-weight: bold; margin: 0;">${cuenta.cliente}</p>
+          </div>
+
+          ${saldosHTML}
+        </div>
+      `;
+      
+      document.body.appendChild(tempDiv);
+      
+      const canvas = await html2canvas(tempDiv, {
+        backgroundColor: '#ffffff',
+        scale: 2
+      });
+      
+      document.body.removeChild(tempDiv);
+      
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          
+          // ✅ Mostrar toast personalizado
+          const toast = document.createElement('div');
+          toast.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 32px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            animation: fadeIn 0.2s ease-in;
+          `;
+          
+          toast.innerHTML = `
+            <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+              ✓
+            </div>
+            <span>Imagen copiada al portapapeles</span>
+          `;
+          
+          document.body.appendChild(toast);
+          
+          setTimeout(() => {
+            toast.style.animation = 'fadeOut 0.2s ease-out';
+            setTimeout(() => {
+              document.body.removeChild(toast);
+            }, 200);
+          }, 1000);
+        }
+      });
+    } catch (error) {
+      console.error('Error al copiar:', error);
+      
+      // ✅ Toast de error
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        color: white;
+        padding: 24px 32px;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+      `;
+      
+      toast.innerHTML = `
+        <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+          ✕
+        </div>
+        <span>Error al copiar la imagen</span>
+      `;
+      
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        document.body.removeChild(toast);
+      }, 1000);
+    }
+  }}
+  className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex items-center gap-1"
+>
+  <span>📋</span>
+  <span className="hidden sm:inline">Copiar</span>
+</button>
+      </>
+    ) : (
+      <span className="text-[#bdc3c7] text-sm">—</span>
+    )}
+  </div>
+</td>
                         </tr>
                       );
                     })

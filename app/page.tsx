@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "../lib/auth";
 import Header from "./Header";
-import Sidebar from "./components/Sidebar";
 import { useRol } from "../lib/useRol";
-import { collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 function Home() {
   const { rol } = useRol();
@@ -18,232 +17,95 @@ function Home() {
   const [trabajosReparados, setTrabajosReparados] = useState(0);
   const [accesoriosVendidos, setAccesoriosVendidos] = useState(0);
   const [telefonosVendidos, setTelefonosVendidos] = useState(0);
-
-  const [datosGrafico, setDatosGrafico] = useState<any[]>([]);
   const [totalCajaHoy, setTotalCajaHoy] = useState(0);
+  const [datosGrafico, setDatosGrafico] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
 
   const [user] = useAuthState(auth);
-  const [sidebarAbierto, setSidebarAbierto] = useState(true);
 
+  // ==========================================
+  // CARGAR ESTADÍSTICAS DEL MES ACTUAL
+  // ==========================================
   useEffect(() => {
-    const cargarTrabajosDelMes = async () => {
+    const cargarEstadisticasDelMes = async () => {
       if (!rol?.negocioID) return;
-
-      const ref = collection(db, `negocios/${rol.negocioID}/trabajos`);
-      const snap = await getDocs(ref);
 
       const hoy = new Date();
       const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
       const anioActual = hoy.getFullYear().toString();
-      const mesAnioActual = `${mesActual}/${anioActual}`;
+      const mesAnioActual = `${mesActual}-${anioActual}`;
+      const diaActual = hoy.toLocaleDateString("es-AR");
 
-      let contador = 0;
+      const estadisticasRef = doc(db, `negocios/${rol.negocioID}/estadisticas/${mesAnioActual}`);
+      const estadisticasSnap = await getDoc(estadisticasRef);
 
-      snap.forEach((doc) => {
-        const data = doc.data();
-        const fecha = data.fecha || "";
-        const estado = data.estado || "";
-        const estadoCuentaCorriente = data.estadoCuentaCorriente || "";
-      
-        if (
-          (estado === "REPARADO" || estado === "ENTREGADO" || estado === "PAGADO" || estadoCuentaCorriente === "PAGADO") &&
-
-          fecha.endsWith(mesAnioActual)
-        ) {
-          contador++;
-        }
-      });
-
-      setTrabajosReparados(contador);
+      if (estadisticasSnap.exists()) {
+        const data = estadisticasSnap.data();
+        setTrabajosReparados(data.trabajosReparados || 0);
+        setAccesoriosVendidos(data.accesoriosVendidos || 0);
+        setTelefonosVendidos(data.telefonosVendidos || 0);
+        setTotalCajaHoy(data.cajaDelDia?.[diaActual] || 0);
+      } else {
+        // Si no existe, inicializar con 0
+        setTrabajosReparados(0);
+        setAccesoriosVendidos(0);
+        setTelefonosVendidos(0);
+        setTotalCajaHoy(0);
+      }
     };
 
-    cargarTrabajosDelMes();
+    cargarEstadisticasDelMes();
   }, [rol]);
 
-// Fragmento corregido para Home.tsx - Solo las funciones que cargan las ventas
+  // ==========================================
+  // CARGAR GRÁFICO DE ÚLTIMOS 6 MESES
+  // ==========================================
+  useEffect(() => {
+    const cargarGraficoHistorico = async () => {
+      if (!rol?.negocioID) return;
 
-useEffect(() => {
-  const cargarVentasDelMes = async () => {
-    if (!rol?.negocioID) return;
+      setCargando(true);
 
-    console.log("🔄 Cargando ventas del mes desde ventasGeneral...");
+      const hoy = new Date();
+      const meses: any[] = [];
 
-    const ref = collection(db, `negocios/${rol.negocioID}/ventasGeneral`);
-    const snap = await getDocs(ref);
-
-    const hoy = new Date();
-    const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
-    const anioActual = hoy.getFullYear().toString();
-    const mesAnioActual = `${mesActual}/${anioActual}`;
-
-    console.log("📅 Buscando ventas del mes:", mesAnioActual);
-
-    let accesoriosYRepuestos = 0;
-    let telefonos = 0;
-
-    snap.forEach((doc) => {
-      const data = doc.data();
-      const fecha = data.fecha || "";
-      
-      console.log("📋 Procesando venta:", {
-        id: doc.id,
-        fecha,
-        productos: data.productos?.length || 0
-      });
-
-      // ✅ VERIFICAR FORMATO DE FECHA - ARREGLADO
-      // Extraer mes y año de fechas como "4/6/2025" o "10/6/2025"
-      const parteFecha = fecha.split('/');
-      if (parteFecha.length !== 3) {
-        console.log("⏭️ Formato de fecha incorrecto:", fecha);
-        return;
-      }
-      
-      const diaVenta = parteFecha[0];
-      const mesVenta = String(parteFecha[1]).padStart(2, "0"); // Convertir 6 → 06
-      const anioVenta = parteFecha[2];
-      const mesAnioVenta = `${mesVenta}/${anioVenta}`;
-      
-      if (mesAnioVenta !== mesAnioActual) {
-        console.log("⏭️ Fecha no coincide:", mesAnioVenta, "vs", mesAnioActual);
-        return;
-      }
-      
-      console.log("✅ Fecha coincide:", mesAnioVenta);
-
-      const productos = data.productos || [];
-      
-      productos.forEach((p: any) => {
-        console.log("🏷️ Producto:", {
-          categoria: p.categoria,
-          cantidad: p.cantidad,
-          producto: p.producto || p.descripcion
+      // Generar últimos 6 meses
+      for (let i = 5; i >= 0; i--) {
+        const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+        const mesKey = `${String(fecha.getMonth() + 1).padStart(2, "0")}-${fecha.getFullYear()}`;
+        meses.push({
+          mes: mesKey,
+          trabajos: 0,
+          accesorios: 0,
+          telefonos: 0,
         });
+      }
 
-        // 📱 TELÉFONOS - Exactamente como está en la tabla
-        if (p.categoria === "Teléfono") {
-          telefonos += 1; // Un teléfono por producto
-          console.log("📱 Teléfono encontrado, total:", telefonos);
-        } 
-        // 🔌🔧 ACCESORIOS Y REPUESTOS - Por cantidad
-        else if (p.categoria === "Accesorio" || p.categoria === "Repuesto") {
-          const cantidad = Number(p.cantidad || 0);
-          accesoriosYRepuestos += cantidad;
-          console.log(`${p.categoria === "Accesorio" ? "🔌" : "🔧"} ${p.categoria} +${cantidad}, total:`, accesoriosYRepuestos);
+      // Cargar estadísticas de cada mes
+      for (const mesData of meses) {
+        const estadisticasRef = doc(db, `negocios/${rol.negocioID}/estadisticas/${mesData.mes}`);
+        const estadisticasSnap = await getDoc(estadisticasRef);
+
+        if (estadisticasSnap.exists()) {
+          const data = estadisticasSnap.data();
+          mesData.trabajos = data.trabajosReparados || 0;
+          mesData.accesorios = data.accesoriosVendidos || 0;
+          mesData.telefonos = data.telefonosVendidos || 0;
         }
-      });
-    });
+      }
 
-    console.log("✅ Resumen del mes:", {
-      accesoriosYRepuestos,
-      telefonos,
-      totalVentas: snap.size
-    });
+      setDatosGrafico(meses);
+      setCargando(false);
+    };
 
-    setAccesoriosVendidos(accesoriosYRepuestos);
-    setTelefonosVendidos(telefonos);
-  };
-
-  cargarVentasDelMes();
-}, [rol]);
-
-useEffect(() => {
-  const cargarResumenMensual = async () => {
-    if (!rol?.negocioID) return;
-
-    console.log("📊 Cargando resumen mensual...");
-
-    // 🔄 SOLO USAR ventasGeneral AHORA
-    const refVentas = collection(db, `negocios/${rol.negocioID}/ventasGeneral`);
-    const refTrabajos = collection(db, `negocios/${rol.negocioID}/trabajos`);
-    
-    const [ventasSnap, trabajosSnap] = await Promise.all([
-      getDocs(refVentas),
-      getDocs(refTrabajos),
-    ]);
-
-    const hoy = new Date();
-    const resumen: Record<string, any> = {};
-    let cajaHoy = 0;
-
-    // Inicializar últimos 6 meses
-    for (let i = 0; i < 6; i++) {
-      const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-      const key = `${String(fecha.getMonth() + 1).padStart(2, "0")}/${fecha.getFullYear()}`;
-      resumen[key] = { mes: key, trabajos: 0, accesorios: 0, telefonos: 0 };
-    }
-
-    // ✅ TRABAJOS - NO CAMBIAR (funciona bien)
-    trabajosSnap.forEach((doc) => {
-      const d = doc.data();
-      const fecha = d.fecha || "";
-      const estado = d.estado || "";
-      
-      Object.keys(resumen).forEach((key) => {
-        if ((estado === "ENTREGADO" || estado === "PAGADO") && fecha.endsWith(key)) {
-          resumen[key].trabajos += 1;
-        }
-      });
-    });
-
-    // 🔄 VENTAS - USAR ventasGeneral CON CATEGORÍAS CORRECTAS
-    ventasSnap.forEach((doc) => {
-      const d = doc.data();
-      const fecha = d.fecha || "";
-      const productos = d.productos || [];
-
-      const hoyStr = new Date().toLocaleDateString("es-AR");
-
-      productos.forEach((p: any) => {
-        const total = Number(p.total || 0);
-
-        Object.keys(resumen).forEach((key) => {
-          // Extraer mes y año de la fecha de la venta
-          const parteFecha = fecha.split('/');
-          if (parteFecha.length === 3) {
-            const mesVenta = String(parteFecha[1]).padStart(2, "0");
-            const anioVenta = parteFecha[2]; 
-            const mesAnioVenta = `${mesVenta}/${anioVenta}`;
-            
-            if (mesAnioVenta === key) {
-              // 📱 TELÉFONOS
-              if (p.categoria === "Teléfono") {
-                resumen[key].telefonos += 1;
-              } 
-              // 🔌🔧 ACCESORIOS Y REPUESTOS
-              else if (p.categoria === "Accesorio" || p.categoria === "Repuesto") {
-                resumen[key].accesorios += Number(p.cantidad || 0);
-              }
-            }
-          }
-        });
-
-        // 💰 CAJA DEL DÍA
-        if (fecha === hoyStr) {
-          cajaHoy += total;
-        }
-      });
-    });
-
-    const datosOrdenados = Object.values(resumen)
-      .filter((item) => item.trabajos > 0 || item.accesorios > 0 || item.telefonos > 0)
-      .reverse();
-    
-    console.log("📈 Datos del gráfico:", datosOrdenados);
-    console.log("💰 Caja hoy:", cajaHoy);
-    
-    setDatosGrafico(datosOrdenados);
-    setTotalCajaHoy(cajaHoy);
-  };
-
-  cargarResumenMensual();
-}, [rol]);
+    cargarGraficoHistorico();
+  }, [rol]);
 
   if (!rol || !rol.tipo) {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
         <div className="bg-white rounded-2xl p-8 shadow-lg border border-[#ecf0f1] text-center">
-          <div className="w-12 h-12 bg-[#ecf0f1] rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-12 h-12 bg-[#ecf0f1] rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
             <span className="text-2xl">⏳</span>
           </div>
           <p className="text-[#2c3e50] font-semibold">Cargando panel...</p>
@@ -260,120 +122,146 @@ useEffect(() => {
     <>
       <Header />
       <div className="flex min-h-screen">
-        <main className="flex-1 pt-20 bg-[#f8f9fa] text-black transition-all duration-300">
-          <div className="w-full px-4 max-w-[1200px] mx-auto space-y-6">
+        <main className="flex-1 pt-20 bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] text-black">
+          <div className="w-full px-4 sm:px-6 max-w-[1400px] mx-auto space-y-6 py-6">
             
-            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                  <span className="text-3xl">🏠</span>
+            {/* HEADER */}
+            <div className="bg-gradient-to-r from-[#2c3e50] via-[#34495e] to-[#3498db] rounded-2xl p-6 sm:p-8 shadow-2xl border border-[#ecf0f1] transform hover:scale-[1.01] transition-all duration-300">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
+                  <span className="text-4xl">🏠</span>
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-white mb-1">
+                <div className="text-center sm:text-left">
+                  <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
                     Panel de Control
                   </h1>
-                  <p className="text-blue-100 text-sm">
-                    Resumen general de actividad y rendimiento
+                  <p className="text-blue-100 text-sm sm:text-base">
+                    Resumen en tiempo real de tu negocio • {new Date().toLocaleDateString("es-AR")}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-2xl p-4 border-2 border-[#27ae60] shadow-lg">
+            {/* TARJETAS DE ESTADÍSTICAS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {/* Trabajos Reparados */}
+              <div className="bg-gradient-to-br from-[#d5f4e6] to-[#c3f0ca] rounded-2xl p-6 border-2 border-[#27ae60] shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-[#27ae60]">Teléfonos Reparados</p>
-                    <p className="text-xl font-bold text-[#27ae60]">{trabajosReparados}</p>
-                    <p className="text-xs text-[#27ae60] mt-1">Este mes</p>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-[#229954] uppercase tracking-wide mb-1">
+                      Trabajos Reparados
+                    </p>
+                    <p className="text-4xl font-black text-[#27ae60] mb-2">{trabajosReparados}</p>
+                    <div className="flex items-center gap-2 text-xs text-[#27ae60]">
+                      <span className="inline-block w-2 h-2 bg-[#27ae60] rounded-full animate-pulse"></span>
+                      Este mes
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-[#27ae60]/20 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">🛠️</span>
+                  <div className="w-16 h-16 bg-[#27ae60]/20 rounded-2xl flex items-center justify-center shadow-lg">
+                    <span className="text-3xl">🛠️</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-[#ebf3fd] to-[#d6eaff] rounded-2xl p-4 border-2 border-[#3498db] shadow-lg">
+              {/* Accesorios Vendidos */}
+              <div className="bg-gradient-to-br from-[#ebf3fd] to-[#d6eaff] rounded-2xl p-6 border-2 border-[#3498db] shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-[#3498db]">Accesorios Vendidos</p>
-                    <p className="text-xl font-bold text-[#3498db]">{accesoriosVendidos}</p>
-                    <p className="text-xs text-[#3498db] mt-1">Este mes</p>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-[#2980b9] uppercase tracking-wide mb-1">
+                      Accesorios/Repuestos
+                    </p>
+                    <p className="text-4xl font-black text-[#3498db] mb-2">{accesoriosVendidos}</p>
+                    <div className="flex items-center gap-2 text-xs text-[#3498db]">
+                      <span className="inline-block w-2 h-2 bg-[#3498db] rounded-full animate-pulse"></span>
+                      Este mes
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-[#3498db]/20 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">🎧</span>
+                  <div className="w-16 h-16 bg-[#3498db]/20 rounded-2xl flex items-center justify-center shadow-lg">
+                    <span className="text-3xl">🔌</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-[#fdebd0] to-[#fadbd8] rounded-2xl p-4 border-2 border-[#e67e22] shadow-lg">
+              {/* Teléfonos Vendidos */}
+              <div className="bg-gradient-to-br from-[#fdebd0] to-[#fadbd8] rounded-2xl p-6 border-2 border-[#e67e22] shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-[#e67e22]">Teléfonos Vendidos</p>
-                    <p className="text-xl font-bold text-[#e67e22]">{telefonosVendidos}</p>
-                    <p className="text-xs text-[#e67e22] mt-1">Este mes</p>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-[#d35400] uppercase tracking-wide mb-1">
+                      Teléfonos Vendidos
+                    </p>
+                    <p className="text-4xl font-black text-[#e67e22] mb-2">{telefonosVendidos}</p>
+                    <div className="flex items-center gap-2 text-xs text-[#e67e22]">
+                      <span className="inline-block w-2 h-2 bg-[#e67e22] rounded-full animate-pulse"></span>
+                      Este mes
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-[#e67e22]/20 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">📱</span>
+                  <div className="w-16 h-16 bg-[#e67e22]/20 rounded-2xl flex items-center justify-center shadow-lg">
+                    <span className="text-3xl">📱</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Caja del Día */}
+              <div className="bg-gradient-to-br from-[#fef3cd] to-[#fce0a6] rounded-2xl p-6 border-2 border-[#f39c12] shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-[#d68910] uppercase tracking-wide mb-1">
+                      Caja del Día
+                    </p>
+                    <p className="text-4xl font-black text-[#f39c12] mb-2">
+                      ${totalCajaHoy.toLocaleString("es-AR", {maximumFractionDigits: 0})}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-[#f39c12]">
+                      <span className="inline-block w-2 h-2 bg-[#f39c12] rounded-full animate-pulse"></span>
+                      Hoy
+                    </div>
+                  </div>
+                  <div className="w-16 h-16 bg-[#f39c12]/20 rounded-2xl flex items-center justify-center shadow-lg">
+                    <span className="text-3xl">💰</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-[#9b59b6] rounded-xl flex items-center justify-center">
-                  <span className="text-white text-lg">📊</span>
+            {/* GRÁFICO */}
+            <div className="bg-white rounded-2xl p-6 shadow-xl border border-[#ecf0f1]">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-gradient-to-br from-[#9b59b6] to-[#8e44ad] rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-white text-xl">📊</span>
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-[#2c3e50]">Actividad Mensual</h2>
-                  <p className="text-[#7f8c8d] text-xs">Últimos 6 meses de actividad</p>
+                  <h2 className="text-xl font-bold text-[#2c3e50]">Actividad Mensual</h2>
+                  <p className="text-[#7f8c8d] text-sm">Evolución de los últimos 6 meses</p>
                 </div>
               </div>
 
-              <div className="w-full overflow-x-auto">
-                <BarChart width={800} height={300} data={datosGrafico} className="mx-auto">
-                  <XAxis dataKey="mes" fontSize={12} />
-                  <YAxis fontSize={12} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="trabajos" fill="#27ae60" name="Reparaciones" />
-                  <Bar dataKey="accesorios" fill="#3498db" name="Accesorios/Repuestos" />
-                  <Bar dataKey="telefonos" fill="#e67e22" name="Teléfonos" />
-                </BarChart>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
-                  <span className="text-white text-lg">💰</span>
+              {cargando ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-[#3498db] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-[#7f8c8d]">Cargando gráfico...</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-[#2c3e50]">Caja del Día</h2>
-                  <p className="text-[#7f8c8d] text-xs">Ingresos acumulados hoy</p>
-                </div>
-              </div>
-              
-              <div className="bg-gradient-to-r from-[#d5f4e6] to-[#c3f0ca] rounded-xl p-6 border-2 border-[#27ae60] text-center">
-                <p className="text-3xl font-bold text-[#27ae60]">
-                  ${totalCajaHoy.toLocaleString("es-AR")}
-                </p>
-                <p className="text-xs text-[#27ae60] mt-2">Total de ventas del día</p>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
-              <div className="flex items-center gap-3 text-[#2c3e50]">
-                <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm">💡</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    <strong>Bienvenido al panel:</strong> Aquí puedes ver un resumen de la actividad de tu negocio. Los datos se actualizan automáticamente.
-                  </p>
-                </div>
-              </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={datosGrafico}>
+                    <XAxis dataKey="mes" fontSize={12} stroke="#7f8c8d" />
+                    <YAxis fontSize={12} stroke="#7f8c8d" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#2c3e50",
+                        border: "none",
+                        borderRadius: "8px",
+                        color: "#fff",
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="trabajos" fill="#27ae60" name="Reparaciones" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="accesorios" fill="#3498db" name="Accesorios/Repuestos" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="telefonos" fill="#e67e22" name="Teléfonos" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </main>
@@ -396,7 +284,7 @@ export default function HomeWrapper() {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
         <div className="bg-white rounded-2xl p-8 shadow-lg border border-[#ecf0f1] text-center">
-          <div className="w-12 h-12 bg-[#ecf0f1] rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-12 h-12 bg-[#ecf0f1] rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
             <span className="text-2xl">⏳</span>
           </div>
           <p className="text-[#2c3e50] font-semibold">Cargando usuario...</p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import html2canvas from 'html2canvas';
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -122,6 +123,50 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     
     return "🎨";
   };
+
+// ✅ AGREGAR ESTA FUNCIÓN COMPLETA AQUÍ
+const mostrarToast = (mensaje: string, tipo: "success" | "error") => {
+  const toast = document.createElement('div');
+  const gradiente = tipo === "success" 
+    ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+    : "linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)";
+  
+  toast.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: ${gradiente};
+    color: white;
+    padding: 24px 32px;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    animation: fadeIn 0.2s ease-in;
+  `;
+  
+  toast.innerHTML = `
+    <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+      ${tipo === "success" ? "✓" : "✕"}
+    </div>
+    <span>${mensaje}</span>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'fadeOut 0.2s ease-out';
+    setTimeout(() => {
+      document.body.removeChild(toast);
+    }, 200);
+  }, 1000);
+};
 
   useEffect(() => {
     const cargar = async () => {
@@ -292,35 +337,31 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     }
   };
 
-  // ✅ FUNCIÓN CORREGIDA PARA AGREGAR A SELECCIONADOS
   const agregarASeleccionados = (repuesto: any) => {
     if (repuesto.cantidad <= 0) {
-      alert("⚠️ Este repuesto no tiene stock disponible.");
+      mostrarToast("⚠️ Este repuesto no tiene stock disponible", "error");
       return;
     }
-
+  
     console.log("🔧 Agregando repuesto a seleccionados:", repuesto.id);
     
-    // Normalizar el precio usando la función mejorada
     const precioNormalizado = normalizarPrecio(repuesto);
     
     if (precioNormalizado <= 0) {
       console.error("❌ Error: Precio no válido para el repuesto:", repuesto.id);
-      alert(`⚠️ Este repuesto no tiene un precio válido definido.\n\nRepuesto: ${repuesto.producto}\nCódigo: ${repuesto.id}\n\nPor favor, verifica la configuración de precios.`);
+      mostrarToast(`⚠️ Precio no válido: ${repuesto.producto}`, "error");
       return;
     }
-
-    // ✅ CREAR OBJETO CON PRECIOS NORMALIZADOS
+  
     const repuestoUsado = {
       ...repuesto,
-      // Asegurar que todas las propiedades de precio estén definidas
       precio: precioNormalizado,
       precioCosto: precioNormalizado,
       precioCostoPesos: precioNormalizado,
-      costoPesos: precioNormalizado, // Para compatibilidad
+      costoPesos: precioNormalizado,
       timestamp: Date.now() + Math.random(),
     };
-
+  
     console.log("✅ Repuesto preparado para agregar:", {
       id: repuestoUsado.id,
       producto: repuestoUsado.producto,
@@ -329,15 +370,15 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
       precioCostoPesos: repuestoUsado.precioCostoPesos,
       costoPesos: repuestoUsado.costoPesos
     });
-
+  
     setSeleccionados((prev) => [...prev, repuestoUsado]);
+   
   };
   
   const eliminarDeSeleccionados = (timestamp: number) => {
     setSeleccionados((prev) => prev.filter((r) => r.timestamp !== timestamp));
   };
 
-  // ✅ FUNCIÓN CORREGIDA PARA ELIMINAR REPUESTOS PREVIOS
   const eliminarPrevio = async (repuesto: any) => {
     console.log("🗑️ Eliminando repuesto previo:", repuesto.id);
     
@@ -346,47 +387,57 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
     const data = docSnap.data();
     const repuestosActuales = data?.repuestosUsados || [];
     const costoActual = Number(data?.costo) || 0;
-
-    // Encontrar el repuesto a eliminar
+  
     const repuestoAEliminar = repuestosActuales.find(
       (r: any) => r.timestamp === repuesto.timestamp
     );
-
+  
     if (!repuestoAEliminar) {
       console.error("❌ No se encontró el repuesto a eliminar");
       return;
     }
-
-    // Calcular el costo a restar
+  
     const costoARestar = normalizarPrecio(repuestoAEliminar);
     console.log("💰 Costo a restar:", costoARestar);
-
+  
     const actualizados = repuestosActuales.filter(
       (r: any) => r.timestamp !== repuesto.timestamp
     );
-
+  
     const nuevoCosto = Math.max(0, costoActual - costoARestar);
     console.log("💰 Nuevo costo total:", nuevoCosto);
-
+  
     await updateDoc(trabajoRef, {
       repuestosUsados: actualizados,
       costo: nuevoCosto,
     });
-
-    // Retornar al stock correcto según la fuente
+  
     const coleccionStock = repuesto.fuente || 'stockRepuestos';
     const repuestoRef = doc(db, `negocios/${rol.negocioID}/${coleccionStock}/${repuesto.id}`);
     await updateDoc(repuestoRef, {
       cantidad: increment(1),
     });
-
-    // 🆕 Si es de stockExtra, actualizar el Google Sheet
+  
     if (repuesto.fuente === 'stockExtra') {
       await actualizarGoogleSheet();
     }
+  
+    // ✅ Actualizar estado local sin recargar
+setUsadosPrevios((prev) => prev.filter((r) => r.timestamp !== repuesto.timestamp));
 
-    window.location.reload();
-  };  
+// ✅ Mostrar toast y cerrar modal
+mostrarToast("✅ Repuesto eliminado correctamente", "success");
+
+setTimeout(() => {
+  // ✅ Llamar onGuardar para actualizar el componente padre
+  if (onGuardar) {
+    onGuardar();
+  }
+  
+  // ✅ Cerrar modal
+  onClose();
+}, 1000);
+  };
 
   // ✅ FUNCIÓN CORREGIDA PARA GUARDAR Y ACTUALIZAR ESTADO LOCAL
   const guardarTodos = async () => {
@@ -459,16 +510,19 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
       console.log("🟢 Actualización de Google Sheet completada");
     }
 
-    // ✅ LLAMAR A onGuardar PARA ACTUALIZAR EL COMPONENTE PADRE
-    if (onGuardar) {
-      console.log("🔄 Notificando al componente padre para actualizar...");
-      onGuardar();
-    }
+// ✅ LLAMAR A onGuardar PRIMERO PARA ACTUALIZAR EL COMPONENTE PADRE
+if (onGuardar) {
+  console.log("🔄 Notificando al componente padre para actualizar...");
+  await onGuardar();
+}
 
-    alert(`✅ Se agregaron ${seleccionados.length} repuestos correctamente.\n💰 Costo total: ${costoTotal.toFixed(2)}`);
-    
-    console.log("🟢 Cerrando modal...");
-    onClose();
+// ✅ Mostrar toast DESPUÉS de actualizar
+mostrarToast(`✅ ${seleccionados.length} repuestos guardados correctamente`, "success");
+
+setTimeout(() => {
+  console.log("🟢 Cerrando modal...");
+  onClose();
+}, 1000);
   };
 
   // Filtro mejorado que incluye color
@@ -574,30 +628,6 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
                   </p>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* ✅ PANEL DE DEBUG DE PRECIOS CON COTIZACIÓN CENTRALIZADA */}
-          {filtro.trim() !== "" && resultados.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-              <h4 className="text-sm font-semibold text-blue-800 mb-2">🔍 Debug de Precios (primeros 3 resultados)</h4>
-              {resultados.slice(0, 3).map((r, i) => {
-                const precioNorm = normalizarPrecio(r);
-                const tieneUSD = r.precioUSD && r.precioUSD > 0;
-                return (
-                  <div key={i} className="text-xs bg-white p-2 rounded mb-2">
-                    <strong>{r.producto}</strong> - Precio normalizado: ${precioNorm.toFixed(2)}
-                    {tieneUSD && (
-                      <span className="text-green-600 font-medium"> (USD ${r.precioUSD} × {cotizacion})</span>
-                    )}
-                    <br />
-                    <span className="text-gray-600">
-                      Raw: precioCosto={r.precioCosto}, precioCostoPesos={r.precioCostoPesos}, 
-                      precioARS={r.precioARS}, precioUSD={r.precioUSD}
-                    </span>
-                  </div>
-                );
-              })}
             </div>
           )}
 

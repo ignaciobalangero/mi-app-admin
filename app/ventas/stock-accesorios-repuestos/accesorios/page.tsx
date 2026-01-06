@@ -252,22 +252,28 @@ export default function StockProductosPage() {
       throw error;
     }
   };
+  const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : 1200;
 
   // 🔄 CÁLCULOS DE RESUMEN CON PROTECCIÓN
-  const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : 1200;
-  
   const totalUSD = productosResumen.reduce((acc, p) => {
-    if (cotizacionSegura <= 0) return acc;
     const precioCosto = typeof p.precioCosto === 'number' ? p.precioCosto : 0;
     const cantidad = typeof p.cantidad === 'number' ? p.cantidad : 0;
     
-    const costoUSD = p.moneda === "USD"
-      ? precioCosto * cantidad
-      : (precioCosto * cantidad) / cotizacionSegura;
-    return acc + costoUSD;
+    if (p.moneda === "USD") {
+      return acc + (precioCosto * cantidad);
+    }
+    return acc;
   }, 0);
-
-  const totalPesos = cotizacionSegura > 0 ? totalUSD * cotizacionSegura : 0;
+  
+  const totalPesos = productosResumen.reduce((acc, p) => {
+    const precioCosto = typeof p.precioCosto === 'number' ? p.precioCosto : 0;
+    const cantidad = typeof p.cantidad === 'number' ? p.cantidad : 0;
+    
+    if (p.moneda === "ARS") {
+      return acc + (precioCosto * cantidad);
+    }
+    return acc;
+  }, 0);
 
   const productosAPedir = productosResumen.filter((p) => (p.cantidad || 0) < (p.stockIdeal || 5));
   

@@ -23,54 +23,6 @@ export default function ResumenSimplificado() {
   const [mesSeleccionado, setMesSeleccionado] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // ✅ FUNCIÓN CORREGIDA PARA DD/MM/AAAA CON MES SIN CEROS
-  const obtenerMes = (fecha: any): string => {
-    try {
-      if (!fecha) return "";
-      
-      let fechaObj: Date;
-      
-      if (typeof fecha === "object" && "seconds" in fecha) {
-        fechaObj = new Date(fecha.seconds * 1000);
-      } else if (typeof fecha === "string") {
-        const partes = fecha.split("/");
-        if (partes.length === 3) {
-          // ✅ FORMATO DD/MM/AAAA (tu formato en Firebase)
-          const [dia, mes, anio] = partes;
-          
-          const diaNum = parseInt(dia);
-          const mesNum = parseInt(mes); // ✅ Puede ser "8" o "08"
-          const anioNum = parseInt(anio);
-          
-          // ✅ Validar rangos
-          if (mesNum >= 1 && mesNum <= 12 && anioNum >= 2020 && anioNum <= 2030 && diaNum >= 1 && diaNum <= 31) {
-            const mesFormateado = `${mesNum.toString().padStart(2, '0')}/${anioNum}`;
-            return mesFormateado;
-          } else {
-            console.log(`❌ Fecha fuera de rango: día=${diaNum}, mes=${mesNum}, año=${anioNum}`);
-            return "";
-          }
-        } else {
-          fechaObj = new Date(fecha);
-        }
-      } else {
-        fechaObj = new Date(fecha);
-      }
-      
-      // ✅ Verificar que la fecha sea válida
-      if (isNaN(fechaObj.getTime())) {
-        return "";
-      }
-      
-      const mes = fechaObj.getMonth() + 1;
-      const anio = fechaObj.getFullYear();
-      
-      return `${mes.toString().padStart(2, '0')}/${anio}`;
-    } catch (error) {
-      return "";
-    }
-  };
-
   useEffect(() => {
     const cargarDatos = async () => {
       if (!rol?.negocioID || rol?.tipo !== "admin") return;
@@ -78,177 +30,37 @@ export default function ResumenSimplificado() {
       setLoading(true);
       
       try {
-        // CARGAR TRABAJOS
-        const trabajosSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/trabajos`));
-        
-        // CARGAR VENTAS
-        const ventasSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/ventasGeneral`));
-        
-        const resumen: Record<string, DatosMes> = {};
-        
-        // ✅ DEBUG ESPECÍFICO PARA AGOSTO - SOLO MOSTRAR TRABAJOS DE AGOSTO
-        console.log("\n🎯 === DEBUG ESPECÍFICO PARA AGOSTO ===");
-        let trabajosAgostoEncontrados = 0;
+        // ✅ LEER SOLO LA COLECCIÓN DE ESTADÍSTICAS
+        const estadisticasSnap = await getDocs(
+          collection(db, `negocios/${rol.negocioID}/estadisticas`)
+        );
 
-        trabajosSnap.docs.forEach(doc => {
-          const trabajo = doc.data();
-          const fechaParaUsar = trabajo.fechaModificacion;
-          
-          // ✅ SOLO PROCESAR SI LA FECHA CONTIENE AGOSTO
-          if (fechaParaUsar && (fechaParaUsar.toString().includes("/8/") || fechaParaUsar.toString().includes("/08/"))) {
-            trabajosAgostoEncontrados++;
-            console.log(`\n🗓️ TRABAJO DE AGOSTO #${trabajosAgostoEncontrados}:`);
-            console.log(`   ID: ${doc.id}`);
-            console.log(`   Cliente: ${trabajo.cliente}`);
-            console.log(`   Estado: ${trabajo.estado}`);
-            console.log(`   FechaModificacion: ${trabajo.fechaModificacion}`);
-            console.log(`   Precio: ${trabajo.precio}`);
-            console.log(`   Costo: ${trabajo.costo}`);
-            
-            const mes = obtenerMes(fechaParaUsar);
-            console.log(`   → Mes calculado: "${mes}"`);
-            
-            if (trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") {
-              const precio = Number(trabajo.precio) || 0;
-              const costo = Number(trabajo.costo) || 0;
-              const ganancia = precio - costo;
-              console.log(`   ✅ VÁLIDO: ${trabajo.estado} - Ganancia: $${ganancia}`);
-            } else {
-              console.log(`   ❌ INVÁLIDO: Estado "${trabajo.estado}" no es ENTREGADO ni PAGADO`);
-            }
-          }
-        });
+        console.log(`📊 Estadísticas cargadas: ${estadisticasSnap.size} meses`);
 
-        console.log(`\n📊 TOTAL TRABAJOS DE AGOSTO ENCONTRADOS: ${trabajosAgostoEncontrados}`);
-        console.log("=== FIN DEBUG AGOSTO ===\n");
+        const resultado: DatosMes[] = [];
 
-        // ✅ PROCESAMIENTO NORMAL
-        trabajosSnap.docs.forEach(doc => {
-          const trabajo = doc.data();
-          const fechaParaUsar = trabajo.fechaModificacion;
+        estadisticasSnap.forEach((doc) => {
+          const data = doc.data();
           
-          if (!fechaParaUsar) return;
-          
-          const mes = obtenerMes(fechaParaUsar);
-          if (!mes) return;
-          
-          // Solo trabajos ENTREGADOS o PAGADOS
-          if (trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") {
-            if (!resumen[mes]) {
-              resumen[mes] = {
-                mes,
-                trabajos: 0,
-                ventasARS: 0,
-                ventasUSD: 0,
-                totalTrabajos: 0,
-                totalVentas: 0
-              };
-            }
-            
-            const precio = Number(trabajo.precio) || 0;
-            const costo = Number(trabajo.costo) || 0;
-            const ganancia = precio - costo;
-            
-            resumen[mes].trabajos += ganancia;
-            resumen[mes].totalTrabajos += 1;
-          }
-        });
-
-        // ✅ RESUMEN ESPECÍFICO DE AGOSTO
-        console.log("\n🎯 === RESUMEN FINAL DE AGOSTO ===");
-        if (resumen["08/2025"]) {
-          console.log(`✅ AGOSTO ENCONTRADO EN RESUMEN:`);
-          console.log(`   - Total trabajos: ${resumen["08/2025"].totalTrabajos}`);
-          console.log(`   - Ganancia total: $${resumen["08/2025"].trabajos}`);
-        } else {
-          console.log(`❌ AGOSTO NO ENCONTRADO EN RESUMEN`);
-        }
-        console.log("=== FIN RESUMEN AGOSTO ===\n");
-        
-        // ✅ PROCESAR VENTAS - CORREGIDO PARA LEER MONEDAS CORRECTAMENTE
-        ventasSnap.docs.forEach(doc => {
-          const venta = doc.data();
-          const mes = obtenerMes(venta.fecha);
-          
-          if (!mes || !venta.productos || !Array.isArray(venta.productos)) return;
-          
-          if (!resumen[mes]) {
-            resumen[mes] = {
-              mes,
-              trabajos: 0,
-              ventasARS: 0,
-              ventasUSD: 0,
-              totalTrabajos: 0,
-              totalVentas: 0
-            };
-          }
-          
-          // ✅ SISTEMA DUAL NUEVO - YA ESTÁ CORRECTO
-          if (venta.moneda === "DUAL" && venta.totalARS !== undefined && venta.totalUSD !== undefined) {
-            venta.productos.forEach((producto: any) => {
-              const ganancia = Number(producto.ganancia) || 0;
-              
-              if (ganancia > 0) {
-                if (producto.moneda === "USD") {
-                  resumen[mes].ventasUSD += ganancia;
-                } else {
-                  resumen[mes].ventasARS += ganancia;
-                }
-              }
-            });
-          }
-          // ✅ SISTEMA ANTERIOR - CORREGIDO PARA RESPETAR MONEDA DE TELÉFONOS
-          else {
-            venta.productos.forEach((producto: any) => {
-              const ganancia = Number(producto.ganancia) || 0;
-              
-              if (ganancia > 0) {
-                const hayTelefono = venta.productos.some((p: any) => p.categoria === "Teléfono");
-                
-                if (hayTelefono) {
-                  // CON TELÉFONO: Respetar moneda original de cada producto
-                  if (producto.categoria === "Teléfono") {
-                    // ✅ VERIFICAR LA MONEDA DEL TELÉFONO, NO ASUMIR USD
-                    if (producto.moneda?.toUpperCase() === "USD") {
-                      resumen[mes].ventasUSD += ganancia;
-                    } else {
-                      resumen[mes].ventasARS += ganancia;
-                    }
-                  } else {
-                    // Accesorio/Repuesto: Según su moneda original
-                    if (producto.moneda?.toUpperCase() === "USD") {
-                      resumen[mes].ventasUSD += ganancia;
-                    } else {
-                      resumen[mes].ventasARS += ganancia;
-                    }
-                  }
-                } else {
-                  // SIN TELÉFONO: TODO en pesos
-                  resumen[mes].ventasARS += ganancia;
-                }
-              }
-            });
-          }
-          
-          resumen[mes].totalVentas += venta.productos.length;
-        });
-        
-        // CONVERTIR A ARRAY Y ORDENAR
-        const resultado = Object.values(resumen)
-          .sort((a, b) => a.mes.localeCompare(b.mes))
-          .filter(item => {
-            const tieneGanancias = item.trabajos > 0 || item.ventasARS > 0 || item.ventasUSD > 0;
-            const tieneTrabajos = item.totalTrabajos > 0;
-            return tieneGanancias || tieneTrabajos;
+          resultado.push({
+            mes: data.mes || doc.id,
+            trabajos: data.gananciaTrabajos || 0,
+            ventasARS: data.gananciaVentasARS || 0,
+            ventasUSD: data.gananciaVentasUSD || 0,
+            totalTrabajos: data.trabajosReparados || 0,
+            totalVentas: (data.accesoriosVendidos || 0) + (data.telefonosVendidos || 0),
           });
-        
-        console.log("\n✅ MESES INCLUIDOS EN EL SELECTOR:");
-        resultado.forEach(item => {
-          console.log(`${item.mes}: ${item.totalTrabajos} trabajos, Ganancia: $${item.trabajos}`);
         });
-        
+
+        // Ordenar por mes (formato MM-YYYY)
+        resultado.sort((a, b) => a.mes.localeCompare(b.mes));
+
+        console.log("✅ Meses procesados:", resultado);
+
         setDatos(resultado);
+        
         if (resultado.length > 0) {
+          // Seleccionar el mes más reciente por defecto
           setMesSeleccionado(resultado[resultado.length - 1].mes);
         }
         
@@ -322,7 +134,7 @@ export default function ResumenSimplificado() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold">Resumen de Ganancias</h1>
-                <p className="text-blue-100">Análisis simplificado de ingresos mensuales</p>
+                <p className="text-blue-100">Análisis simplificado de ingresos mensuales • Optimizado</p>
               </div>
             </div>
           </div>
@@ -340,7 +152,7 @@ export default function ResumenSimplificado() {
                 <span className="text-2xl">📊</span>
               </div>
               <h3 className="text-lg font-semibold text-gray-800 mb-2">Sin Datos</h3>
-              <p className="text-gray-600">No hay información de ganancias disponible</p>
+              <p className="text-gray-600">No hay estadísticas disponibles. Ejecutá la migración primero.</p>
             </div>
           ) : (
             <>
@@ -513,7 +325,7 @@ export default function ResumenSimplificado() {
                           axisLine={{ stroke: '#9CA3AF' }}
                         />
                         <Tooltip 
-                          formatter={(value) => [`${Number(value).toLocaleString("es-AR")}`, ""]}
+                          formatter={(value) => [`$${Number(value).toLocaleString("es-AR")}`, ""]}
                           labelStyle={{ color: '#374151', fontWeight: 'bold' }}
                           contentStyle={{ 
                             backgroundColor: 'white', 
@@ -527,6 +339,21 @@ export default function ResumenSimplificado() {
                         <Bar dataKey="Ventas USD" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
+                  </div>
+
+                  {/* Banner optimización */}
+                  <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-xl p-5 shadow-lg">
+                    <div className="flex items-start gap-4 text-white">
+                      <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-xl">⚡</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold mb-1">Página Optimizada</p>
+                        <p className="text-sm text-green-100">
+                          Esta página consume solo 6-7 lecturas en lugar de 350+. Los datos se actualizan automáticamente con Cloud Functions.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}

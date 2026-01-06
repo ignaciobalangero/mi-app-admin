@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { doc, updateDoc, deleteDoc, query, collection, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ModalRepuestos from "./ModalRepuestos";
@@ -31,6 +32,7 @@ interface Props {
   tipoFecha: "ingreso" | "modificacion";
   paginaActual: number;
   setPaginaActual: (pagina: number) => void;
+  setTrabajos: React.Dispatch<React.SetStateAction<Trabajo[]>>;
 }
 
 export default function TablaTrabajos({
@@ -40,6 +42,7 @@ export default function TablaTrabajos({
   tipoFecha,
   paginaActual,
   setPaginaActual,
+  setTrabajos
 }: Props) {
   // ========================================
   // 💰 FUNCIONES HELPER PARA FORMATEO DE NÚMEROS
@@ -83,22 +86,80 @@ export default function TablaTrabajos({
   // ========================================
 
   const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
-    const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
-    const hoy = new Date();
-    const fechaModificacion = hoy.toLocaleDateString("es-AR");
+    // ✅ 1. Actualizar estado local INMEDIATAMENTE
+    setTrabajos(prev => prev.map(t => 
+      t.firebaseId === firebaseId 
+        ? { ...t, [campo]: valor }
+        : t
+    ));
     
+    // ✅ 2. Guardar en Firebase en background
+    const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
     await updateDoc(ref, { 
       [campo]: valor,
-      fechaModificacion: fechaModificacion
+      ultimaActualizacion: new Date().toISOString()
     });
   };
 
-  const eliminarTrabajo = async (firebaseId: string) => {
-    const confirmar = confirm("¿Estás seguro de que querés eliminar este trabajo?");
-    if (confirmar) {
-      await deleteDoc(doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`));
-    }
-  };
+  // Estados para modal de confirmación
+const [mostrarConfirmarEliminar, setMostrarConfirmarEliminar] = useState(false);
+const [trabajoAEliminar, setTrabajoAEliminar] = useState<string | null>(null);
+
+// Función para abrir el modal de confirmación
+const confirmarEliminar = (firebaseId: string) => {
+  setTrabajoAEliminar(firebaseId);
+  setMostrarConfirmarEliminar(true);
+};
+
+// Función para eliminar el trabajo
+const eliminarTrabajo = async () => {
+  if (!trabajoAEliminar) return;
+  
+  try {
+    await deleteDoc(doc(db, `negocios/${negocioID}/trabajos/${trabajoAEliminar}`));
+    
+    // ✅ Actualizar estado local inmediatamente
+    setTrabajos(prev => prev.filter(t => t.firebaseId !== trabajoAEliminar));
+    
+    // Cerrar modal
+    setMostrarConfirmarEliminar(false);
+    setTrabajoAEliminar(null);
+    
+    // Toast de confirmación
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+      color: white;
+      padding: 24px 32px;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+    `;
+    toast.innerHTML = `
+      <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+        ✓
+      </div>
+      <span>Trabajo eliminado correctamente</span>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      document.body.removeChild(toast);
+    }, 1000);
+    
+  } catch (error) {
+    console.error("Error eliminando trabajo:", error);
+  }
+};
 
   const manejarClickEditar = (trabajo: Trabajo) => {
     setTrabajoEditando(trabajo);
@@ -330,6 +391,7 @@ export default function TablaTrabajos({
                     {/* ✅ PRECIO CON FORMATEO - CORREGIDO */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
                       <input
+                        key={`precio-${t.firebaseId}-${t.precio}`}
                         type="text"
                         defaultValue={
                           typeof t.precio === "number" 
@@ -355,6 +417,7 @@ export default function TablaTrabajos({
                     {/* ✅ COSTO CON FORMATEO - CORREGIDO */}
                     <td className="hidden sm:table-cell p-1 sm:p-2 md:p-3 border border-black">
                       <input
+                        key={`costo-${t.firebaseId}-${t.costo}`}
                         type="text"
                         defaultValue={
                           typeof t.costo === "number" && !isNaN(t.costo)
@@ -461,12 +524,12 @@ export default function TablaTrabajos({
                           </button>
                           
                           <button
-                            onClick={() => eliminarTrabajo(t.firebaseId)}
-                            className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
-                            title="Eliminar"
-                          >
-                            🗑️
-                          </button>
+                              onClick={() => confirmarEliminar(t.firebaseId)}
+                              className="bg-[#e74c3c] hover:bg-[#c0392b] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
+                              title="Eliminar"
+                             >
+                              🗑️
+                              </button>
                           
                           {t.estado !== "PAGADO" && t.precio && t.precio > 0 && (
                             <button
@@ -532,17 +595,51 @@ export default function TablaTrabajos({
         negocioID={negocioID}
       />
 
-      {mostrarModalRepuestos && trabajoSeleccionado && (
-        <ModalRepuestos
-          trabajoID={trabajoSeleccionado}
-          onClose={async () => {
-            setMostrarModalRepuestos(false);
-            setTrabajoSeleccionado(null);
-            await onRecargar();
+{mostrarModalRepuestos && trabajoSeleccionado && (
+  <ModalRepuestos
+    trabajoID={trabajoSeleccionado}
+    onClose={async () => {
+      setMostrarModalRepuestos(false);
+      setTrabajoSeleccionado(null);
+      await onRecargar();
+    }}
+    onGuardar={async () => {
+      await onRecargar();
+    }}
+  />
+)}
+{/* Modal de confirmación de eliminación */}
+{mostrarConfirmarEliminar && (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <span className="text-4xl">⚠️</span>
+        </div>
+        <h3 className="text-xl font-bold text-[#2c3e50] mb-2">¿Eliminar trabajo?</h3>
+        <p className="text-[#7f8c8d]">Esta acción no se puede deshacer</p>
+      </div>
+      
+      <div className="flex gap-3">
+        <button
+          onClick={() => {
+            setMostrarConfirmarEliminar(false);
+            setTrabajoAEliminar(null);
           }}
-        />
-      )}
-
+          className="flex-1 px-6 py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={eliminarTrabajo}
+          className="flex-1 px-6 py-3 bg-[#e74c3c] hover:bg-[#c0392b] text-white rounded-lg font-medium transition-all"
+        >
+          Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       {mostrarModalPago && trabajoParaPagar && (
         <ModalPago
           mostrar={mostrarModalPago}
@@ -596,5 +693,3 @@ export default function TablaTrabajos({
   );
 }
 
-// Agregar import de useState
-import { useState } from "react";
