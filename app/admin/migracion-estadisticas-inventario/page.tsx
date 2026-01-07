@@ -200,21 +200,22 @@ export default function MigracionEstadisticasCompleta() {
           };
         }
 
-        productos.forEach((p: any) => {
+         productos.forEach((p: any) => {
           const ganancia = Number(p.ganancia || 0);
           const cantidad = Number(p.cantidad || 1);
-          const categoria = p.categoria;
+          const categoria = (p.categoria || p.tipo || "").toLowerCase();
           const moneda = p.moneda?.toUpperCase();
+          console.log(`🔍 Venta: ${fecha} | Categoria: "${categoria}" | Tipo: "${p.tipo}" | Ganancia: ${ganancia} ${moneda}`);
 
-          if (categoria === "Teléfono") {
+          if (categoria === "teléfono" || categoria === "telefono" || p.tipo === "telefono") {
             estadisticasPorMes[mesAnio].telefonosVendidos += cantidad;
-
+          
             if (moneda === "USD") {
               estadisticasPorMes[mesAnio].gananciaVentasUSD += ganancia;
             } else {
               estadisticasPorMes[mesAnio].gananciaVentasARS += ganancia;
             }
-          } else if (categoria === "Accesorio" || categoria === "Repuesto") {
+          } else if (p.tipo === "accesorio" || categoria === "repuesto") {
             estadisticasPorMes[mesAnio].accesoriosVendidos += cantidad;
 
             if (moneda === "USD") {
