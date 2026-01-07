@@ -396,7 +396,7 @@ export const actualizarEstadisticas = onDocumentWritten(
               } else {
                 stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
               }
-            } else if (p.tipo === "accesorio" || categoria === "repuesto") {
+            } else if (p.tipo === "accesorio" || p.tipo === "general" || categoria === "repuesto") {
               stats.accesoriosVendidos = (stats.accesoriosVendidos || 0) + Number(p.cantidad || 0);
 
               if (p.moneda?.toUpperCase() === "USD") {
@@ -427,7 +427,7 @@ export const actualizarEstadisticas = onDocumentWritten(
               } else {
                 stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
               }
-            } else if (p.tipo === "accesorio" || categoria === "repuesto") {
+            } else if (p.tipo === "accesorio" || p.tipo === "general" || categoria === "repuesto") {
               stats.accesoriosVendidos = (stats.accesoriosVendidos || 0) + Number(p.cantidad || 0);
 
               if (p.moneda?.toUpperCase() === "USD") {

@@ -215,7 +215,7 @@ export default function MigracionEstadisticasCompleta() {
             } else {
               estadisticasPorMes[mesAnio].gananciaVentasARS += ganancia;
             }
-          } else if (p.tipo === "accesorio" || categoria === "repuesto") {
+          } else if (p.tipo === "accesorio" || p.tipo === "general" || categoria === "repuesto") {
             estadisticasPorMes[mesAnio].accesoriosVendidos += cantidad;
 
             if (moneda === "USD") {
