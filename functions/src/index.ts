@@ -420,7 +420,7 @@ export const actualizarEstadisticas = onDocumentWritten(
             const categoria = (p.categoria || p.tipo || "").toLowerCase();
 
             if (categoria === "teléfono" || categoria === "telefono" || p.tipo === "telefono") {
-              stats.telefonosVendidos = (stats.telefonosVendidos || 0) + 1;
+              stats.telefonosVendidos = Math.max(0, (stats.telefonosVendidos || 0) - 1);
 
               if (p.moneda?.toUpperCase() === "USD") {
                 stats.gananciaVentasUSD = (stats.gananciaVentasUSD || 0) + ganancia;
@@ -428,7 +428,8 @@ export const actualizarEstadisticas = onDocumentWritten(
                 stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
               }
             } else if (p.tipo === "accesorio" || p.tipo === "general" || categoria === "repuesto") {
-              stats.accesoriosVendidos = (stats.accesoriosVendidos || 0) + Number(p.cantidad || 0);
+              stats.accesoriosVendidos = Math.max(0, (stats.accesoriosVendidos || 0) - Number(p.cantidad || 0)); // ✅ RESTA
+
 
               if (p.moneda?.toUpperCase() === "USD") {
                 stats.gananciaVentasUSD = (stats.gananciaVentasUSD || 0) + ganancia;
@@ -694,7 +695,7 @@ function calcularTotalVenta(productos: any[]): {totalARS: number; totalUSD: numb
   let totalARS = 0;
   let totalUSD = 0;
 
-  const hayTelefono = productos.some((p) => p.categoria === "Teléfono");
+  const hayTelefono = productos.some((p) => p.tipo === "telefono");
 
   productos.forEach((p) => {
     const subtotal = p.precioUnitario * p.cantidad;
