@@ -52,8 +52,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Stock Grl", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
     { label: "Clientes", icono: "👥", href: "/clientes" },
     { label: "Gestion de Pagos", icono: "💳", href: "/pagos" },
-    // Aquí va el menú desplegable de Administración para empleados
-    { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
+    
   ];
 
   const botones = rol?.tipo === "admin" ? botonesAdmin : botonesEmpleado;
