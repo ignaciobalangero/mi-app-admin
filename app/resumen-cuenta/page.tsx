@@ -15,6 +15,9 @@ interface DatosMes {
   ventasUSD: number;
   totalTrabajos: number;
   totalVentas: number;
+  generalesVendidos?: number;
+  gananciaGeneralesARS?: number;
+  gananciaGeneralesUSD?: number;
 }
 
 export default function ResumenSimplificado() {
@@ -49,6 +52,10 @@ export default function ResumenSimplificado() {
             ventasUSD: data.gananciaVentasUSD || 0,
             totalTrabajos: data.trabajosReparados || 0,
             totalVentas: (data.accesoriosVendidos || 0) + (data.telefonosVendidos || 0),
+            generalesVendidos: data.generalesVendidos || 0,
+            gananciaGeneralesARS: data.gananciaGeneralesARS || 0,
+            gananciaGeneralesUSD: data.gananciaGeneralesUSD || 0,
+
           });
         });
 
@@ -104,7 +111,11 @@ export default function ResumenSimplificado() {
   };
 
   const mesActual = datos.find(item => item.mes === mesSeleccionado);
-  const totalARS = mesActual ? mesActual.trabajos + mesActual.ventasARS : 0;
+  const totalARS = mesActual
+  ? mesActual.trabajos
+    + mesActual.ventasARS
+    + (mesActual.gananciaGeneralesARS || 0)
+  : 0;
   const totalUSD = mesActual ? mesActual.ventasUSD : 0;
 
   const datosGrafico = mesActual ? [{
@@ -279,6 +290,37 @@ export default function ResumenSimplificado() {
                         </div>
                       </div>
                     </div>
+
+                    {mesActual.generalesVendidos > 0 && (
+  <div className="bg-white rounded-2xl p-6 border-4 border-orange-300 shadow-xl mt-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-base font-bold text-orange-900 mb-2 uppercase tracking-wide">
+          📦 Ventas Repuestos
+        </p>
+
+        <p className="text-3xl font-black text-orange-800">
+          ${mesActual.gananciaGeneralesARS?.toLocaleString("es-AR")}
+        </p>
+
+        {mesActual.gananciaGeneralesUSD > 0 && (
+          <p className="text-lg font-bold text-orange-700 mt-1">
+            USD {mesActual.gananciaGeneralesUSD.toLocaleString("es-AR")}
+          </p>
+        )}
+
+        <p className="text-sm text-orange-700 font-semibold mt-1">
+          {mesActual.generalesVendidos} ventas desde stock extra
+        </p>
+      </div>
+
+      <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
+        <span className="text-2xl">📦</span>
+      </div>
+    </div>
+  </div>
+)}
+
                   </div>
 
                   {/* Totales */}

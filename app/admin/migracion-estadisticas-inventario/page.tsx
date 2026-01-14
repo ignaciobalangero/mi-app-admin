@@ -158,13 +158,25 @@ export default function MigracionEstadisticasCompleta() {
         if (!estadisticasPorMes[mesAnio]) {
           estadisticasPorMes[mesAnio] = {
             mes: mesAnio,
+          
+            // trabajos
             trabajosReparados: 0,
-            accesoriosVendidos: 0,
-            telefonosVendidos: 0,
             gananciaTrabajos: 0,
+          
+            // ventas
+            telefonosVendidos: 0,
+            accesoriosVendidos: 0,
+            generalesVendidos: 0,
+          
+            // ganancias ventas normales
             gananciaVentasARS: 0,
             gananciaVentasUSD: 0,
+          
+            // ganancias ventas generales (stockExtra)
+            gananciaGeneralesARS: 0,
+            gananciaGeneralesUSD: 0,
           };
+          
         }
 
         const precio = Number(data.precio || 0);
@@ -191,40 +203,70 @@ export default function MigracionEstadisticasCompleta() {
         if (!estadisticasPorMes[mesAnio]) {
           estadisticasPorMes[mesAnio] = {
             mes: mesAnio,
+          
+            // trabajos
             trabajosReparados: 0,
-            accesoriosVendidos: 0,
-            telefonosVendidos: 0,
             gananciaTrabajos: 0,
+          
+            // ventas
+            telefonosVendidos: 0,
+            accesoriosVendidos: 0,
+            generalesVendidos: 0,
+          
+            // ganancias ventas normales
             gananciaVentasARS: 0,
             gananciaVentasUSD: 0,
+          
+            // ganancias ventas generales (stockExtra)
+            gananciaGeneralesARS: 0,
+            gananciaGeneralesUSD: 0,
           };
+          
         }
 
-         productos.forEach((p: any) => {
-          const ganancia = Number(p.ganancia || 0);
+        productos.forEach((p: any) => {
           const cantidad = Number(p.cantidad || 1);
-          const categoria = (p.categoria || p.tipo || "").toLowerCase();
+          const ganancia = Number(p.ganancia || 0);
           const moneda = p.moneda?.toUpperCase();
-          console.log(`🔍 Venta: ${fecha} | Categoria: "${categoria}" | Tipo: "${p.tipo}" | Ganancia: ${ganancia} ${moneda}`);
-
-          if (categoria === "teléfono" || categoria === "telefono" || p.tipo === "telefono") {
+        
+          const tipoProducto = (p.tipo || "").toLowerCase();
+        
+          // 📱 TELÉFONO
+          if (tipoProducto === "telefono") {
             estadisticasPorMes[mesAnio].telefonosVendidos += cantidad;
-          
+        
             if (moneda === "USD") {
               estadisticasPorMes[mesAnio].gananciaVentasUSD += ganancia;
             } else {
               estadisticasPorMes[mesAnio].gananciaVentasARS += ganancia;
             }
-          } else if (p.tipo === "accesorio" || p.tipo === "general" || categoria === "repuesto") {
-            estadisticasPorMes[mesAnio].accesoriosVendidos += cantidad;
-
-            if (moneda === "USD") {
-              estadisticasPorMes[mesAnio].gananciaVentasUSD += ganancia;
-            } else {
-              estadisticasPorMes[mesAnio].gananciaVentasARS += ganancia;
-            }
+            return;
           }
+        
+          // 🎧 ACCESORIOS y REPUESTOS
+if (tipoProducto === "accesorio" || tipoProducto === "repuesto") {
+  estadisticasPorMes[mesAnio].accesoriosVendidos += cantidad;
+
+  if (moneda === "USD") {
+    estadisticasPorMes[mesAnio].gananciaVentasUSD += ganancia;
+  } else {
+    estadisticasPorMes[mesAnio].gananciaVentasARS += ganancia;
+  }
+}
+
+// 📦 GENERAL (stockExtra / ventas sueltas)
+if (tipoProducto === "general") {
+  estadisticasPorMes[mesAnio].generalesVendidos += cantidad;
+
+  if (moneda === "USD") {
+    estadisticasPorMes[mesAnio].gananciaGeneralesUSD += ganancia;
+  } else {
+    estadisticasPorMes[mesAnio].gananciaGeneralesARS += ganancia;
+  }
+}
+
         });
+        
       });
 
       // Guardar estadísticas de ventas por mes
@@ -232,10 +274,13 @@ export default function MigracionEstadisticasCompleta() {
       
       for (const mesAnio of mesesProcesados) {
         const stats = estadisticasPorMes[mesAnio];
+
+        console.log(`💾 GUARDANDO ${mesAnio}:`, JSON.stringify(stats));  // ✅ AGREGAR ESTA LÍNEA AQUÍ
+
         await setDoc(doc(db, `negocios/${negocioID}/estadisticas/${mesAnio}`), {
           ...stats,
           ultimaActualizacion: new Date(),
-        }, { merge: true });
+        });
       }
 
       setResultadosVentas(estadisticasPorMes);
@@ -378,6 +423,27 @@ export default function MigracionEstadisticasCompleta() {
                     <div key={mes} className="bg-[#f8f9fa] rounded-lg p-4 border border-[#ecf0f1]">
                       <h3 className="font-bold text-[#2c3e50] mb-2">📅 {mes}</h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                      <div>
+  <span className="text-[#7f8c8d]">Stock Extra:</span>
+  <span className="font-bold text-[#2c3e50] ml-2">
+    {stats.generalesVendidos ?? 0}
+  </span>
+</div>
+
+<div>
+  <span className="text-[#7f8c8d]">Ganancia Extra ARS:</span>
+  <span className="font-bold text-orange-600 ml-2">
+    {formatearPrecio(stats.gananciaGeneralesARS ?? 0)}
+  </span>
+</div>
+
+<div>
+  <span className="text-[#7f8c8d]">Ganancia Extra USD:</span>
+  <span className="font-bold text-amber-600 ml-2">
+    USD {stats.gananciaGeneralesUSD ?? 0}
+  </span>
+</div>
+
                         <div>
                           <span className="text-[#7f8c8d]">Trabajos:</span>
                           <span className="font-bold text-[#2c3e50] ml-2">{stats.trabajosReparados}</span>

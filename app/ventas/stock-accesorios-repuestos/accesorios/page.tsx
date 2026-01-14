@@ -127,6 +127,7 @@ export default function StockProductosPage() {
       cantidad,
       stockIdeal,
       stockBajo,
+      tipo: "accesorio",
     };
     
     try {

@@ -51,6 +51,8 @@ const inicial: Telefono = {
   observaciones: "",
 };
 
+const TIPO_STOCK = "telefono";
+
 export default function FormularioStock({
   negocioID,
   onGuardado,
@@ -125,6 +127,7 @@ export default function FormularioStock({
     
     const data = {
       ...form,
+      tipo: TIPO_STOCK,
       estado: form.estado.toLowerCase(),
       fechaIngreso: Timestamp.fromDate(fechaFormateada),
       creadoEn: Timestamp.now(),

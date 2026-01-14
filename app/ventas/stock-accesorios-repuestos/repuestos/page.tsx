@@ -192,6 +192,7 @@ export default function RepuestosPage() {
       precio1Pesos: precio1Pesos || 0,
       precio2Pesos: precio2Pesos || 0,
       precio3Pesos: precio3Pesos || 0,
+      tipo: "repuesto",
     };
     
     try {

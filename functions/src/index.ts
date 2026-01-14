@@ -375,36 +375,48 @@ export const actualizarEstadisticas = onDocumentWritten(
           const stats: any = estadisticasDoc.exists ? estadisticasDoc.data() : {
             mes: mesAnioVenta,
             trabajosReparados: 0,
-            accesoriosVendidos: 0,
+
             telefonosVendidos: 0,
+            accesoriosVendidos: 0,
+            generalesVendidos: 0,
+
             gananciaTrabajos: 0,
             gananciaVentasARS: 0,
             gananciaVentasUSD: 0,
+
+            gananciaGeneralesARS: 0,
+            gananciaGeneralesUSD: 0,
+
             cajaDelDia: {},
           };
 
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // ✅ PRODUCTOS DESPUÉS (SUMA)
           productosDespues.forEach((p: any) => {
             const ganancia = Number(p.ganancia || 0);
-            const categoria = (p.categoria || p.tipo || "").toLowerCase();
+            const cantidad = Number(p.cantidad || 1);
 
-            if (categoria === "teléfono" || categoria === "telefono" || p.tipo === "telefono") {
-              stats.telefonosVendidos = (stats.telefonosVendidos || 0) + 1;
+            if (p.tipo === "telefono") {
+              stats.telefonosVendidos += 1;
 
-              if (p.moneda?.toUpperCase() === "USD") {
-                stats.gananciaVentasUSD = (stats.gananciaVentasUSD || 0) + ganancia;
-              } else {
-                stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
-              }
-            } else if (p.tipo === "accesorio" || p.tipo === "general" || categoria === "repuesto") {
-              stats.accesoriosVendidos = (stats.accesoriosVendidos || 0) + Number(p.cantidad || 0);
+              p.moneda === "USD" ?
+                stats.gananciaVentasUSD += ganancia :
+                stats.gananciaVentasARS += ganancia;
+            } else if (p.tipo === "accesorio" || p.tipo === "repuesto") {
+              stats.accesoriosVendidos += cantidad;
 
-              if (p.moneda?.toUpperCase() === "USD") {
-                stats.gananciaVentasUSD = (stats.gananciaVentasUSD || 0) + ganancia;
-              } else {
-                stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
-              }
+              p.moneda === "USD" ?
+                stats.gananciaVentasUSD += ganancia :
+                stats.gananciaVentasARS += ganancia;
+            } else if (p.tipo === "general") {
+              stats.generalesVendidos += cantidad;
+
+              p.moneda === "USD" ?
+                stats.gananciaGeneralesUSD += ganancia :
+                stats.gananciaGeneralesARS += ganancia;
             }
+
 
             // Caja del día
             if (fechaDespues === diaActual) {
@@ -417,27 +429,35 @@ export const actualizarEstadisticas = onDocumentWritten(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           productosAntes.forEach((p: any) => {
             const ganancia = Number(p.ganancia || 0);
-            const categoria = (p.categoria || p.tipo || "").toLowerCase();
+            const cantidad = Number(p.cantidad || 1);
 
-            if (categoria === "teléfono" || categoria === "telefono" || p.tipo === "telefono") {
-              stats.telefonosVendidos = Math.max(0, (stats.telefonosVendidos || 0) - 1);
+            if (p.tipo === "telefono") {
+              stats.telefonosVendidos = Math.max(0, stats.telefonosVendidos - 1);
 
-              if (p.moneda?.toUpperCase() === "USD") {
-                stats.gananciaVentasUSD = (stats.gananciaVentasUSD || 0) + ganancia;
+              if (p.moneda === "USD") {
+                stats.gananciaVentasUSD -= ganancia;
               } else {
-                stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
+                stats.gananciaVentasARS -= ganancia;
               }
-            } else if (p.tipo === "accesorio" || p.tipo === "general" || categoria === "repuesto") {
-              stats.accesoriosVendidos = Math.max(0, (stats.accesoriosVendidos || 0) - Number(p.cantidad || 0)); // ✅ RESTA
+            } else if (p.tipo === "accesorio" || p.tipo === "repuesto") {
+              stats.accesoriosVendidos = Math.max(0, stats.accesoriosVendidos - cantidad);
 
-
-              if (p.moneda?.toUpperCase() === "USD") {
-                stats.gananciaVentasUSD = (stats.gananciaVentasUSD || 0) + ganancia;
+              if (p.moneda === "USD") {
+                stats.gananciaVentasUSD -= ganancia;
               } else {
-                stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
+                stats.gananciaVentasARS -= ganancia;
+              }
+            } else if (p.tipo === "general") {
+              stats.generalesVendidos = Math.max(0, stats.generalesVendidos - cantidad);
+
+              if (p.moneda === "USD") {
+                stats.gananciaGeneralesUSD -= ganancia;
+              } else {
+                stats.gananciaGeneralesARS -= ganancia;
               }
             }
           });
+
 
           await estadisticasRef.set(stats, {merge: true});
           console.log(`✅ Estadísticas de ventas actualizadas para ${mesAnioVenta}`);
