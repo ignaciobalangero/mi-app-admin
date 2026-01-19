@@ -31,75 +31,35 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
   const [actualizandoSheet, setActualizandoSheet] = useState(false);
   const { rol } = useRol();
 
-  // ✅ USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (igual que en StockProductosPage)
-  const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
 
-  // ✅ FUNCIÓN CORREGIDA CON LÓGICA CORRECTA
-  const normalizarPrecio = (repuesto: any) => {
-    console.log("🔍 Analizando precios del repuesto:", repuesto.id);
-    console.log("📊 Datos del repuesto:", {
-      precioCosto: repuesto.precioCosto,
-      precioCostoPesos: repuesto.precioCostoPesos,
-      precioARS: repuesto.precioARS,
-      precioUSD: repuesto.precioUSD,
-      precio: repuesto.precio,
-      moneda: repuesto.moneda
-    });
-    console.log("💵 Cotización centralizada actual:", cotizacion);
-
-    let precioFinal = 0;
-    let metodoPrecio = "Sin precio";
-    
-    // ✅ LÓGICA CORRECTA SEGÚN TUS ESPECIFICACIONES:
-    
-    // 1️⃣ PRIMERO: Si tiene precioCostoPesos (ya guardado convertido) - PRIORITARIO
-    if (repuesto.precioCostoPesos && repuesto.precioCostoPesos > 0) {
-      precioFinal = Number(repuesto.precioCostoPesos);
-      metodoPrecio = "precioCostoPesos (ya guardado convertido)";
-      console.log("✅ Usando precioCostoPesos ya guardado:", precioFinal);
-      
-    // 2️⃣ SEGUNDO: Si NO tiene precioCostoPesos pero SÍ tiene precioUSD - CONVERTIR
-    } else if (repuesto.precioUSD && repuesto.precioUSD > 0 && cotizacion > 0) {
-      precioFinal = Number(repuesto.precioUSD) * cotizacion;
-      metodoPrecio = `precioUSD convertido (${repuesto.precioUSD} USD × ${cotizacion} = ${precioFinal.toFixed(2)} ARS)`;
-      console.log("🔄 NO tiene precioCostoPesos, convirtiendo precioUSD:", precioFinal);
-      
-    // 3️⃣ TERCERO: Si NO tiene USD, usar precioARS nativo
-    } else if (repuesto.precioARS && repuesto.precioARS > 0) {
-      precioFinal = Number(repuesto.precioARS);
-      metodoPrecio = "precioARS nativo (sin USD)";
-      console.log("✅ NO tiene USD, usando precioARS nativo:", precioFinal);
-      
-    // 4️⃣ CUARTO: Fallback con precioCosto verificando moneda
-    } else if (repuesto.precioCosto && repuesto.precioCosto > 0) {
-      if (repuesto.moneda === "USD" && cotizacion > 0) {
-        precioFinal = Number(repuesto.precioCosto) * cotizacion;
-        metodoPrecio = `precioCosto USD convertido (${repuesto.precioCosto} USD × ${cotizacion} = ${precioFinal.toFixed(2)} ARS)`;
-        console.log("🔄 Convirtiendo precioCosto USD a ARS:", precioFinal);
-      } else {
-        precioFinal = Number(repuesto.precioCosto);
-        metodoPrecio = "precioCosto (asumido ARS)";
-        console.log("✅ Usando precioCosto como ARS:", precioFinal);
-      }
-      
-    // 5️⃣ ÚLTIMO RECURSO: precio genérico
-    } else if (repuesto.precio && repuesto.precio > 0) {
-      if (repuesto.moneda === "USD" && cotizacion > 0) {
-        precioFinal = Number(repuesto.precio) * cotizacion;
-        metodoPrecio = `precio USD convertido (${repuesto.precio} USD × ${cotizacion} = ${precioFinal.toFixed(2)} ARS)`;
-        console.log("🔄 Convirtiendo precio genérico USD a ARS:", precioFinal);
-      } else {
-        precioFinal = Number(repuesto.precio);
-        metodoPrecio = "precio genérico (asumido ARS)";
-        console.log("✅ Usando precio genérico como ARS:", precioFinal);
-      }
-    }
-
-    console.log("✅ Método usado:", metodoPrecio);
-    console.log("💰 Precio final normalizado:", precioFinal);
-    
-    return precioFinal;
+  const formatARS = (value: number) => {
+    return new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency: "ARS",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
   };
+  
+// ✅ USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (línea ~28)
+const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
+
+// ✅ FUNCIÓN normalizarPrecio DESPUÉS DEL HOOK
+const normalizarPrecio = (repuesto: any) => {
+  // 1️⃣ Prioridad: Si ya tiene precioARS, usarlo
+  if (repuesto.precioARS && repuesto.precioARS > 0) {
+    return Number(repuesto.precioARS);
+  }
+  
+  // 2️⃣ Si el producto tiene precio en USD, convertirlo con la cotización centralizada
+  if (repuesto.precioCosto && repuesto.precioCosto > 0 && cotizacion > 0) {
+    return Number((repuesto.precioCosto * cotizacion).toFixed(2));
+  }
+  
+  
+  return 0;
+};
+  
 
   // Función para obtener emoji del color
   const obtenerEmojiColor = (color: string): string => {
@@ -345,6 +305,7 @@ const mostrarToast = (mensaje: string, tipo: "success" | "error") => {
   
     console.log("🔧 Agregando repuesto a seleccionados:", repuesto.id);
     
+    // ✅ USAR normalizarPrecio PARA CALCULAR EL PRECIO CORRECTO
     const precioNormalizado = normalizarPrecio(repuesto);
     
     if (precioNormalizado <= 0) {
@@ -355,24 +316,23 @@ const mostrarToast = (mensaje: string, tipo: "success" | "error") => {
   
     const repuestoUsado = {
       ...repuesto,
+      // ✅ GUARDAR SOLO EL PRECIO NORMALIZADO (ya convertido a ARS)
       precio: precioNormalizado,
-      precioCosto: precioNormalizado,
-      precioCostoPesos: precioNormalizado,
-      costoPesos: precioNormalizado,
+      precioCosto: repuesto.precioCosto, // Mantener USD original
+      precioARS: precioNormalizado, // Guardar el precio en ARS calculado
+      costoPesos: precioNormalizado, // Para compatibilidad
       timestamp: Date.now() + Math.random(),
     };
   
     console.log("✅ Repuesto preparado para agregar:", {
       id: repuestoUsado.id,
       producto: repuestoUsado.producto,
+      precioUSD: repuestoUsado.precioCosto,
+      precioARS: repuestoUsado.precioARS,
       precio: repuestoUsado.precio,
-      precioCosto: repuestoUsado.precioCosto,
-      precioCostoPesos: repuestoUsado.precioCostoPesos,
-      costoPesos: repuestoUsado.costoPesos
     });
   
     setSeleccionados((prev) => [...prev, repuestoUsado]);
-   
   };
   
   const eliminarDeSeleccionados = (timestamp: number) => {
@@ -699,9 +659,10 @@ setTimeout(() => {
                           </td>
                           <td className="p-3 border border-black">
                             <div className="flex flex-col">
-                              <span className={`text-sm font-semibold ${precioNormalizado > 0 ? 'text-[#27ae60]' : 'text-[#e74c3c]'}`}>
-                                ARS ${precioNormalizado > 0 ? precioNormalizado.toFixed(2) : "Sin precio"}
+                            <span className="text-sm font-semibold">
+                                {precioNormalizado > 0 ? formatARS(precioNormalizado) : "Sin precio"}
                               </span>
+
                               {precioNormalizado <= 0 && (
                                 <span className="text-xs text-[#e74c3c]">⚠️ Precio no válido</span>
                               )}
@@ -766,7 +727,10 @@ setTimeout(() => {
                 </div>
                 Repuestos Seleccionados ({seleccionados.length})
                 <div className="ml-auto bg-[#27ae60] text-white px-3 py-1 rounded-lg text-sm font-bold">
-                  💰 Total: ${seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}
+                💰 Total: {formatARS(
+                      seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0)
+                    )}
+
                 </div>
               </h3>
               <div className="overflow-x-auto">
@@ -825,9 +789,10 @@ setTimeout(() => {
                           </td>
                           <td className="p-3 border border-black">
                             <div className="flex flex-col">
-                              <span className="text-sm font-semibold text-[#27ae60]">
-                                ARS ${precioNormalizado.toFixed(2)}
-                              </span>
+                            <span className="text-sm font-semibold text-[#27ae60]">
+                              {formatARS(precioNormalizado)}
+                            </span>
+
                               {r.precioUSD && r.precioUSD > 0 && (
                                 <span className="text-xs text-[#7f8c8d]">USD ${r.precioUSD}</span>
                               )}
@@ -859,7 +824,10 @@ setTimeout(() => {
                 </div>
                 Repuestos Ya Usados ({usadosPrevios.length})
                 <div className="ml-auto bg-[#f39c12] text-white px-3 py-1 rounded-lg text-sm font-bold">
-                  💰 Costo actual: ${usadosPrevios.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}
+                💰 Costo actual: {formatARS(
+                    usadosPrevios.reduce((sum, r) => sum + normalizarPrecio(r), 0)
+                  )}
+
                 </div>
               </h3>
               <div className="overflow-x-auto">
@@ -918,9 +886,10 @@ setTimeout(() => {
                           </td>
                           <td className="p-3 border border-black">
                             <div className="flex flex-col">
-                              <span className="text-sm font-semibold text-[#27ae60]">
-                                ARS ${precioNormalizado.toFixed(2)}
-                              </span>
+                            <span className="text-sm font-semibold text-[#27ae60]">
+                              {formatARS(precioNormalizado)}
+                            </span>
+
                               {r.precioUSD && r.precioUSD > 0 && (
                                 <span className="text-xs text-[#7f8c8d]">USD ${r.precioUSD}</span>
                               )}
@@ -971,7 +940,10 @@ setTimeout(() => {
                     <span>💾</span>
                     <span>
                       Guardar {seleccionados.length > 0 && `(${seleccionados.length})`}
-                      {seleccionados.length > 0 && ` - ${seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}`}
+                      {seleccionados.length > 0 && ` - ${formatARS(
+                          seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0)
+                        )}`}
+
                     </span>
                   </>
                 )}
