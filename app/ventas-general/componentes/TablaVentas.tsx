@@ -216,19 +216,23 @@ export default function TablaVentas({ refrescar }: Props) {
 
     const productoEliminado = venta.productos[productoIndex];
     const nuevosProductos = venta.productos.filter((_: any, idx: number) => idx !== productoIndex);
-
+// 🔥 CAMBIO CLAVE: Si no quedan productos, mandamos a eliminar la venta completa
+  // y salimos de esta función con "return" para no duplicar la reposición.
+  if (nuevosProductos.length === 0) {
+    await eliminarVentaCompleta(venta);
+    return; 
+  }
     if (productoEliminado.codigo) {
-      if (productoEliminado.tipo === "accesorio" || productoEliminado.categoria === "Accesorio") {
+      // Normalizamos a minúsculas para no fallar
+      const tipo = productoEliminado.tipo?.toLowerCase();
+      const cat = productoEliminado.categoria?.toLowerCase();
+    
+      if (tipo === "accesorio" || cat === "accesorio") {
         await reponerAccesoriosAlStock({
           productos: [productoEliminado],
           negocioID: rol.negocioID,
         });
-      } else if (
-        productoEliminado.tipo === "repuesto" || 
-        productoEliminado.tipo === "general" ||
-        productoEliminado.categoria === "Repuesto" ||
-        productoEliminado.hoja
-      ) {
+      } else if (tipo === "repuesto" || tipo === "general" || cat === "repuesto" || productoEliminado.hoja) {
         await reponerRepuestosAlStock({
           productos: [productoEliminado],
           negocioID: rol.negocioID,
@@ -307,19 +311,17 @@ export default function TablaVentas({ refrescar }: Props) {
       }
     }
 
-    // 🔥 PASO 2: LUEGO REPONER ACCESORIOS Y REPUESTOS
-    const accesorios = venta.productos.filter(
-      (p: any) => (p.tipo === "accesorio" || p.categoria === "Accesorio") && p.codigo
-    );
+    const accesorios = venta.productos.filter((p: any) => {
+      const t = p.tipo?.toLowerCase();
+      const c = p.categoria?.toLowerCase();
+      return (t === "accesorio" || c === "accesorio") && p.codigo;
+    });
     
-    const repuestos = venta.productos.filter(
-      (p: any) => (
-        p.tipo === "repuesto" || 
-        p.tipo === "general" ||
-        p.categoria === "Repuesto" ||
-        p.hoja
-      ) && p.codigo
-    );
+    const repuestos = venta.productos.filter((p: any) => {
+      const t = p.tipo?.toLowerCase();
+      const c = p.categoria?.toLowerCase();
+      return (t === "repuesto" || t === "general" || c === "repuesto" || p.hoja) && p.codigo;
+    });
     
     if (accesorios.length > 0) {
       console.log('🔌 Reponiendo accesorios al stock:', accesorios.length);

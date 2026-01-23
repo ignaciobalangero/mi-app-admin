@@ -75,81 +75,39 @@ export default function BotonGuardarVenta({
     return { totalARS, totalUSD };
   };
 
-  // ✅ FUNCIÓN ULTRA SIMPLIFICADA: Calcular ganancia sin errores
-  const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizacionActual: number) => {
-    const precioVenta = producto.precioUnitario || 0;
-    const cantidad = producto.cantidad || 1;
+// ✅ FUNCIÓN CORREGIDA: Ganancia real calculada al momento de la venta
+const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizacionActual: number) => {
+  const precioVenta = producto.precioUnitario || 0;
+  const cantidad = producto.cantidad || 1;
 
-    console.log('🔍 === INICIO CÁLCULO GANANCIA ===');
-    console.log('📦 Producto:', producto.producto || producto.codigo);
-    console.log('💰 Precio venta unitario:', precioVenta);
-    console.log('📊 Cantidad:', cantidad);
-    console.log('🏷️ Moneda del producto:', producto.moneda);
+  // 📱 CASO 1: TELÉFONO (Se mantiene costo directo)
+  if (producto.categoria === "Teléfono") {
+    const precioCosto = producto.precioCosto || 0;
+    return (precioVenta - precioCosto) * cantidad;
+  }
 
-    // 📱 CASO 1: TELÉFONO
-    if (producto.categoria === "Teléfono") {
-      const precioCosto = producto.precioCosto || 0;
-      const ganancia = (precioVenta - precioCosto) * cantidad;
-      console.log('📱 TELÉFONO - Costo:', precioCosto, 'Ganancia:', ganancia);
-      return ganancia;
-    }
+  if (!stockData) return 0;
 
-    // 🔌 CASO 2: ACCESORIO/REPUESTO
-    if (!stockData) {
-      console.log('❌ No hay datos de stock');
-      return 0;
-    }
-
-    console.log('📋 Datos de stock:', {
-      precioCosto: stockData.precioCosto,
-      precioCostoPesos: stockData.precioCostoPesos,
-      monedaStock: stockData.moneda
-    });
-
-    // ✅ LÓGICA CORREGIDA - NO convertir costos ARS
-    let costoFinal = 0;
-    
-    if (producto.moneda === "USD") {
-      // ===== PRODUCTO VENDIDO EN USD =====
-      costoFinal = Number(stockData.precioCosto || 0);
-      console.log('💵 PRODUCTO USD - Usando costo USD:', costoFinal);
+  let costoCalculado = 0;
+  
+  // 🚀 LÓGICA DE GANANCIA REAL BASADA EN COTIZACIÓN ACTUAL
+  if (producto.moneda === "USD") {
+    // Venta en USD -> Costo en USD
+    costoCalculado = Number(stockData.precioCosto || 0);
+  } else {
+    // Venta en ARS (Pesos)
+    if (stockData.moneda === "ARS") {
+      // Producto nativo ARS -> Costo en ARS directo
+      costoCalculado = Number(stockData.precioCosto || 0);
     } else {
-      // ===== PRODUCTO VENDIDO EN ARS =====
-      // ✅ PRIMERO: Intentar usar costo directo en pesos
-      if (stockData.precioCostoPesos && stockData.precioCostoPesos > 0) {
-        costoFinal = Number(stockData.precioCostoPesos);
-        console.log('💰 PRODUCTO ARS - Usando costo directo en pesos:', costoFinal);
-      } 
-      // ✅ SEGUNDO: Si el stock es nativo ARS, usar precio costo directo
-      else if (stockData.moneda === "ARS") {
-        costoFinal = Number(stockData.precioCosto || 0);
-        console.log('💰 PRODUCTO ARS - Stock nativo ARS, usando costo directo:', costoFinal);
-      }
-      // ✅ TERCERO: Solo convertir si el stock es realmente USD
-      else if (stockData.moneda === "USD") {
-        const costoUSD = Number(stockData.precioCosto || 0);
-        costoFinal = costoUSD * cotizacionActual;
-        console.log('💱 PRODUCTO ARS - Stock USD, convirtiendo:', costoUSD, 'x', cotizacionActual, '=', costoFinal);
-      }
-      // ✅ FALLBACK: usar costo directo sin conversión
-      else {
-        costoFinal = Number(stockData.precioCosto || 0);
-        console.log('💰 PRODUCTO ARS - Fallback, usando costo directo:', costoFinal);
-      }
+      // Stock en USD vendido en ARS -> Convertimos costo USD a Pesos de HOY
+      const costoUSD = Number(stockData.precioCosto || 0);
+      costoCalculado = costoUSD * cotizacionActual;
     }
+  }
 
-    // ✅ CÁLCULO FINAL SIMPLE
-    const ganancia = (precioVenta - costoFinal) * cantidad;
-    
-    console.log('🎯 CÁLCULO FINAL:');
-    console.log('   Precio venta:', precioVenta);
-    console.log('   Costo final:', costoFinal);
-    console.log('   Cantidad:', cantidad);
-    console.log('   Ganancia:', ganancia);
-    console.log('🔍 === FIN CÁLCULO GANANCIA ===');
-    
-    return ganancia;
-  };
+  return (precioVenta - costoCalculado) * cantidad;
+};
 
   // ✅ FUNCIÓN CORREGIDA: Obtener datos respetando monedas originales
   const obtenerDatosRespetandoMonedas = async (productos: any[]) => {
@@ -207,29 +165,25 @@ export default function BotonGuardarVenta({
       let precioVentaReal = precioUnitario;
 
       if (producto.categoria === "Teléfono") {
-        // 📱 TELÉFONO: Usar datos existentes
+        // 📱 TELÉFONO: Respetamos sus valores originales en la moneda que esté (usualmente USD)
         precioCosto = producto.precioCosto || 0;
-        precioCostoPesos = precioCosto;
+        precioCostoPesos = producto.moneda === "ARS" ? precioCosto : (precioCosto * cotizacionActual);
         ganancia = (precioVentaReal - precioCosto) * cantidad;
-        
-        console.log('📱 Teléfono procesado:', {
-          modelo: producto.modelo,
-          moneda: producto.moneda,
-          precioVenta: precioVentaReal
-        });
       } else {
-        // 🔌 ACCESORIO/REPUESTO: Respetando moneda seleccionada
+        // 🔌 ACCESORIO/REPUESTO
         if (stockData) {
           precioCosto = stockData.precioCosto || 0;
+          
+          // Guardamos el costo en pesos actualizado para el historial de la venta
           if (stockData.moneda === "USD") {
-            precioCostoPesos = stockData.precioCostoPesos || (precioCosto * cotizacionActual);
+            precioCostoPesos = precioCosto * cotizacionActual; 
           } else {
-            precioCostoPesos = precioCosto;
+            precioCostoPesos = precioCosto; // Nativo ARS
           }
           
-          // Calcular ganancia respetando moneda
+          // Calculamos ganancia (si es venta USD, será resta directa; si es ARS, usará cotización)
           ganancia = calcularGananciaRespetandoMoneda(producto, stockData, cotizacionActual);
-        } else {
+        }else {
           console.log('❌ No se encontró stock para:', producto.codigo);
           precioCosto = 0;
           precioCostoPesos = 0;
@@ -358,6 +312,7 @@ export default function BotonGuardarVenta({
           gb: datosVentaTelefono.gb || "",
           codigo: datosVentaTelefono.stockID || datosVentaTelefono.modelo,
           tipo: "telefono",
+          origenStock: "stockTelefonos", // ✅ ESTA LÍNEA
         },
       ],
       total: precioVentaTelefono,
@@ -551,6 +506,15 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
         moneda: p.moneda,                     // ✅ USD o ARS según lo elegido
         codigo: p.codigo || p.id || "",
         tipo: p.tipo,
+        origenStock:
+        p.tipo === "repuesto"
+          ? "stockRepuestos"
+          : p.tipo === "accesorio"
+          ? "stockAccesorios"
+          : p.tipo === "general"
+          ? "stockExtra"
+          : "stockAccesorios",
+      
         hoja: p.hoja || "",
         // ✅ AGREGAR CAMPOS SEPARADOS PARA CLARIDAD
         precioUnitarioUSD: p.moneda === "USD" ? p.precioUnitario : null,
@@ -720,6 +684,15 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
                 moneda: p.moneda,
                 codigo: p.codigo,
                 tipo: p.tipo,
+                origenStock:
+  p.tipo === "repuesto"
+    ? "stockRepuestos"
+    : p.tipo === "accesorio"
+    ? "stockAccesorios"
+    : p.tipo === "general"
+    ? "stockExtra"
+    : "stockAccesorios",
+
                 hoja: p.hoja || "",
               }))
             ];

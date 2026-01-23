@@ -1,37 +1,30 @@
 // lib/stock/reponerRepuestosAlStock.ts
 import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc } from "firebase/firestore";
 
-export const reponerRepuestosAlStock = async ({
-  productos,
-  negocioID,
-}: {
-  productos: any[];
-  negocioID: string;
-}) => {
-  console.log("🔧 REPONIENDO REPUESTOS/STOCKEXTRA:", productos);
-
+export const reponerRepuestosAlStock = async ({ productos, negocioID }: { productos: any[], negocioID: string }) => {
   for (const producto of productos) {
-    if (!producto.codigo || typeof producto.cantidad !== "number") {
-      console.log("❌ Producto inválido:", producto);
-      continue;
+    const cantidadAReponer = Number(producto.cantidad) || 0;
+    if (!producto.codigo || cantidadAReponer <= 0) continue;
+
+    // Buscamos en ambas colecciones por las dudas
+    const colecciones = ["stockRepuestos", "stockExtra"];
+    
+    for (const colName of colecciones) {
+      const colRef = collection(db, `negocios/${negocioID}/${colName}`);
+      const q = query(colRef, where("codigo", "==", producto.codigo));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const docRef = querySnapshot.docs[0].ref;
+        const stockActual = Number(querySnapshot.docs[0].data().cantidad) || 0;
+        
+        await updateDoc(docRef, {
+          cantidad: stockActual + cantidadAReponer
+        });
+        console.log(`✅ Stock devuelto: ${producto.codigo} (+${cantidadAReponer}) en ${colName}`);
+        break; // Si lo encontró en una, no busca en la otra
+      }
     }
-  
-    const ref = doc(db, `negocios/${negocioID}/stockExtra/${producto.codigo}`);
-    const snap = await getDoc(ref);
-  
-    if (!snap.exists()) {
-      console.log("❌ No existe en stockExtra:", producto.codigo);
-      continue;
-    }
-  
-    const data = snap.data();
-    const nuevaCantidad = (data.cantidad || 0) + producto.cantidad;
-  
-    console.log(`✅ Sumando ${producto.cantidad} a ${producto.codigo}, nueva cantidad: ${nuevaCantidad}`);
-  
-    await updateDoc(ref, {
-      cantidad: nuevaCantidad,
-    });
   }
 };

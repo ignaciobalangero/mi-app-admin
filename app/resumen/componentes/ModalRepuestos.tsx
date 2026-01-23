@@ -44,21 +44,27 @@ export default function ModalAgregarRepuesto({ trabajoID, onClose, onGuardar }: 
 // ✅ USAR EL HOOK DE COTIZACIÓN CENTRALIZADO (línea ~28)
 const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
 
-// ✅ FUNCIÓN normalizarPrecio DESPUÉS DEL HOOK
-const normalizarPrecio = (repuesto: any) => {
-  // 1️⃣ Prioridad: Si ya tiene precioARS, usarlo
-  if (repuesto.precioARS && repuesto.precioARS > 0) {
-    return Number(repuesto.precioARS);
+const calcularCostoARS = (repuesto: any) => {
+  const costo = Number(repuesto?.precioCosto ?? 0);
+  if (costo <= 0) return 0;
+
+  // 🟣 stockExtra → USD nativo (NO tiene moneda)
+  if (repuesto.fuente === "stockExtra" || !("moneda" in repuesto)) {
+    if (!cotizacion || cotizacion <= 0) return 0;
+    return Number((costo * cotizacion).toFixed(2));
   }
-  
-  // 2️⃣ Si el producto tiene precio en USD, convertirlo con la cotización centralizada
-  if (repuesto.precioCosto && repuesto.precioCosto > 0 && cotizacion > 0) {
-    return Number((repuesto.precioCosto * cotizacion).toFixed(2));
+
+  // 🔵 stockRepuestos en USD
+  if (repuesto.moneda === "USD") {
+    if (!cotizacion || cotizacion <= 0) return 0;
+    return Number((costo * cotizacion).toFixed(2));
   }
-  
-  
-  return 0;
+
+  // 🟢 stockRepuestos en ARS
+  return costo;
 };
+
+
   
 
   // Función para obtener emoji del color
@@ -306,9 +312,11 @@ const mostrarToast = (mensaje: string, tipo: "success" | "error") => {
     console.log("🔧 Agregando repuesto a seleccionados:", repuesto.id);
     
     // ✅ USAR normalizarPrecio PARA CALCULAR EL PRECIO CORRECTO
-    const precioNormalizado = normalizarPrecio(repuesto);
+    const costoARS = calcularCostoARS(repuesto);
+
     
-    if (precioNormalizado <= 0) {
+    if (costoARS <= 0) {
+
       console.error("❌ Error: Precio no válido para el repuesto:", repuesto.id);
       mostrarToast(`⚠️ Precio no válido: ${repuesto.producto}`, "error");
       return;
@@ -316,13 +324,15 @@ const mostrarToast = (mensaje: string, tipo: "success" | "error") => {
   
     const repuestoUsado = {
       ...repuesto,
-      // ✅ GUARDAR SOLO EL PRECIO NORMALIZADO (ya convertido a ARS)
-      precio: precioNormalizado,
-      precioCosto: repuesto.precioCosto, // Mantener USD original
-      precioARS: precioNormalizado, // Guardar el precio en ARS calculado
-      costoPesos: precioNormalizado, // Para compatibilidad
+    
+      // 🔒 congelamos el costo
+      costoARS,
+      precioCostoOriginal: repuesto.precioCosto,
+      monedaCosto: repuesto.moneda ?? "USD",  
+    
       timestamp: Date.now() + Math.random(),
     };
+    
   
     console.log("✅ Repuesto preparado para agregar:", {
       id: repuestoUsado.id,
@@ -357,7 +367,7 @@ const mostrarToast = (mensaje: string, tipo: "success" | "error") => {
       return;
     }
   
-    const costoARestar = normalizarPrecio(repuestoAEliminar);
+    const costoARestar = repuestoAEliminar.costoARS ?? calcularCostoARS(repuestoAEliminar);
     console.log("💰 Costo a restar:", costoARestar);
   
     const actualizados = repuestosActuales.filter(
@@ -421,14 +431,14 @@ setTimeout(() => {
     
     // Sumar costos de repuestos previos
     previos.forEach((r: any) => {
-      const costo = normalizarPrecio(r);
+      const costo = r.costoARS ?? calcularCostoARS(r);
       costoTotal += costo;
       console.log(`💰 Costo previo - ${r.producto}: ${costo}`);
     });
     
     // Sumar costos de repuestos nuevos
     seleccionados.forEach((r: any) => {
-      const costo = normalizarPrecio(r);
+      const costo = r.costoARS ?? calcularCostoARS(r);
       costoTotal += costo;
       console.log(`💰 Costo nuevo - ${r.producto}: ${costo}`);
     });
@@ -620,7 +630,7 @@ setTimeout(() => {
                     {resultados.map((r, index) => {
                       const yaSeleccionado = seleccionados.some((s) => s.id === r.id && s.fuente === r.fuente);
                       const isEven = index % 2 === 0;
-                      const precioNormalizado = normalizarPrecio(r);
+                      const precioNormalizado = calcularCostoARS(r);
 
                       return (
                         <tr key={`${r.fuente}-${r.id}`} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
@@ -667,7 +677,7 @@ setTimeout(() => {
                                 <span className="text-xs text-[#e74c3c]">⚠️ Precio no válido</span>
                               )}
                               {r.precioUSD && r.precioUSD > 0 && cotizacion > 0 && (
-                                <span className="text-xs text-[#7f8c8d]">USD ${r.precioUSD}</span>
+                                <span className="text-xs text-[#7f8c8d]">USD ${r.precioCosto}</span>
                               )}
                             </div>
                           </td>
@@ -728,7 +738,7 @@ setTimeout(() => {
                 Repuestos Seleccionados ({seleccionados.length})
                 <div className="ml-auto bg-[#27ae60] text-white px-3 py-1 rounded-lg text-sm font-bold">
                 💰 Total: {formatARS(
-                      seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0)
+                      seleccionados.reduce((sum, r) => sum + calcularCostoARS(r), 0)
                     )}
 
                 </div>
@@ -751,7 +761,7 @@ setTimeout(() => {
                   <tbody>
                     {seleccionados.map((r, index) => {
                       const isEven = index % 2 === 0;
-                      const precioNormalizado = normalizarPrecio(r);
+                      const precioNormalizado = calcularCostoARS(r);
                       return (
                         <tr key={r.timestamp} className={`transition-all duration-200 ${isEven ? 'bg-white' : 'bg-green-50'}`}>
                           <td className="p-3 border border-black">
@@ -793,9 +803,11 @@ setTimeout(() => {
                               {formatARS(precioNormalizado)}
                             </span>
 
-                              {r.precioUSD && r.precioUSD > 0 && (
-                                <span className="text-xs text-[#7f8c8d]">USD ${r.precioUSD}</span>
-                              )}
+                            {r.fuente === "stockExtra" && (
+  <span className="text-xs text-[#7f8c8d]">
+    USD ${Number(r.precioCosto).toFixed(2)}
+  </span>
+)}
                             </div>
                           </td>
                           <td className="p-3 border border-black text-center">
@@ -825,7 +837,7 @@ setTimeout(() => {
                 Repuestos Ya Usados ({usadosPrevios.length})
                 <div className="ml-auto bg-[#f39c12] text-white px-3 py-1 rounded-lg text-sm font-bold">
                 💰 Costo actual: {formatARS(
-                    usadosPrevios.reduce((sum, r) => sum + normalizarPrecio(r), 0)
+                    usadosPrevios.reduce((sum, r) => sum + calcularCostoARS(r), 0)
                   )}
 
                 </div>
@@ -848,7 +860,7 @@ setTimeout(() => {
                   <tbody>
                     {usadosPrevios.map((r, index) => {
                       const isEven = index % 2 === 0;
-                      const precioNormalizado = normalizarPrecio(r);
+                      const precioNormalizado = calcularCostoARS(r);
                       return (
                         <tr key={r.timestamp} className={`transition-all duration-200 ${isEven ? 'bg-white' : 'bg-orange-50'}`}>
                           <td className="p-3 border border-black">
@@ -890,9 +902,11 @@ setTimeout(() => {
                               {formatARS(precioNormalizado)}
                             </span>
 
-                              {r.precioUSD && r.precioUSD > 0 && (
-                                <span className="text-xs text-[#7f8c8d]">USD ${r.precioUSD}</span>
-                              )}
+                            {r.fuente === "stockExtra" && (
+  <span className="text-xs text-[#7f8c8d]">
+    USD ${Number(r.precioCosto).toFixed(2)}
+  </span>
+)}
                             </div>
                           </td>
                           <td className="p-3 border border-black text-center">
@@ -941,7 +955,7 @@ setTimeout(() => {
                     <span>
                       Guardar {seleccionados.length > 0 && `(${seleccionados.length})`}
                       {seleccionados.length > 0 && ` - ${formatARS(
-                          seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0)
+                          seleccionados.reduce((sum, r) => sum + calcularCostoARS(r), 0)
                         )}`}
 
                     </span>
@@ -970,21 +984,21 @@ setTimeout(() => {
                   <div className="text-center">
                     <span className="block text-xs text-[#7f8c8d]">Costo Actual</span>
                     <span className="block text-lg font-bold text-[#f39c12]">
-                      ${usadosPrevios.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}
+                      ${usadosPrevios.reduce((sum, r) => sum + calcularCostoARS(r), 0).toFixed(2)}
                     </span>
                   </div>
                   <div className="text-center">
                     <span className="block text-xs text-[#7f8c8d]">Nuevos Repuestos</span>
                     <span className="block text-lg font-bold text-[#27ae60]">
-                      ${seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0).toFixed(2)}
+                      ${seleccionados.reduce((sum, r) => sum + calcularCostoARS(r), 0).toFixed(2)}
                     </span>
                   </div>
                   <div className="text-center">
                     <span className="block text-xs text-[#7f8c8d]">Total Final</span>
                     <span className="block text-lg font-bold text-[#2c3e50]">
                       ${(
-                        usadosPrevios.reduce((sum, r) => sum + normalizarPrecio(r), 0) +
-                        seleccionados.reduce((sum, r) => sum + normalizarPrecio(r), 0)
+                        usadosPrevios.reduce((sum, r) => sum + calcularCostoARS(r), 0) +
+                        seleccionados.reduce((sum, r) => sum + calcularCostoARS(r), 0)
                       ).toFixed(2)}
                     </span>
                   </div>

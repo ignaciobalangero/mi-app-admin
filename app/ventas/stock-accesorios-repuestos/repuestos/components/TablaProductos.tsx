@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 import { useRol } from "@/lib/useRol";
 import {
   collection,
@@ -30,6 +31,12 @@ interface Producto {
   moneda: "ARS" | "USD";
   stockBajo?: number;
   proveedor: string;
+  precio1?: number;
+  precio2?: number;
+  precio3?: number;
+  precio1Pesos?: number;
+  precio2Pesos?: number;
+  precio3Pesos?: number;
 }
 
 interface Props {
@@ -266,15 +273,28 @@ export default function TablaProductos({
     cantidad: 0,
     moneda: "ARS",
     stockBajo: 3,
-    proveedor: ""
+    proveedor: "",
+    precio1: 0,
+    precio2: 0,
+    precio3: 0,
+    precio1Pesos: 0,
+    precio2Pesos: 0,
+    precio3Pesos: 0,
   });
 
   // FUNCIONES DEL MODAL
   const abrirModal = (producto: Producto) => {
     setProductoEditando(producto);
-    setFormulario(producto);
+    setFormulario({
+      ...producto,
+      precio1: producto.precio1 ?? 0,
+      precio2: producto.precio2 ?? 0,
+      precio3: producto.precio3 ?? 0,
+      stockBajo: producto.stockBajo ?? 3,
+    });
     setModalAbierto(true);
   };
+  
 
   const cerrarModal = () => {
     setModalAbierto(false);
@@ -292,7 +312,13 @@ export default function TablaProductos({
       cantidad: 0,
       moneda: "ARS",
       stockBajo: 3,
-      proveedor: ""
+      proveedor: "",
+      precio1: 0,
+      precio2: 0,
+      precio3: 0,
+      precio1Pesos: 0,
+      precio2Pesos: 0,
+      precio3Pesos: 0,
     });
   };
 
@@ -300,7 +326,8 @@ export default function TablaProductos({
     const { name, value } = e.target;
     setFormulario(prev => ({
       ...prev,
-      [name]: name === 'precioCosto' || name === 'precioCostoPesos' || name === 'cantidad' || name === 'stockBajo'
+      [name]: name === 'precioCosto' || name === 'precioCostoPesos' || name === 'cantidad' || name === 'stockBajo' || 
+              name === 'precio1' || name === 'precio2' || name === 'precio3'  // ✅ AGREGAR ESTOS
         ? parseFloat(value) || 0
         : value
     }));
@@ -308,28 +335,51 @@ export default function TablaProductos({
 
   const guardarCambios = async () => {
     setGuardando(true);
+  
     try {
-      if (actualizarProducto) {
-        await actualizarProducto(formulario);
-      } else {
-        console.log("🔥 Datos para guardar en Firebase:", formulario);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        if (onProductoActualizado) {
-          onProductoActualizado(formulario);
-        }
+      if (!rol?.negocioID || !formulario.id) {
+        throw new Error("Falta negocioID o id del producto");
       }
-      
+  
+      const ref = doc(
+        db,
+        `negocios/${rol.negocioID}/stockRepuestos/${formulario.id}`
+      );
+  
+      await updateDoc(ref, {
+        codigo: formulario.codigo,
+        categoria: formulario.categoria,
+        producto: formulario.producto,
+        marca: formulario.marca,
+        color: formulario.color,
+        proveedor: formulario.proveedor,
+  
+        cantidad: Number(formulario.cantidad || 0),
+        stockBajo: Number(formulario.stockBajo || 0),
+  
+        // costo
+        precioCosto: Number(formulario.precioCosto || 0),
+        precioCostoPesos: Number(formulario.precioCostoPesos || 0),
+        moneda: formulario.moneda,
+  
+        // ✅ PRECIOS DE VENTA
+        precio1: Number(formulario.precio1 || 0),
+        precio2: Number(formulario.precio2 || 0),
+        precio3: Number(formulario.precio3 || 0),
+      });
+  
       cerrarModal();
-      refrescarProductos();
+      await refrescarProductos();
+  
       console.log("✅ Producto actualizado correctamente");
-      
+  
     } catch (error) {
       console.error("❌ Error al actualizar producto:", error);
       setGuardando(false);
-      alert("❌ Error al guardar el producto. Intenta nuevamente.");
+      alert("❌ Error al guardar el producto");
     }
   };
+  
 
   const confirmarEliminacion = async (id: string) => {
     try {
@@ -918,7 +968,131 @@ export default function TablaProductos({
                     ℹ️ Campo opcional para precio fijo en pesos
                   </div>
                 </div>
+{/* ✅ NUEVOS CAMPOS DE PRECIOS DE VENTA */}
+<div className="md:col-span-2 space-y-2">
+  <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white rounded-xl p-3">
+    <h4 className="font-bold flex items-center gap-2">
+      <span>💵</span> Precios de Venta
+    </h4>
+    <p className="text-xs opacity-90">Configurá los 3 niveles de precio para este repuesto</p>
+  </div>
+</div>
 
+{/* Precio 1 */}
+<div className="space-y-2">
+  <label className="block text-xs sm:text-sm font-semibold text-[#3498db]">
+    💰 Precio 1 ({formulario.moneda})
+  </label>
+  <div className="relative">
+    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#3498db] font-bold">
+      $
+    </span>
+    <input
+      type="number"
+      name="precio1"
+      value={formulario.precio1 || 0}
+      onChange={manejarCambio}
+      step="0.01"
+      min="0"
+      className="w-full pl-6 sm:pl-8 pr-4 py-2 sm:py-3 border-2 border-[#3498db] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm"
+      placeholder="Precio nivel 1"
+    />
+  </div>
+  {formulario.moneda === "USD" && formulario.precio1 > 0 && (
+    <div className="text-xs text-[#7f8c8d] bg-[#ecf0f1] p-2 rounded">
+      💵 Equivale a: <strong>${(formulario.precio1 * cotizacionSegura).toLocaleString("es-AR")} ARS</strong>
+    </div>
+  )}
+</div>
+
+{/* Precio 2 */}
+<div className="space-y-2">
+  <label className="block text-xs sm:text-sm font-semibold text-[#27ae60]">
+    💰 Precio 2 ({formulario.moneda})
+  </label>
+  <div className="relative">
+    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#27ae60] font-bold">
+      $
+    </span>
+    <input
+      type="number"
+      name="precio2"
+      value={formulario.precio2 || 0}
+      onChange={manejarCambio}
+      step="0.01"
+      min="0"
+      className="w-full pl-6 sm:pl-8 pr-4 py-2 sm:py-3 border-2 border-[#27ae60] rounded-xl focus:ring-4 focus:ring-[#27ae60]/20 focus:border-[#27ae60] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm"
+      placeholder="Precio nivel 2"
+    />
+  </div>
+  {formulario.moneda === "USD" && formulario.precio2 > 0 && (
+    <div className="text-xs text-[#7f8c8d] bg-[#ecf0f1] p-2 rounded">
+      💵 Equivale a: <strong>${(formulario.precio2 * cotizacionSegura).toLocaleString("es-AR")} ARS</strong>
+    </div>
+  )}
+</div>
+
+{/* Precio 3 */}
+<div className="space-y-2">
+  <label className="block text-xs sm:text-sm font-semibold text-[#f39c12]">
+    💰 Precio 3 ({formulario.moneda})
+  </label>
+  <div className="relative">
+    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#f39c12] font-bold">
+      $
+    </span>
+    <input
+      type="number"
+      name="precio3"
+      value={formulario.precio3 || 0}
+      onChange={manejarCambio}
+      step="0.01"
+      min="0"
+      className="w-full pl-6 sm:pl-8 pr-4 py-2 sm:py-3 border-2 border-[#f39c12] rounded-xl focus:ring-4 focus:ring-[#f39c12]/20 focus:border-[#f39c12] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm"
+      placeholder="Precio nivel 3"
+    />
+  </div>
+  {formulario.moneda === "USD" && formulario.precio3 > 0 && (
+    <div className="text-xs text-[#7f8c8d] bg-[#ecf0f1] p-2 rounded">
+      💵 Equivale a: <strong>${(formulario.precio3 * cotizacionSegura).toLocaleString("es-AR")} ARS</strong>
+    </div>
+  )}
+</div>
+
+{/* Info sobre márgenes */}
+{formulario.precioCosto > 0 && (formulario.precio1 > 0 || formulario.precio2 > 0 || formulario.precio3 > 0) && (
+  <div className="md:col-span-2 bg-white border-2 border-[#3498db] rounded-xl p-3 space-y-2">
+    <h4 className="font-bold text-[#2c3e50] flex items-center gap-2 text-sm">
+      <span>📊</span> Márgenes de Ganancia
+    </h4>
+    <div className="grid grid-cols-3 gap-2 text-xs">
+      {formulario.precio1 > 0 && (
+        <div className="bg-[#ecf0f1] p-2 rounded">
+          <span className="text-[#7f8c8d]">Precio 1:</span>
+          <div className="font-bold text-[#3498db]">
+            +{(((formulario.precio1 - formulario.precioCosto) / formulario.precioCosto) * 100).toFixed(1)}%
+          </div>
+        </div>
+      )}
+      {formulario.precio2 > 0 && (
+        <div className="bg-[#d5f4e6] p-2 rounded">
+          <span className="text-[#27ae60]">Precio 2:</span>
+          <div className="font-bold text-[#27ae60]">
+            +{(((formulario.precio2 - formulario.precioCosto) / formulario.precioCosto) * 100).toFixed(1)}%
+          </div>
+        </div>
+      )}
+      {formulario.precio3 > 0 && (
+        <div className="bg-[#fef5e7] p-2 rounded">
+          <span className="text-[#f39c12]">Precio 3:</span>
+          <div className="font-bold text-[#f39c12]">
+            +{(((formulario.precio3 - formulario.precioCosto) / formulario.precioCosto) * 100).toFixed(1)}%
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
                 {/* Cantidad */}
                 <div className="space-y-2">
                   <label className="block text-xs sm:text-sm font-semibold text-[#9b59b6]">

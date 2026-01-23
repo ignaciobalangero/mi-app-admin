@@ -66,138 +66,154 @@ export default function SelectorProductoVentaGeneral({
   const [usandoPrecioManual, setUsandoPrecioManual] = useState(false);
   const [monedaSeleccionada, setMonedaSeleccionada] = useState<"ARS" | "USD">("ARS");
 
-  const normalizarPrecioRepuesto = (repuesto: any) => {
-    let precioFinal = 0;
-    if (repuesto.precioCostoPesos && repuesto.precioCostoPesos > 0) {
-      precioFinal = Number(repuesto.precioCostoPesos);
-    } else if (repuesto.precioUSD && repuesto.precioUSD > 0 && cotizacion > 0) {
-      precioFinal = Number(repuesto.precioUSD) * cotizacion;
-    } else if (repuesto.precioARS && repuesto.precioARS > 0) {
-      precioFinal = Number(repuesto.precioARS);
-    } else if (repuesto.precioCosto && repuesto.precioCosto > 0) {
-      if (repuesto.moneda === "USD" && cotizacion > 0) {
-        precioFinal = Number(repuesto.precioCosto) * cotizacion;
-      } else {
-        precioFinal = Number(repuesto.precioCosto);
-      }
-    } else if (repuesto.precio && repuesto.precio > 0) {
-      precioFinal = Number(repuesto.precio);
+
+// ✅ REEMPLAZAR TODO EL useEffect POR ESTE:
+
+// ✅ REEMPLAZAR TODO EL useEffect (desde línea ~70 hasta ~190) POR ESTE CÓDIGO LIMPIO:
+
+useEffect(() => {
+  const cargar = async () => {
+    if (!rol?.negocioID) return;
+    
+    // ✅ VERIFICAR QUE COTIZACIÓN EXISTA
+    if (!cotizacion || cotizacion === 0) {
+      console.warn('⚠️ Esperando cotización...');
+      return;
     }
-    return precioFinal;
-  };
 
-  useEffect(() => {
-    const cargar = async () => {
-      if (!rol?.negocioID) return;
+    console.log('💱 Cargando productos con cotización:', cotizacion);
 
-      const accSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockAccesorios`));
-      const repSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));
-      const stockRepuestosSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockRepuestos`));
+    const accSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockAccesorios`));
+    const repSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`));
+    const stockRepuestosSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockRepuestos`));
 
-      const accesorios: ProductoStock[] = accSnap.docs.map(doc => {
-        const data = doc.data();
-        const esUSD = data.moneda === "USD";
-        
-        if (esUSD) {
-          return {
-            id: doc.id,
-            codigo: data.codigo || doc.id,
-            producto: data.producto || data.modelo || "",
-            modelo: data.modelo || data.producto || "",
-            marca: data.marca || "",
-            categoria: data.categoria || "",
-            color: data.color || "",
-            precio1: data.precio1 || 0,
-            precio2: data.precio2 || 0,
-            precio3: data.precio3 || 0,
-            precio1Pesos: (data.precio1 || 0) * cotizacion,
-            precio2Pesos: (data.precio2 || 0) * cotizacion,
-            precio3Pesos: (data.precio3 || 0) * cotizacion,
-            moneda: "USD",
-            cantidad: data.cantidad || 0,
-            tipo: "accesorio",
-          };
-        } else {
-          return {
-            id: doc.id,
-            codigo: data.codigo || doc.id,
-            producto: data.producto || data.modelo || "",
-            modelo: data.modelo || data.producto || "",
-            marca: data.marca || "",
-            categoria: data.categoria || "",
-            color: data.color || "",
-            precio1: data.precio1 || 0,
-            precio2: data.precio2 || 0,
-            precio3: data.precio3 || 0,
-            precio1Pesos: data.precio1 || 0,
-            precio2Pesos: data.precio2 || 0,
-            precio3Pesos: data.precio3 || 0,
-            moneda: "ARS",
-            cantidad: data.cantidad || 0,
-            tipo: "accesorio",
-          };
-        }
-      });
+    // ✅ ACCESORIOS
+    const accesorios: ProductoStock[] = accSnap.docs.map(doc => {
+      const data = doc.data();
+      const esUSD = data.moneda === "USD";
       
-      const stockExtra: ProductoStock[] = repSnap.docs.map(doc => {
-        const data = doc.data();
-        const precio1USD = data.precio1 || data.precioUSD || 0;
-        
+      if (esUSD) {
         return {
           id: doc.id,
-          codigo: doc.id,
+          codigo: data.codigo || doc.id,
           producto: data.producto || data.modelo || "",
           modelo: data.modelo || data.producto || "",
           marca: data.marca || "",
           categoria: data.categoria || "",
           color: data.color || "",
-          precio1: precio1USD,
+          precio1: data.precio1 || 0,
           precio2: data.precio2 || 0,
           precio3: data.precio3 || 0,
-          precio1Pesos: precio1USD * cotizacion,
+          precio1Pesos: (data.precio1 || 0) * cotizacion,
           precio2Pesos: (data.precio2 || 0) * cotizacion,
           precio3Pesos: (data.precio3 || 0) * cotizacion,
-          moneda: "USD",
+          moneda: "USD" as const,
           cantidad: data.cantidad || 0,
-          tipo: "general",
-          hoja: data.hoja || "",
-        };
-      });
-
-      const stockRepuestos: ProductoStock[] = stockRepuestosSnap.docs.map(doc => {
-        const data = doc.data();
-        const precioNormalizado = normalizarPrecioRepuesto(data);
-        
+          tipo: "accesorio" as const,
+        } as ProductoStock;
+      } else {
         return {
           id: doc.id,
           codigo: data.codigo || doc.id,
-          producto: data.producto || data.modelo || "Repuesto",
-          modelo: data.modelo || data.producto || doc.id,
+          producto: data.producto || data.modelo || "",
+          modelo: data.modelo || data.producto || "",
           marca: data.marca || "",
-          categoria: data.categoria || "Repuestos",
+          categoria: data.categoria || "",
           color: data.color || "",
-          proveedor: data.proveedor || "",
-          precio1: precioNormalizado,
-          precio2: precioNormalizado * 1.2,
-          precio3: precioNormalizado * 1.5,
-          precio1Pesos: precioNormalizado,
-          precio2Pesos: precioNormalizado * 1.2,
-          precio3Pesos: precioNormalizado * 1.5,
-          moneda: data.moneda || "ARS",
+          precio1: data.precio1 || 0,
+          precio2: data.precio2 || 0,
+          precio3: data.precio3 || 0,
+          precio1Pesos: data.precio1 || 0,
+          precio2Pesos: data.precio2 || 0,
+          precio3Pesos: data.precio3 || 0,
+          moneda: "ARS" as const,
           cantidad: data.cantidad || 0,
-          tipo: "repuesto",
-          precioCosto: data.precioCosto,
-          precioCostoPesos: data.precioCostoPesos,
-          precioARS: data.precioARS,
-          precioUSD: data.precioUSD,
-        };
+          tipo: "accesorio" as const,
+        } as ProductoStock;
+      }
+    });
+    
+    // ✅ STOCK EXTRA
+    const stockExtra: ProductoStock[] = repSnap.docs.map(doc => {
+      const data = doc.data();
+      const precio1USD = data.precio1 || data.precioUSD || 0;
+      
+      return {
+        id: doc.id,
+        codigo: doc.id,
+        producto: data.producto || data.modelo || "",
+        modelo: data.modelo || data.producto || "",
+        marca: data.marca || "",
+        categoria: data.categoria || "",
+        color: data.color || "",
+        precio1: precio1USD,
+        precio2: data.precio2 || 0,
+        precio3: data.precio3 || 0,
+        precio1Pesos: precio1USD * cotizacion,
+        precio2Pesos: (data.precio2 || 0) * cotizacion,
+        precio3Pesos: (data.precio3 || 0) * cotizacion,
+        moneda: "USD" as const,
+        cantidad: data.cantidad || 0,
+        tipo: "general" as const,
+        hoja: data.hoja || "",
+      } as ProductoStock;
+    });
+
+    // ✅ REPUESTOS
+    const stockRepuestos: ProductoStock[] = stockRepuestosSnap.docs.map(doc => {
+      const data = doc.data();
+      const esUSD = data.moneda === "USD";
+      
+      const repuesto: ProductoStock = {
+        id: doc.id,
+        codigo: data.codigo || doc.id,
+        producto: data.producto || data.modelo || "Repuesto",
+        modelo: data.modelo || data.producto || doc.id,
+        marca: data.marca || "",
+        categoria: data.categoria || "Repuestos",
+        color: data.color || "",
+        proveedor: data.proveedor || "",
+        
+        precio1: data.precio1 || 0,
+        precio2: data.precio2 || 0,
+        precio3: data.precio3 || 0,
+        
+        precio1Pesos: esUSD ? (data.precio1 || 0) * cotizacion : (data.precio1 || 0),
+        precio2Pesos: esUSD ? (data.precio2 || 0) * cotizacion : (data.precio2 || 0),
+        precio3Pesos: esUSD ? (data.precio3 || 0) * cotizacion : (data.precio3 || 0),
+        
+        moneda: (data.moneda || "ARS") as "ARS" | "USD",
+        cantidad: data.cantidad || 0,
+        tipo: "repuesto" as const,
+        
+        precioCosto: data.precioCosto,
+        precioCostoPesos: esUSD ? (data.precioCosto || 0) * cotizacion : (data.precioCostoPesos || 0),
+        precioARS: data.precioARS,
+        precioUSD: data.precioUSD,
+      };
+      
+      console.log('🔧 Repuesto cargado:', {
+        producto: repuesto.producto,
+        moneda: repuesto.moneda,
+        precio1Original: repuesto.precio1,
+        precio1Pesos: repuesto.precio1Pesos,
+        cotización: cotizacion
       });
+      
+      return repuesto;
+    });
 
-      setTodos([...accesorios, ...stockExtra, ...stockRepuestos]);
-    };
+    console.log('📦 Total productos cargados:', {
+      accesorios: accesorios.length,
+      stockExtra: stockExtra.length,
+      repuestos: stockRepuestos.length
+    });
 
-    cargar();
-  }, [rol?.negocioID, cotizacion]);
+    setTodos([...accesorios, ...stockExtra, ...stockRepuestos]);
+  };
+
+  cargar();
+}, [rol?.negocioID, cotizacion]);
 
   const normalizar = (texto: string) =>
     texto
@@ -476,13 +492,36 @@ export default function SelectorProductoVentaGeneral({
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                {[1, 2, 3].map((nivel) => {
-                  const precio = p[`precio${nivel}Pesos` as keyof ProductoStock] || p[`precio${nivel}` as keyof ProductoStock];
-                  if (typeof precio !== "number" || precio === 0) return null;
+              {[1, 2, 3].map((nivel) => {
+  const precioPesos = p[`precio${nivel}Pesos` as keyof ProductoStock];
+  const precioOriginal = p[`precio${nivel}` as keyof ProductoStock];
+  const precio = precioPesos || precioOriginal;
+  
+  // 🔍 DEBUG - Ver qué valores tiene
+  if (p.tipo === "repuesto") {
+    console.log(`🔧 DEBUG Precio nivel ${nivel}:`, {
+      producto: p.producto,
+      precio1: p.precio1,
+      precio2: p.precio2,
+      precio3: p.precio3,
+      precio1Pesos: p.precio1Pesos,
+      precio2Pesos: p.precio2Pesos,
+      precio3Pesos: p.precio3Pesos,
+      precioPesos,
+      precioOriginal,
+      precio,
+      tipoPrecio: typeof precio
+    });
+  }
+  
+  if (typeof precio !== "number" || precio === 0) {
+    console.log(`⚠️ Precio ${nivel} es inválido:`, precio, typeof precio);
+    return null;
+  }
 
                   const etiquetaPrecio = p.tipo === "repuesto" 
-                    ? nivel === 1 ? "Costo" : nivel === 2 ? "Mayor" : "Público"
-                    : `Precio ${nivel}`;
+  ? nivel === 1 ? "Precio 1" : nivel === 2 ? "Precio 2" : "Precio 3"
+  : `Precio ${nivel}`;
 
                   return (
                     <div key={nivel} className="bg-[#f8f9fa] rounded-lg p-2 text-center">
