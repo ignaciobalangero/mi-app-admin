@@ -20,6 +20,7 @@ import {
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import PanelRecalculoGlobal from "./components/PanelRecalculoGlobal";
 
 export default function Configuraciones() {
   const [user] = useAuthState(auth);
@@ -170,30 +171,34 @@ export default function Configuraciones() {
       <Header />
       <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black">
         <div className="w-full px-4 max-w-[1200px] mx-auto space-y-6">
-          
-          {user?.uid === SUPER_ADMIN_UID && (
-            <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-2xl p-4 shadow-lg">
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => router.push("/admin/super")}
-                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
-                >
-                  🏢 Crear nuevo negocio
-                </button>
-                <button
-                  onClick={() => router.push("/admin/negocios")}
-                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
-                >
-                  🧾 Ver negocios
-                </button>
-                <button
-                  onClick={() => setMostrarPanelExentos(true)}
-                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
-                >
-                  👑 Gestionar usuarios exentos
-                </button>
+        {user?.uid === SUPER_ADMIN_UID && (
+            <>
+              <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-2xl p-4 shadow-lg">
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => router.push("/admin/super")}
+                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
+                  >
+                    🏢 Crear nuevo negocio
+                  </button>
+                  <button
+                    onClick={() => router.push("/admin/negocios")}
+                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
+                  >
+                    🧾 Ver negocios
+                  </button>
+                  <button
+                    onClick={() => setMostrarPanelExentos(true)}
+                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2"
+                  >
+                    👑 Gestionar usuarios exentos
+                  </button>
+                </div>
               </div>
-            </div>
+
+              {/* ⭐ NUEVO: Panel de Recálculo Global */}
+              <PanelRecalculoGlobal />
+            </>
           )}
 
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">

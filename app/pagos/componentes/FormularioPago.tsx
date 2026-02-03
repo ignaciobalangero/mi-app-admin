@@ -13,6 +13,7 @@ import {
  serverTimestamp,
  query,
  where,
+ limit,
 } from "firebase/firestore";
 
 interface Props {
@@ -49,7 +50,41 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
  // Estados para mostrar trabajos pendientes del cliente seleccionado
  const [trabajosPendientes, setTrabajosPendientes] = useState<Trabajo[]>([]);
  const [mostrarTrabajos, setMostrarTrabajos] = useState(false);
+// ⭐ NUEVO: Función para actualizar saldo del cliente
+const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
+  if (!negocioID) return;
 
+  try {
+    const clientesSnap = await getDocs(
+      query(
+        collection(db, `negocios/${negocioID}/clientes`),
+        where("nombre", "==", nombreCliente),
+        limit(1)
+      )
+    );
+
+    if (clientesSnap.empty) {
+      console.log(`⚠️ Cliente no encontrado: ${nombreCliente}`);
+      return;
+    }
+
+    const clienteDoc = clientesSnap.docs[0];
+    const datosCliente = clienteDoc.data();
+
+    const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
+    const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+
+    await updateDoc(clienteDoc.ref, {
+      saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
+      saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+      ultimaActualizacion: serverTimestamp()
+    });
+
+    console.log(`✅ Saldo actualizado: ${nombreCliente} | ARS ${sumarARS > 0 ? '+' : ''}${sumarARS} | USD ${sumarUSD > 0 ? '+' : ''}${sumarUSD}`);
+  } catch (error) {
+    console.error(`❌ Error actualizando saldo de ${nombreCliente}:`, error);
+  }
+};
  // Opciones predefinidas para forma de pago
  const formasPago = [
    { valor: "Efectivo", icono: "💵" },
@@ -269,6 +304,13 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
       // 🚀 NUEVA FUNCIONALIDAD: Marcar trabajos como pagados
       await marcarTrabajosComoPagados(monto, moneda);
     }
+    // ⭐ NUEVO: Restar pago del saldo del cliente
+    await actualizarSaldoCliente(
+      cliente,
+      moneda === "ARS" ? -monto : 0,
+      moneda === "USD" ? -monto : 0
+    );
+    console.log('💳 Saldo actualizado por pago manual');
      const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
      const pagosActualizados = snap.docs.map((doc) => ({
        id: doc.id,
@@ -339,6 +381,15 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
 
     // 4. Actualizar la lista de pagos
     const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
+    // ⭐ NUEVO: Devolver el pago al saldo del cliente (porque se eliminó)
+    if (pagoData) {
+      await actualizarSaldoCliente(
+        cliente,
+        pagoData.moneda === "ARS" ? (pagoData.monto || 0) : 0,
+        pagoData.moneda === "USD" ? (pagoData.montoUSD || 0) : 0
+      );
+      console.log('💳 Saldo actualizado por eliminación de pago');
+    }
     const pagosActualizados = snap.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),

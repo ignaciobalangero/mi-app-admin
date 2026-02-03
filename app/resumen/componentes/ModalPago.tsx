@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, doc, updateDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 
 interface Trabajo {
   firebaseId: string;
@@ -16,6 +16,7 @@ interface Trabajo {
   estadoCuentaCorriente?: string;
   precio?: number;
   costo?: number;
+  moneda?: "ARS" | "USD"; // ⭐ AGREGADO
   repuestosUsados?: any[];
   fechaModificacion?: string;
 }
@@ -25,7 +26,7 @@ interface Props {
   trabajo: Trabajo | null;
   negocioID: string;
   onClose: () => void;
-  onPagoGuardado: () => void; // Callback para recargar trabajos
+  onPagoGuardado: () => void;
 }
 
 export default function ModalPago({
@@ -41,7 +42,7 @@ export default function ModalPago({
     formaPago: "",
     destino: "",
     observaciones: "",
-    tipoDestino: "libre", // libre, proveedor
+    tipoDestino: "libre",
     proveedorSeleccionado: "",
     destinoLibre: "",
   });
@@ -50,7 +51,42 @@ export default function ModalPago({
   const [guardando, setGuardando] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
 
-  // Cargar proveedores al abrir el modal
+  // ⭐ Función para actualizar saldo del cliente
+  const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
+    if (!negocioID) return;
+
+    try {
+      const clientesSnap = await getDocs(
+        query(
+          collection(db, `negocios/${negocioID}/clientes`),
+          where("nombre", "==", nombreCliente),
+          limit(1)
+        )
+      );
+
+      if (clientesSnap.empty) {
+        console.log(`⚠️ Cliente no encontrado: ${nombreCliente}`);
+        return;
+      }
+
+      const clienteDoc = clientesSnap.docs[0];
+      const datosCliente = clienteDoc.data();
+
+      const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
+      const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+
+      await updateDoc(clienteDoc.ref, {
+        saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
+        saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+        ultimaActualizacion: serverTimestamp()
+      });
+
+      console.log(`✅ Saldo actualizado: ${nombreCliente} | ARS ${sumarARS > 0 ? '+' : ''}${sumarARS} | USD ${sumarUSD > 0 ? '+' : ''}${sumarUSD}`);
+    } catch (error) {
+      console.error(`❌ Error actualizando saldo de ${nombreCliente}:`, error);
+    }
+  };
+
   useEffect(() => {
     if (!negocioID || !mostrar) return;
 
@@ -71,7 +107,6 @@ export default function ModalPago({
     fetchProveedores();
   }, [negocioID, mostrar]);
 
-  // Pre-llenar el monto cuando se abre el modal
   useEffect(() => {
     if (trabajo && mostrar) {
       setPago(prev => ({
@@ -104,7 +139,6 @@ export default function ModalPago({
   const handleGuardarPago = async () => {
     if (!pago.monto || !pago.formaPago || guardando) return;
     
-    // Validar destino según tipo
     if (pago.tipoDestino === "proveedor" && !pago.proveedorSeleccionado) return;
     if (pago.tipoDestino === "libre" && !pago.destinoLibre) return;
 
@@ -116,11 +150,10 @@ export default function ModalPago({
       
       // 1. Crear el pago en la colección pagos
       const pagoData = {
-        // Separar monto según moneda (igual que otros modales)
         monto: pago.moneda === "USD" ? null : montoNumerico,
         montoUSD: pago.moneda === "USD" ? montoNumerico : null,
         moneda: pago.moneda,
-        forma: pago.formaPago, // Cambié formaPago por forma para consistencia
+        forma: pago.formaPago,
         destino: destino,
         tipoDestino: pago.tipoDestino,
         proveedorDestino: pago.tipoDestino === "proveedor" ? pago.proveedorSeleccionado : null,
@@ -131,15 +164,13 @@ export default function ModalPago({
         trabajoId: trabajo.firebaseId,
         tipo: 'ingreso',
         negocioID: negocioID,
-        // Información adicional del trabajo
         trabajoDetalle: trabajo.trabajo,
         modeloDetalle: trabajo.modelo
       };
 
-      // Guardar en Firebase
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
 
-      // 2. 🆕 SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
+      // 2. SI ES PAGO A PROVEEDOR, guardarlo en pagosProveedores
       if (pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado) {
         const proveedor = proveedores.find(p => p.nombre === pago.proveedorSeleccionado);
         if (proveedor) {
@@ -160,7 +191,30 @@ export default function ModalPago({
         }
       }
 
-      // 3. Actualizar el trabajo específico a PAGADO
+      // 3. ⭐ NUEVA LÓGICA: Actualizar saldos según estado anterior
+      const estadoAnterior = trabajo.estado;
+      const estadosValidos = ["ENTREGADO", "PAGADO"];
+      
+      // Si el trabajo NO estaba en ENTREGADO/PAGADO, SUMAR la deuda primero
+      if (!estadosValidos.includes(estadoAnterior) && trabajo.precio && trabajo.precio > 0) {
+        const monedaTrabajo = trabajo.moneda || "ARS";
+        await actualizarSaldoCliente(
+          trabajo.cliente,
+          monedaTrabajo === "ARS" ? trabajo.precio : 0,
+          monedaTrabajo === "USD" ? trabajo.precio : 0
+        );
+        console.log(`✅ Deuda sumada porque estaba en ${estadoAnterior}`);
+      }
+      
+      // Ahora restar el pago
+      await actualizarSaldoCliente(
+        trabajo.cliente,
+        pago.moneda === "ARS" ? -montoNumerico : 0,
+        pago.moneda === "USD" ? -montoNumerico : 0
+      );
+      console.log('💳 Pago restado del saldo');
+
+      // 4. Actualizar el trabajo a PAGADO
       const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
       await updateDoc(trabajoRef, {
         estado: "PAGADO",
@@ -168,17 +222,16 @@ export default function ModalPago({
         fechaModificacion: new Date().toLocaleDateString('es-AR')
       });
 
-      // 4. Mostrar éxito
+      // 5. Mostrar éxito
       setGuardadoConExito(true);
       
       console.log(`✅ Pago registrado para ${trabajo.cliente} - ${trabajo.trabajo} - $${montoNumerico}`);
       
-      // 5. Cerrar modal después de 1.5 segundos y recargar datos
+      // 6. Cerrar modal después de 1.5 segundos
       setTimeout(() => {
-        onPagoGuardado(); // Recargar trabajos
-        onClose(); // Cerrar modal
+        onPagoGuardado();
+        onClose();
         
-        // Reset estados
         setGuardadoConExito(false);
         setPago({
           monto: "",
@@ -204,7 +257,7 @@ export default function ModalPago({
     <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
       <div className="w-full h-full sm:h-auto sm:max-w-2xl lg:max-w-4xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
         
-        {/* Header del Modal - Con información del trabajo */}
+        {/* Header del Modal */}
         <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-4 sm:p-6 flex justify-between items-center flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="w-8 h-8 sm:w-12 sm:h-12 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center">
@@ -306,7 +359,6 @@ export default function ModalPago({
               </div>
             </div>
 
-            {/* Botón de monto sugerido */}
             <div className="mt-4">
               <button
                 onClick={() => setPago(prev => ({
@@ -343,7 +395,6 @@ export default function ModalPago({
                 />
               </div>
 
-              {/* Opciones rápidas de forma de pago */}
               <div className="flex flex-wrap gap-2">
                 <span className="text-sm text-[#7f8c8d] w-full mb-1">Opciones rápidas:</span>
                 {["Efectivo", "Transferencia", "Tarjeta", "MercadoPago"].map((forma) => (
@@ -359,7 +410,7 @@ export default function ModalPago({
             </div>
           </div>
 
-          {/* 🆕 Sección de Destino del Pago */}
+          {/* Sección de Destino del Pago */}
           <div className="bg-white rounded-xl border-2 border-[#e74c3c] p-4 sm:p-6 shadow-sm">
             <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
               <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#e74c3c] rounded-lg flex items-center justify-center">
@@ -369,7 +420,6 @@ export default function ModalPago({
             </h4>
             
             <div className="space-y-3 sm:space-y-4">
-              {/* Selector de tipo de destino */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#2c3e50]">
                   Tipo de destino: *
@@ -392,7 +442,6 @@ export default function ModalPago({
                 </select>
               </div>
 
-              {/* Campo dinámico según tipo */}
               {pago.tipoDestino === "proveedor" ? (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-[#2c3e50]">
@@ -433,7 +482,6 @@ export default function ModalPago({
                 </div>
               )}
 
-              {/* Vista previa del destino */}
               {((pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado) || 
                 (pago.tipoDestino === "libre" && pago.destinoLibre)) && (
                 <div className="p-3 bg-gradient-to-r from-[#f8f9fa] to-[#e9ecef] rounded-lg border border-[#dee2e6]">

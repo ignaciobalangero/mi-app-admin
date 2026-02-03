@@ -19,7 +19,7 @@ import { useRol } from "@/lib/useRol";
 import { descontarAccesorioDelStock } from "@/app/ventas-general/componentes/descontarAccesorioDelStock";
 import { descontarRepuestoDelStock } from "@/app/ventas-general/componentes/descontarRepuestoDelStock";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
-
+import { query, where, limit } from "firebase/firestore";
 export default function BotonGuardarVenta({
   cliente,
   productos,
@@ -45,6 +45,42 @@ export default function BotonGuardarVenta({
 
   const { rol } = useRol();
   const [guardando, setGuardando] = useState(false);
+
+  // ⭐ NUEVO: Función para actualizar saldo del cliente
+const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
+  if (!rol?.negocioID) return;
+
+  try {
+    const clientesSnap = await getDocs(
+      query(
+        collection(db, `negocios/${rol.negocioID}/clientes`),
+        where("nombre", "==", nombreCliente),
+        limit(1)
+      )
+    );
+
+    if (clientesSnap.empty) {
+      console.log(`⚠️ Cliente no encontrado: ${nombreCliente}`);
+      return;
+    }
+
+    const clienteDoc = clientesSnap.docs[0];
+    const datosCliente = clienteDoc.data();
+
+    const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
+    const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+
+    await updateDoc(clienteDoc.ref, {
+      saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
+      saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+      ultimaActualizacion: serverTimestamp()
+    });
+
+    console.log(`✅ Saldo actualizado: ${nombreCliente} | ARS ${sumarARS > 0 ? '+' : ''}${sumarARS} | USD ${sumarUSD > 0 ? '+' : ''}${sumarUSD}`);
+  } catch (error) {
+    console.error(`❌ Error actualizando saldo de ${nombreCliente}:`, error);
+  }
+};
 
   // ✅ FUNCIÓN CORREGIDA: Calcular totales SEPARADOS por moneda (para guardado)
   const calcularTotalesSeparados = (productos: any[]) => {
@@ -329,6 +365,13 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       saldoPendiente: saldoAPagar,
     });
 
+// ⭐ NUEVO: Actualizar saldo del cliente por la venta
+await actualizarSaldoCliente(
+  cliente,
+  datosVentaTelefono.moneda === "ARS" ? precioVentaTelefono : 0,
+  datosVentaTelefono.moneda === "USD" ? precioVentaTelefono : 0
+);
+console.log('💳 Saldo actualizado por venta de teléfono');
     // 3. Eliminar del stock
     if (datosVentaTelefono.stockID) {
       await deleteDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos/${datosVentaTelefono.stockID}`));
@@ -364,7 +407,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       });
       console.log('✅ Pago ARS guardado:', pagoARS_Tel);
     }
-
+// ⭐ NUEVO: Restar pago ARS del saldo
+      await actualizarSaldoCliente(cliente, -pagoARS_Tel, 0);
     // ✅ GUARDAR PAGO USD si existe
     if (pagoUSD_Tel > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
@@ -382,7 +426,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       });
       console.log('✅ Pago USD guardado:', pagoUSD_Tel);
     }
-
+// ⭐ NUEVO: Restar pago USD del saldo
+await actualizarSaldoCliente(cliente, 0, -pagoUSD_Tel);
     // ✅ GUARDAR TELÉFONO COMO PARTE DE PAGO (RESPETANDO SU MONEDA)
     if (valorTelefonoEntregado > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
@@ -411,6 +456,12 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         moneda: monedaTelefonoEntregado
       });
     }
+    // ⭐ NUEVO: Restar teléfono entregado como pago del saldo
+    await actualizarSaldoCliente(
+      cliente,
+      monedaTelefonoEntregado === "ARS" ? -valorTelefonoEntregado : 0,
+      monedaTelefonoEntregado === "USD" ? -valorTelefonoEntregado : 0
+    );
 // ✅ 5. SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
 if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino) {
   // Misma lógica que arriba pero para teléfonos
@@ -545,7 +596,9 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
       nroVenta,
       timestamp: serverTimestamp(),
     });
-
+// ⭐ NUEVO: Actualizar saldo del cliente por la venta
+await actualizarSaldoCliente(cliente, totalARS, totalUSD);
+console.log('💳 Saldo actualizado por venta normal');
     // ✅ GUARDAR PAGOS SEPARADOS (ARS + USD independientes)
     
     // Guardar pago en ARS si existe
@@ -565,7 +618,8 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
       });
       console.log('✅ Pago ARS guardado:', pagoARS);
     }
-
+// ⭐ NUEVO: Restar pago ARS del saldo
+await actualizarSaldoCliente(cliente, -pagoARS, 0);
     // Guardar pago en USD si existe
     if (pagoUSD > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
@@ -583,7 +637,8 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
       });
       console.log('✅ Pago USD guardado:', pagoUSD);
     }
-
+// ⭐ NUEVO: Restar pago USD del saldo
+await actualizarSaldoCliente(cliente, 0, -pagoUSD);
     // ✅ 4. SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
 if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
   // Buscar datos del proveedor

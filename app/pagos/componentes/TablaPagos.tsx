@@ -11,6 +11,8 @@ import {
   query,
   where,
   getDoc,
+  limit,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { PagoConOrigen } from "../page";
@@ -28,9 +30,45 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
   const [pagoEditando, setPagoEditando] = useState<PagoConOrigen | null>(null);
   const [form, setForm] = useState<any>({});
 
+  // ⭐ Función para actualizar saldo del cliente
+  const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
+    if (!negocioID) return;
+
+    try {
+      const clientesSnap = await getDocs(
+        query(
+          collection(db, `negocios/${negocioID}/clientes`),
+          where("nombre", "==", nombreCliente),
+          limit(1)
+        )
+      );
+
+      if (clientesSnap.empty) {
+        console.log(`⚠️ Cliente no encontrado: ${nombreCliente}`);
+        return;
+      }
+
+      const clienteDoc = clientesSnap.docs[0];
+      const datosCliente = clienteDoc.data();
+
+      const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
+      const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+
+      await updateDoc(clienteDoc.ref, {
+        saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
+        saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+        ultimaActualizacion: serverTimestamp()
+      });
+
+      console.log(`✅ Saldo actualizado: ${nombreCliente} | ARS ${sumarARS > 0 ? '+' : ''}${sumarARS} | USD ${sumarUSD > 0 ? '+' : ''}${sumarUSD}`);
+    } catch (error) {
+      console.error(`❌ Error actualizando saldo de ${nombreCliente}:`, error);
+    }
+  };
+
   // Función para convertir fecha string a Date object
   const convertirFechaADate = (fecha: string): Date => {
-    if (!fecha) return new Date(0); // Fecha muy antigua para fechas vacías
+    if (!fecha) return new Date(0);
     
     const [dia, mes, anio] = fecha.split("/");
     return new Date(Number(anio), Number(mes) - 1, Number(dia));
@@ -46,13 +84,12 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         ...doc.data()
       })) as PagoConOrigen[];
 
-      // ÚNICO ORDENAMIENTO: Más reciente primero
       const pagosOrdenados = pagosCargados
         .filter((p) => p.fecha)
         .sort((a, b) => {
           const fechaA = convertirFechaADate(a.fecha || "");
           const fechaB = convertirFechaADate(b.fecha || "");
-          return fechaB.getTime() - fechaA.getTime(); // Más reciente primero
+          return fechaB.getTime() - fechaA.getTime();
         }); 
 
       setPagos(pagosOrdenados);
@@ -89,7 +126,6 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       if (pagoData && pagoData.tipoDestino === "proveedor" && pagoData.proveedorDestino) {
         console.log("🏢 Era pago a proveedor:", pagoData.proveedorDestino);
         
-        // Obtener lista de proveedores para encontrar el ID
         const proveedoresSnap = await getDocs(collection(db, `negocios/${negocioID}/proveedores`));
         let proveedorId = null;
         
@@ -100,7 +136,6 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         });
   
         if (proveedorId) {
-          // 🆕 BUSQUEDA MEJORADA: Por proveedor, fecha Y montos
           const pagosProveedorSnap = await getDocs(
             query(
               collection(db, `negocios/${negocioID}/pagosProveedores`),
@@ -113,7 +148,6 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
   
           console.log("🔍 Pagos de proveedor encontrados:", pagosProveedorSnap.size);
   
-          // Eliminar todos los pagos coincidentes
           const deletePromises = [];
           pagosProveedorSnap.forEach((docProveedor) => {
             console.log("🗑️ Eliminando pago de proveedor:", docProveedor.id);
@@ -126,6 +160,19 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
           console.log("⚠️ No se encontró el proveedor ID para:", pagoData.proveedorDestino);
         }
       }
+
+      // 4. ⭐ Devolver el pago al saldo del cliente (sumar porque se eliminó)
+      if (pagoData && pagoData.cliente) {
+        const montoARS = pagoData.monto || 0;
+        const montoUSD = pagoData.montoUSD || 0;
+        
+        await actualizarSaldoCliente(
+          pagoData.cliente,
+          montoARS,  // Sumar (devolver) porque se eliminó el pago
+          montoUSD
+        );
+        console.log('💳 Saldo actualizado por eliminación de pago');
+      }
   
       setMensaje("✅ Pago eliminado completamente");
       obtenerPagos();
@@ -137,6 +184,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       setTimeout(() => setMensaje(""), 2000);
     }
   };
+
   const convertirFecha = (fecha: string): string => {
     const [dia, mes, anio] = fecha.split("/");
     return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
@@ -168,9 +216,21 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
   
   const guardarEdicion = async () => {
     if (!pagoEditando) return;
-  
+
     try {
-      const ref = doc(db, `negocios/${negocioID}/${pagoEditando.origen}`, pagoEditando.id);
+      // 1. ⭐ OBTENER DATOS ORIGINALES DEL PAGO ANTES DE EDITAR
+      const pagoRef = doc(db, `negocios/${negocioID}/${pagoEditando.origen}`, pagoEditando.id);
+      const pagoSnap = await getDoc(pagoRef);
+      
+      if (!pagoSnap.exists()) {
+        console.error("❌ Pago no encontrado");
+        return;
+      }
+      
+      const datosOriginales = pagoSnap.data();
+      console.log("📋 Datos originales:", datosOriginales);
+
+      // 2. PREPARAR DATOS ACTUALIZADOS
       const datosActualizados: any = {
         cliente: form.cliente,
         moneda: form.moneda,
@@ -178,7 +238,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         destino: form.destino,
         cotizacion: Number(form.cotizacion || 0),
       };
-  
+
       if (form.moneda === "USD") {
         datosActualizados.montoUSD = Number(form.montoUSD);
         datosActualizados.monto = 0;
@@ -186,21 +246,53 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         datosActualizados.monto = Number(form.monto);
         datosActualizados.montoUSD = 0;
       }
-  
+
       if (form.fecha) {
         datosActualizados.fecha = formatearFechaParaGuardar(form.fecha);
       }
-  
-      await updateDoc(ref, datosActualizados);
-      setMensaje("✅ Pago editado");
+
+      // 3. ⭐ AJUSTAR SALDOS SEGÚN LOS CAMBIOS
+
+      // PASO 3.1: Devolver el pago original al cliente original
+      const clienteOriginal = datosOriginales.cliente;
+      const montoOriginalARS = datosOriginales.monto || 0;
+      const montoOriginalUSD = datosOriginales.montoUSD || 0;
+
+      if (clienteOriginal) {
+        await actualizarSaldoCliente(
+          clienteOriginal,
+          montoOriginalARS,  // Devolver (sumar) el pago original
+          montoOriginalUSD
+        );
+        console.log(`✅ Devuelto pago original a ${clienteOriginal}: ARS ${montoOriginalARS} | USD ${montoOriginalUSD}`);
+      }
+
+      // PASO 3.2: Restar el nuevo pago al cliente nuevo (puede ser el mismo)
+      const clienteNuevo = form.cliente;
+      const montoNuevoARS = form.moneda === "ARS" ? Number(form.monto) : 0;
+      const montoNuevoUSD = form.moneda === "USD" ? Number(form.montoUSD) : 0;
+
+      if (clienteNuevo) {
+        await actualizarSaldoCliente(
+          clienteNuevo,
+          -montoNuevoARS,  // Restar el nuevo pago
+          -montoNuevoUSD
+        );
+        console.log(`✅ Restado nuevo pago a ${clienteNuevo}: ARS ${montoNuevoARS} | USD ${montoNuevoUSD}`);
+      }
+
+      // 4. GUARDAR CAMBIOS EN FIREBASE
+      await updateDoc(pagoRef, datosActualizados);
+      
+      setMensaje("✅ Pago editado y saldos actualizados");
       setPagoEditando(null);
       obtenerPagos();
     } catch (err) {
-      console.error("Error editando pago:", err);
+      console.error("❌ Error editando pago:", err);
+      setMensaje("❌ Error al editar pago");
     }
-  };  
+  };
 
-  // Filtrar pagos para mostrar - SIN ORDENAR AQUÍ
   const pagosFiltrados = pagos.filter(p => 
     (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase())
   );
@@ -455,11 +547,11 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
                       <span className="text-sm font-semibold text-[#3498db]">{pago.cliente}</span>
                     </td>
                     <td className="p-4 border border-black">
-                    <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
-  {pago.moneda === "USD"
-    ? `USD ${Number(pago.montoUSD).toLocaleString()}`
-    : `$ ${Number(pago.monto).toLocaleString()}`}
-</span>
+                      <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
+                        {pago.moneda === "USD"
+                          ? `USD ${Number(pago.montoUSD).toLocaleString()}`
+                          : `$ ${Number(pago.monto).toLocaleString()}`}
+                      </span>
                     </td>
                     <td className="p-4 border border-black">
                       <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${

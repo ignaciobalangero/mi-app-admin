@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { collection, getDocs, doc, updateDoc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, doc, writeBatch, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
@@ -31,7 +31,7 @@ export default function RecalcularSaldosPage() {
   const [clientes, setClientes] = useState<ClienteSaldo[]>([]);
   const [mostrarSoloConDiferencia, setMostrarSoloConDiferencia] = useState(false);
 
-  if (!rol || rol.tipo !== "propietario") {
+  if (!rol || (rol.tipo !== "propietario" && rol.tipo !== "admin")) {
     return (
       <>
         <Header />
@@ -39,7 +39,7 @@ export default function RecalcularSaldosPage() {
           <div className="max-w-4xl mx-auto">
             <div className="bg-red-100 border-2 border-red-500 rounded-xl p-6 text-center">
               <h1 className="text-2xl font-bold text-red-800 mb-2">⛔ Acceso Denegado</h1>
-              <p className="text-red-700">Solo el propietario puede acceder a esta página.</p>
+              <p className="text-red-700">Solo administradores pueden acceder a esta página.</p>
             </div>
           </div>
         </main>
@@ -52,21 +52,29 @@ export default function RecalcularSaldosPage() {
     
     setCalculando(true);
     try {
-      // 1. Obtener todos los clientes
-      const clientesSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/clientes`));
+      console.log("🔄 Iniciando cálculo de saldos...");
       
+      // ⚡ OPTIMIZACIÓN: Leer todas las colecciones UNA SOLA VEZ en paralelo
+      const [clientesSnap, trabajosSnap, ventasSnap, pagosSnap] = await Promise.all([
+        getDocs(collection(db, `negocios/${rol.negocioID}/clientes`)),
+        getDocs(collection(db, `negocios/${rol.negocioID}/trabajos`)),
+        getDocs(collection(db, `negocios/${rol.negocioID}/ventasGeneral`)),
+        getDocs(collection(db, `negocios/${rol.negocioID}/pagos`))
+      ]);
+
+      console.log(`✅ Datos cargados: ${clientesSnap.size} clientes, ${trabajosSnap.size} trabajos, ${ventasSnap.size} ventas, ${pagosSnap.size} pagos`);
+
       const resultados: ClienteSaldo[] = [];
 
+      // ⚡ Iterar sobre clientes y filtrar en memoria
       for (const clienteDoc of clientesSnap.docs) {
         const datosCliente = clienteDoc.data();
         const nombreCliente = datosCliente.nombre;
 
-        // Saldos actuales en Firebase
         const saldoActualARS = datosCliente.saldoARS || 0;
         const saldoActualUSD = datosCliente.saldoUSD || 0;
 
-        // 2. Calcular deuda por trabajos ENTREGADOS/PAGADOS
-        const trabajosSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/trabajos`));
+        // ⚡ Filtrar trabajos en memoria
         let deudaTrabajosARS = 0;
         let deudaTrabajosUSD = 0;
 
@@ -86,21 +94,58 @@ export default function RecalcularSaldosPage() {
           }
         });
 
-        // 3. Calcular deuda por ventas
-        const ventasSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/ventasGeneral`));
+        // ⚡ Filtrar ventas en memoria - ⭐ CORREGIDO
         let deudaVentasARS = 0;
         let deudaVentasUSD = 0;
 
         ventasSnap.docs.forEach(doc => {
           const venta = doc.data();
           if (venta.cliente === nombreCliente) {
-            deudaVentasARS += venta.totalARS || 0;
-            deudaVentasUSD += venta.totalUSD || 0;
+            // Leer totalARS/totalUSD si existen (ventas duales nuevas)
+            const totalARS = venta.totalARS || 0;
+            const totalUSD = venta.totalUSD || 0;
+            
+            // Si tiene totalARS/totalUSD (ventas nuevas), usar esos
+            if (totalARS > 0 || totalUSD > 0) {
+              deudaVentasARS += totalARS;
+              deudaVentasUSD += totalUSD;
+            } 
+            // Si solo tiene "total" (ventas viejas)
+            else {
+              const tipoVenta = venta.tipo || "";
+              
+              // ⭐ Para ventas de teléfonos, sumar productos individuales
+              if (tipoVenta === "telefono" && venta.productos && Array.isArray(venta.productos)) {
+                venta.productos.forEach((producto: any) => {
+                  const precioVenta = Number(producto.precioVenta) || 0;
+                  const monedaProducto = producto.moneda || "ARS";
+                  const cantidad = producto.cantidad || 1;
+                  
+                  if (monedaProducto === "USD") {
+                    deudaVentasUSD += precioVenta * cantidad;
+                  } else {
+                    deudaVentasARS += precioVenta * cantidad;
+                  }
+                });
+              }
+              // Para ventas normales (no teléfonos), usar el total según moneda
+              else {
+                const totalVenta = venta.total || 0;
+                const monedaVenta = venta.moneda || "ARS";
+                
+                if (totalVenta > 0) {
+                  if (monedaVenta === "USD") {
+                    deudaVentasUSD += totalVenta;
+                  } else {
+                    deudaVentasARS += totalVenta;
+                  }
+                }
+              }
+            }
           }
         });
 
-        // 4. Calcular pagos
-        const pagosSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/pagos`));
+        // ⚡ Filtrar pagos en memoria
         let pagosARS = 0;
         let pagosUSD = 0;
 
@@ -112,11 +157,11 @@ export default function RecalcularSaldosPage() {
           }
         });
 
-        // 5. Calcular saldo correcto
+        // Calcular saldo correcto
         const saldoCalculadoARS = Math.round((deudaTrabajosARS + deudaVentasARS - pagosARS) * 100) / 100;
         const saldoCalculadoUSD = Math.round((deudaTrabajosUSD + deudaVentasUSD - pagosUSD) * 100) / 100;
 
-        // 6. Verificar diferencias (tolerancia: 1 ARS, 0.01 USD)
+        // Verificar diferencias (tolerancia: 1 ARS, 0.01 USD)
         const diferencia = 
           Math.abs(saldoActualARS - saldoCalculadoARS) > 1 ||
           Math.abs(saldoActualUSD - saldoCalculadoUSD) > 0.01;
@@ -145,9 +190,11 @@ export default function RecalcularSaldosPage() {
         return a.nombre.localeCompare(b.nombre);
       });
 
+      console.log(`✅ Cálculo completado: ${resultados.filter(r => r.diferencia).length} clientes con diferencias`);
       setClientes(resultados);
+      
     } catch (error) {
-      console.error("Error calculando saldos:", error);
+      console.error("❌ Error calculando saldos:", error);
       alert("Error al calcular saldos");
     } finally {
       setCalculando(false);
@@ -172,6 +219,8 @@ export default function RecalcularSaldosPage() {
 
     setAplicando(true);
     try {
+      console.log(`🔄 Aplicando correcciones a ${clientesConDiferencia.length} clientes...`);
+      
       const batch = writeBatch(db);
       let contador = 0;
 
@@ -190,18 +239,32 @@ export default function RecalcularSaldosPage() {
         // Firestore tiene límite de 500 operaciones por batch
         if (contador % 500 === 0) {
           await batch.commit();
+          console.log(`✅ Batch ${Math.floor(contador / 500)} completado`);
         }
       }
 
       // Commit final
       await batch.commit();
+      console.log("✅ Todas las correcciones aplicadas");
 
-      alert(`✅ Saldos corregidos exitosamente para ${clientesConDiferencia.length} cliente(s)`);
+      // ⭐ Marcar que este negocio ya usó el recálculo
+      const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
+      await setDoc(configRef, {
+        recalculoUsado: true,
+        fechaRecalculo: new Date().toISOString()
+      }, { merge: true });
+
+      console.log("✅ Marcado como usado en configuración");
+
+      alert(`✅ Saldos corregidos exitosamente para ${clientesConDiferencia.length} cliente(s)\n\n⚠️ Esta herramienta ya no estará disponible para este negocio.`);
       
-      // Recargar datos
-      await calcularSaldos();
+      // Redirigir a cuenta corriente después de 2 segundos
+      setTimeout(() => {
+        router.push("/cuenta-corriente");
+      }, 2000);
+
     } catch (error) {
-      console.error("Error aplicando correcciones:", error);
+      console.error("❌ Error aplicando correcciones:", error);
       alert("Error al aplicar correcciones");
     } finally {
       setAplicando(false);
@@ -253,6 +316,7 @@ export default function RecalcularSaldosPage() {
                   <li>• Revisar siempre el PREVIEW antes de aplicar cambios</li>
                   <li>• Los cambios NO se pueden deshacer</li>
                   <li>• Usar solo si hay inconsistencias evidentes</li>
+                  <li>• ⭐ Después de usarla, NO podrás volver a acceder</li>
                 </ul>
               </div>
             </div>
@@ -335,16 +399,30 @@ export default function RecalcularSaldosPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1200px]">
+                <table className="w-full">
                   <thead className="bg-[#ecf0f1]">
                     <tr>
-                      <th className="p-3 text-left text-sm font-semibold border">Cliente</th>
-                      <th className="p-3 text-center text-sm font-semibold border">Estado</th>
-                      <th className="p-3 text-center text-sm font-semibold border">Saldo Actual ARS</th>
-                      <th className="p-3 text-center text-sm font-semibold border">Saldo Calculado ARS</th>
-                      <th className="p-3 text-center text-sm font-semibold border">Saldo Actual USD</th>
-                      <th className="p-3 text-center text-sm font-semibold border">Saldo Calculado USD</th>
-                      <th className="p-3 text-center text-sm font-semibold border">Detalle</th>
+                      <th className="p-3 text-left text-sm font-semibold border border-[#bdc3c7] min-w-[200px] bg-[#ecf0f1] text-[#2c3e50]">
+                        Cliente
+                      </th>
+                      <th className="p-3 text-center text-sm font-semibold border border-[#bdc3c7] min-w-[120px] bg-[#ecf0f1] text-[#2c3e50]">
+                        Estado
+                      </th>
+                      <th className="p-3 text-center text-sm font-semibold border border-[#bdc3c7] min-w-[140px] bg-[#ecf0f1] text-[#2c3e50]">
+                        Saldo Actual ARS
+                      </th>
+                      <th className="p-3 text-center text-sm font-semibold border border-[#bdc3c7] min-w-[160px] bg-[#ecf0f1] text-[#2c3e50]">
+                        Saldo Calculado ARS
+                      </th>
+                      <th className="p-3 text-center text-sm font-semibold border border-[#bdc3c7] min-w-[140px] bg-[#ecf0f1] text-[#2c3e50]">
+                        Saldo Actual USD
+                      </th>
+                      <th className="p-3 text-center text-sm font-semibold border border-[#bdc3c7] min-w-[160px] bg-[#ecf0f1] text-[#2c3e50]">
+                        Saldo Calculado USD
+                      </th>
+                      <th className="p-3 text-center text-sm font-semibold border border-[#bdc3c7] min-w-[250px] bg-[#ecf0f1] text-[#2c3e50]">
+                        Detalle
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -353,8 +431,10 @@ export default function RecalcularSaldosPage() {
                         key={cliente.id}
                         className={cliente.diferencia ? "bg-red-50" : "bg-white"}
                       >
-                        <td className="p-3 border font-medium">{cliente.nombre}</td>
-                        <td className="p-3 border text-center">
+                        <td className="p-3 border border-[#bdc3c7] font-semibold text-[#2c3e50]">
+                          {cliente.nombre}
+                        </td>
+                        <td className="p-3 border border-[#bdc3c7] text-center">
                           {cliente.diferencia ? (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500 text-white">
                               ❌ Diferencia
@@ -365,23 +445,23 @@ export default function RecalcularSaldosPage() {
                             </span>
                           )}
                         </td>
-                        <td className="p-3 border text-center font-bold text-[#e74c3c]">
+                        <td className="p-3 border border-[#bdc3c7] text-center font-bold text-[#e74c3c]">
                           ${cliente.saldoActualARS.toLocaleString()}
                         </td>
-                        <td className="p-3 border text-center font-bold text-[#27ae60]">
+                        <td className="p-3 border border-[#bdc3c7] text-center font-bold text-[#27ae60]">
                           ${cliente.saldoCalculadoARS.toLocaleString()}
                         </td>
-                        <td className="p-3 border text-center font-bold text-[#e74c3c]">
+                        <td className="p-3 border border-[#bdc3c7] text-center font-bold text-[#e74c3c]">
                           USD ${cliente.saldoActualUSD.toLocaleString()}
                         </td>
-                        <td className="p-3 border text-center font-bold text-[#27ae60]">
+                        <td className="p-3 border border-[#bdc3c7] text-center font-bold text-[#27ae60]">
                           USD ${cliente.saldoCalculadoUSD.toLocaleString()}
                         </td>
-                        <td className="p-3 border text-xs">
+                        <td className="p-3 border border-[#bdc3c7] text-xs text-[#2c3e50]">
                           <div className="space-y-1">
-                            <div>Trabajos: ${cliente.deudaTrabajosARS.toLocaleString()} / USD ${cliente.deudaTrabajosUSD.toLocaleString()}</div>
-                            <div>Ventas: ${cliente.deudaVentasARS.toLocaleString()} / USD ${cliente.deudaVentasUSD.toLocaleString()}</div>
-                            <div>Pagos: ${cliente.pagosARS.toLocaleString()} / USD ${cliente.pagosUSD.toLocaleString()}</div>
+                            <div><strong>Trabajos:</strong> ${cliente.deudaTrabajosARS.toLocaleString()} ARS / ${cliente.deudaTrabajosUSD.toLocaleString()} USD</div>
+                            <div><strong>Ventas:</strong> ${cliente.deudaVentasARS.toLocaleString()} ARS / ${cliente.deudaVentasUSD.toLocaleString()} USD</div>
+                            <div><strong>Pagos:</strong> ${cliente.pagosARS.toLocaleString()} ARS / ${cliente.pagosUSD.toLocaleString()} USD</div>
                           </div>
                         </td>
                       </tr>

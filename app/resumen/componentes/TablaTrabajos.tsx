@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { doc, updateDoc, deleteDoc, query, collection, where, getDocs } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, query, collection, where, getDocs, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ModalRepuestos from "./ModalRepuestos";
 import ModalPago from "./ModalPago";
@@ -21,6 +21,7 @@ interface Trabajo {
   estadoCuentaCorriente?: string;
   precio?: number;
   costo?: number;
+  moneda?: "ARS" | "USD"; // ⭐ NUEVO
   repuestosUsados?: any[];
   fechaModificacion?: string;
 }
@@ -84,22 +85,75 @@ export default function TablaTrabajos({
   // ========================================
   // FUNCIONES
   // ========================================
+// ⭐ NUEVO: Función para actualizar saldo del cliente
+const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
+  if (!negocioID) return;
 
-  const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
-    // ✅ 1. Actualizar estado local INMEDIATAMENTE
-    setTrabajos(prev => prev.map(t => 
-      t.firebaseId === firebaseId 
-        ? { ...t, [campo]: valor }
-        : t
-    ));
-    
-    // ✅ 2. Guardar en Firebase en background
-    const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
-    await updateDoc(ref, { 
-      [campo]: valor,
-      ultimaActualizacion: new Date().toISOString()
+  try {
+    const clientesSnap = await getDocs(
+      query(
+        collection(db, `negocios/${negocioID}/clientes`),
+        where("nombre", "==", nombreCliente),
+        limit(1)
+      )
+    );
+
+    if (clientesSnap.empty) {
+      console.log(`⚠️ Cliente no encontrado: ${nombreCliente}`);
+      return;
+    }
+
+    const clienteDoc = clientesSnap.docs[0];
+    const datosCliente = clienteDoc.data();
+
+    const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
+    const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+
+    await updateDoc(clienteDoc.ref, {
+      saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
+      saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+      ultimaActualizacion: serverTimestamp()
     });
-  };
+
+    console.log(`✅ Saldo actualizado: ${nombreCliente} | ARS ${sumarARS > 0 ? '+' : ''}${sumarARS} | USD ${sumarUSD > 0 ? '+' : ''}${sumarUSD}`);
+  } catch (error) {
+    console.error(`❌ Error actualizando saldo de ${nombreCliente}:`, error);
+  }
+};
+const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
+  // ⭐ NUEVO: Obtener datos del trabajo ANTES de actualizar
+  const trabajoActual = trabajos.find(t => t.firebaseId === firebaseId);
+  if (!trabajoActual) return;
+
+  const precioAnterior = trabajoActual.precio || 0;
+  const estadoValido = ["ENTREGADO", "PAGADO"].includes(trabajoActual.estado);
+  const moneda = trabajoActual.moneda || "ARS";
+
+  // ✅ 1. Actualizar estado local INMEDIATAMENTE
+  setTrabajos(prev => prev.map(t => 
+    t.firebaseId === firebaseId 
+      ? { ...t, [campo]: valor }
+      : t
+  ));
+  
+  // ✅ 2. Guardar en Firebase en background
+  const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
+  await updateDoc(ref, { 
+    [campo]: valor,
+    ultimaActualizacion: new Date().toISOString()
+  });
+
+  // ⭐ NUEVO: Si cambió el PRECIO y el trabajo está ENTREGADO/PAGADO, actualizar saldo
+  if (campo === "precio" && estadoValido && precioAnterior !== valor) {
+    const diferencia = valor - precioAnterior;
+    await actualizarSaldoCliente(
+      trabajoActual.cliente,
+      moneda === "ARS" ? diferencia : 0,
+      moneda === "USD" ? diferencia : 0
+    );
+    console.log(`💳 Saldo actualizado por cambio de precio: ${precioAnterior} → ${valor}`);
+  }
+};
 
   // Estados para modal de confirmación
 const [mostrarConfirmarEliminar, setMostrarConfirmarEliminar] = useState(false);
@@ -461,9 +515,10 @@ const eliminarTrabajo = async () => {
                     <td className="p-1 sm:p-2 md:p-3 border border-black w-[150px] sm:w-[165px] md:w-[180px] lg:w-[220px]">
                       <div className="flex flex-col gap-1">
                         
-                        <select
+                      <select
                           value={t.estado}
                           onChange={async (e) => {
+                            const estadoAnterior = t.estado;
                             const nuevoEstado = e.target.value;
                             const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
                             const updates: any = {};
@@ -475,18 +530,32 @@ const eliminarTrabajo = async () => {
 
                             await updateDoc(ref, updates);
 
-                            if (nuevoEstado === "PAGADO") {
-                              try {
-                                const clientesSnap = await getDocs(
-                                  query(collection(db, `negocios/${negocioID}/clientes`), where("nombre", "==", t.cliente))
-                                );
-                                if (!clientesSnap.empty) {
-                                  const clienteID = clientesSnap.docs[0].id;
-                                  console.log("🔁 Recalculando cuenta para:", clienteID);
-                                }
-                              } catch (error) {
-                                console.error("❌ Error al recalcular cuenta:", error);
-                              }
+                            // ⭐ NUEVO: Lógica de actualización de saldos
+                            const estadosValidos = ["ENTREGADO", "PAGADO"];
+                            const estadoAnteriorValido = estadosValidos.includes(estadoAnterior);
+                            const nuevoEstadoValido = estadosValidos.includes(nuevoEstado);
+
+                            const precio = t.precio || 0;
+                            const moneda = t.moneda || "ARS";
+
+                            // CASO 1: Cambió de NO válido → válido (SUMA deuda)
+                            if (!estadoAnteriorValido && nuevoEstadoValido && precio > 0) {
+                              await actualizarSaldoCliente(
+                                t.cliente,
+                                moneda === "ARS" ? precio : 0,
+                                moneda === "USD" ? precio : 0
+                              );
+                              console.log(`✅ Deuda sumada por cambio a ${nuevoEstado}`);
+                            }
+
+                            // CASO 2: Cambió de válido → NO válido (RESTA deuda)
+                            if (estadoAnteriorValido && !nuevoEstadoValido && precio > 0) {
+                              await actualizarSaldoCliente(
+                                t.cliente,
+                                moneda === "ARS" ? -precio : 0,
+                                moneda === "USD" ? -precio : 0
+                              );
+                              console.log(`✅ Deuda restada por cambio desde ${estadoAnterior}`);
                             }
                             
                             await onRecargar();

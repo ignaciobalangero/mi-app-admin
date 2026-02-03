@@ -12,6 +12,12 @@ import {
   getDocs,
   deleteDoc,
   doc,
+  getDoc,        // ⭐ NUEVO
+  updateDoc,     // ⭐ NUEVO
+  query,         // ⭐ NUEVO
+  where,         // ⭐ NUEVO
+  limit,         // ⭐ NUEVO
+  serverTimestamp, // ⭐ NUEVO
 } from "firebase/firestore";
 import TablaTrabajos from "./componentes/TablaTrabajos";
 import FiltroTrabajos from "./componentes/FiltroTrabajos";
@@ -113,14 +119,74 @@ export default function GestionTrabajosPage() {
     
     const confirmar = window.confirm("¿Estás seguro que querés eliminar este trabajo? Esta acción no se puede deshacer.");
     if (!confirmar) return;
-
+  
     try {
-      await deleteDoc(doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`));
+      // 1. ⭐ NUEVO: Obtener datos del trabajo ANTES de eliminarlo
+      const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
+      const trabajoSnap = await getDoc(trabajoRef);
+      
+      if (!trabajoSnap.exists()) {
+        console.error("❌ Trabajo no encontrado");
+        return;
+      }
+      
+      const trabajoData = trabajoSnap.data();
+      
+      // 2. Eliminar el trabajo
+      await deleteDoc(trabajoRef);
       setTrabajos((prev) => prev.filter((t) => t.firebaseId !== firebaseId));
+      
+      // 3. ⭐ NUEVO: Si estaba ENTREGADO o PAGADO, restar la deuda del saldo
+      const estadosValidos = ["ENTREGADO", "PAGADO"];
+      if (estadosValidos.includes(trabajoData.estado) && trabajoData.precio > 0) {
+        await actualizarSaldoCliente(
+          trabajoData.cliente,
+          trabajoData.moneda === "ARS" ? -trabajoData.precio : 0,
+          trabajoData.moneda === "USD" ? -trabajoData.precio : 0
+        );
+        console.log('✅ Saldo actualizado por eliminación de trabajo');
+      }
+      
       console.log("✅ Trabajo eliminado correctamente");
     } catch (error) {
       console.error("Error eliminando trabajo:", error);
       alert("No se pudo eliminar el trabajo. Intenta nuevamente.");
+    }
+  };
+  
+  // ⭐ NUEVA FUNCIÓN: Actualizar saldo del cliente
+  const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
+    if (!negocioID) return;
+  
+    try {
+      const clientesSnap = await getDocs(
+        query(
+          collection(db, `negocios/${negocioID}/clientes`),
+          where("nombre", "==", nombreCliente),
+          limit(1)
+        )
+      );
+  
+      if (clientesSnap.empty) {
+        console.log(`⚠️ Cliente no encontrado: ${nombreCliente}`);
+        return;
+      }
+  
+      const clienteDoc = clientesSnap.docs[0];
+      const datosCliente = clienteDoc.data();
+  
+      const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
+      const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+  
+      await updateDoc(clienteDoc.ref, {
+        saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
+        saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+        ultimaActualizacion: serverTimestamp()
+      });
+  
+      console.log(`✅ Saldo actualizado: ${nombreCliente} | ARS ${sumarARS > 0 ? '+' : ''}${sumarARS} | USD ${sumarUSD > 0 ? '+' : ''}${sumarUSD}`);
+    } catch (error) {
+      console.error(`❌ Error actualizando saldo de ${nombreCliente}:`, error);
     }
   };
 

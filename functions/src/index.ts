@@ -5,177 +5,7 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // ==========================================
-// FUNCIÓN 1: Actualizar saldo cuando cambia un TRABAJO
-// ==========================================
-export const actualizarSaldoPorTrabajo = onDocumentWritten(
-  "negocios/{negocioID}/trabajos/{trabajoID}",
-  async (event) => {
-    const negocioID = event.params.negocioID as string;
-
-    const antes = event.data?.before.exists ? event.data.before.data() : null;
-    const despues = event.data?.after.exists ? event.data.after.data() : null;
-
-    // Si se borró el trabajo
-    if (!despues && antes) {
-      const estadoValido = ["ENTREGADO", "PAGADO"].includes(antes.estado);
-      if (estadoValido) {
-        return await actualizarSaldoCliente(
-          negocioID,
-          antes.cliente,
-          -Number(antes.precio || 0),
-          antes.moneda || "ARS"
-        );
-      }
-      return null;
-    }
-
-    // Si se creó o modificó el trabajo
-    if (despues) {
-      const estadoValidoAhora = ["ENTREGADO", "PAGADO"].includes(despues.estado);
-      const estadoValidoAntes = antes ? ["ENTREGADO", "PAGADO"].includes(antes.estado) : false;
-
-      // CASO 1: Estado cambió de NO válido → válido
-      if (estadoValidoAhora && !estadoValidoAntes) {
-        return await actualizarSaldoCliente(
-          negocioID,
-          despues.cliente,
-          Number(despues.precio || 0),
-          despues.moneda || "ARS"
-        );
-      }
-
-      // CASO 2: Estado cambió de válido → NO válido
-      if (!estadoValidoAhora && estadoValidoAntes && antes) {
-        return await actualizarSaldoCliente(
-          negocioID,
-          antes.cliente,
-          -Number(antes.precio || 0),
-          antes.moneda || "ARS"
-        );
-      }
-
-      // CASO 3: Trabajo en estado válido y cambió precio/moneda
-      if (estadoValidoAhora && estadoValidoAntes && antes) {
-        const precioAntes = Number(antes.precio || 0);
-        const precioDespues = Number(despues.precio || 0);
-        const monedaAntes = antes.moneda || "ARS";
-        const monedaDespues = despues.moneda || "ARS";
-
-        // Si cambió precio o moneda
-        if (precioAntes !== precioDespues || monedaAntes !== monedaDespues) {
-          // Restar precio anterior
-          await actualizarSaldoCliente(
-            negocioID,
-            antes.cliente,
-            -precioAntes,
-            monedaAntes
-          );
-
-          // Sumar precio nuevo
-          return await actualizarSaldoCliente(
-            negocioID,
-            despues.cliente,
-            precioDespues,
-            monedaDespues
-          );
-        }
-      }
-    }
-
-    return null;
-  }
-);
-
-// ==========================================
-// FUNCIÓN 2: Actualizar saldo cuando cambia una VENTA
-// ==========================================
-export const actualizarSaldoPorVenta = onDocumentWritten(
-  "negocios/{negocioID}/ventasGeneral/{ventaID}",
-  async (event) => {
-    const negocioID = event.params.negocioID as string;
-
-    const antes = event.data?.before.exists ? event.data.before.data() : null;
-    const despues = event.data?.after.exists ? event.data.after.data() : null;
-
-    if (!despues && antes) {
-      const {totalARS, totalUSD} = calcularTotalVenta(antes.productos || []);
-      if (totalARS > 0) {
-        await actualizarSaldoCliente(negocioID, antes.cliente, -totalARS, "ARS");
-      }
-      if (totalUSD > 0) {
-        await actualizarSaldoCliente(negocioID, antes.cliente, -totalUSD, "USD");
-      }
-      return null;
-    }
-
-    if (despues) {
-      const {totalARS, totalUSD} = calcularTotalVenta(despues.productos || []);
-
-      if (antes) {
-        const {totalARS: antesARS, totalUSD: antesUSD} = calcularTotalVenta(antes.productos || []);
-        if (antesARS > 0) {
-          await actualizarSaldoCliente(negocioID, antes.cliente, -antesARS, "ARS");
-        }
-        if (antesUSD > 0) {
-          await actualizarSaldoCliente(negocioID, antes.cliente, -antesUSD, "USD");
-        }
-      }
-
-      if (totalARS > 0) {
-        await actualizarSaldoCliente(negocioID, despues.cliente, totalARS, "ARS");
-      }
-      if (totalUSD > 0) {
-        await actualizarSaldoCliente(negocioID, despues.cliente, totalUSD, "USD");
-      }
-    }
-
-    return null;
-  }
-);
-
-// ==========================================
-// FUNCIÓN 3: Actualizar saldo cuando cambia un PAGO
-// ==========================================
-export const actualizarSaldoPorPago = onDocumentWritten(
-  "negocios/{negocioID}/pagos/{pagoID}",
-  async (event) => {
-    const negocioID = event.params.negocioID as string;
-
-    const antes = event.data?.before.exists ? event.data.before.data() : null;
-    const despues = event.data?.after.exists ? event.data.after.data() : null;
-
-    if (!despues && antes) {
-      const monto = antes.moneda === "USD" ? Number(antes.montoUSD || 0) : Number(antes.monto || 0);
-      return await actualizarSaldoCliente(
-        negocioID,
-        antes.cliente,
-        monto,
-        antes.moneda || "ARS"
-      );
-    }
-
-    if (despues) {
-      const monto = despues.moneda === "USD" ? Number(despues.montoUSD || 0) : Number(despues.monto || 0);
-
-      if (antes) {
-        const montoAntes = antes.moneda === "USD" ? Number(antes.montoUSD || 0) : Number(antes.monto || 0);
-        await actualizarSaldoCliente(negocioID, antes.cliente, montoAntes, antes.moneda || "ARS");
-      }
-
-      return await actualizarSaldoCliente(
-        negocioID,
-        despues.cliente,
-        -monto,
-        despues.moneda || "ARS"
-      );
-    }
-
-    return null;
-  }
-);
-
-// ==========================================
-// FUNCIÓN 4: Actualizar nombre de cliente en todas las colecciones
+// FUNCIÓN 1: Actualizar nombre de cliente en todas las colecciones
 // ==========================================
 export const actualizarNombreCliente = onDocumentWritten(
   "negocios/{negocioID}/clientes/{clienteID}",
@@ -256,7 +86,7 @@ export const actualizarNombreCliente = onDocumentWritten(
 );
 
 // ==========================================
-// FUNCIÓN 5: Actualizar estadísticas en tiempo real
+// FUNCIÓN 2: Actualizar estadísticas en tiempo real
 // ==========================================
 export const actualizarEstadisticas = onDocumentWritten(
   "negocios/{negocioID}/{collection}/{docID}",
@@ -375,48 +205,38 @@ export const actualizarEstadisticas = onDocumentWritten(
           const stats: any = estadisticasDoc.exists ? estadisticasDoc.data() : {
             mes: mesAnioVenta,
             trabajosReparados: 0,
-
             telefonosVendidos: 0,
             accesoriosVendidos: 0,
             generalesVendidos: 0,
-
             gananciaTrabajos: 0,
             gananciaVentasARS: 0,
             gananciaVentasUSD: 0,
-
             gananciaGeneralesARS: 0,
             gananciaGeneralesUSD: 0,
-
             cajaDelDia: {},
           };
 
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          // ✅ PRODUCTOS DESPUÉS (SUMA)
+          // PRODUCTOS DESPUÉS (SUMA)
           productosDespues.forEach((p: any) => {
             const ganancia = Number(p.ganancia || 0);
             const cantidad = Number(p.cantidad || 1);
 
             if (p.tipo === "telefono") {
               stats.telefonosVendidos += 1;
-
               p.moneda === "USD" ?
                 stats.gananciaVentasUSD += ganancia :
                 stats.gananciaVentasARS += ganancia;
             } else if (p.tipo === "accesorio" || p.tipo === "repuesto") {
               stats.accesoriosVendidos += cantidad;
-
               p.moneda === "USD" ?
                 stats.gananciaVentasUSD += ganancia :
                 stats.gananciaVentasARS += ganancia;
             } else if (p.tipo === "general") {
               stats.generalesVendidos += cantidad;
-
               p.moneda === "USD" ?
                 stats.gananciaGeneralesUSD += ganancia :
                 stats.gananciaGeneralesARS += ganancia;
             }
-
 
             // Caja del día
             if (fechaDespues === diaActual) {
@@ -426,14 +246,13 @@ export const actualizarEstadisticas = onDocumentWritten(
             }
           });
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // PRODUCTOS ANTES (RESTA)
           productosAntes.forEach((p: any) => {
             const ganancia = Number(p.ganancia || 0);
             const cantidad = Number(p.cantidad || 1);
 
             if (p.tipo === "telefono") {
               stats.telefonosVendidos = Math.max(0, stats.telefonosVendidos - 1);
-
               if (p.moneda === "USD") {
                 stats.gananciaVentasUSD -= ganancia;
               } else {
@@ -441,7 +260,6 @@ export const actualizarEstadisticas = onDocumentWritten(
               }
             } else if (p.tipo === "accesorio" || p.tipo === "repuesto") {
               stats.accesoriosVendidos = Math.max(0, stats.accesoriosVendidos - cantidad);
-
               if (p.moneda === "USD") {
                 stats.gananciaVentasUSD -= ganancia;
               } else {
@@ -449,7 +267,6 @@ export const actualizarEstadisticas = onDocumentWritten(
               }
             } else if (p.tipo === "general") {
               stats.generalesVendidos = Math.max(0, stats.generalesVendidos - cantidad);
-
               if (p.moneda === "USD") {
                 stats.gananciaGeneralesUSD -= ganancia;
               } else {
@@ -457,7 +274,6 @@ export const actualizarEstadisticas = onDocumentWritten(
               }
             }
           });
-
 
           await estadisticasRef.set(stats, {merge: true});
           console.log(`✅ Estadísticas de ventas actualizadas para ${mesAnioVenta}`);
@@ -472,7 +288,7 @@ export const actualizarEstadisticas = onDocumentWritten(
 );
 
 // ==========================================
-// FUNCIÓN 6: Actualizar estadísticas de REPUESTOS
+// FUNCIÓN 3: Actualizar estadísticas de REPUESTOS
 // ==========================================
 export const actualizarEstadisticasRepuestos = onDocumentWritten(
   "negocios/{negocioID}/stockRepuestos/{repuestoID}",
@@ -488,7 +304,6 @@ export const actualizarEstadisticasRepuestos = onDocumentWritten(
         .doc("inventario");
 
       const estadisticasDoc = await estadisticasRef.get();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const stats: any = estadisticasDoc.exists ? estadisticasDoc.data() : {
         repuestos: {totalUSD: 0, totalARS: 0, cantidad: 0},
         accesorios: {totalUSD: 0, totalARS: 0, cantidad: 0},
@@ -521,7 +336,7 @@ export const actualizarEstadisticasRepuestos = onDocumentWritten(
 );
 
 // ==========================================
-// FUNCIÓN 7: Actualizar estadísticas de ACCESORIOS
+// FUNCIÓN 4: Actualizar estadísticas de ACCESORIOS
 // ==========================================
 export const actualizarEstadisticasAccesorios = onDocumentWritten(
   "negocios/{negocioID}/stockAccesorios/{accesorioID}",
@@ -537,7 +352,6 @@ export const actualizarEstadisticasAccesorios = onDocumentWritten(
         .doc("inventario");
 
       const estadisticasDoc = await estadisticasRef.get();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const stats: any = estadisticasDoc.exists ? estadisticasDoc.data() : {
         repuestos: {totalUSD: 0, totalARS: 0, cantidad: 0},
         accesorios: {totalUSD: 0, totalARS: 0, cantidad: 0},
@@ -570,7 +384,7 @@ export const actualizarEstadisticasAccesorios = onDocumentWritten(
 );
 
 // ==========================================
-// FUNCIÓN 8: Actualizar estadísticas de TELÉFONOS
+// FUNCIÓN 5: Actualizar estadísticas de TELÉFONOS
 // ==========================================
 export const actualizarEstadisticasTelefonos = onDocumentWritten(
   "negocios/{negocioID}/stockTelefonos/{telefonoID}",
@@ -586,7 +400,6 @@ export const actualizarEstadisticasTelefonos = onDocumentWritten(
         .doc("inventario");
 
       const estadisticasDoc = await estadisticasRef.get();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const stats: any = estadisticasDoc.exists ? estadisticasDoc.data() : {
         repuestos: {totalUSD: 0, totalARS: 0, cantidad: 0},
         accesorios: {totalUSD: 0, totalARS: 0, cantidad: 0},
@@ -619,7 +432,7 @@ export const actualizarEstadisticasTelefonos = onDocumentWritten(
 );
 
 // ==========================================
-// FUNCIÓN 9: Actualizar estadísticas de STOCK EXTRA
+// FUNCIÓN 6: Actualizar estadísticas de STOCK EXTRA
 // ==========================================
 export const actualizarEstadisticasStockExtra = onDocumentWritten(
   "negocios/{negocioID}/stockExtra/{productoID}",
@@ -635,7 +448,6 @@ export const actualizarEstadisticasStockExtra = onDocumentWritten(
         .doc("inventario");
 
       const estadisticasDoc = await estadisticasRef.get();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const stats: any = estadisticasDoc.exists ? estadisticasDoc.data() : {
         repuestos: {totalUSD: 0, totalARS: 0, cantidad: 0},
         accesorios: {totalUSD: 0, totalARS: 0, cantidad: 0},
@@ -668,80 +480,11 @@ export const actualizarEstadisticasStockExtra = onDocumentWritten(
     return null;
   }
 );
-// ==========================================
-// FUNCIONES AUXILIARES
-// ==========================================
-
-async function actualizarSaldoCliente(
-  negocioID: string,
-  nombreCliente: string,
-  cambio: number,
-  moneda: string
-) {
-  try {
-    const clientesRef = db.collection(`negocios/${negocioID}/clientes`);
-    const snapshot = await clientesRef.where("nombre", "==", nombreCliente).limit(1).get();
-
-    if (snapshot.empty) {
-      console.log(`⚠️ Cliente no encontrado: ${nombreCliente}`);
-      return;
-    }
-
-    const clienteDoc = snapshot.docs[0];
-    const clienteData = clienteDoc.data();
-
-    const nuevoSaldoARS = moneda === "ARS" ?
-      (clienteData.saldoARS || 0) + cambio :
-      (clienteData.saldoARS || 0);
-
-    const nuevoSaldoUSD = moneda === "USD" ?
-      (clienteData.saldoUSD || 0) + cambio :
-      (clienteData.saldoUSD || 0);
-
-    await clienteDoc.ref.update({
-      saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
-      saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
-      ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    console.log(`✅ Saldo actualizado: ${nombreCliente} | ${moneda} ${cambio > 0 ? "+" : ""}${cambio}`);
-  } catch (error) {
-    console.error(`❌ Error actualizando saldo: ${nombreCliente}`, error);
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function calcularTotalVenta(productos: any[]): {totalARS: number; totalUSD: number} {
-  let totalARS = 0;
-  let totalUSD = 0;
-
-  const hayTelefono = productos.some((p) => p.tipo === "telefono");
-
-  productos.forEach((p) => {
-    const subtotal = p.precioUnitario * p.cantidad;
-
-    if (hayTelefono) {
-      if (p.moneda?.toUpperCase() === "USD") {
-        totalUSD += subtotal;
-      } else {
-        totalARS += subtotal;
-      }
-    } else {
-      totalARS += subtotal;
-    }
-  });
-
-  return {totalARS, totalUSD};
-}
-// ==========================================
-// FUNCIONES AUXILIARES PARA INVENTARIO
-// ==========================================
 
 // ==========================================
 // FUNCIONES AUXILIARES PARA INVENTARIO
 // ==========================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function calcularValorProducto(producto: any): {usd: number; ars: number} {
   const precioCosto = Number(producto.precioCosto || 0);
   const cantidad = Number(producto.cantidad || 0);
@@ -760,7 +503,6 @@ function calcularValorProducto(producto: any): {usd: number; ars: number} {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function calcularValorTelefono(telefono: any): {usd: number; ars: number} {
   const precioCompra = Number(telefono.precioCompra || 0);
   const moneda = telefono.moneda || "ARS";
@@ -777,7 +519,7 @@ function calcularValorTelefono(telefono: any): {usd: number; ars: number} {
     };
   }
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function calcularValorStockExtra(producto: any): {usd: number; ars: number} {
   const precioCosto = Number(producto.precioCosto || 0);
   const cantidad = Number(producto.cantidad || 0);
