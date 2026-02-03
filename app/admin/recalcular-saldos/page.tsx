@@ -31,7 +31,8 @@ export default function RecalcularSaldosPage() {
   const [clientes, setClientes] = useState<ClienteSaldo[]>([]);
   const [mostrarSoloConDiferencia, setMostrarSoloConDiferencia] = useState(false);
 
-  if (!rol || (rol.tipo !== "propietario" && rol.tipo !== "admin")) {
+  // ⭐ VALIDACIÓN CORREGIDA: Solo verificar que tenga negocioID
+  if (!rol || !rol.negocioID) {
     return (
       <>
         <Header />
@@ -39,7 +40,7 @@ export default function RecalcularSaldosPage() {
           <div className="max-w-4xl mx-auto">
             <div className="bg-red-100 border-2 border-red-500 rounded-xl p-6 text-center">
               <h1 className="text-2xl font-bold text-red-800 mb-2">⛔ Acceso Denegado</h1>
-              <p className="text-red-700">Solo administradores pueden acceder a esta página.</p>
+              <p className="text-red-700">Debes estar autenticado para acceder a esta página.</p>
             </div>
           </div>
         </main>
