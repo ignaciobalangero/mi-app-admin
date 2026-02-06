@@ -95,68 +95,77 @@ export default function RecalcularSaldosPage() {
           }
         });
 
-        // ⚡ Filtrar ventas en memoria - ⭐ CORREGIDO
-        let deudaVentasARS = 0;
-        let deudaVentasUSD = 0;
+       // ⚡ Filtrar ventas en memoria - ⭐ CON LOGS
+// ⚡ Filtrar ventas en memoria - ⭐ SIEMPRE CALCULAR DESDE PRODUCTOS
+let deudaVentasARS = 0;
+let deudaVentasUSD = 0;
 
-        ventasSnap.docs.forEach(doc => {
-          const venta = doc.data();
-          if (venta.cliente === nombreCliente) {
-            // Leer totalARS/totalUSD si existen (ventas duales nuevas)
-            const totalARS = venta.totalARS || 0;
-            const totalUSD = venta.totalUSD || 0;
-            
-            // Si tiene totalARS/totalUSD (ventas nuevas), usar esos
-            if (totalARS > 0 || totalUSD > 0) {
-              deudaVentasARS += totalARS;
-              deudaVentasUSD += totalUSD;
-            } 
-            // Si solo tiene "total" (ventas viejas)
-            else {
-              const tipoVenta = venta.tipo || "";
-              
-              // ⭐ Para ventas de teléfonos, sumar productos individuales
-              if (tipoVenta === "telefono" && venta.productos && Array.isArray(venta.productos)) {
-                venta.productos.forEach((producto: any) => {
-                  const precioVenta = Number(producto.precioVenta) || 0;
-                  const monedaProducto = producto.moneda || "ARS";
-                  const cantidad = producto.cantidad || 1;
-                  
-                  if (monedaProducto === "USD") {
-                    deudaVentasUSD += precioVenta * cantidad;
-                  } else {
-                    deudaVentasARS += precioVenta * cantidad;
-                  }
-                });
-              }
-              // Para ventas normales (no teléfonos), usar el total según moneda
-              else {
-                const totalVenta = venta.total || 0;
-                const monedaVenta = venta.moneda || "ARS";
-                
-                if (totalVenta > 0) {
-                  if (monedaVenta === "USD") {
-                    deudaVentasUSD += totalVenta;
-                  } else {
-                    deudaVentasARS += totalVenta;
-                  }
-                }
-              }
-            }
-          }
-        });
+ventasSnap.docs.forEach(doc => {
+  const venta = doc.data();
+  if (venta.cliente === nombreCliente) {
+    console.log(`🛍️ Venta: tipo=${venta.tipo}, fecha=${venta.fecha}`);
+    
+    // ⭐ SIEMPRE calcular desde productos si existen
+    if (venta.productos && Array.isArray(venta.productos) && venta.productos.length > 0) {
+      console.log(`  → Calculando desde productos (${venta.productos.length})`);
+      
+      venta.productos.forEach((producto: any) => {
+        const precio = Number(producto.precioUnitario || producto.precioVenta || 0);
+        const cantidad = producto.cantidad || 1;
+        const monedaProd = producto.moneda || "ARS";
+        
+        console.log(`    - ${producto.modelo}: ${precio} ${monedaProd} x${cantidad}`);
+        
+        if (monedaProd === "USD") {
+          deudaVentasUSD += precio * cantidad;
+        } else {
+          deudaVentasARS += precio * cantidad;
+        }
+      });
+    }
+    // Si no tiene productos, usar total (ventas muy viejas)
+    else {
+      const totalVenta = venta.total || 0;
+      const monedaVenta = venta.moneda || "ARS";
+      console.log(`  → Sin productos, usando total: ${totalVenta} ${monedaVenta}`);
+      
+      if (totalVenta > 0) {
+        if (monedaVenta === "USD") {
+          deudaVentasUSD += totalVenta;
+        } else {
+          deudaVentasARS += totalVenta;
+        }
+      }
+    }
+  }
+});
 
-        // ⚡ Filtrar pagos en memoria
-        let pagosARS = 0;
-        let pagosUSD = 0;
+console.log(`✅ ${nombreCliente}: Total ventas ARS=${deudaVentasARS}, USD=${deudaVentasUSD}`);
 
-        pagosSnap.docs.forEach(doc => {
-          const pago = doc.data();
-          if (pago.cliente === nombreCliente) {
-            pagosARS += pago.monto || 0;
-            pagosUSD += pago.montoUSD || 0;
-          }
-        });
+        // ⚡ Filtrar pagos en memoria - ⭐ CORREGIDO
+      // ⚡ Filtrar pagos en memoria - ⭐ CON LOGS
+let pagosARS = 0;
+let pagosUSD = 0;
+
+pagosSnap.docs.forEach(doc => {
+  const pago = doc.data();
+  if (pago.cliente === nombreCliente) {
+    console.log(`💳 Pago: moneda=${pago.moneda}, monto=${pago.monto}, montoUSD=${pago.montoUSD}`);
+    
+    // Si tiene montoUSD, es un pago USD
+    if (pago.montoUSD && pago.montoUSD > 0) {
+      console.log(`  → Sumando USD: ${pago.montoUSD}`);
+      pagosUSD += Number(pago.montoUSD);
+    } 
+    // Si tiene monto, es un pago ARS
+    else if (pago.monto && pago.monto > 0) {
+      console.log(`  → Sumando ARS: ${pago.monto}`);
+      pagosARS += Number(pago.monto);
+    }
+  }
+});
+
+console.log(`✅ ${nombreCliente}: Total pagos ARS=${pagosARS}, USD=${pagosUSD}`);
 
         // Calcular saldo correcto
         const saldoCalculadoARS = Math.round((deudaTrabajosARS + deudaVentasARS - pagosARS) * 100) / 100;
