@@ -47,6 +47,7 @@ export default function TablaVentas({ refrescar }: Props) {
   const [productoAEliminar, setProductoAEliminar] = useState<{venta: any, producto: any, index: number} | null>(null);
   const [mostrarConfirmarEliminarProducto, setMostrarConfirmarEliminarProducto] = useState(false);
   const [mostrarMigracion, setMostrarMigracion] = useState(false);
+  const [datosNegocio, setDatosNegocio] = useState({ nombre: "", direccion: "", telefono: "" });
 
   // 🚀 ESTADOS PARA PAGINACIÓN OPTIMIZADA
   const [cargando, setCargando] = useState(false);
@@ -361,6 +362,22 @@ export default function TablaVentas({ refrescar }: Props) {
       cargarVentasPaginadas(true);
     }
   }, [rol?.negocioID, refrescar]);
+
+  useEffect(() => {
+    const cargarDatosNegocio = async () => {
+      if (!rol?.negocioID) return;
+      const snap = await getDoc(doc(db, `negocios/${rol.negocioID}/configuracion/datos`));
+      if (snap.exists()) {
+        const data = snap.data();
+        setDatosNegocio({
+          nombre: data.nombreNegocio || rol.negocioID,
+          direccion: data.direccion || "",
+          telefono: data.telefono || "",
+        });
+      }
+    };
+    cargarDatosNegocio();
+  }, [rol?.negocioID]);
 
   useEffect(() => {
     if (rol?.negocioID) {
@@ -1143,9 +1160,9 @@ export default function TablaVentas({ refrescar }: Props) {
             setMostrarRemito(false);
             setVentaParaRemito(null);
           }}
-          nombreNegocio="Tu Negocio"
-          direccionNegocio="Dirección del negocio"
-          telefonoNegocio="Tel: XXX-XXXX"
+          nombreNegocio={datosNegocio.nombre}
+          direccionNegocio={datosNegocio.direccion}
+          telefonoNegocio={datosNegocio.telefono}
         />
       )}
       

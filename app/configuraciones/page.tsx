@@ -5,8 +5,7 @@ import { db, storage } from "@/lib/firebase";
 import Link from "next/link";
 import Header from "../Header";
 import IntegracionGoogleSheet from "./components/IntegracionGoogleSheet";
-//import PanelUsuariosExentos from "./components/PanelUsuariosExentos";
-import GestionSuscripcion from "./components/GestionSuscripcion"; // ✅ NUEVO IMPORT
+import GestionSuscripcion from "./components/GestionSuscripcion";
 import {
   doc,
   getDoc,
@@ -29,10 +28,12 @@ export default function Configuraciones() {
     negocioID: string;
   }  
   const [rol, setRol] = useState<RolInfo | null>(null);
+  const [nombreNegocio, setNombreNegocio] = useState("");           // ✅ NUEVO
   const [textoGarantiaServicio, setTextoGarantiaServicio] = useState("");
   const [textoGarantiaTelefonos, setTextoGarantiaTelefonos] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [nuevoLogo, setNuevoLogo] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null); // ✅ NUEVO: preview local
   const [guardando, setGuardando] = useState(false);
   const [pestanaActiva, setPestanaActiva] = useState("general");
   const [mostrarPanelExentos, setMostrarPanelExentos] = useState(false);
@@ -44,31 +45,22 @@ export default function Configuraciones() {
     if (user) {
       const cargarConfiguracion = async () => {
         try {
-          // 🔧 CAMBIO: Usar la misma estructura que crear-usuario
           const userSnap = await getDoc(doc(db, "usuarios", user.uid));
-          if (!userSnap.exists()) {
-            throw new Error("Usuario no encontrado");
-          }
+          if (!userSnap.exists()) throw new Error("Usuario no encontrado");
 
           const userData = userSnap.data();
           const negocioID = userData.negocioID;
           const rolUsuario = userData.rol;
 
-          if (!negocioID) {
-            throw new Error("No se encontró el negocioID del usuario");
-          }
+          if (!negocioID) throw new Error("No se encontró el negocioID del usuario");
 
-          // Establecer el rol usando la estructura correcta
-          setRol({
-            tipo: rolUsuario || "sin rol",
-            negocioID,
-          });
+          setRol({ tipo: rolUsuario || "sin rol", negocioID });
 
-          // Cargar configuración del negocio
           const configRef = doc(db, `negocios/${negocioID}/configuracion/datos`);
           const configSnap = await getDoc(configRef);
           if (configSnap.exists()) {
             const data = configSnap.data();
+            setNombreNegocio(data.nombreNegocio || "");             // ✅ NUEVO
             setTextoGarantiaServicio(data.textoGarantia || "");
             setTextoGarantiaTelefonos(data.textoGarantiaTelefonos || "");
             setLogoUrl(data.logoUrl || "");
@@ -81,16 +73,19 @@ export default function Configuraciones() {
     }
   }, [user]);
 
+  // ✅ NUEVO: Preview local del logo al seleccionar archivo
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setNuevoLogo(e.target.files[0]);
+      const file = e.target.files[0];
+      setNuevoLogo(file);
+      const previewURL = URL.createObjectURL(file);
+      setLogoPreview(previewURL);
     }
   };
 
   const guardarConfiguracion = async () => {
     if (!user) return;
     setGuardando(true);
-    console.log("✅ Comenzando guardar configuración...");
   
     try {
       const negocioID = rol?.negocioID;
@@ -99,56 +94,47 @@ export default function Configuraciones() {
       let finalLogoUrl = logoUrl;
   
       if (nuevoLogo) {
-        console.log("📤 Subiendo nuevo logo...");
         const storageRef = ref(storage, `logos/${negocioID}/logo.png`);
         await uploadBytes(storageRef, nuevoLogo);
-        console.log("✅ Logo subido.");
-  
         finalLogoUrl = `${await getDownloadURL(storageRef)}?v=${Date.now()}`;
-        console.log("✅ URL de logo obtenida:", finalLogoUrl);
       }
   
       const refDoc = doc(db, `negocios/${negocioID}/configuracion`, "datos");
-      console.log("💾 Guardando configuración en Firestore...");
       await setDoc(
         refDoc,
         {
+          nombreNegocio: nombreNegocio.trim(),                      // ✅ NUEVO
           textoGarantia: textoGarantiaServicio,
           textoGarantiaTelefonos: textoGarantiaTelefonos,
           logoUrl: finalLogoUrl,
         },
         { merge: true }
       );
-      console.log("✅ Configuración guardada en Firestore.");
   
       alert("✅ Configuración guardada correctamente.");
       setNuevoLogo(null);
+      setLogoPreview(null);
       setLogoUrl(finalLogoUrl);
     } catch (error: any) {
       console.error("❌ Error al guardar configuración:", error);
       alert("Hubo un error al guardar: " + error.message);
     } finally {
-      console.log("⚡ Finalizando guardarConfiguracion");
       setGuardando(false);
     }
   };
 
-  // ✅ PESTAÑAS SIMPLIFICADAS
   const pestanas = [
     { id: "general", label: "General", icono: "⚙️" },
     { id: "garantias", label: "Garantías", icono: "🛡️" },
     { id: "suscripcion", label: "Suscripción", icono: "💳" },
   ];
 
-  // ✅ MOSTRAR PANEL DE USUARIOS EXENTOS SI ESTÁ ACTIVO
   if (mostrarPanelExentos) {
     return (
       <>
         <Header />
         <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black">
           <div className="w-full px-4 max-w-[1200px] mx-auto space-y-6">
-            
-            {/* Botón para volver */}
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setMostrarPanelExentos(false)}
@@ -157,9 +143,6 @@ export default function Configuraciones() {
                 ← Volver a Configuraciones
               </button>
             </div>
-
-            {/* Panel de usuarios exentos */}
-          
           </div>
         </main>
       </>
@@ -171,7 +154,7 @@ export default function Configuraciones() {
       <Header />
       <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black">
         <div className="w-full px-4 max-w-[1200px] mx-auto space-y-6">
-        {user?.uid === SUPER_ADMIN_UID && (
+          {user?.uid === SUPER_ADMIN_UID && (
             <>
               <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] rounded-2xl p-4 shadow-lg">
                 <div className="flex flex-wrap gap-3">
@@ -195,8 +178,6 @@ export default function Configuraciones() {
                   </button>
                 </div>
               </div>
-
-              {/* ⭐ NUEVO: Panel de Recálculo Global */}
               <PanelRecalculoGlobal />
             </>
           )}
@@ -236,8 +217,6 @@ export default function Configuraciones() {
                 >
                   👤 Crear usuario
                 </button>
-
-                {/* 🆕 BOTÓN PARA CONFIGURAR IMPRESORAS */}
                 <button
                   onClick={() => router.push("/configuraciones/impresion")}
                   className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] hover:from-[#8e44ad] hover:to-[#7d3c98] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
@@ -270,7 +249,31 @@ export default function Configuraciones() {
 
             <div className="p-6">
               {pestanaActiva === "general" && (
-                <div className="space-y-6">
+                <div className="space-y-8">
+
+                  {/* ✅ NOMBRE DEL NEGOCIO */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-[#2c3e50] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">🏪</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-[#2c3e50]">Nombre del Negocio</h3>
+                    </div>
+                    <div className="max-w-md">
+                      <input
+                        type="text"
+                        value={nombreNegocio}
+                        onChange={(e) => setNombreNegocio(e.target.value)}
+                        placeholder="Ej: Tecno Service, Phone Center, etc."
+                        className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#2c3e50] focus:border-[#2c3e50] transition-all text-[#2c3e50] text-sm"
+                      />
+                      <p className="text-xs text-[#7f8c8d] mt-2">
+                        Este nombre aparecerá en los remitos, tickets y documentos generados.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* LOGO */}
                   <div>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
@@ -279,31 +282,54 @@ export default function Configuraciones() {
                       <h3 className="text-lg font-bold text-[#2c3e50]">Logo del Sistema</h3>
                     </div>
 
-                    {logoUrl && (
-                      <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 mb-4">
-                        <img src={logoUrl} alt="Logo actual" className="w-32 h-auto mx-auto rounded-lg shadow-sm" />
+                    {/* Muestra preview local si hay uno nuevo, si no el guardado */}
+                    {(logoPreview || logoUrl) && (
+                      <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 mb-4 flex flex-col items-center gap-2">
+                        <img
+                          src={logoPreview || logoUrl}
+                          alt="Logo"
+                          className="w-32 h-auto rounded-lg shadow-sm object-contain"
+                        />
+                        {logoPreview && (
+                          <span className="text-xs text-[#f39c12] font-medium bg-[#fdebd0] px-2 py-1 rounded-full">
+                            Vista previa — aún no guardado
+                          </span>
+                        )}
                       </div>
                     )}
 
-                    <div className="flex flex-col items-center space-y-3">
+                    <div className="flex flex-col items-start gap-3">
                       <label
                         htmlFor="logoUpload"
-                        className="cursor-pointer bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white font-medium py-2 px-6 rounded-lg shadow transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
+                        className="cursor-pointer bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white font-medium py-2 px-6 rounded-lg shadow transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
                       >
-                        📤 Seleccionar archivo
+                        📤 {logoUrl ? "Cambiar logo" : "Seleccionar logo"}
                       </label>
                       <input
                         id="logoUpload"
                         type="file"
-                        accept="image/png,image/jpeg"
+                        accept="image/png,image/jpeg,image/webp"
                         onChange={handleLogoChange}
                         className="hidden"
                       />
                       {nuevoLogo && (
-                        <span className="text-[#7f8c8d] text-sm bg-[#f8f9fa] px-3 py-1 rounded-lg">
-                          {nuevoLogo.name}
-                        </span>
+                        <div className="flex items-center gap-2 text-[#7f8c8d] text-sm bg-[#f8f9fa] px-3 py-2 rounded-lg border border-[#bdc3c7]">
+                          <span>📎</span>
+                          <span>{nuevoLogo.name}</span>
+                          <button
+                            onClick={() => {
+                              setNuevoLogo(null);
+                              setLogoPreview(null);
+                            }}
+                            className="ml-2 text-[#e74c3c] hover:text-[#c0392b] font-bold"
+                          >
+                            ×
+                          </button>
+                        </div>
                       )}
+                      <p className="text-xs text-[#7f8c8d]">
+                        PNG, JPG o WEBP. Se mostrará en tickets y documentos del sistema.
+                      </p>
                     </div>
                   </div>
 
@@ -348,24 +374,20 @@ export default function Configuraciones() {
                       <div className="w-8 h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
                         <span className="text-white text-sm">💡</span>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          <strong>Tip:</strong> Las garantías aparecerán automáticamente en los documentos correspondientes: servicio técnico en tickets y teléfonos en remitos de venta.
-                        </p>
-                      </div>
+                      <p className="text-sm font-medium flex-1">
+                        <strong>Tip:</strong> Las garantías aparecerán automáticamente en los documentos correspondientes: servicio técnico en tickets y teléfonos en remitos de venta.
+                      </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* ✅ PESTAÑA DE SUSCRIPCIÓN */}
               {pestanaActiva === "suscripcion" && (
                 <GestionSuscripcion />
               )}
             </div>
           </div>
 
-          {/* Solo mostrar botón guardar para pestañas que no sean suscripción */}
           {pestanaActiva !== "suscripcion" && (
             <div className="flex justify-center">
               <button

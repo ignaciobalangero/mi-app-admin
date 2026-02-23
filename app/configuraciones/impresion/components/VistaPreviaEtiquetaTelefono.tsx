@@ -4,225 +4,222 @@ interface Props {
   campos: string[];
   configuracion: any;
   datosEjemplo: any;
+  nombreNegocio?: string;
 }
 
-export default function VistaPreviaEtiquetaTelefono({ campos, configuracion, datosEjemplo }: Props) {
-  
-  // 🎯 DIMENSIONES REALES según el tamaño seleccionado
-  const dimensionesReales = {
-    '62x29': { width: '62mm', height: '29mm' },
-    '38x90': { width: '38mm', height: '90mm' },
-    'custom': { width: '50mm', height: '50mm' }
+export default function VistaPreviaEtiquetaTelefono({ campos, configuracion, datosEjemplo, nombreNegocio }: Props) {
+
+  const formatearPrecio = (valor: string | number): string => {
+    const numero = typeof valor === 'string' ? parseFloat(valor.replace(/\./g, '').replace(',', '.')) : valor;
+    if (isNaN(numero)) return '0';
+    return numero.toLocaleString('es-AR');
   };
 
-  // 🔄 APLICAR ORIENTACIÓN
-  const esHorizontal = configuracion.orientacion === 'horizontal';
+  // 🎯 DIMENSIONES REALES
+  const dimensionesReales: Record<string, { width: string; height: string }> = {
+    '62x29': { width: '62mm', height: '29mm' },
+    '38x90': { width: '38mm', height: '90mm' },
+    '29x90': { width: '29mm', height: '90mm' },
+    '62x100': { width: '62mm', height: '100mm' },
+  };
+
+  const esHorizontal = configuracion.orientacion !== 'vertical';
   const dimBase = dimensionesReales[configuracion.tamaño] || dimensionesReales['62x29'];
-  
-  const dimensiones = esHorizontal 
+
+  const dimensiones = esHorizontal
     ? { width: dimBase.width, height: dimBase.height }
     : { width: dimBase.height, height: dimBase.width };
 
-  // 📏 TAMAÑOS DE TEXTO adaptativos
-  const tamañosTexto = {
-    'muy-pequeño': { base: '6px', titulo: '7px', precio: '8px', subtitulo: '5px' },
-    'pequeño': { base: '7px', titulo: '8px', precio: '9px', subtitulo: '6px' },
-    'mediano': { base: '8px', titulo: '9px', precio: '10px', subtitulo: '7px' }
+  // 📏 TAMAÑOS DE TEXTO — igual que VistaPreviaEtiqueta
+  const tamañosTexto: Record<string, { orden: string; campo: string; pie: string; gap: string }> = {
+    'muy-pequeño': { orden: '11px', campo: '8px', pie: '6px', gap: '2px' },
+    'pequeño':     { orden: '12px', campo: '9px', pie: '6px', gap: '2px' },
+    'mediano':     { orden: '13px', campo: '10px', pie: '7px', gap: '3px' },
   };
 
-  const textoSize = tamañosTexto[configuracion.tamañoTexto] || tamañosTexto['pequeño'];
+  const baseSize = configuracion.tamañoTexto || 'mediano';
+  const textoSize = tamañosTexto[baseSize] || tamañosTexto['mediano'];
 
-  // 🔢 Generar código de barras usando IMEI
-  const generarCodigoBarras = () => {
-    return datosEjemplo.imei || datosEjemplo.codigoBarras || '358240051111110';
-  };
-
-  // 📊 Renderizar código de barras
-  const renderizarCodigoBarras = () => {
-    if (!configuracion.incluirCodigoBarras) return null;
-    
-    const codigo = generarCodigoBarras();
-
-    if (configuracion.tipoCodigoBarras === 'QR') {
-      return (
-        <div style={{ 
-          textAlign: 'center', 
-          marginBottom: '2mm',
-          padding: '1mm 0'
-        }}>
-          <div style={{
-            width: '15mm',
-            height: '15mm',
-            border: '1px solid #000',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '5px',
-            backgroundColor: '#f0f0f0',
-            color: '#000'
-          }}>
-            QR
-          </div>
-        </div>
-      );
-    }
-
-    // Código de barras tradicional (simulación visual)
-    const barras = Array.from({ length: 40 }, (_, i) => (
-      <div
-        key={i}
-        style={{
-          width: '0.5mm',
-          height: i % 2 === 0 ? '8mm' : '6mm',
-          backgroundColor: i % 3 === 0 ? '#000' : (i % 2 === 0 ? '#000' : '#fff'),
-          display: 'inline-block'
-        }}
-      />
-    ));
-
+  // 🎨 RENDERIZAR CAMPO — igual estructura que VistaPreviaEtiqueta
+  const renderCampo = (etiqueta: string, valor: any, opciones?: { mono?: boolean; color?: string }) => {
+    const valorMostrar = valor || '';
     return (
-      <div style={{ 
-        textAlign: 'center', 
-        marginBottom: '1mm',
-        padding: '1mm 0'
+      <div style={{
+        fontSize: textoSize.campo,
+        fontWeight: 'bold',
+        color: opciones?.color || 'black',
+        lineHeight: '1.2',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.3mm',
+        fontFamily: opciones?.mono ? 'Courier, monospace' : 'Arial, sans-serif',
+        marginBottom: '1.2mm',
       }}>
-        <div style={{
-          height: '8mm',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '0.5mm'
+        <span style={{ fontWeight: '900', fontSize: textoSize.campo, flexShrink: 0 }}>
+          {etiqueta}
+        </span>
+        <span style={{
+          fontWeight: 'bold',
+          fontSize: textoSize.campo,
+          wordWrap: 'break-word',
+          overflowWrap: 'break-word',
+          whiteSpace: 'normal',
+          lineHeight: '1.1',
         }}>
-          {barras}
-        </div>
-        <div style={{
-          fontSize: textoSize.subtitulo,
-          fontFamily: 'monospace',
-          color: '#000',
-          letterSpacing: '0.3px'
-        }}>
-          {codigo}
-        </div>
+          {valorMostrar}
+        </span>
       </div>
     );
   };
 
+  // 📋 ORGANIZAR EN 2 COLUMNAS — misma lógica que VistaPreviaEtiqueta
+  const organizarCamposEnColumnas = () => {
+    const columnaIzq: React.ReactNode[] = [];
+    const columnaDer: React.ReactNode[] = [];
+
+    // FILA 1: marca (izq) + modelo (der)
+    if (campos.includes('marca')) {
+      columnaIzq.push(
+        <div key="marca">{renderCampo('Marca:', datosEjemplo.marca || '—')}</div>
+      );
+    }
+    if (campos.includes('modelo')) {
+      columnaDer.push(
+        <div key="modelo">{renderCampo('Modelo:', datosEjemplo.modelo || '—')}</div>
+      );
+    }
+
+    // FILA 2: gb (izq) + color (der)
+    if (campos.includes('gb')) {
+      columnaIzq.push(
+        <div key="gb">{renderCampo('GB:', datosEjemplo.gb ? `${datosEjemplo.gb} GB` : '—')}</div>
+      );
+    }
+    if (campos.includes('color')) {
+      columnaDer.push(
+        <div key="color">{renderCampo('Color:', datosEjemplo.color || '—')}</div>
+      );
+    }
+
+    // FILA 3: estado (izq) + bateria (der)
+    if (campos.includes('estado')) {
+      columnaIzq.push(
+        <div key="estado">{renderCampo('Estado:', datosEjemplo.estado === 'usado' ? 'USADO' : 'NUEVO')}</div>
+      );
+    }
+    if (campos.includes('bateria')) {
+      columnaDer.push(
+        <div key="bateria">{renderCampo('Batería:', datosEjemplo.bateria ? `${datosEjemplo.bateria}%` : '—')}</div>
+      );
+    }
+
+    // FILA 4: imei (izq) + fechaIngreso (der)
+    if (campos.includes('imei')) {
+      columnaIzq.push(
+        <div key="imei">{renderCampo('IMEI:', datosEjemplo.imei ? datosEjemplo.imei.substring(0, 15) : '—', { mono: true })}</div>
+      );
+    }
+    if (campos.includes('fechaIngreso')) {
+      columnaDer.push(
+        <div key="fechaIngreso">{renderCampo('Ingreso:', datosEjemplo.fechaIngreso || '—')}</div>
+      );
+    }
+
+    // FILA 5: precioVenta ocupa ambas columnas (izq)
+    if (campos.includes('precioVenta')) {
+      columnaIzq.push(
+        <div key="precioVenta">{renderCampo('Precio:', datosEjemplo.precioVenta ? `$${formatearPrecio(datosEjemplo.precioVenta)}` : '—', { color: '#006400' })}</div>
+      );
+    }
+
+    return { columnaIzq, columnaDer };
+  };
+
+  const { columnaIzq, columnaDer } = organizarCamposEnColumnas();
+
   return (
-    <div 
-      className={`bg-white font-sans flex flex-col justify-between p-1.5 ${
-        configuracion.mostrarBordes ? 'border-2 border-black' : 'border border-gray-300'
-      }`}
-      style={{
-        width: dimensiones.width,
-        height: dimensiones.height,
-        fontSize: textoSize.base,
-        lineHeight: '1.2',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-      }}
-    >
-      
-      {/* CÓDIGO DE BARRAS (arriba si está incluido) */}
-      {configuracion.incluirCodigoBarras && renderizarCodigoBarras()}
+    <div style={{
+      width: dimensiones.width,
+      height: dimensiones.height,
+      backgroundColor: 'white',
+      border: configuracion.mostrarBorde ? '2px solid black' : 'none',
+      padding: '1mm',
+      display: 'flex',
+      flexDirection: 'column',
+      fontFamily: 'Arial, sans-serif',
+      boxSizing: 'border-box',
+      overflow: 'hidden',
+    }}>
 
-      {/* INFORMACIÓN PRINCIPAL - CENTRADA */}
-      <div className="flex-1 flex flex-col justify-center items-center text-center space-y-0.5">
-        
-        {/* Nombre del negocio */}
-        <div 
-          className="font-bold text-black"
-          style={{ fontSize: textoSize.titulo, marginBottom: '1mm' }}
-        >
-          {configuracion.nombreNegocio || 'GESTIONE'}
+      {/* 🏢 HEADER — nombre del negocio, igual que VistaPreviaEtiqueta */}
+      {nombreNegocio && (
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '1mm',
+          paddingBottom: '0.5mm',
+          borderBottom: '2px solid black',
+          flexShrink: 0,
+        }}>
+          <div style={{
+            fontSize: textoSize.campo,
+            fontWeight: '900',
+            color: 'black',
+            letterSpacing: '0.3px',
+          }}>
+            {nombreNegocio}
+          </div>
+        </div>
+      )}
+
+      {/* 📋 CONTENIDO EN 2 COLUMNAS */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'row',
+        gap: '2mm',
+        overflow: 'hidden',
+        minHeight: 0,
+      }}>
+        {/* COLUMNA IZQUIERDA */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {columnaIzq}
         </div>
 
-        {/* Marca (si está seleccionada) */}
-        {campos.includes('marca') && (
-          <div 
-            className="font-semibold text-black"
-            style={{ fontSize: textoSize.base }}
-          >
-            {datosEjemplo.marca}
-          </div>
-        )}
-
-        {/* Modelo + Capacidad en la misma línea */}
-        <div 
-          className="font-bold text-black"
-          style={{ fontSize: textoSize.titulo }}
-        >
-          {campos.includes('modelo') && datosEjemplo.modelo}
-          {campos.includes('gb') && datosEjemplo.gb && ` ${datosEjemplo.gb}GB`}
+        {/* COLUMNA DERECHA */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {columnaDer}
         </div>
-
-        {/* Color */}
-        {campos.includes('color') && datosEjemplo.color && (
-          <div 
-            className="text-black"
-            style={{ fontSize: textoSize.subtitulo }}
-          >
-            {datosEjemplo.color}
-          </div>
-        )}
-
-        {/* Estado + Batería */}
-        {campos.includes('estado') && (
-          <div 
-            className="text-black"
-            style={{ fontSize: textoSize.base }}
-          >
-            {datosEjemplo.estado === 'usado' ? 'USADO' : 'NUEVO'}
-            {campos.includes('bateria') && datosEjemplo.bateria && (
-              <span> - BAT: {datosEjemplo.bateria}%</span>
-            )}
-          </div>
-        )}
-
-        {/* IMEI visible (si está seleccionado y NO está en código de barras) */}
-        {campos.includes('imei') && datosEjemplo.imei && !configuracion.incluirCodigoBarras && (
-          <div 
-            className="text-black font-mono"
-            style={{ fontSize: textoSize.subtitulo }}
-          >
-            IMEI: {datosEjemplo.imei}
-          </div>
-        )}
-
-        {/* Fecha de ingreso */}
-        {campos.includes('fechaIngreso') && datosEjemplo.fechaIngreso && (
-          <div 
-            className="text-black"
-            style={{ fontSize: textoSize.subtitulo }}
-          >
-            {datosEjemplo.fechaIngreso}
-          </div>
-        )}
-
-        {/* PRECIO DE VENTA - DESTACADO */}
-        {campos.includes('precioVenta') && (
-          <div 
-            className="font-bold text-black"
-            style={{ 
-              fontSize: textoSize.precio, 
-              marginTop: '1mm',
-              padding: '0.5mm 2mm',
-              borderTop: '1px solid #000',
-              borderBottom: '1px solid #000'
-            }}
-          >
-            {datosEjemplo.precioVenta}
-          </div>
-        )}
       </div>
 
-      {/* GARANTÍA (al final si está activada) */}
+      {/* GARANTÍA (opcional) */}
       {configuracion.mostrarGarantia && (
-        <div 
-          className="text-center text-black border-t border-gray-300 pt-0.5 mt-1"
-          style={{ fontSize: textoSize.subtitulo }}
-        >
+        <div style={{
+          fontSize: textoSize.pie,
+          fontWeight: 'bold',
+          color: '#444',
+          textAlign: 'center',
+          borderTop: '1px solid #ccc',
+          paddingTop: '0.3mm',
+          marginTop: '0.5mm',
+          flexShrink: 0,
+        }}>
           GARANTÍA: 30 DÍAS
         </div>
       )}
+
+      {/* 🏷️ PIE */}
+      <div style={{
+        fontSize: textoSize.pie,
+        fontWeight: 'bold',
+        color: '#666',
+        textAlign: 'right',
+        borderTop: '1px solid #ddd',
+        paddingTop: '0.2mm',
+        marginTop: '0.5mm',
+        flexShrink: 0,
+      }}>
+        GestiOne
+      </div>
     </div>
   );
 }

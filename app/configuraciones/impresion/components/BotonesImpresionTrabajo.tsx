@@ -107,10 +107,10 @@ export default function BotonesImpresionTrabajo({
     try {
       let nombreNegocio = '';
       try {
-        const negocioRef = doc(db, `negocios/${negocioId}`);
+        const negocioRef = doc(db, `negocios/${negocioId}/configuracion/datos`);
         const negocioSnap = await getDoc(negocioRef);
         if (negocioSnap.exists()) {
-          nombreNegocio = negocioSnap.data().nombre || "";
+          nombreNegocio = negocioSnap.data().nombreNegocio || "";
         }
       } catch (error) {
         console.error("Error cargando nombre del negocio:", error);

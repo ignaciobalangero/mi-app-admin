@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import * as XLSX from "xlsx";
 import { useRol } from "@/lib/useRol";
@@ -50,14 +50,47 @@ export default function TablaStockTelefonos({
   });
 
   // 🆕 FUNCIÓN PARA IMPRIMIR ETIQUETA
-  const imprimirEtiquetaTelefono = (telefono: any) => {
+  const imprimirEtiquetaTelefono = async (telefono: any) => {
     try {
-      ImpresionGestione.etiquetaTelefono(telefono);
-      setMensaje("🏷️ Enviando etiqueta a la impresora...");
-      setTimeout(() => setMensaje(""), 2000);
+      setMensaje("🏷️ Preparando etiqueta...");
+
+      // Leer nombre del negocio y plantilla desde Firestore
+      const [configDatosSnap, plantillasSnap] = await Promise.all([
+        getDoc(doc(db, `negocios/${negocioID}/configuracion/datos`)),
+        getDoc(doc(db, `negocios/${negocioID}/configuracion/plantillasImpresion`)),
+      ]);
+
+      const nombreNegocio = configDatosSnap.exists()
+        ? configDatosSnap.data().nombreNegocio || ""
+        : "";
+
+      const plantilla = plantillasSnap.exists()
+        ? plantillasSnap.data().etiquetaTelefono || null
+        : null;
+
+      const campos = plantilla?.campos || ['modelo', 'marca', 'gb', 'color', 'precioVenta'];
+      const configuracion = plantilla?.configuracion || {
+        tamaño: '62x29',
+        mostrarBorde: true,
+        tamañoTexto: 'mediano',
+        mostrarGarantia: false,
+      };
+
+      const html = generarHTMLEtiquetaTelefono(telefono, nombreNegocio, campos, configuracion);
+
+      const ventana = window.open('', '_blank', 'width=800,height=600');
+      if (ventana) {
+        ventana.document.write(html);
+        ventana.document.close();
+        ventana.focus();
+        setMensaje("✅ Etiqueta lista");
+      } else {
+        alert("⚠️ El navegador bloqueó la ventana emergente.");
+      }
     } catch (error) {
       console.error("Error al imprimir etiqueta:", error);
       setMensaje("❌ Error al imprimir etiqueta");
+    } finally {
       setTimeout(() => setMensaje(""), 2000);
     }
   };
@@ -737,4 +770,81 @@ export default function TablaStockTelefonos({
       </div>
     </div>
   );
+}
+function generarHTMLEtiquetaTelefono(
+  datos: any,
+  nombreNegocio: string,
+  camposSeleccionados: string[],
+  configuracion: any
+) {
+  const mapaCampos: any = {
+    'marca':        { label: 'MARCA',   valor: datos.marca },
+    'modelo':       { label: 'MODELO',  valor: datos.modelo },
+    'gb':           { label: 'GB',      valor: datos.gb ? `${datos.gb} GB` : null },
+    'color':        { label: 'COLOR',   valor: datos.color },
+    'estado':       { label: 'ESTADO',  valor: datos.estado?.toUpperCase() },
+    'bateria':      { label: 'BAT',     valor: datos.bateria ? `${datos.bateria}%` : null },
+    'imei':         { label: 'IMEI',    valor: datos.imei, monospace: true },
+    'precioVenta':  { label: 'PRECIO',  valor: datos.precioVenta ? `$${Number(datos.precioVenta).toLocaleString('es-AR')}` : null },
+    'fechaIngreso': { label: 'INGRESO', valor: datos.fechaIngreso },
+  };
+
+  const mitad = Math.ceil(camposSeleccionados.length / 2);
+  const columnaIzq = camposSeleccionados.slice(0, mitad);
+  const columnaDer = camposSeleccionados.slice(mitad);
+
+  const obtenerTamañoFuente = () => {
+    switch (configuracion.tamañoTexto) {
+      case 'muy-pequeño': return { label: '6px', value: '7px', valueLarge: '8px' };
+      case 'pequeño':     return { label: '6.5px', value: '7.5px', valueLarge: '8.5px' };
+      default:            return { label: '7px', value: '8px', valueLarge: '9px' };
+    }
+  };
+
+  const t = obtenerTamañoFuente();
+  const mostrarBorde = configuracion.mostrarBorde !== false;
+
+  const generarCampos = (campos: string[]) =>
+    campos.map(id => {
+      const campo = mapaCampos[id];
+      if (!campo || !campo.valor) return '';
+      return `
+        <div class="field">
+          <span class="label">${campo.label}:</span>
+          <span class="value${campo.monospace ? ' mono' : ''}">${campo.valor}</span>
+        </div>`;
+    }).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page { size: 62mm 29mm; margin: 0; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 62mm; height: 29mm; overflow: hidden; font-family: Arial, sans-serif; }
+    body { ${mostrarBorde ? 'border: 4px solid #000;' : ''} display: flex; flex-direction: column; }
+    .header { text-align: center; padding: 2mm 0; margin-top: 1mm; font-size: 11px; font-weight: 900; letter-spacing: 1.5mm; border-bottom: 3px solid #000; flex-shrink: 0; }
+    .content { display: flex; flex: 1; padding: 2.5mm 3mm; gap: 3mm; overflow: hidden; }
+    .column { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; }
+    .field { display: flex; flex-direction: row; align-items: baseline; gap: 1mm; margin-bottom: 1mm; }
+    .label { font-weight: 900; font-size: ${t.label}; text-transform: uppercase; }
+    .value { font-size: ${t.value}; font-weight: 900; word-wrap: break-word; }
+    .mono { font-family: 'Courier New', monospace; font-size: ${t.label}; letter-spacing: 0.2mm; }
+    .garantia { font-size: 6px; text-align: center; border-top: 1px solid #ccc; padding-top: 1mm; }
+  </style>
+</head>
+<body>
+  <div class="header">${nombreNegocio || 'MI NEGOCIO'}</div>
+  <div class="content">
+    <div class="column">${generarCampos(columnaIzq)}</div>
+    <div class="column">${generarCampos(columnaDer)}</div>
+  </div>
+  ${configuracion.mostrarGarantia ? '<div class="garantia">GARANTÍA: 30 DÍAS</div>' : ''}
+  <script>
+    window.addEventListener('load', () => setTimeout(() => window.print(), 500));
+    window.addEventListener('afterprint', () => window.close());
+  </script>
+</body>
+</html>`;
 }

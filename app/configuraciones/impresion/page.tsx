@@ -92,7 +92,7 @@ export default function ConfiguracionImpresion() {
       setToast(prev => ({ ...prev, mostrar: false }));
     }, 3000);
   };
-
+  const [nombreNegocio, setNombreNegocio] = useState("");
   const [configuracion, setConfiguracion] = useState({
     zerforceActiva: false,
     brotherActiva: false,
@@ -140,6 +140,11 @@ export default function ConfiguracionImpresion() {
         setPlantillaEtiquetaA4(plantillasData.etiquetaA4 || null);
         setPlantillaEtiquetaTelefono(plantillasData.etiquetaTelefono || null);
       }
+      const configDatosRef = doc(db, `negocios/${negocioId}/configuracion/datos`);
+const configDatosSnap = await getDoc(configDatosRef);
+if (configDatosSnap.exists()) {
+  setNombreNegocio(configDatosSnap.data().nombreNegocio || "");
+}
     } catch (error) {
       console.error("Error cargando configuración:", error);
       mostrarToast("❌ Error al cargar configuración", "error");
@@ -478,12 +483,13 @@ export default function ConfiguracionImpresion() {
                 />
               )}
 
-              {activeTab === 'etiqueta' && (
-                <DiseñadorEtiqueta 
-                  plantillaEtiqueta={plantillaEtiqueta}
-                  onGuardarPlantilla={guardarPlantillaEtiqueta}
-                />
-              )}
+{activeTab === 'etiqueta' && (
+  <DiseñadorEtiqueta 
+    plantillaEtiqueta={plantillaEtiqueta}
+    onGuardarPlantilla={guardarPlantillaEtiqueta}
+    nombreNegocio={nombreNegocio}
+  />
+)}
 
               {activeTab === 'etiquetaTelefono' && (
                 <DiseñadorEtiquetaTelefono 
