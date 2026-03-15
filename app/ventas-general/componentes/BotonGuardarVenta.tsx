@@ -67,12 +67,12 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
     const clienteDoc = clientesSnap.docs[0];
     const datosCliente = clienteDoc.data();
 
-    const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
-    const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+    const nuevoSaldoARS = Number(datosCliente.saldoARS ?? 0) + Number(sumarARS);
+    const nuevoSaldoUSD = Number(datosCliente.saldoUSD ?? 0) + Number(sumarUSD);
 
     await updateDoc(clienteDoc.ref, {
-      saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
-      saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+      saldoARS: Number(Math.round(nuevoSaldoARS * 100) / 100),
+      saldoUSD: Number(Math.round(nuevoSaldoUSD * 100) / 100),
       ultimaActualizacion: serverTimestamp()
     });
 

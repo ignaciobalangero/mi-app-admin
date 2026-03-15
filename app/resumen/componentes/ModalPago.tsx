@@ -69,17 +69,17 @@ export default function ModalPago({
         return;
       }
 
-      const clienteDoc = clientesSnap.docs[0];
-      const datosCliente = clienteDoc.data();
+    const clienteDoc = clientesSnap.docs[0];
+    const datosCliente = clienteDoc.data();
 
-      const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
-      const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+    const nuevoSaldoARS = Number(datosCliente.saldoARS ?? 0) + Number(sumarARS);
+    const nuevoSaldoUSD = Number(datosCliente.saldoUSD ?? 0) + Number(sumarUSD);
 
-      await updateDoc(clienteDoc.ref, {
-        saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
-        saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
-        ultimaActualizacion: serverTimestamp()
-      });
+    await updateDoc(clienteDoc.ref, {
+      saldoARS: Number(Math.round(nuevoSaldoARS * 100) / 100),
+      saldoUSD: Number(Math.round(nuevoSaldoUSD * 100) / 100),
+      ultimaActualizacion: serverTimestamp()
+    });
 
       console.log(`✅ Saldo actualizado: ${nombreCliente} | ARS ${sumarARS > 0 ? '+' : ''}${sumarARS} | USD ${sumarUSD > 0 ? '+' : ''}${sumarUSD}`);
     } catch (error) {
@@ -196,21 +196,23 @@ export default function ModalPago({
       const estadosValidos = ["ENTREGADO", "PAGADO"];
       
       // Si el trabajo NO estaba en ENTREGADO/PAGADO, SUMAR la deuda primero
-      if (!estadosValidos.includes(estadoAnterior) && trabajo.precio && trabajo.precio > 0) {
+      const precioNum = Number(trabajo.precio ?? 0);
+      if (!estadosValidos.includes(estadoAnterior) && precioNum > 0) {
         const monedaTrabajo = trabajo.moneda || "ARS";
         await actualizarSaldoCliente(
           trabajo.cliente,
-          monedaTrabajo === "ARS" ? trabajo.precio : 0,
-          monedaTrabajo === "USD" ? trabajo.precio : 0
+          monedaTrabajo === "ARS" ? precioNum : 0,
+          monedaTrabajo === "USD" ? precioNum : 0
         );
         console.log(`✅ Deuda sumada porque estaba en ${estadoAnterior}`);
       }
       
       // Ahora restar el pago
+      const montoNum = Number(montoNumerico);
       await actualizarSaldoCliente(
         trabajo.cliente,
-        pago.moneda === "ARS" ? -montoNumerico : 0,
-        pago.moneda === "USD" ? -montoNumerico : 0
+        pago.moneda === "ARS" ? -montoNum : 0,
+        pago.moneda === "USD" ? -montoNum : 0
       );
       console.log('💳 Pago restado del saldo');
 

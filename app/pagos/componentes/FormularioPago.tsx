@@ -71,12 +71,12 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
     const clienteDoc = clientesSnap.docs[0];
     const datosCliente = clienteDoc.data();
 
-    const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
-    const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+    const nuevoSaldoARS = Number(datosCliente.saldoARS ?? 0) + Number(sumarARS);
+    const nuevoSaldoUSD = Number(datosCliente.saldoUSD ?? 0) + Number(sumarUSD);
 
     await updateDoc(clienteDoc.ref, {
-      saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
-      saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+      saldoARS: Number(Math.round(nuevoSaldoARS * 100) / 100),
+      saldoUSD: Number(Math.round(nuevoSaldoUSD * 100) / 100),
       ultimaActualizacion: serverTimestamp()
     });
 
@@ -383,11 +383,9 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
     const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
     // ⭐ NUEVO: Devolver el pago al saldo del cliente (porque se eliminó)
     if (pagoData) {
-      await actualizarSaldoCliente(
-        cliente,
-        pagoData.moneda === "ARS" ? (pagoData.monto || 0) : 0,
-        pagoData.moneda === "USD" ? (pagoData.montoUSD || 0) : 0
-      );
+      const montoARS = pagoData.moneda === "ARS" ? Number(pagoData.monto ?? 0) : 0;
+      const montoUSD = pagoData.moneda === "USD" ? Number(pagoData.montoUSD ?? pagoData.monto ?? 0) : 0;
+      await actualizarSaldoCliente(cliente, montoARS, montoUSD);
       console.log('💳 Saldo actualizado por eliminación de pago');
     }
     const pagosActualizados = snap.docs.map((doc) => ({

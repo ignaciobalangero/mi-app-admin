@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { doc, updateDoc, getDocs, collection, getDoc } from "firebase/firestore";
+import { doc, updateDoc, getDocs, collection, getDoc, runTransaction, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Combobox } from "@headlessui/react";
 
@@ -15,6 +15,7 @@ interface Trabajo {
   clave?: string;
   observaciones?: string;
   precio?: number;
+  moneda?: string;
   estado: string;
   repuestosUsados?: any[]; 
   fechaModificacion?: string;
@@ -128,23 +129,88 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
     setFormulario(prev => ({ ...prev, [name]: value }));
   };
 
-  // Guardar cambios
+  // Guardar cambios (con runTransaction si cambió el precio y el trabajo está ENTREGADO/PAGADO)
   const guardarCambios = async () => {
-    if (!trabajo) return;
-    
+    if (!trabajo || !negocioID) return;
+
+    const precioAnterior = Number(trabajo.precio ?? 0);
+    const nuevoPrecio = Number(formulario.precio) || 0;
+    const estadoNormalizado = trabajo.estado?.toString().trim().toUpperCase();
+    const estadoValido = estadoNormalizado === "ENTREGADO" || estadoNormalizado === "PAGADO";
+    const moneda = (trabajo.moneda ?? "ARS").toString().trim().toUpperCase() || "ARS";
+    const nombreBuscado = String(formulario.cliente ?? "").trim();
+
+    const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
+    const updatesTrabajo = {
+      ...formulario,
+      precio: nuevoPrecio,
+      fechaModificacion: new Date().toLocaleDateString("es-AR"),
+    };
+
     setGuardando(true);
     try {
-      await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`), {
-        ...formulario,
-        precio: formulario.precio ? parseFloat(formulario.precio) : 0,
+      if (!estadoValido || precioAnterior === nuevoPrecio) {
+        await updateDoc(trabajoRef, updatesTrabajo);
+        await onSave();
+        handleClose();
+        console.log("✅ Trabajo actualizado correctamente");
+        return;
+      }
+
+      const clientesRef = collection(db, `negocios/${negocioID}/clientes`);
+      let clientesSnap = await getDocs(
+        query(clientesRef, where("nombre", "==", nombreBuscado), limit(1))
+      );
+      let clienteDoc = clientesSnap.empty ? null : clientesSnap.docs[0];
+      if (!clienteDoc && nombreBuscado) {
+        const todosSnap = await getDocs(query(clientesRef, limit(500)));
+        const nombreLower = nombreBuscado.toLowerCase();
+        clienteDoc = todosSnap.docs.find((d) => {
+          const data = d.data();
+          const n = (data.nombre ?? data.cliente ?? "").trim();
+          return n.toLowerCase() === nombreLower;
+        }) ?? null;
+      }
+
+      if (!clienteDoc) {
+        await updateDoc(trabajoRef, updatesTrabajo);
+        await onSave();
+        handleClose();
+        console.warn(`⚠️ Cliente no encontrado: "${nombreBuscado}". Solo se actualizó el trabajo.`);
+        return;
+      }
+
+      const clienteRef = clienteDoc.ref;
+      const delta = nuevoPrecio - precioAnterior;
+
+      await runTransaction(db, async (transaction) => {
+        const clienteSnap = await transaction.get(clienteRef);
+        const datosCliente = (clienteSnap.data() || {}) as { saldoARS?: number; saldoUSD?: number };
+        const saldoActualARS = Number(datosCliente.saldoARS ?? 0);
+        const saldoActualUSD = Number(datosCliente.saldoUSD ?? 0);
+        const sumarARS = moneda === "ARS" ? delta : 0;
+        const sumarUSD = moneda === "USD" ? delta : 0;
+        const nuevoSaldoARS = Number(Math.round((saldoActualARS + sumarARS) * 100) / 100);
+        const nuevoSaldoUSD = Number(Math.round((saldoActualUSD + sumarUSD) * 100) / 100);
+
+        console.log("DATO CLIENTE EN DB:", datosCliente.saldoARS, datosCliente.saldoUSD);
+        console.log("ModalEditar: precioAnterior:", precioAnterior, "nuevoPrecio:", nuevoPrecio, "delta:", delta, "moneda:", moneda);
+        console.log("CALCULO FINAL ARS:", nuevoSaldoARS, "| USD:", nuevoSaldoUSD);
+
+        transaction.update(trabajoRef, updatesTrabajo);
+        transaction.update(clienteRef, {
+          saldoARS: nuevoSaldoARS,
+          saldoUSD: nuevoSaldoUSD,
+          ultimaActualizacion: serverTimestamp(),
+        });
       });
-      
+
       await onSave();
       handleClose();
-      console.log("✅ Trabajo actualizado correctamente");
-      
+      console.log("✅ Trabajo y saldo actualizados correctamente");
     } catch (error) {
-      console.error("❌ Error al actualizar trabajo:", error);
+      console.error("%c[ModalEditar] FALLO AL GUARDAR", "color: red; font-weight: bold;");
+      console.error("[ModalEditar] Error:", error);
       alert("❌ Error al guardar los cambios. Intenta nuevamente.");
     } finally {
       setGuardando(false);

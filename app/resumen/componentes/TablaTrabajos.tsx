@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { doc, updateDoc, deleteDoc, query, collection, where, getDocs, limit, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, getDoc, runTransaction, query, collection, where, getDocs, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ModalRepuestos from "./ModalRepuestos";
 import ModalPago from "./ModalPago";
@@ -106,12 +106,12 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
     const clienteDoc = clientesSnap.docs[0];
     const datosCliente = clienteDoc.data();
 
-    const nuevoSaldoARS = (datosCliente.saldoARS || 0) + sumarARS;
-    const nuevoSaldoUSD = (datosCliente.saldoUSD || 0) + sumarUSD;
+    const nuevoSaldoARS = Number(datosCliente.saldoARS ?? 0) + Number(sumarARS);
+    const nuevoSaldoUSD = Number(datosCliente.saldoUSD ?? 0) + Number(sumarUSD);
 
     await updateDoc(clienteDoc.ref, {
-      saldoARS: Math.round(nuevoSaldoARS * 100) / 100,
-      saldoUSD: Math.round(nuevoSaldoUSD * 100) / 100,
+      saldoARS: Number(Math.round(nuevoSaldoARS * 100) / 100),
+      saldoUSD: Number(Math.round(nuevoSaldoUSD * 100) / 100),
       ultimaActualizacion: serverTimestamp()
     });
 
@@ -121,37 +121,86 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
   }
 };
 const actualizarCampo = async (firebaseId: string, campo: "precio" | "costo", valor: number) => {
-  // ⭐ NUEVO: Obtener datos del trabajo ANTES de actualizar
   const trabajoActual = trabajos.find(t => t.firebaseId === firebaseId);
-  if (!trabajoActual) return;
+  if (!trabajoActual || !negocioID) return;
 
-  const precioAnterior = trabajoActual.precio || 0;
-  const estadoValido = ["ENTREGADO", "PAGADO"].includes(trabajoActual.estado);
-  const moneda = trabajoActual.moneda || "ARS";
+  const precioAnterior = Number(trabajoActual.precio ?? 0);
+  const valorNum = Number(valor);
+  const estadoNormalizado = trabajoActual.estado?.toString().trim().toUpperCase();
+  const estadoValido = estadoNormalizado === "ENTREGADO" || estadoNormalizado === "PAGADO";
+  const moneda = (trabajoActual.moneda?.toString().trim().toUpperCase()) || "ARS";
 
-  // ✅ 1. Actualizar estado local INMEDIATAMENTE
-  setTrabajos(prev => prev.map(t => 
-    t.firebaseId === firebaseId 
-      ? { ...t, [campo]: valor }
-      : t
+  setTrabajos(prev => prev.map(t =>
+    t.firebaseId === firebaseId ? { ...t, [campo]: valorNum } : t
   ));
-  
-  // ✅ 2. Guardar en Firebase en background
-  const ref = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
-  await updateDoc(ref, { 
-    [campo]: valor,
-    ultimaActualizacion: new Date().toISOString()
-  });
 
-  // ⭐ NUEVO: Si cambió el PRECIO y el trabajo está ENTREGADO/PAGADO, actualizar saldo
-  if (campo === "precio" && estadoValido && precioAnterior !== valor) {
-    const diferencia = valor - precioAnterior;
-    await actualizarSaldoCliente(
-      trabajoActual.cliente,
-      moneda === "ARS" ? diferencia : 0,
-      moneda === "USD" ? diferencia : 0
-    );
-    console.log(`💳 Saldo actualizado por cambio de precio: ${precioAnterior} → ${valor}`);
+  const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${firebaseId}`);
+
+  if (campo !== "precio" || !estadoValido || precioAnterior === valorNum) {
+    await updateDoc(trabajoRef, {
+      [campo]: valorNum,
+      ultimaActualizacion: new Date().toISOString()
+    });
+    return;
+  }
+
+  const nombreBuscado = String(trabajoActual.cliente ?? "").trim();
+  const clientesRef = collection(db, `negocios/${negocioID}/clientes`);
+  let clientesSnap = await getDocs(
+    query(clientesRef, where("nombre", "==", nombreBuscado), limit(1))
+  );
+  let clienteDoc = clientesSnap.empty ? null : clientesSnap.docs[0];
+  if (!clienteDoc && nombreBuscado) {
+    const todosSnap = await getDocs(query(clientesRef, limit(500)));
+    const nombreLower = nombreBuscado.toLowerCase();
+    clienteDoc = todosSnap.docs.find((d) => {
+      const data = d.data();
+      const n = (data.nombre ?? data.cliente ?? "").trim();
+      return n.toLowerCase() === nombreLower;
+    }) ?? null;
+  }
+  if (!clienteDoc) {
+    await updateDoc(trabajoRef, {
+      precio: valorNum,
+      ultimaActualizacion: new Date().toISOString()
+    });
+    console.warn(`⚠️ Cliente no encontrado: "${nombreBuscado}". Solo se actualizó el precio.`);
+    return;
+  }
+
+  const clienteRef = clienteDoc.ref;
+  const delta = valorNum - precioAnterior;
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const clienteSnap = await transaction.get(clienteRef);
+      const datosCliente = (clienteSnap.data() || {}) as { saldoARS?: number; saldoUSD?: number };
+      const saldoActualARS = Number(datosCliente.saldoARS ?? 0);
+      const saldoActualUSD = Number(datosCliente.saldoUSD ?? 0);
+      const sumarARS = moneda === "ARS" ? delta : 0;
+      const sumarUSD = moneda === "USD" ? delta : 0;
+      const nuevoSaldoARS = Number(Math.round((saldoActualARS + sumarARS) * 100) / 100);
+      const nuevoSaldoUSD = Number(Math.round((saldoActualUSD + sumarUSD) * 100) / 100);
+
+      console.log("DATO CLIENTE EN DB:", datosCliente.saldoARS, datosCliente.saldoUSD);
+      console.log("Cambio precio:", precioAnterior, "→", valorNum, "| delta:", delta, "| moneda:", moneda);
+      console.log("CALCULO FINAL ARS:", nuevoSaldoARS, "| USD:", nuevoSaldoUSD);
+
+      transaction.update(trabajoRef, {
+        precio: valorNum,
+        ultimaActualizacion: new Date().toISOString()
+      });
+      transaction.update(clienteRef, {
+        saldoARS: nuevoSaldoARS,
+        saldoUSD: nuevoSaldoUSD,
+        ultimaActualizacion: serverTimestamp()
+      });
+    });
+    console.log(`💳 Saldo actualizado por cambio de precio: ${precioAnterior} → ${valorNum}`);
+  } catch (error) {
+    console.error("%c[actualizarCampo] FALLO TRANSACCIÓN", "color: red; font-weight: bold;");
+    console.error("[actualizarCampo] Error:", error);
+    await updateDoc(trabajoRef, { precio: valorNum, ultimaActualizacion: new Date().toISOString() });
   }
 };
 
@@ -165,12 +214,82 @@ const confirmarEliminar = (firebaseId: string) => {
   setMostrarConfirmarEliminar(true);
 };
 
-// Función para eliminar el trabajo
+// Función para eliminar el trabajo (atómico: borrado + actualización de saldo en una transacción)
 const eliminarTrabajo = async () => {
-  if (!trabajoAEliminar) return;
+  if (!trabajoAEliminar || !negocioID) return;
+  
+  const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajoAEliminar}`);
   
   try {
-    await deleteDoc(doc(db, `negocios/${negocioID}/trabajos/${trabajoAEliminar}`));
+    // 1. Obtener datos del trabajo desde Firestore ANTES de cualquier borrado
+    const trabajoSnap = await getDoc(trabajoRef);
+    if (!trabajoSnap.exists()) {
+      console.error("❌ Trabajo no encontrado");
+      setMostrarConfirmarEliminar(false);
+      setTrabajoAEliminar(null);
+      return;
+    }
+    
+    const trabajoData = trabajoSnap.data();
+    const nombreBuscado = String(trabajoData.cliente ?? "").trim();
+    const precioNum = Number(trabajoData.precio ?? 0);
+
+    console.log("DEBUG ESTADO:", trabajoData.estado);
+    const estadoNormalizado = trabajoData.estado?.toString().toUpperCase().trim();
+    const debeActualizarSaldo =
+      precioNum > 0 &&
+      (estadoNormalizado === "ENTREGADO" || estadoNormalizado === "PAGADO");
+
+    if (debeActualizarSaldo) {
+      // 2. Buscar cliente: primero por "nombre" con trim; si no hay resultado, por coincidencia insensible a mayúsculas/espacios (campo "nombre" o "cliente")
+      const clientesRef = collection(db, `negocios/${negocioID}/clientes`);
+      let clientesSnap = await getDocs(
+        query(clientesRef, where("nombre", "==", nombreBuscado), limit(1))
+      );
+      let clienteDoc = clientesSnap.empty ? null : clientesSnap.docs[0];
+      if (!clienteDoc && nombreBuscado) {
+        const todosSnap = await getDocs(query(clientesRef, limit(500)));
+        const nombreLower = nombreBuscado.toLowerCase();
+        clienteDoc = todosSnap.docs.find((d) => {
+          const data = d.data();
+          const n = (data.nombre ?? data.cliente ?? "").trim();
+          return n.toLowerCase() === nombreLower;
+        }) ?? null;
+      }
+      if (!clienteDoc) {
+        console.warn(`⚠️ Cliente no encontrado: "${nombreBuscado}". Se borra solo el trabajo.`);
+        await deleteDoc(trabajoRef);
+      } else {
+        const clienteRef = clienteDoc.ref;
+        const moneda = (trabajoData.moneda?.toString().trim().toUpperCase()) || "ARS";
+        const restarARS = moneda === "ARS" ? -precioNum : 0;
+        const restarUSD = moneda === "USD" ? -precioNum : 0;
+
+        // 3. Transacción atómica: leer saldo actual → borrar trabajo → actualizar saldo (mismo clienteRef en get y update)
+        await runTransaction(db, async (transaction) => {
+          const clienteSnap = await transaction.get(clienteRef);
+          const datosCliente = (clienteSnap.data() || {}) as { saldoARS?: number; saldoUSD?: number };
+          const nuevoSaldoARS = Number(datosCliente.saldoARS ?? 0) + restarARS;
+          const nuevoSaldoUSD = Number(datosCliente.saldoUSD ?? 0) + restarUSD;
+
+          console.log("DATO CLIENTE EN DB:", datosCliente.saldoARS, datosCliente.saldoUSD);
+          console.log("MONTO A RESTAR:", precioNum, "| restarARS:", restarARS, "restarUSD:", restarUSD);
+          console.log("CALCULO FINAL ARS:", nuevoSaldoARS, "| USD:", nuevoSaldoUSD);
+          console.log("clienteRef (mismo en get y update):", clienteRef.path);
+
+          transaction.delete(trabajoRef);
+          transaction.update(clienteRef, {
+            saldoARS: Number(Math.round(nuevoSaldoARS * 100) / 100),
+            saldoUSD: Number(Math.round(nuevoSaldoUSD * 100) / 100),
+            ultimaActualizacion: serverTimestamp()
+          });
+        });
+        console.log('✅ Saldo actualizado por eliminación de trabajo (transacción atómica)');
+      }
+    } else {
+      console.log("Saldo no afectado porque el estado es:", trabajoData.estado);
+      await deleteDoc(trabajoRef);
+    }
     
     // ✅ Actualizar estado local inmediatamente
     setTrabajos(prev => prev.filter(t => t.firebaseId !== trabajoAEliminar));
@@ -211,7 +330,12 @@ const eliminarTrabajo = async () => {
     }, 1000);
     
   } catch (error) {
-    console.error("Error eliminando trabajo:", error);
+    console.error("%c[eliminarTrabajo] FALLO EN LA TRANSACCIÓN O BORRADO", "color: red; font-weight: bold; font-size: 14px;");
+    console.error("[eliminarTrabajo] Error:", error);
+    if (error instanceof Error) {
+      console.error("[eliminarTrabajo] Mensaje:", error.message);
+      console.error("[eliminarTrabajo] Stack:", error.stack);
+    }
   }
 };
 
@@ -520,44 +644,92 @@ const eliminarTrabajo = async () => {
                           onChange={async (e) => {
                             const estadoAnterior = t.estado;
                             const nuevoEstado = e.target.value;
-                            const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
-                            const updates: any = {};
-
-                            const hoy = new Date();
-                            const fechaModificacion = hoy.toLocaleDateString("es-AR");
-                            updates.fechaModificacion = fechaModificacion;
-                            updates.estado = nuevoEstado;
-
-                            await updateDoc(ref, updates);
-
-                            // ⭐ NUEVO: Lógica de actualización de saldos
-                            const estadosValidos = ["ENTREGADO", "PAGADO"];
-                            const estadoAnteriorValido = estadosValidos.includes(estadoAnterior);
-                            const nuevoEstadoValido = estadosValidos.includes(nuevoEstado);
-
-                            const precio = t.precio || 0;
-                            const moneda = t.moneda || "ARS";
-
-                            // CASO 1: Cambió de NO válido → válido (SUMA deuda)
+                            const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
+                            const estadoAnteriorNorm = estadoAnterior?.toString().trim().toUpperCase();
+                            const nuevoEstadoNorm = nuevoEstado?.toString().trim().toUpperCase();
+                            const estadoAnteriorValido = estadoAnteriorNorm === "ENTREGADO" || estadoAnteriorNorm === "PAGADO";
+                            const nuevoEstadoValido = nuevoEstadoNorm === "ENTREGADO" || nuevoEstadoNorm === "PAGADO";
+                            const precio = Number(t.precio ?? 0);
+                            const moneda = (t.moneda?.toString().trim().toUpperCase()) || "ARS";
+                            let deltaARS = 0;
+                            let deltaUSD = 0;
                             if (!estadoAnteriorValido && nuevoEstadoValido && precio > 0) {
-                              await actualizarSaldoCliente(
-                                t.cliente,
-                                moneda === "ARS" ? precio : 0,
-                                moneda === "USD" ? precio : 0
-                              );
-                              console.log(`✅ Deuda sumada por cambio a ${nuevoEstado}`);
+                              deltaARS = moneda === "ARS" ? precio : 0;
+                              deltaUSD = moneda === "USD" ? precio : 0;
+                            } else if (estadoAnteriorValido && !nuevoEstadoValido && precio > 0) {
+                              deltaARS = moneda === "ARS" ? -precio : 0;
+                              deltaUSD = moneda === "USD" ? -precio : 0;
+                            }
+                            const hayCambioSaldo = deltaARS !== 0 || deltaUSD !== 0;
+
+                            if (!hayCambioSaldo) {
+                              await updateDoc(trabajoRef, {
+                                estado: nuevoEstado,
+                                fechaModificacion: new Date().toLocaleDateString("es-AR")
+                              });
+                              await onRecargar();
+                              return;
                             }
 
-                            // CASO 2: Cambió de válido → NO válido (RESTA deuda)
-                            if (estadoAnteriorValido && !nuevoEstadoValido && precio > 0) {
-                              await actualizarSaldoCliente(
-                                t.cliente,
-                                moneda === "ARS" ? -precio : 0,
-                                moneda === "USD" ? -precio : 0
-                              );
-                              console.log(`✅ Deuda restada por cambio desde ${estadoAnterior}`);
+                            const nombreBuscado = String(t.cliente ?? "").trim();
+                            const clientesRef = collection(db, `negocios/${negocioID}/clientes`);
+                            let clientesSnap = await getDocs(
+                              query(clientesRef, where("nombre", "==", nombreBuscado), limit(1))
+                            );
+                            let clienteDoc = clientesSnap.empty ? null : clientesSnap.docs[0];
+                            if (!clienteDoc && nombreBuscado) {
+                              const todosSnap = await getDocs(query(clientesRef, limit(500)));
+                              const nombreLower = nombreBuscado.toLowerCase();
+                              clienteDoc = todosSnap.docs.find((d) => {
+                                const data = d.data();
+                                const n = (data.nombre ?? data.cliente ?? "").trim();
+                                return n.toLowerCase() === nombreLower;
+                              }) ?? null;
                             }
-                            
+                            if (!clienteDoc) {
+                              await updateDoc(trabajoRef, {
+                                estado: nuevoEstado,
+                                fechaModificacion: new Date().toLocaleDateString("es-AR")
+                              });
+                              await onRecargar();
+                              console.warn(`⚠️ Cliente no encontrado: "${nombreBuscado}". Solo se actualizó el estado.`);
+                              return;
+                            }
+                            const clienteRef = clienteDoc.ref;
+
+                            try {
+                              await runTransaction(db, async (transaction) => {
+                                const clienteSnap = await transaction.get(clienteRef);
+                                const datosCliente = (clienteSnap.data() || {}) as { saldoARS?: number; saldoUSD?: number };
+                                const saldoActualARS = Number(datosCliente.saldoARS ?? 0);
+                                const saldoActualUSD = Number(datosCliente.saldoUSD ?? 0);
+                                const nuevoSaldoARS = Number(Math.round((saldoActualARS + deltaARS) * 100) / 100);
+                                const nuevoSaldoUSD = Number(Math.round((saldoActualUSD + deltaUSD) * 100) / 100);
+
+                                console.log("DATO CLIENTE EN DB:", datosCliente.saldoARS, datosCliente.saldoUSD);
+                                console.log("Cambio estado:", estadoAnterior, "→", nuevoEstado, "| delta ARS:", deltaARS, "USD:", deltaUSD);
+                                console.log("CALCULO FINAL ARS:", nuevoSaldoARS, "| USD:", nuevoSaldoUSD);
+
+                                transaction.update(trabajoRef, {
+                                  estado: nuevoEstado,
+                                  fechaModificacion: new Date().toLocaleDateString("es-AR")
+                                });
+                                transaction.update(clienteRef, {
+                                  saldoARS: nuevoSaldoARS,
+                                  saldoUSD: nuevoSaldoUSD,
+                                  ultimaActualizacion: serverTimestamp()
+                                });
+                              });
+                              if (nuevoEstadoValido) console.log(`✅ Deuda sumada por cambio a ${nuevoEstado}`);
+                              else console.log(`✅ Deuda restada por cambio desde ${estadoAnterior}`);
+                            } catch (error) {
+                              console.error("%c[Cambio estado] FALLO TRANSACCIÓN", "color: red; font-weight: bold;");
+                              console.error("[Cambio estado] Error:", error);
+                              await updateDoc(trabajoRef, {
+                                estado: nuevoEstado,
+                                fechaModificacion: new Date().toLocaleDateString("es-AR")
+                              });
+                            }
                             await onRecargar();
                           }}
                           className="w-full px-1 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-black text-xs font-normal"
