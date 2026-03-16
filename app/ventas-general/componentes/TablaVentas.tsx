@@ -262,6 +262,20 @@ export default function TablaVentas({ refrescar }: Props) {
   const eliminarVentaCompleta = async (venta: any) => {
     if (!rol?.negocioID) return;
 
+    // Nunca se hace deleteDoc sobre stockTelefonos: el teléfono recibido como parte de pago queda en stock (solo se libera con ventaId: null).
+
+    // 🔥 PASO 0: Si hay equipos recibidos como parte de pago vinculados a esta venta, liberarlos (ventaId = null) para que sigan en stock
+    const stockParteDePagoSnap = await getDocs(
+      query(
+        collection(db, `negocios/${rol.negocioID}/stockTelefonos`),
+        where("ventaId", "==", venta.id)
+      )
+    );
+    for (const d of stockParteDePagoSnap.docs) {
+      await updateDoc(d.ref, { ventaId: null });
+      console.log("✅ Equipo recibido como parte de pago liberado al stock (disponible):", d.id);
+    }
+
     // 🔥 PASO 1: PRIMERO ELIMINAR DE ventaTelefonos Y REPONER TELÉFONO
     const telefono = venta.productos.find((p: any) => p.categoria === "Teléfono");
 
@@ -274,10 +288,11 @@ export default function TablaVentas({ refrescar }: Props) {
         const data = snap.data();
         console.log('📱 Datos del teléfono encontrados:', data);
 
-        // Verificar si ya existe en stock
+        // Verificar si ya existe en stock (el teléfono VENDIDO; no contar el recibido como parte de pago de esta venta)
         const stockSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockTelefonos`));
         const yaExiste = stockSnap.docs.some((d) => {
           const tel = d.data();
+          if (tel.ventaId === venta.id) return false; // es el equipo parte de pago de esta venta, no el vendido
           return tel.modelo === data.modelo && tel.imei === data.imei;
         });
 

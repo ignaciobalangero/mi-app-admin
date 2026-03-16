@@ -2,7 +2,6 @@
 
 interface CheckData {
   imeiEstado: string;
-  color: string;
   pantalla: string;
   camaras: string;
   microfonos: string;
@@ -28,13 +27,6 @@ export default function CheckInForm({ checkData, setCheckData }: Props) {
         placeholder="Estado del IMEI"
         value={checkData.imeiEstado}
         onChange={(e) => handleChange("imeiEstado", e.target.value)}
-        className="p-2 rounded bg-gray-200 border border-gray-600 text-black placeholder-opacity-60"
-      />
-      <input
-        type="text"
-        placeholder="Color"
-        value={checkData.color}
-        onChange={(e) => handleChange("color", e.target.value)}
         className="p-2 rounded bg-gray-200 border border-gray-600 text-black placeholder-opacity-60"
       />
       <input

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   addDoc,
   collection,
@@ -45,6 +45,7 @@ export default function BotonGuardarVenta({
 
   const { rol } = useRol();
   const [guardando, setGuardando] = useState(false);
+  const guardandoRef = useRef(false);
 
   // ⭐ NUEVO: Función para actualizar saldo del cliente
 const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
@@ -372,9 +373,41 @@ await actualizarSaldoCliente(
   datosVentaTelefono.moneda === "USD" ? precioVentaTelefono : 0
 );
 console.log('💳 Saldo actualizado por venta de teléfono');
-    // 3. Eliminar del stock
+    // 3. Eliminar del stock el teléfono vendido (el que salió de stock)
     if (datosVentaTelefono.stockID) {
       await deleteDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos/${datosVentaTelefono.stockID}`));
+    }
+
+    // ✅ 3b. Teléfono como parte de pago: UN SOLO DOC por venta (ID fijo para que nunca se duplique)
+    if (valorTelefonoEntregado > 0 && datosVentaTelefono.telefonoRecibido) {
+      const tr = datosVentaTelefono.telefonoRecibido;
+      const valorPago = Number(tr.precioCompra ?? tr.valorPago ?? valorTelefonoEntregado);
+      const stockParteDePago = {
+        fechaIngreso: Timestamp.now(),
+        creadoEn: Timestamp.now(),
+        proveedor: `Parte de pago - ${cliente}`,
+        modelo: String(tr.modelo ?? "").trim(),
+        marca: String(tr.marca ?? "").trim(),
+        estado: (String(tr.estado ?? "usado").toLowerCase() === "nuevo" ? "nuevo" : "usado"),
+        bateria: String(tr.bateria ?? "").trim(),
+        gb: String(tr.gb ?? "").trim(),
+        color: String(tr.color ?? "").trim(),
+        imei: String(tr.imei ?? "").trim(),
+        serial: String(tr.serie ?? tr.serial ?? "").trim(),
+        precioCompra: valorPago,
+        precioVenta: valorPago,
+        precioMayorista: "",
+        moneda: (String(tr.moneda ?? "ARS").trim().toUpperCase() === "USD" ? "USD" : "ARS"),
+        observaciones: String(tr.observaciones ?? "").trim() || `Teléfono recibido como parte de pago - Venta #${nroVenta}`,
+        tipo: "telefono",
+        origen: "parte_de_pago",
+        ventaId: ventaTelefonosRef.id,
+      };
+      const colRef = collection(db, `negocios/${rol.negocioID}/stockTelefonos`);
+      const idFijo = `parte_pago_${ventaTelefonosRef.id}`;
+      const refPartePago = doc(colRef, idFijo);
+      await setDoc(refPartePago, stockParteDePago);
+      console.log("✅ Teléfono recibido como parte de pago guardado en stock, vinculado a venta:", ventaTelefonosRef.id);
     }
 
     // ✅ 4. REGISTRAR PAGOS SEPARADOS POR MONEDA (RESPETANDO MONEDA TELÉFONO)
@@ -667,6 +700,8 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
 
   const guardarVenta = async () => {
     if (!rol?.negocioID || productos.length === 0 || !cliente) return;
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
     setGuardando(true);
 
     try {
@@ -788,6 +823,7 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
     } catch (error) {
       console.error("Error al guardar la venta:", error);
     } finally {
+      guardandoRef.current = false;
       setGuardando(false);
     }
   };

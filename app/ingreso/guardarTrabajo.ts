@@ -1,4 +1,4 @@
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { imprimirEtiqueta } from "@/lib/qzPrinter";
 
@@ -7,14 +7,17 @@ interface TrabajoData {
   id: string;
   cliente: string;
   modelo: string;
+  color?: string;
   trabajo: string;
   clave: string;
   observaciones: string;
   imei: string;
   precio: string;
-  anticipo?: string; // ✨ NUEVO: Campo anticipo
-  saldo?: string;    // ✨ NUEVO: Campo saldo
+  anticipo?: string;
+  saldo?: string;
   estado?: string;
+  nroOrden?: string;
+  accesorios?: string;
   checkIn?: any;
 }
 
@@ -95,6 +98,78 @@ Obs: ${datos.observaciones}`;
 
   } catch (error) {
     console.error("Error al guardar trabajo:", error);
+    return null;
+  }
+};
+
+export interface GuardarTrabajosBatchInput {
+  nroOrden: string;
+  fecha: string;
+  cliente: string;
+  trabajos: Omit<TrabajoData, "cliente" | "fecha" | "nroOrden">[];
+}
+
+export interface TrabajoGuardadoBatch extends TrabajoData {
+  firebaseId: string;
+}
+
+/**
+ * Guarda N trabajos en una sola operación (batch).
+ * - Cada trabajo se crea como documento nuevo en `trabajos` con estado PENDIENTE.
+ * - No registra anticipos como pagos (para no afectar la cuenta al momento del ingreso).
+ * - Todos comparten el mismo `nroOrden`.
+ */
+export const guardarTrabajosBatch = async (
+  negocioID: string,
+  input: GuardarTrabajosBatchInput
+): Promise<{ mensaje: string; trabajosGuardados: TrabajoGuardadoBatch[] } | null> => {
+  try {
+    const batch = writeBatch(db);
+    const trabajosGuardados: TrabajoGuardadoBatch[] = [];
+
+    const trabajosCol = collection(db, `negocios/${negocioID}/trabajos`);
+
+    input.trabajos.forEach((t, idx) => {
+      const ref = doc(trabajosCol); // id único
+      const precioNum = Number(t.precio ?? 0);
+      const anticipoNum = Number(t.anticipo ?? 0);
+      const saldoNum = Number(t.saldo ?? (precioNum - anticipoNum));
+
+      const trabajoConMeta: TrabajoData = {
+        ...t,
+        fecha: input.fecha,
+        cliente: input.cliente,
+        nroOrden: input.nroOrden,
+        precio: precioNum.toString(),
+        anticipo: anticipoNum.toString(),
+        saldo: saldoNum.toString(),
+        estado: "PENDIENTE",
+        checkIn: (t as any).checkIn ?? null,
+        creadoEn: serverTimestamp() as any,
+      } as any;
+
+      batch.set(ref, {
+        ...trabajoConMeta,
+        precio: precioNum,
+        anticipo: anticipoNum,
+        saldo: saldoNum,
+        creadoEn: serverTimestamp(),
+      });
+
+      trabajosGuardados.push({
+        ...(trabajoConMeta as any),
+        firebaseId: ref.id,
+      });
+    });
+
+    await batch.commit();
+
+    return {
+      mensaje: `✅ ${input.trabajos.length} trabajos guardados correctamente.`,
+      trabajosGuardados,
+    };
+  } catch (error) {
+    console.error("Error al guardar trabajos batch:", error);
     return null;
   }
 };

@@ -889,6 +889,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                 <FormularioStock
                   negocioID={negocioID}
                   placeholderProveedor="Cliente que entregó el teléfono"
+                  soloCapturarDatos
                   onGuardado={(datos) => {
                     console.log('📱 Teléfono registrado como parte de pago:', datos);
                     

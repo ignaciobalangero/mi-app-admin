@@ -13,6 +13,8 @@ interface Props {
   placeholderProveedor?: string;
   clienteRecibido?: string;
   datosIniciales?: any; // ✅ nueva prop para edición
+  /** Si true, no hace addDoc a Firebase; solo ejecuta onGuardado con los datos (ej. teléfono como parte de pago) */
+  soloCapturarDatos?: boolean;
 }
 
 interface Telefono {
@@ -59,6 +61,7 @@ export default function FormularioStock({
   placeholderProveedor,
   clienteRecibido,
   datosIniciales,
+  soloCapturarDatos = false,
 }: Props) {
   const [form, setForm] = useState<Telefono>(inicial);
   const [editandoID, setEditandoID] = useState<string | null>(null);
@@ -133,7 +136,15 @@ export default function FormularioStock({
       creadoEn: Timestamp.now(),
       proveedor: form.proveedor || (clienteRecibido ? `Recibido de ${clienteRecibido}` : ""),
     };
-    
+
+    if (soloCapturarDatos) {
+      const datosParaParteDePago = { ...data, precioEstimado: form.precioVenta };
+      onGuardado?.(datosParaParteDePago);
+      setForm(inicial);
+      setEditandoID(null);
+      setMostrarFormulario(false);
+      return;
+    }
 
     if (editandoID) {
       await updateDoc(doc(db, `negocios/${negocioID}/stockTelefonos/${editandoID}`), data);

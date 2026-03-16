@@ -8,12 +8,18 @@ import {
   getDocs,
   doc,
   getDoc,
+  query,
+  where,
+  limit,
+  updateDoc,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import Header from "../Header";
 import RequireAuth from "../../lib/requireAuth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
-import { guardarTrabajo } from "./guardarTrabajo";
+import { guardarTrabajo, guardarTrabajosBatch } from "./guardarTrabajo";
 import CheckInForm from "./CheckInForm";
 import { Combobox } from "@headlessui/react";
 import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
@@ -38,18 +44,30 @@ const inicialForm = {
   id: "",
   cliente: "",
   modelo: "",
+  color: "",
   trabajo: "",
   clave: "",
   observaciones: "",
   imei: "",
-  accesorios: "", // ✨ NUEVO CAMPO
+  accesorios: "",
   precio: "",
-  anticipo: "", // ✨ NUEVO CAMPO
+  anticipo: "",
+};
+
+const inicialEquipo = {
+  modelo: "",
+  color: "",
+  trabajo: "",
+  clave: "",
+  observaciones: "",
+  imei: "",
+  accesorios: "",
+  precio: "",
+  anticipo: "",
 };
 
 const inicialCheckData = {
   imeiEstado: "",
-  color: "",
   pantalla: "",
   camaras: "",
   microfonos: "",
@@ -63,6 +81,8 @@ export default function IngresoForm() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
   const [form, setForm] = useState(inicialForm);
+  const [equiposExtra, setEquiposExtra] = useState<any[]>([]);
+  const [nroOrden, setNroOrden] = useState("");
   const [fechaManual, setFechaManual] = useState(false);
   const [mostrarCheckIn, setMostrarCheckIn] = useState(false);
   const [clientesGuardados, setClientesGuardados] = useState<Cliente[]>([]);
@@ -71,8 +91,15 @@ export default function IngresoForm() {
   const [checkData, setCheckData] = useState(inicialCheckData);
   const [queryCliente, setQueryCliente] = useState("");
   const [mostrandoOpcionesImpresion, setMostrandoOpcionesImpresion] = useState(false);
-  const [trabajoParaImprimir, setTrabajoParaImprimir] = useState<any>(null); // ✨ NUEVO ESTADO
+  const [trabajosParaImprimir, setTrabajosParaImprimir] = useState<any[] | null>(null); // ✨ MULTI
+  const [trabajoParaImprimir, setTrabajoParaImprimir] = useState<any>(null); // compat (1x)
   const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false); // ✨ MODAL ELEGANTE
+  const [modoImpresionMultiple, setModoImpresionMultiple] = useState<"todas" | "una" | "no" | null>(null);
+  const [trabajoSeleccionadoImpresion, setTrabajoSeleccionadoImpresion] = useState<any>(null);
+  const [mostrarModalMetodoPagoAnticipo, setMostrarModalMetodoPagoAnticipo] = useState(false);
+  const [formaPagoAnticipo, setFormaPagoAnticipo] = useState("");
+  const [trabajosGuardadosConAnticipo, setTrabajosGuardadosConAnticipo] = useState<any[]>([]);
+  const [totalAnticipoPendiente, setTotalAnticipoPendiente] = useState(0);
 
   // ✨ FUNCIÓN PARA FORMATEAR NÚMEROS CON PUNTOS (50.000)
   const formatearNumero = (valor: string) => {
@@ -95,6 +122,52 @@ export default function IngresoForm() {
     return saldo >= 0 ? formatearNumero(saldo.toString()) : "0";
   };
 
+  const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
+    if (!negocioID) return;
+    try {
+      const clientesSnap = await getDocs(
+        query(
+          collection(db, `negocios/${negocioID}/clientes`),
+          where("nombre", "==", nombreCliente),
+          limit(1)
+        )
+      );
+      if (clientesSnap.empty) return;
+      const clienteDoc = clientesSnap.docs[0];
+      const datosCliente = clienteDoc.data();
+      const nuevoSaldoARS = Number(datosCliente.saldoARS ?? 0) + sumarARS;
+      const nuevoSaldoUSD = Number(datosCliente.saldoUSD ?? 0) + sumarUSD;
+      await updateDoc(clienteDoc.ref, {
+        saldoARS: Number(Math.round(nuevoSaldoARS * 100) / 100),
+        saldoUSD: Number(Math.round(nuevoSaldoUSD * 100) / 100),
+        ultimaActualizacion: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Error actualizando saldo cliente:", error);
+    }
+  };
+
+  const calcularSaldoEquipo = (equipo: any) => {
+    const precio = parseFloat(obtenerValorNumerico(equipo?.precio || "0"));
+    const anticipo = parseFloat(obtenerValorNumerico(equipo?.anticipo || "0"));
+    const saldo = precio - anticipo;
+    return saldo >= 0 ? formatearNumero(saldo.toString()) : "0";
+  };
+
+  const agregarEquipoExtra = () => {
+    const idx = equiposExtra.length + 2;
+    const idNuevo = `${nroOrden}-${String(idx).padStart(2, "0")}`;
+    setEquiposExtra((prev) => [...prev, { ...inicialEquipo, id: idNuevo }]);
+  };
+
+  const actualizarEquipoExtra = (index: number, patch: any) => {
+    setEquiposExtra((prev) => prev.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  };
+
+  const eliminarEquipoExtra = (index: number) => {
+    setEquiposExtra((prev) => prev.filter((_, i) => i !== index));
+  };
+
   useEffect(() => {
     if (!user) return;
 
@@ -108,7 +181,9 @@ export default function IngresoForm() {
         await obtenerConfiguracion(id);
 
         const hoy = new Date();
-        const idGenerado = "EQ-" + hoy.getTime().toString().slice(-5);
+        const nroOrdenGenerado = "ORD-" + hoy.getTime().toString().slice(-6);
+        setNroOrden(nroOrdenGenerado);
+        const idGenerado = `${nroOrdenGenerado}-01`;
         const clienteNuevo = typeof window !== "undefined" ? localStorage.getItem("clienteNuevo") : null;
 
         setForm((prev) => ({
@@ -116,6 +191,7 @@ export default function IngresoForm() {
           id: idGenerado,
           cliente: clienteNuevo || "",
         }));
+        setEquiposExtra([]);
 
         if (clienteNuevo) localStorage.removeItem("clienteNuevo");
       }
@@ -144,13 +220,19 @@ export default function IngresoForm() {
   // ✅ FUNCIÓN AUXILIAR: Limpiar formulario
   const limpiarFormulario = () => {
     const hoy = new Date();
-    const nuevoId = "EQ-" + hoy.getTime().toString().slice(-5);
+    const nroOrdenGenerado = "ORD-" + hoy.getTime().toString().slice(-6);
+    setNroOrden(nroOrdenGenerado);
+    const nuevoId = `${nroOrdenGenerado}-01`;
     
     setForm({ ...inicialForm, id: nuevoId });
+    setEquiposExtra([]);
     setCheckData(inicialCheckData);
     setMostrarCheckIn(false);
     setMostrandoOpcionesImpresion(false);
+    setTrabajosParaImprimir(null);
     setTrabajoParaImprimir(null);
+    setModoImpresionMultiple(null);
+    setTrabajoSeleccionadoImpresion(null);
     setMostrarModalConfirmacion(false); // ✨ NUEVO
   };
 
@@ -628,37 +710,105 @@ export default function IngresoForm() {
       return;
     }
 
-    if (!form.modelo || form.modelo.trim() === "") {
-      alert("⚠️ El campo Modelo es obligatorio");
+    const equipos = [form, ...equiposExtra];
+    const faltaModelo = equipos.some((e) => !e.modelo || String(e.modelo).trim() === "");
+    if (faltaModelo) {
+      alert("⚠️ Todos los equipos deben tener Modelo");
       return;
     }
 
-    const precioNumerico = obtenerValorNumerico(form.precio || "0");
-    const anticipoNumerico = obtenerValorNumerico(form.anticipo || "0");
-    const saldoNumerico = (parseFloat(precioNumerico) - parseFloat(anticipoNumerico)).toString();
+    // 1) Armar payload de trabajos (cada uno con id único) y nroOrden compartido
+    const trabajosPayload = equipos.map((e, idx) => {
+      const precioNumerico = obtenerValorNumerico(e.precio || "0");
+      const anticipoNumerico = obtenerValorNumerico(e.anticipo || "0");
+      const saldoNumerico = (parseFloat(precioNumerico || "0") - parseFloat(anticipoNumerico || "0")).toString();
+      return {
+        id: e.id || `${nroOrden}-${String(idx + 1).padStart(2, "0")}`,
+        modelo: e.modelo || "",
+        color: e.color || "",
+        trabajo: e.trabajo || "",
+        clave: e.clave || "",
+        observaciones: e.observaciones || "",
+        imei: e.imei || "",
+        accesorios: e.accesorios || "",
+        precio: precioNumerico,
+        anticipo: anticipoNumerico,
+        saldo: saldoNumerico,
+        estado: "PENDIENTE",
+        checkIn: mostrarCheckIn ? checkData : null,
+      };
+    });
 
-    const datos = {
-      ...form,
-      precio: precioNumerico,
-      anticipo: anticipoNumerico,
-      saldo: saldoNumerico,
+    // 2) Guardar en batch (una sola operación)
+    const res = await guardarTrabajosBatch(negocioID, {
+      nroOrden,
       fecha: form.fecha,
-      checkIn: mostrarCheckIn ? checkData : null,
-    };
+      cliente: form.cliente,
+      trabajos: trabajosPayload as any,
+    });
 
-    // 1. Guardar en Firebase (SIN impresión automática)
-    const resultado = await guardarTrabajo(negocioID, datos, false);
+    if (res) {
+      setMensajeExito(res.mensaje);
+      setTrabajosParaImprimir(res.trabajosGuardados);
+      setTrabajoParaImprimir(trabajosPayload[0]);
+      setTrabajoSeleccionadoImpresion(res.trabajosGuardados[0] || null);
 
-    if (resultado) {
-      // 2. Guardar datos para el modal
-      setTrabajoParaImprimir(datos);
-      
-      // 3. Mostrar modal elegante
-      setMostrarModalConfirmacion(true);
+      const totalAnticipo = (res.trabajosGuardados || []).reduce(
+        (s: number, t: any) => s + Number(t.anticipo || 0),
+        0
+      );
+      if (totalAnticipo > 0) {
+        setTrabajosGuardadosConAnticipo(res.trabajosGuardados);
+        setTotalAnticipoPendiente(totalAnticipo);
+        setFormaPagoAnticipo("");
+        setMostrarModalMetodoPagoAnticipo(true);
+      } else {
+        setMostrarModalConfirmacion(true);
+      }
     }
   };
 
-  // ✨ NUEVA FUNCIÓN: Confirmar impresión desde modal
+  const handleConfirmarMetodoPagoAnticipo = async () => {
+    if (!formaPagoAnticipo || !negocioID || trabajosGuardadosConAnticipo.length === 0) {
+      alert("Seleccioná un método de pago");
+      return;
+    }
+    const clienteNombre = trabajosGuardadosConAnticipo[0]?.cliente || form.cliente;
+    try {
+      for (const t of trabajosGuardadosConAnticipo) {
+        const monto = Number(t.anticipo || 0);
+        if (monto <= 0) continue;
+        const pagoData = {
+          monto,
+          montoUSD: null,
+          moneda: "ARS",
+          forma: formaPagoAnticipo,
+          destino: "Anticipo",
+          tipoDestino: "cliente",
+          observaciones: `Anticipo ingreso - ${t.trabajo || ""} - ${t.modelo || ""}`,
+          fecha: new Date().toLocaleDateString("es-AR"),
+          fechaCompleta: new Date(),
+          cliente: t.cliente,
+          trabajoId: (t as any).firebaseId || t.id,
+          tipo: "ingreso",
+          negocioID,
+          trabajoDetalle: t.trabajo,
+          modeloDetalle: t.modelo,
+        };
+        await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
+      }
+      await actualizarSaldoCliente(clienteNombre, -totalAnticipoPendiente, 0);
+      setMostrarModalMetodoPagoAnticipo(false);
+      setFormaPagoAnticipo("");
+      setTrabajosGuardadosConAnticipo([]);
+      setTotalAnticipoPendiente(0);
+      setMostrarModalConfirmacion(true);
+    } catch (e) {
+      console.error(e);
+      alert("Error al registrar el pago. Reintentá.");
+    }
+  };
+
   const handleConfirmarImpresion = () => {
     setMostrarModalConfirmacion(false);
     setMostrandoOpcionesImpresion(true);
@@ -667,8 +817,69 @@ export default function IngresoForm() {
   // ✨ NUEVA FUNCIÓN: Cancelar impresión desde modal
   const handleCancelarImpresion = () => {
     setMostrarModalConfirmacion(false);
-    setMensajeExito("✅ Trabajo guardado exitosamente");
+    setMensajeExito("✅ Trabajo(s) guardado(s) exitosamente");
     limpiarFormulario();
+  };
+
+  const imprimirEtiquetasTodas = async (trabajos: any[]) => {
+    const etiquetas = trabajos.map((t) => ({
+      id: t.id,
+      cliente: t.cliente,
+      modelo: t.modelo,
+      trabajo: t.trabajo,
+      clave: t.clave,
+      observaciones: t.observaciones,
+      imei: t.imei,
+      nroOrden: t.nroOrden || nroOrden,
+    }));
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Etiquetas ${nroOrden}</title>
+  <style>
+    @page { size: 62mm 29mm; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    .label { width: 62mm; height: 29mm; padding: 2mm 2.5mm; border: 1px solid #000; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid; }
+    .row { font-size: 9px; font-weight: 700; line-height: 1.15; }
+    .muted { font-weight: 500; }
+    .mono { font-family: 'Courier New', monospace; font-size: 8px; }
+    .stack { display: flex; flex-direction: column; gap: 1mm; padding: 1mm; }
+  </style>
+</head>
+<body>
+  <div class="stack">
+    ${etiquetas
+      .map(
+        (e) => `
+      <div class="label">
+        <div class="row">ORD: ${e.nroOrden || ""} · ID: ${e.id}</div>
+        <div class="row">CLI: <span class="muted">${(e.cliente || "").toString().slice(0, 26)}</span></div>
+        <div class="row">MOD: <span class="muted">${(e.modelo || "").toString().slice(0, 28)}</span></div>
+        <div class="row">FAL: <span class="muted">${(e.trabajo || "").toString().slice(0, 30)}</span></div>
+        ${e.clave ? `<div class="row">CLV: <span class="muted">${(e.clave || "").toString().slice(0, 26)}</span></div>` : ``}
+        ${e.imei ? `<div class="row mono">IMEI: ${(e.imei || "").toString().slice(0, 18)}</div>` : ``}
+      </div>`
+      )
+      .join("")}
+  </div>
+  <script>
+    window.addEventListener('load', () => setTimeout(() => window.print(), 500));
+    window.addEventListener('afterprint', () => window.close());
+  </script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=800,height=600");
+    if (!win) {
+      alert("⚠️ El navegador bloqueó la ventana emergente.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
   };
 
   return (
@@ -826,17 +1037,31 @@ export default function IngresoForm() {
                 />
               </div>
 
-              {/* Trabajo */}
+              {/* Color */}
               <div>
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
-                  🔧 Trabajo
+                  🎨 Color
+                </label>
+                <input
+                  type="text"
+                  value={form.color}
+                  onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  placeholder="Color del equipo"
+                />
+              </div>
+
+              {/* Falla / Trabajo a realizar (reparación) */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                  🔧 Falla / Trabajo a realizar
                 </label>
                 <input
                   type="text"
                   value={form.trabajo}
                   onChange={(e) => setForm((prev) => ({ ...prev, trabajo: e.target.value }))}
                   className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-                  placeholder="Descripción del trabajo"
+                  placeholder="Descripción de la falla o trabajo"
                 />
               </div>
 
@@ -959,6 +1184,157 @@ export default function IngresoForm() {
               </div>
             </div>
 
+            {/* ➕ Carga múltiple de equipos */}
+            <div className="mt-6">
+              <div>
+                <p className="text-sm font-semibold text-[#2c3e50]">📦 Equipos en esta orden</p>
+                <p className="text-xs text-[#7f8c8d]">Todos se guardan como trabajos separados con estado PENDIENTE y el mismo nroOrden.</p>
+              </div>
+
+              {equiposExtra.length > 0 && (
+                <div className="mt-4 space-y-4">
+                  {equiposExtra.map((eq, idx) => (
+                    <div key={eq.id || idx} className="border border-[#ecf0f1] rounded-2xl overflow-hidden shadow-sm bg-white">
+                      <div className="bg-gradient-to-r from-[#ecf0f1] to-[#dfe6e9] px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#2c3e50] truncate">Equipo #{idx + 2} · ID: {eq.id}</p>
+                          <p className="text-xs text-[#7f8c8d] truncate">Orden: {nroOrden}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => eliminarEquipoExtra(idx)}
+                          className="px-3 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-sm"
+                        >
+                          🗑️ Quitar
+                        </button>
+                      </div>
+
+                      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📱 Modelo</label>
+                          <input
+                            type="text"
+                            value={eq.modelo}
+                            onChange={(e) => actualizarEquipoExtra(idx, { modelo: e.target.value })}
+                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                            placeholder="Modelo del dispositivo"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">🎨 Color</label>
+                          <input
+                            type="text"
+                            value={eq.color}
+                            onChange={(e) => actualizarEquipoExtra(idx, { color: e.target.value })}
+                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                            placeholder="Color del equipo"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">🔧 Falla / Trabajo</label>
+                          <input
+                            type="text"
+                            value={eq.trabajo}
+                            onChange={(e) => actualizarEquipoExtra(idx, { trabajo: e.target.value })}
+                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                            placeholder="Descripción de la falla o trabajo"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">🔑 Clave</label>
+                          <input
+                            type="text"
+                            value={eq.clave}
+                            onChange={(e) => actualizarEquipoExtra(idx, { clave: e.target.value })}
+                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                            placeholder="Clave del dispositivo"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📲 IMEI</label>
+                          <input
+                            type="text"
+                            value={eq.imei}
+                            onChange={(e) => actualizarEquipoExtra(idx, { imei: e.target.value })}
+                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                            placeholder="Número IMEI"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📦 Accesorios</label>
+                          <input
+                            type="text"
+                            value={eq.accesorios}
+                            onChange={(e) => actualizarEquipoExtra(idx, { accesorios: e.target.value })}
+                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                            placeholder="Ej: Cargador, cable..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">💰 Precio</label>
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7f8c8d] font-semibold">$</span>
+                            <input
+                              type="text"
+                              value={eq.precio}
+                              onChange={(e) => actualizarEquipoExtra(idx, { precio: formatearNumero(e.target.value) })}
+                              className="w-full pl-8 pr-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">💵 Anticipo</label>
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7f8c8d] font-semibold">$</span>
+                            <input
+                              type="text"
+                              value={eq.anticipo}
+                              onChange={(e) => actualizarEquipoExtra(idx, { anticipo: formatearNumero(e.target.value) })}
+                              className="w-full pl-8 pr-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">💳 Saldo</label>
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7f8c8d] font-semibold">$</span>
+                            <input
+                              type="text"
+                              value={calcularSaldoEquipo(eq)}
+                              readOnly
+                              className="w-full pl-8 pr-4 py-3 border-2 border-[#ecf0f1] rounded-lg bg-[#f8f9fa] text-[#e74c3c] font-bold"
+                            />
+                          </div>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📝 Observaciones</label>
+                          <textarea
+                            value={eq.observaciones}
+                            onChange={(e) => actualizarEquipoExtra(idx, { observaciones: e.target.value })}
+                            rows={2}
+                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] resize-none"
+                            placeholder="Observaciones adicionales..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={agregarEquipoExtra}
+                  className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white px-4 py-2 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-md"
+                >
+                  ➕ Agregar otro equipo
+                </button>
+              </div>
+            </div>
+
             {/* Botón CHECK IN */}
             <div className="flex justify-center mt-8 pt-6 border-t border-[#ecf0f1]">
               <button
@@ -979,13 +1355,61 @@ export default function IngresoForm() {
             <CheckInForm checkData={checkData} setCheckData={setCheckData} />
           )}
 
+          {/* ✨ MODAL MÉTODO DE PAGO ANTICIPO */}
+          {mostrarModalMetodoPagoAnticipo && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+                <h3 className="text-lg font-bold text-[#2c3e50] mb-2">💳 Método de pago del anticipo</h3>
+                <p className="text-sm text-[#7f8c8d] mb-4">
+                  Total anticipo: <span className="font-semibold text-[#2c3e50]">$ {totalAnticipoPendiente.toLocaleString("es-AR")}</span>
+                </p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["Efectivo", "Transferencia", "Tarjeta", "MercadoPago"].map((forma) => (
+                    <button
+                      key={forma}
+                      type="button"
+                      onClick={() => setFormaPagoAnticipo(forma)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                        formaPagoAnticipo === forma
+                          ? "bg-[#3498db] text-white"
+                          : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                      }`}
+                    >
+                      {forma}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleConfirmarMetodoPagoAnticipo}
+                    className="flex-1 py-2 rounded-lg font-semibold bg-[#27ae60] text-white hover:bg-[#229954]"
+                  >
+                    Confirmar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostrarModalMetodoPagoAnticipo(false);
+                      setFormaPagoAnticipo("");
+                      setMostrarModalConfirmacion(true);
+                    }}
+                    className="flex-1 py-2 rounded-lg font-semibold bg-[#95a5a6] text-white hover:bg-[#7f8c8d]"
+                  >
+                    Omitir pago
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ✨ MODAL ELEGANTE DE CONFIRMACIÓN */}
           <ModalConfirmarImpresion
             isOpen={mostrarModalConfirmacion}
             onConfirm={handleConfirmarImpresion}
             onCancel={handleCancelarImpresion}
-            nombreCliente={trabajoParaImprimir?.cliente || ""}
-            numeroOrden={trabajoParaImprimir?.id || ""}
+            nombreCliente={form.cliente || ""}
+            numeroOrden={nroOrden || trabajoParaImprimir?.id || ""}
           />
 
           {/* ✨ SECCIÓN SIMPLIFICADA - UN SOLO BOTÓN */}
@@ -1008,8 +1432,8 @@ export default function IngresoForm() {
           </div>
 
           {/* ✨ MODAL DE OPCIONES DE IMPRESIÓN */}
-          {mostrandoOpcionesImpresion && trabajoParaImprimir && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          {mostrandoOpcionesImpresion && (trabajosParaImprimir?.length || trabajoParaImprimir) && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden">
                 
                 {/* Header */}
@@ -1037,11 +1461,90 @@ export default function IngresoForm() {
 
                 {/* Contenido */}
                 <div className="p-6">
-                  <BotonesImpresionTrabajo 
-                    trabajo={trabajoParaImprimir}
-                    negocioId={negocioID}
-                    ocultarEtiquetasA4={true}
-                  />
+                  {Array.isArray(trabajosParaImprimir) && trabajosParaImprimir.length > 1 ? (
+                    <div className="space-y-4">
+                      <div className="bg-[#ecf0f1] rounded-xl p-4 border border-[#d5dbdb]">
+                        <p className="font-bold text-[#2c3e50]">🖨️ Impresión de etiquetas</p>
+                        <p className="text-sm text-[#7f8c8d]">Elegí cómo imprimir las etiquetas para la orden {nroOrden}.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <button
+                          onClick={async () => {
+                            setModoImpresionMultiple("todas");
+                            await imprimirEtiquetasTodas(trabajosParaImprimir);
+                          }}
+                          className="px-4 py-3 rounded-xl font-bold bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white hover:from-[#229954] hover:to-[#27ae60] shadow-lg"
+                        >
+                          🏷️ Imprimir todas juntas
+                        </button>
+                        <button
+                          onClick={() => setModoImpresionMultiple("una")}
+                          className="px-4 py-3 rounded-xl font-bold bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white hover:from-[#2980b9] hover:to-[#21618c] shadow-lg"
+                        >
+                          🧾 Imprimir una por una
+                        </button>
+                        <button
+                          onClick={() => {
+                            setModoImpresionMultiple("no");
+                            setMostrandoOpcionesImpresion(false);
+                            limpiarFormulario();
+                          }}
+                          className="px-4 py-3 rounded-xl font-bold bg-gradient-to-r from-[#95a5a6] to-[#7f8c8d] text-white hover:from-[#7f8c8d] hover:to-[#6c7b7d] shadow-md"
+                        >
+                          ✓ No imprimir
+                        </button>
+                      </div>
+
+                      {modoImpresionMultiple === "una" && (
+                        <div className="bg-white border border-[#ecf0f1] rounded-2xl p-4 space-y-3">
+                          <label className="block text-sm font-semibold text-[#2c3e50]">
+                            Seleccioná un equipo para imprimir
+                          </label>
+                          <select
+                            value={trabajoSeleccionadoImpresion?.firebaseId || ""}
+                            onChange={(e) => {
+                              const t = trabajosParaImprimir.find((x) => x.firebaseId === e.target.value);
+                              setTrabajoSeleccionadoImpresion(t || null);
+                            }}
+                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white"
+                          >
+                            {trabajosParaImprimir.map((t) => (
+                              <option key={t.firebaseId} value={t.firebaseId}>
+                                {t.id} · {t.modelo}
+                              </option>
+                            ))}
+                          </select>
+
+                          {trabajoSeleccionadoImpresion && (
+                            <BotonesImpresionTrabajo
+                              trabajo={trabajoSeleccionadoImpresion}
+                              negocioId={negocioID}
+                              ocultarEtiquetasA4={true}
+                            />
+                          )}
+
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => {
+                                setMostrandoOpcionesImpresion(false);
+                                limpiarFormulario();
+                              }}
+                              className="px-4 py-2 rounded-lg bg-[#ecf0f1] hover:bg-[#dfe6e9] text-[#2c3e50] font-semibold"
+                            >
+                              Cerrar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <BotonesImpresionTrabajo
+                      trabajo={trabajoParaImprimir}
+                      negocioId={negocioID}
+                      ocultarEtiquetasA4={true}
+                    />
+                  )}
                 </div>
               </div>
             </div>
