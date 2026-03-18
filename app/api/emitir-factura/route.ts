@@ -4,7 +4,6 @@
 import { NextResponse } from "next/server";
 import "@/lib/firebaseAdmin";
 import { db } from "@/lib/firebaseAdmin";
-import { doc, getDoc } from "firebase-admin/firestore";
 
 // @ts-ignore - módulo CommonJS
 const Afip = require("@afipsdk/afip.js").default || require("@afipsdk/afip.js");
@@ -42,9 +41,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const configRef = doc(db, "negocios", negocioID, "configuracion", "datos");
-    const configSnap = await getDoc(configRef);
-    const config = configSnap.exists() ? configSnap.data() : {};
+    // Leer configuración del negocio usando la API de firebase-admin
+    const configSnap = await db
+      .collection("negocios")
+      .doc(String(negocioID))
+      .collection("configuracion")
+      .doc("datos")
+      .get();
+    const config = configSnap.exists ? configSnap.data() : {};
     const cuit = config?.cuit ? Number(config.cuit) : null;
     const puntoVenta = config?.puntoVenta != null ? Number(config.puntoVenta) : 1;
 
@@ -61,7 +65,7 @@ export async function POST(req: Request) {
     const tipo = tipoComprobante === "A" ? "A" : "B";
     const cbteTipo = CBTE_TIPO[tipo];
 
-    let docTipo = DOC_TIPO.CONSUMIDOR_FINAL;
+    let docTipo: number = DOC_TIPO.CONSUMIDOR_FINAL;
     let docNro: number = 0;
     if (cliente?.docNro) {
       const n = Number(cliente.docNro);
