@@ -62,9 +62,19 @@ export default function ModalEmitirFactura({ isOpen, onClose, venta, trabajo, no
           trabajoId: trabajo?.firebaseId,
         }),
       });
-      const data = await res.json();
+      // Algunos errores devuelven texto plano/no-JSON desde Next/Vercel.
+      // Probamos JSON y si falla mostramos el texto para ver el motivo real.
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = null;
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const txt = await res.text();
+        data = { error: txt || "Error al emitir la factura" };
+      }
+
       if (!res.ok) {
-        setError(data.error || "Error al emitir la factura");
+        setError(data?.error || "Error al emitir la factura");
         return;
       }
       setExito({ CAE: data.CAE, numero: data.numero });
