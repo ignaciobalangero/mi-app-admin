@@ -37,6 +37,12 @@ export default function Configuraciones() {
   const [guardando, setGuardando] = useState(false);
   const [pestanaActiva, setPestanaActiva] = useState("general");
   const [mostrarPanelExentos, setMostrarPanelExentos] = useState(false);
+  const [facturacionElectronicaHabilitada, setFacturacionElectronicaHabilitada] = useState(false);
+  const [facturacionElectronicaSolicitada, setFacturacionElectronicaSolicitada] = useState(false);
+  const [mostrarModalFacturacion, setMostrarModalFacturacion] = useState(false);
+  const [cuitFacturacion, setCuitFacturacion] = useState("");
+  const [puntoVentaFacturacion, setPuntoVentaFacturacion] = useState("1");
+  const [guardandoFacturacion, setGuardandoFacturacion] = useState(false);
 
   const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
   const router = useRouter();
@@ -64,6 +70,10 @@ export default function Configuraciones() {
             setTextoGarantiaServicio(data.textoGarantia || "");
             setTextoGarantiaTelefonos(data.textoGarantiaTelefonos || "");
             setLogoUrl(data.logoUrl || "");
+            setFacturacionElectronicaHabilitada(!!data.facturacionElectronicaHabilitada);
+            setFacturacionElectronicaSolicitada(!!data.facturacionElectronicaSolicitada);
+            setCuitFacturacion(data.cuit != null ? String(data.cuit) : "");
+            setPuntoVentaFacturacion(data.puntoVenta != null ? String(data.puntoVenta) : "1");
           }
         } catch (error) {
           console.error("Error cargando configuración:", error);
@@ -125,6 +135,7 @@ export default function Configuraciones() {
 
   const pestanas = [
     { id: "general", label: "General", icono: "⚙️" },
+    { id: "facturacion", label: "Facturación electrónica", icono: "🧾" },
     { id: "garantias", label: "Garantías", icono: "🛡️" },
     { id: "suscripcion", label: "Suscripción", icono: "💳" },
   ];
@@ -337,6 +348,116 @@ export default function Configuraciones() {
                 </div>
               )}
 
+              {pestanaActiva === "facturacion" && (
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-[#9b59b6] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">🧾</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-[#2c3e50]">Facturación electrónica</h3>
+                    </div>
+                    <div className="bg-gradient-to-r from-[#f5eef8] to-[#ebf0f9] rounded-xl p-5 border-2 border-[#d5dbdb]">
+                      {/* Super admin: no ve "hablar con nosotros"; la habilitación se hace desde Ver negocios */}
+                      {user?.uid === SUPER_ADMIN_UID ? (
+                        <div>
+                          <p className="text-[#2c3e50] mb-4">La facturación electrónica se habilita por negocio desde la lista de negocios.</p>
+                          <button
+                            type="button"
+                            onClick={() => router.push("/admin/negocios")}
+                            className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] hover:from-[#8e44ad] hover:to-[#7d3c98] text-white font-medium py-2 px-5 rounded-lg shadow transition-all flex items-center gap-2"
+                          >
+                            🏪 Ir a Ver negocios
+                          </button>
+                          <p className="text-sm text-[#7f8c8d] mt-3">Ahí podés activar o desactivar la facturación electrónica para cada negocio (columna &quot;Fact. electrónica&quot;).</p>
+                        </div>
+                      ) : facturacionElectronicaHabilitada ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3 text-[#27ae60]">
+                            <span className="text-2xl">✅</span>
+                            <div>
+                              <p className="font-semibold">Facturación electrónica habilitada</p>
+                              <p className="text-sm text-[#7f8c8d]">Podés emitir facturas (A, B, etc.) desde Ventas y desde Gestión de trabajos / Resumen.</p>
+                            </div>
+                          </div>
+                          <div className="border-t border-[#d5dbdb] pt-4 mt-4 space-y-3">
+                            <p className="text-sm font-semibold text-[#2c3e50]">Datos para AFIP</p>
+                            <div>
+                              <label className="block text-sm text-[#2c3e50] mb-1">CUIT del negocio (11 dígitos)</label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={11}
+                                value={cuitFacturacion}
+                                onChange={(e) => setCuitFacturacion(e.target.value.replace(/\D/g, ""))}
+                                placeholder="Ej: 20123456789"
+                                className="w-full max-w-xs rounded-lg border border-[#bdc3c7] px-3 py-2 text-[#2c3e50]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm text-[#2c3e50] mb-1">Punto de venta (número)</label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={puntoVentaFacturacion}
+                                onChange={(e) => setPuntoVentaFacturacion(e.target.value.replace(/\D/g, ""))}
+                                placeholder="1"
+                                className="w-full max-w-xs rounded-lg border border-[#bdc3c7] px-3 py-2 text-[#2c3e50]"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              disabled={guardandoFacturacion || !cuitFacturacion.trim()}
+                              onClick={async () => {
+                                if (!rol?.negocioID || !cuitFacturacion.trim()) return;
+                                setGuardandoFacturacion(true);
+                                try {
+                                  const refDoc = doc(db, `negocios/${rol.negocioID}/configuracion`, "datos");
+                                  await setDoc(refDoc, {
+                                    cuit: cuitFacturacion.trim().replace(/\D/g, ""),
+                                    puntoVenta: puntoVentaFacturacion.trim() ? parseInt(puntoVentaFacturacion, 10) || 1 : 1,
+                                  }, { merge: true });
+                                  alert("Datos de facturación guardados.");
+                                } catch (e) {
+                                  console.error(e);
+                                  alert("Error al guardar.");
+                                } finally {
+                                  setGuardandoFacturacion(false);
+                                }
+                              }}
+                              className="bg-[#27ae60] hover:bg-[#229954] disabled:opacity-50 text-white font-medium py-2 px-4 rounded-lg"
+                            >
+                              {guardandoFacturacion ? "Guardando..." : "Guardar CUIT y punto de venta"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-[#2c3e50] mb-3">Emití facturas electrónicas (A, B, etc.) desde la plataforma.</p>
+                          {facturacionElectronicaSolicitada ? (
+                            <div className="flex items-center gap-3 text-[#f39c12] bg-[#fdebd0] rounded-lg px-4 py-3">
+                              <span className="text-xl">📩</span>
+                              <div>
+                                <p className="font-semibold">Solicitud enviada</p>
+                                <p className="text-sm">Nos pondremos en contacto para habilitar la facturación electrónica.</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setMostrarModalFacturacion(true)}
+                              className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] hover:from-[#8e44ad] hover:to-[#7d3c98] text-white font-medium py-2 px-5 rounded-lg shadow transition-all flex items-center gap-2"
+                            >
+                              🧾 Quiero habilitar facturación electrónica
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {pestanaActiva === "garantias" && (
                 <div className="space-y-6">
                   <div>
@@ -388,7 +509,7 @@ export default function Configuraciones() {
             </div>
           </div>
 
-          {pestanaActiva !== "suscripcion" && (
+          {pestanaActiva !== "suscripcion" && pestanaActiva !== "facturacion" && (
             <div className="flex justify-center">
               <button
                 onClick={guardarConfiguracion}
@@ -410,6 +531,56 @@ export default function Configuraciones() {
             </div>
           )}
         </div>
+
+        {/* Modal: hay que contactarnos para habilitar facturación */}
+        {mostrarModalFacturacion && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-[#9b59b6] rounded-xl flex items-center justify-center">
+                  <span className="text-white text-2xl">🧾</span>
+                </div>
+                <h3 className="text-xl font-bold text-[#2c3e50]">Facturación electrónica</h3>
+              </div>
+              <p className="text-[#2c3e50] mb-6">
+                Para habilitar esta función <strong>tenés que hablar con nosotros</strong>. Nosotros la activamos desde la plataforma y te avisamos cuando esté lista.
+              </p>
+              <p className="text-sm text-[#7f8c8d] mb-6">
+                Contactanos por el medio que uses normalmente (email, WhatsApp, etc.) y decinos que querés activar facturación electrónica para tu negocio.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalFacturacion(false)}
+                  className="flex-1 py-2 rounded-xl font-semibold bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                >
+                  Entendido
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!rol?.negocioID) return;
+                    try {
+                      const refDoc = doc(db, `negocios/${rol.negocioID}/configuracion`, "datos");
+                      await setDoc(refDoc, {
+                        facturacionElectronicaSolicitada: true,
+                        facturacionElectronicaSolicitadaFecha: new Date().toISOString(),
+                      }, { merge: true });
+                      setFacturacionElectronicaSolicitada(true);
+                      setMostrarModalFacturacion(false);
+                    } catch (e) {
+                      console.error(e);
+                      alert("No se pudo registrar la solicitud. Intentá de nuevo.");
+                    }
+                  }}
+                  className="flex-1 py-2 rounded-xl font-semibold bg-[#9b59b6] text-white hover:bg-[#8e44ad]"
+                >
+                  Quiero que me contacten
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </>
   );

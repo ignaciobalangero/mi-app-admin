@@ -7,7 +7,9 @@ import { doc, updateDoc, getDocs, collection, query, where, limit, serverTimesta
 import { db } from "@/lib/firebase";
 import ModalAgregarRepuesto from "@/app/resumen/componentes/ModalRepuestos";
 import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
-import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo"; // ✨ NUEVO IMPORT
+import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
+import ModalEmitirFactura from "@/app/ventas-general/componentes/ModalEmitirFactura";
+import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 
 interface Trabajo {
   firebaseId: string;
@@ -76,9 +78,12 @@ export default function TablaTrabajos({
   const [mostrarModalRepuestos, setMostrarModalRepuestos] = useState(false);
   const [trabajoIDSeleccionado, setTrabajoIDSeleccionado] = useState<string | null>(null);
 
-  // ✨ NUEVO: Estado para el modal de impresión
+  // ✨ Estado para el modal de impresión
   const [mostrarModalImpresion, setMostrarModalImpresion] = useState(false);
   const [trabajoParaImprimir, setTrabajoParaImprimir] = useState<Trabajo | null>(null);
+  const [trabajoParaFactura, setTrabajoParaFactura] = useState<Trabajo | null>(null);
+  const [mostrarModalEmitirFactura, setMostrarModalEmitirFactura] = useState(false);
+  const { facturacionElectronicaHabilitada } = useConfigFacturacion(negocioID);
 // ⭐ NUEVO: Función para actualizar saldo del cliente
 const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
   if (!negocioID) return;
@@ -519,7 +524,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                             💰
                           </button>
 
-                          {/* ✨ NUEVO: BOTÓN DE IMPRESIÓN */}
+                          {/* ✨ BOTÓN DE IMPRESIÓN */}
                           <button
                             onClick={() => abrirModalImpresion(t)}
                             className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
@@ -527,7 +532,18 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                           >
                             🖨️
                           </button>
-                          
+                          {facturacionElectronicaHabilitada && (
+                            <button
+                              onClick={() => {
+                                setTrabajoParaFactura(t);
+                                setMostrarModalEmitirFactura(true);
+                              }}
+                              className="bg-[#9b59b6] hover:bg-[#8e44ad] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
+                              title="Emitir factura electrónica"
+                            >
+                              🧾
+                            </button>
+                          )}
                           <button
                             onClick={() => setTrabajoSeleccionado(t)}
                             className="bg-[#95a5a6] hover:bg-[#7f8c8d] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
@@ -619,6 +635,19 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
             </div>
           </div>
         </div>
+      )}
+
+      {mostrarModalEmitirFactura && trabajoParaFactura && (
+        <ModalEmitirFactura
+          isOpen={mostrarModalEmitirFactura}
+          onClose={() => {
+            setMostrarModalEmitirFactura(false);
+            setTrabajoParaFactura(null);
+          }}
+          trabajo={trabajoParaFactura}
+          negocioID={negocioID}
+          origen="trabajo"
+        />
       )}
 
       {/* Modal Ver Más */}

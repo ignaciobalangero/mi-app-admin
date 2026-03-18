@@ -14,6 +14,8 @@ interface Resultado {
   linea: string;
   precio: number;
   coincidencia: number;
+  /** Colores unidos para filas agrupadas (ej. "white, blue, black") */
+  colores?: string[];
 }
 
 interface Props {
@@ -23,6 +25,42 @@ interface Props {
 export default function BuscadorComparativo({ proveedores }: Props) {
   const [busqueda, setBusqueda] = useState("");
   const [ordenarPor, setOrdenarPor] = useState<"precio" | "coincidencia">("precio");
+
+  // Colores conocidos para agrupar variantes del mismo modelo (EN + ES)
+  const COLORES_CONOCIDOS = new Set([
+    "black", "white", "blue", "red", "green", "pink", "purple", "yellow", "gold", "silver",
+    "navy", "midnight", "starlight", "gray", "grey", "orange", "rose", "coral", "graphite",
+    "lavender", "sage", "mist", "natural", "titane", "cosmic",
+    "negro", "blanco", "azul", "rojo", "verde", "rosa", "amarillo", "dorado", "plateado",
+    "gris", "naranja"
+  ]);
+
+  // Obtiene la base del producto (sin precio ni color final) para agrupar
+  const obtenerBaseProducto = (linea: string): { base: string; color: string | null } => {
+    const sinPrecio = linea
+      .replace(/\$\s*[\d.,]+/g, "")
+      .replace(/u\$\s*[\d.,]+/gi, "")
+      .replace(/USD\s*[\d.,]+/gi, "")
+      .replace(/\d{4,}/g, "") // números de 4+ dígitos (precio)
+      .replace(/\s+/g, " ")
+      .trim();
+    const partes = sinPrecio.split(/\s+/).filter(Boolean);
+    if (partes.length === 0) return { base: linea, color: null };
+    const ultima = partes[partes.length - 1].toLowerCase().replace(/[()]/g, "");
+    if (COLORES_CONOCIDOS.has(ultima)) {
+      const base = partes.slice(0, -1).join(" ").trim();
+      return { base: base || sinPrecio, color: ultima };
+    }
+    // Color entre paréntesis al final: "256GB (blue)"
+    const matchParen = sinPrecio.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+    if (matchParen) {
+      const posibleColor = matchParen[2].trim().toLowerCase();
+      if (COLORES_CONOCIDOS.has(posibleColor)) {
+        return { base: matchParen[1].trim(), color: posibleColor };
+      }
+    }
+    return { base: sinPrecio, color: null };
+  };
 
   // Función para extraer el precio de una línea
   const extraerPrecio = (linea: string): number | null => {
@@ -110,16 +148,18 @@ export default function BuscadorComparativo({ proveedores }: Props) {
       const lineaTrim = lineas[i].trim();
       if (!lineaTrim) continue;
 
-      // DETECCIÓN DE TÍTULO: Línea que tiene marca/modelo pero SIN combinación GB+precio
+      // DETECCIÓN DE TÍTULO: Línea que tiene marca/modelo pero SIN precio en la misma línea
+      // Si la línea ya tiene $ o u$ es un producto completo (ej. "IPHONE 17 256 GB WHITE $900") y no un título
       const tieneMarcaModelo = 
         /(?:APPLE|IPHONE|SAMSUNG|GALAXY|XIAOMI|REDMI|POCO|MOTOROLA|MOTO|INFINIX|MACBOOK|IPAD)/i.test(lineaTrim);
       
-      const tieneGBconPrecio = /\d+GB.+(?:\$|u\$)/i.test(lineaTrim);
+      const tienePrecioEnLinea = /(?:\$|u\$)/i.test(lineaTrim);
+      const tieneGBconPrecio = /\d+\s*GB.+(?:\$|u\$)/i.test(lineaTrim); // acepta "256 GB" o "256GB"
       
-      const esTitulo = tieneMarcaModelo && !tieneGBconPrecio;
+      const esTitulo = tieneMarcaModelo && !tieneGBconPrecio && !tienePrecioEnLinea;
 
-      // DETECCIÓN DE LÍNEA CON SPECS: Empieza con GB y tiene precio
-      const esLineaConSpecs = /^\d+GB.+(?:\$|u\$)/i.test(lineaTrim);
+      // DETECCIÓN DE LÍNEA CON SPECS: Empieza con X GB y tiene precio (ej. "256GB $..." o "256 GB $...")
+      const esLineaConSpecs = /^\d+\s*GB.+(?:\$|u\$)/i.test(lineaTrim);
 
       if (esTitulo) {
         // Guardar título (limpiando emojis)
@@ -200,16 +240,49 @@ export default function BuscadorComparativo({ proveedores }: Props) {
       });
     });
 
-    // Ordenar resultados
-    return resultadosEncontrados.sort((a, b) => {
+    // Ordenar: por precio = primero por coincidencia (mejor match primero), luego por precio
+    const ordenados = resultadosEncontrados.sort((a, b) => {
       if (ordenarPor === "precio") {
-        if (a.precio === 0 && b.precio === 0) return b.coincidencia - a.coincidencia;
+        const diffCoincidencia = b.coincidencia - a.coincidencia;
+        if (diffCoincidencia !== 0) return diffCoincidencia;
+        if (a.precio === 0 && b.precio === 0) return 0;
         if (a.precio === 0) return 1;
         if (b.precio === 0) return -1;
         return a.precio - b.precio;
       } else {
         return b.coincidencia - a.coincidencia;
       }
+    });
+
+    // Agrupar por proveedor + base producto: unir colores en una sola fila
+    const agrupados = new Map<string, Resultado>();
+    ordenados.forEach((r) => {
+      const { base, color } = obtenerBaseProducto(r.linea);
+      const key = `${r.proveedor}|${base.toLowerCase().trim()}`;
+      const existente = agrupados.get(key);
+      if (!existente) {
+        agrupados.set(key, {
+          ...r,
+          colores: color ? [color] : undefined,
+        });
+        return;
+      }
+      if (color && !existente.colores?.includes(color)) {
+        existente.colores = [...(existente.colores || []), color];
+      }
+      if (r.precio > 0 && (existente.precio === 0 || r.precio < existente.precio)) {
+        existente.precio = r.precio;
+      }
+      if (r.coincidencia > existente.coincidencia) existente.coincidencia = r.coincidencia;
+    });
+
+    return Array.from(agrupados.values()).map((r) => {
+      if (r.colores && r.colores.length > 0) {
+        const { base } = obtenerBaseProducto(r.linea);
+        const lineaUnida = `${base} ${r.colores.join(", ")}`;
+        return { ...r, linea: lineaUnida };
+      }
+      return r;
     });
   }, [busqueda, proveedores, ordenarPor]);
 

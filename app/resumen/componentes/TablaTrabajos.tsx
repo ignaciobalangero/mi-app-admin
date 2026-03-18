@@ -7,6 +7,8 @@ import ModalRepuestos from "./ModalRepuestos";
 import ModalPago from "./ModalPago";
 import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
 import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
+import ModalEmitirFactura from "@/app/ventas-general/componentes/ModalEmitirFactura";
+import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 
 interface Trabajo {
   firebaseId: string;
@@ -74,6 +76,9 @@ export default function TablaTrabajos({
   const [trabajoEditando, setTrabajoEditando] = useState<Trabajo | null>(null);
   const [mostrarModalImpresion, setMostrarModalImpresion] = useState(false);
   const [trabajoParaImprimir, setTrabajoParaImprimir] = useState<Trabajo | null>(null);
+  const [trabajoParaFactura, setTrabajoParaFactura] = useState<Trabajo | null>(null);
+  const [mostrarModalEmitirFactura, setMostrarModalEmitirFactura] = useState(false);
+  const { facturacionElectronicaHabilitada } = useConfigFacturacion(negocioID);
 
   const ITEMS_POR_PAGINA = 40;
   const totalPaginas = Math.ceil(trabajos.length / ITEMS_POR_PAGINA);
@@ -789,6 +794,18 @@ const eliminarTrabajo = async () => {
                           >
                             🖨️
                           </button>
+                          {facturacionElectronicaHabilitada && (
+                            <button
+                              onClick={() => {
+                                setTrabajoParaFactura(t);
+                                setMostrarModalEmitirFactura(true);
+                              }}
+                              className="bg-[#9b59b6] hover:bg-[#8e44ad] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
+                              title="Emitir factura electrónica"
+                            >
+                              🧾
+                            </button>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -881,6 +898,18 @@ const eliminarTrabajo = async () => {
     </div>
   </div>
 )}
+      {mostrarModalEmitirFactura && trabajoParaFactura && (
+        <ModalEmitirFactura
+          isOpen={mostrarModalEmitirFactura}
+          onClose={() => {
+            setMostrarModalEmitirFactura(false);
+            setTrabajoParaFactura(null);
+          }}
+          trabajo={trabajoParaFactura}
+          negocioID={negocioID}
+          origen="trabajo"
+        />
+      )}
       {mostrarModalPago && trabajoParaPagar && (
         <ModalPago
           mostrar={mostrarModalPago}

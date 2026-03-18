@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@afipsdk/afip.js": "^1.2.3",
     "@headlessui/react": "^2.2.2",
     "axios": "^1.8.4",
     "chart.js": "^4.4.8",

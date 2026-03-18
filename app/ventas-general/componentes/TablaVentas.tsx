@@ -25,6 +25,8 @@ import React from "react";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import ModalRemitoImpresion from "./ModalRemitoImpresion";
 import ModalEditarVenta from "./ModalEditarVenta";
+import ModalEmitirFactura from "./ModalEmitirFactura";
+import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 
 interface Props {
   refrescar: boolean;
@@ -44,7 +46,10 @@ export default function TablaVentas({ refrescar }: Props) {
   const { cotizacion, actualizarCotizacion } = useCotizacion(rol?.negocioID || "");
   const [ventaParaRemito, setVentaParaRemito] = useState<any | null>(null);
   const [mostrarRemito, setMostrarRemito] = useState(false);
+  const [ventaParaFactura, setVentaParaFactura] = useState<any | null>(null);
+  const [mostrarModalEmitirFactura, setMostrarModalEmitirFactura] = useState(false);
   const [productoAEliminar, setProductoAEliminar] = useState<{venta: any, producto: any, index: number} | null>(null);
+  const { facturacionElectronicaHabilitada } = useConfigFacturacion(rol?.negocioID);
   const [mostrarConfirmarEliminarProducto, setMostrarConfirmarEliminarProducto] = useState(false);
   const [mostrarMigracion, setMostrarMigracion] = useState(false);
   const [datosNegocio, setDatosNegocio] = useState({ nombre: "", direccion: "", telefono: "" });
@@ -926,6 +931,18 @@ export default function TablaVentas({ refrescar }: Props) {
                                     >
                                       🖨️
                                     </button>
+                                    {facturacionElectronicaHabilitada && (
+                                      <button
+                                        onClick={() => {
+                                          setVentaParaFactura(venta);
+                                          setMostrarModalEmitirFactura(true);
+                                        }}
+                                        className="bg-[#9b59b6] hover:bg-[#8e44ad] text-white px-1 py-1 rounded text-xs flex-1 transition-all duration-200 hidden lg:inline-block"
+                                        title="Emitir factura electrónica"
+                                      >
+                                        🧾
+                                      </button>
+                                    )}
                                   </>
                                 )}
 
@@ -1167,6 +1184,19 @@ export default function TablaVentas({ refrescar }: Props) {
         </div>
       )}
 
+      {mostrarModalEmitirFactura && ventaParaFactura && (
+        <ModalEmitirFactura
+          isOpen={mostrarModalEmitirFactura}
+          onClose={() => {
+            setMostrarModalEmitirFactura(false);
+            setVentaParaFactura(null);
+          }}
+          venta={ventaParaFactura}
+          nombreNegocio={datosNegocio.nombre || undefined}
+          negocioID={rol?.negocioID || ""}
+          origen="venta"
+        />
+      )}
       {mostrarRemito && (
         <ModalRemitoImpresion
           mostrar={mostrarRemito}

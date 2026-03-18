@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, where } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, where } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
@@ -53,6 +53,22 @@ export default function GestionSuscripciones() {
     newPassword: ""
   });
 
+  const [configFacturacion, setConfigFacturacion] = useState<Record<string, {
+    facturacionElectronicaHabilitada: boolean;
+    facturacionElectronicaSolicitada?: boolean;
+    cuit?: string;
+    puntoVenta?: number;
+  }>>({});
+
+  const [modalDatosFacturacion, setModalDatosFacturacion] = useState<{
+    isOpen: boolean;
+    negocioID: string;
+    nombre: string;
+    cuit: string;
+    puntoVenta: string;
+  }>({ isOpen: false, negocioID: "", nombre: "", cuit: "", puntoVenta: "1" });
+  const [guardandoDatosFacturacion, setGuardandoDatosFacturacion] = useState(false);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUID(user?.uid || null);
@@ -100,12 +116,103 @@ export default function GestionSuscripciones() {
       });
 
       setAdminsSuscripcion(adminsData);
+
+      const negocioIDs = [...new Set(adminsData.map((a) => a.negocioID))];
+      const configs: Record<string, {
+        facturacionElectronicaHabilitada: boolean;
+        facturacionElectronicaSolicitada?: boolean;
+        cuit?: string;
+        puntoVenta?: number;
+      }> = {};
+      for (const nid of negocioIDs) {
+        try {
+          const configSnap = await getDoc(doc(db, `negocios/${nid}/configuracion`, "datos"));
+          if (configSnap.exists()) {
+            const d = configSnap.data();
+            configs[nid] = {
+              facturacionElectronicaHabilitada: !!d.facturacionElectronicaHabilitada,
+              facturacionElectronicaSolicitada: !!d.facturacionElectronicaSolicitada,
+              cuit: d.cuit != null ? String(d.cuit) : undefined,
+              puntoVenta: d.puntoVenta != null ? Number(d.puntoVenta) : undefined,
+            };
+          } else {
+            configs[nid] = { facturacionElectronicaHabilitada: false, facturacionElectronicaSolicitada: false };
+          }
+        } catch {
+          configs[nid] = { facturacionElectronicaHabilitada: false, facturacionElectronicaSolicitada: false };
+        }
+      }
+      setConfigFacturacion(configs);
       
     } catch (error) {
       console.error("Error al cargar admins:", error);
       setMensaje("❌ Error al cargar suscripciones");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleFacturacionElectronica = async (negocioID: string, habilitar: boolean) => {
+    try {
+      const configRef = doc(db, `negocios/${negocioID}/configuracion`, "datos");
+      await setDoc(configRef, { facturacionElectronicaHabilitada: habilitar }, { merge: true });
+      setConfigFacturacion((prev) => ({
+        ...prev,
+        [negocioID]: {
+          ...prev[negocioID],
+          facturacionElectronicaHabilitada: habilitar,
+        },
+      }));
+      setMensaje(habilitar ? "✅ Facturación electrónica habilitada" : "✅ Facturación electrónica deshabilitada");
+      setTimeout(() => setMensaje(""), 3000);
+    } catch (error: any) {
+      console.error("Error:", error);
+      setMensaje("❌ Error al actualizar");
+      setTimeout(() => setMensaje(""), 3000);
+    }
+  };
+
+  const abrirModalDatosFacturacion = (admin: AdminSuscripcion) => {
+    const cfg = configFacturacion[admin.negocioID];
+    setModalDatosFacturacion({
+      isOpen: true,
+      negocioID: admin.negocioID,
+      nombre: admin.nombre || admin.negocioID,
+      cuit: cfg?.cuit ?? "",
+      puntoVenta: cfg?.puntoVenta != null ? String(cfg.puntoVenta) : "1",
+    });
+  };
+
+  const guardarDatosFacturacion = async () => {
+    const { negocioID, cuit, puntoVenta } = modalDatosFacturacion;
+    if (!negocioID || !cuit.trim()) {
+      setMensaje("❌ El CUIT es obligatorio");
+      setTimeout(() => setMensaje(""), 3000);
+      return;
+    }
+    setGuardandoDatosFacturacion(true);
+    try {
+      const configRef = doc(db, `negocios/${negocioID}/configuracion`, "datos");
+      const cuitNum = cuit.replace(/\D/g, "");
+      const pv = puntoVenta.trim() ? parseInt(puntoVenta, 10) || 1 : 1;
+      await setDoc(configRef, { cuit: cuitNum, puntoVenta: pv }, { merge: true });
+      setConfigFacturacion((prev) => ({
+        ...prev,
+        [negocioID]: {
+          ...prev[negocioID],
+          cuit: cuitNum,
+          puntoVenta: pv,
+        },
+      }));
+      setMensaje("✅ Datos de facturación guardados");
+      setTimeout(() => setMensaje(""), 3000);
+      setModalDatosFacturacion((prev) => ({ ...prev, isOpen: false }));
+    } catch (error: any) {
+      console.error("Error:", error);
+      setMensaje("❌ Error al guardar");
+      setTimeout(() => setMensaje(""), 3000);
+    } finally {
+      setGuardandoDatosFacturacion(false);
     }
   };
 
@@ -467,6 +574,9 @@ export default function GestionSuscripciones() {
                     Vencimiento
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Fact. electrónica
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Acciones
                   </th>
                 </tr>
@@ -474,6 +584,9 @@ export default function GestionSuscripciones() {
               <tbody className="divide-y divide-gray-200">
                 {adminsFiltrados.map(admin => {
                   const { estado, dias, color } = obtenerEstadoSuscripcion(admin);
+                  const cfg = configFacturacion[admin.negocioID];
+                  const facturaHabilitada = cfg?.facturacionElectronicaHabilitada ?? false;
+                  const facturaSolicitada = cfg?.facturacionElectronicaSolicitada ?? false;
                   
                   return (
                     <tr key={admin.id} className="hover:bg-gray-50">
@@ -499,6 +612,42 @@ export default function GestionSuscripciones() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {formatearFecha(admin.fechaVencimiento)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1.5">
+                          {facturaSolicitada && (
+                            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded w-fit">
+                              📩 Solicitada
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleFacturacionElectronica(admin.negocioID, !facturaHabilitada)}
+                            className={`px-2 py-1 text-xs rounded w-fit font-medium ${
+                              facturaHabilitada
+                                ? "bg-green-100 text-green-800 hover:bg-green-200"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
+                          >
+                            {facturaHabilitada ? "✅ Habilitada" : "🧾 Habilitar"}
+                          </button>
+                          {facturaHabilitada && (
+                            <>
+                              {cfg?.cuit ? (
+                                <span className="text-xs text-gray-500">CUIT: {cfg.cuit.slice(0, 4)}…{cfg.cuit.slice(-2)}</span>
+                              ) : (
+                                <span className="text-xs text-amber-600">Sin CUIT</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => abrirModalDatosFacturacion(admin)}
+                                className="px-2 py-1 text-xs rounded w-fit font-medium bg-[#9b59b6]/10 text-[#9b59b6] hover:bg-[#9b59b6]/20"
+                              >
+                                📋 Datos AFIP
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-2">
@@ -706,6 +855,79 @@ export default function GestionSuscripciones() {
                   className="flex-1 bg-gradient-to-r from-[#7f8c8d] to-[#95a5a6] hover:from-[#6c7b7d] hover:to-[#839192] text-white py-3 px-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
                 >
                   ❌ Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Datos AFIP (CUIT y Punto de venta) */}
+      {modalDatosFacturacion.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] p-4 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <span className="text-white text-lg">🧾</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Datos para facturación electrónica</h3>
+                    <p className="text-purple-100 text-sm">{modalDatosFacturacion.nombre} ({modalDatosFacturacion.negocioID})</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalDatosFacturacion((prev) => ({ ...prev, isOpen: false }))}
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-[#7f8c8d]">
+                Cargá el CUIT y el punto de venta del negocio para poder emitir facturas desde Ventas, Gestión de trabajos y Resumen.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-[#2c3e50] mb-1">CUIT (11 dígitos)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={11}
+                  value={modalDatosFacturacion.cuit}
+                  onChange={(e) => setModalDatosFacturacion((prev) => ({ ...prev, cuit: e.target.value.replace(/\D/g, "") }))}
+                  placeholder="Ej: 20123456789"
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] text-[#2c3e50]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#2c3e50] mb-1">Punto de venta</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={modalDatosFacturacion.puntoVenta}
+                  onChange={(e) => setModalDatosFacturacion((prev) => ({ ...prev, puntoVenta: e.target.value.replace(/\D/g, "") }))}
+                  placeholder="1"
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] text-[#2c3e50]"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={guardarDatosFacturacion}
+                  disabled={guardandoDatosFacturacion || !modalDatosFacturacion.cuit.trim()}
+                  className="flex-1 bg-[#9b59b6] hover:bg-[#8e44ad] disabled:opacity-50 text-white py-3 px-4 rounded-lg font-bold"
+                >
+                  {guardandoDatosFacturacion ? "Guardando…" : "Guardar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalDatosFacturacion((prev) => ({ ...prev, isOpen: false }))}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-4 rounded-lg font-bold"
+                >
+                  Cancelar
                 </button>
               </div>
             </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "../lib/auth";
 import Header from "./Header";
@@ -127,18 +128,27 @@ function Home() {
             
             {/* HEADER */}
             <div className="bg-gradient-to-r from-[#2c3e50] via-[#34495e] to-[#3498db] rounded-2xl p-6 sm:p-8 shadow-2xl border border-[#ecf0f1] transform hover:scale-[1.01] transition-all duration-300">
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
-                  <span className="text-4xl">🏠</span>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
+                    <span className="text-4xl">🏠</span>
+                  </div>
+                  <div className="text-center sm:text-left">
+                    <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+                      Panel de Control
+                    </h1>
+                    <p className="text-blue-100 text-sm sm:text-base">
+                      Resumen en tiempo real de tu negocio • {new Date().toLocaleDateString("es-AR")}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-center sm:text-left">
-                  <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                    Panel de Control
-                  </h1>
-                  <p className="text-blue-100 text-sm sm:text-base">
-                    Resumen en tiempo real de tu negocio • {new Date().toLocaleDateString("es-AR")}
-                  </p>
-                </div>
+                <Link
+                  href="/buscador-precios"
+                  className="flex-shrink-0 inline-flex items-center gap-2 bg-white/25 hover:bg-white/40 backdrop-blur-sm text-white font-semibold px-5 py-3 rounded-xl shadow-lg border border-white/30 transition-all duration-200 hover:scale-105 hover:shadow-xl"
+                >
+                  <span>🔍</span>
+                  <span>Buscador de precios</span>
+                </Link>
               </div>
             </div>
 

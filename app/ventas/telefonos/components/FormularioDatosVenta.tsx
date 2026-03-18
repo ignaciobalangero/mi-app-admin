@@ -217,10 +217,11 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   };
 
   const guardar = async () => {
-    const precioFinal = telefonoRecibido?.precioEstimado
-      ? form.precioVenta - telefonoRecibido.precioEstimado
-      : form.precioVenta;
-  
+    // El precio de venta del teléfono vendido debe ser el precio "bruto".
+    // El teléfono recibido como parte de pago se descuenta luego en el saldo/pagos,
+    // no debe modificar el total de la venta.
+    const precioBrutoVenta = Number(form.precioVenta || 0);
+
     const ventaTelefono = {
       fecha: form.fecha,
       fechaIngreso: form.fecha,
@@ -238,9 +239,9 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       imei: form.imei || "",
       serie: form.serie || "",
       precioCosto: form.precioCosto || 0,
-      precioVenta: precioFinal,
+      precioVenta: precioBrutoVenta,
       tipoPrecio: form.tipoPrecio,
-      ganancia: precioFinal - (form.precioCosto || 0),
+      ganancia: precioBrutoVenta - (form.precioCosto || 0),
       moneda: form.moneda || "ARS",
       stockID: form.stockID || "",
       observaciones: pago.observaciones || "",
