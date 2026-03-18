@@ -147,14 +147,28 @@ export async function POST(req: Request) {
     return NextResponse.json(response);
   } catch (err: any) {
     console.error("Error emitir-factura:", err);
-    const msg =
+    // En la mayoría de casos el SDK tira un Axios error con response.data.
+    // Queremos devolver el detalle real para poder ver el motivo (AFIP valida y responde 400).
+    const baseMsg =
       err?.message ||
       err?.data?.message ||
       (typeof err?.data === "string" ? err.data : null) ||
       "Error al emitir la factura";
-    return NextResponse.json(
-      { error: msg },
-      { status: err?.status === 400 ? 400 : 500 }
-    );
+
+    const details = err?.response?.data ?? err?.data;
+    let detailsMsg = "";
+    if (details) {
+      try {
+        detailsMsg = typeof details === "string" ? details : JSON.stringify(details);
+      } catch {
+        detailsMsg = String(details);
+      }
+    }
+
+    const msg = detailsMsg ? `${baseMsg} - ${detailsMsg}` : baseMsg;
+
+    const statusCode = err?.response?.status ?? err?.status ?? (String(baseMsg).includes("400") ? 400 : 500);
+
+    return NextResponse.json({ error: msg }, { status: statusCode });
   }
 }
