@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
         pending: `${process.env.NEXT_PUBLIC_URL}/paginas-retorno/pago-pendiente`
       },
       auto_return: 'approved',
-      notification_url: `${process.env.NEXT_PUBLIC_URL}/api/webhooks/mercadopago`,
       metadata: {
         userId: userId,
         plan: plan
