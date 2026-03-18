@@ -117,7 +117,7 @@ export default function GestionSuscripciones() {
 
       setAdminsSuscripcion(adminsData);
 
-      // Evitar problemas con downlevelIteration en builds (Set no iterable en targets viejos)
+      // Evitar problemas con downlevelIteration en builds (Set no iterable en targets viejos).
       const negocioIDs = Array.from(new Set(adminsData.map((a) => a.negocioID)));
       const configs: Record<string, {
         facturacionElectronicaHabilitada: boolean;
