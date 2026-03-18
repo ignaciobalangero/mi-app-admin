@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     }
 
     // Afip.js requiere certificado X.509 (cert + key) para producción.
-    const certPem = process.env.AFIP_SDK_CERT_PEM;
+    const certPem = process.env.AFIP_SDK_CERT_PEM?.replace(/\\n/g, "\n");
     const privateKeyPem = process.env.AFIP_SDK_PRIVATE_KEY_PEM?.replace(/\\n/g, "\n");
     if (!certPem || !privateKeyPem) {
       return NextResponse.json(
