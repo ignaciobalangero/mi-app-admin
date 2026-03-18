@@ -5,8 +5,9 @@ import { NextResponse } from "next/server";
 import "@/lib/firebaseAdmin";
 import { db } from "@/lib/firebaseAdmin";
 
-// AFIP / Afip SDK puede tardar; elevamos el timeout permitido por Vercel.
-export const maxDuration = 60;
+// AFIP / Afip SDK puede tardar bastante; elevamos el timeout permitido por Vercel.
+// Si aún falla con timeout, subimos a un valor mayor o pasamos a background jobs.
+export const maxDuration = 120;
 export const runtime = "nodejs";
 
 // @ts-ignore - módulo CommonJS
