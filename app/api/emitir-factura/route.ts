@@ -41,6 +41,19 @@ export async function POST(req: Request) {
       );
     }
 
+    // Afip.js requiere certificado X.509 (cert + key) para producción.
+    const certPem = process.env.AFIP_SDK_CERT_PEM;
+    const privateKeyPem = process.env.AFIP_SDK_PRIVATE_KEY_PEM?.replace(/\\n/g, "\n");
+    if (!certPem || !privateKeyPem) {
+      return NextResponse.json(
+        {
+          error:
+            "AFIP requiere certificado X.509. Configurá AFIP_SDK_CERT_PEM y AFIP_SDK_PRIVATE_KEY_PEM en el servidor.",
+        },
+        { status: 500 }
+      );
+    }
+
     // Leer configuración del negocio usando la API de firebase-admin
     const configSnap = await db
       .collection("negocios")
@@ -96,6 +109,8 @@ export async function POST(req: Request) {
     const afip = new Afip({
       CUIT: cuit,
       access_token: token,
+      cert: certPem,
+      key: privateKeyPem,
       production: true,
     });
 
