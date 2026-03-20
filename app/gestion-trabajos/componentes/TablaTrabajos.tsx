@@ -78,6 +78,65 @@ export default function TablaTrabajos({
   const [mostrarModalRepuestos, setMostrarModalRepuestos] = useState(false);
   const [trabajoIDSeleccionado, setTrabajoIDSeleccionado] = useState<string | null>(null);
 
+  // ------------------------------
+  // IMEI requerido en REPARADO/ENTREGADO
+  // ------------------------------
+  const [mostrarModalIMEI, setMostrarModalIMEI] = useState(false);
+  const [trabajoParaIMEI, setTrabajoParaIMEI] = useState<Trabajo | null>(null);
+  const [estadoAnteriorParaIMEI, setEstadoAnteriorParaIMEI] = useState<string>("");
+  const [estadoDestinoParaIMEI, setEstadoDestinoParaIMEI] = useState<string>("");
+  const [imeiInput, setImeiInput] = useState("");
+  const [errorIMEI, setErrorIMEI] = useState<string | null>(null);
+  const [enviandoIMEI, setEnviandoIMEI] = useState(false);
+
+  const requiereIMEI = (estado: string) => estado === "REPARADO" || estado === "ENTREGADO";
+  const faltaIMEI = (trabajo: Trabajo) => !String(trabajo.imei ?? "").trim();
+
+  const aplicarCambioEstadoConIMEI = async (trabajo: Trabajo, estadoAnterior: string, nuevoEstado: string, imeiToSave?: string) => {
+    if (!negocioID) return;
+
+    const ref = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
+
+    const hoy = new Date();
+    const fechaModificacion = hoy.toLocaleDateString("es-AR");
+
+    const updates: any = {
+      fechaModificacion,
+      estado: nuevoEstado,
+    };
+    if (imeiToSave) updates.imei = imeiToSave;
+
+    await updateDoc(ref, updates);
+
+    // ⭐ Lógica de actualización de saldos
+    const estadosValidos = ["ENTREGADO", "PAGADO"];
+    const estadoAnteriorValido = estadosValidos.includes(estadoAnterior);
+    const nuevoEstadoValido = estadosValidos.includes(nuevoEstado);
+
+    const precio = Number(trabajo.precio ?? 0);
+    const moneda = trabajo.moneda || "ARS";
+
+    // CASO 1: Cambió de NO válido → válido (SUMA deuda)
+    if (!estadoAnteriorValido && nuevoEstadoValido && precio > 0) {
+      await actualizarSaldoCliente(
+        trabajo.cliente,
+        moneda === "ARS" ? precio : 0,
+        moneda === "USD" ? precio : 0
+      );
+    }
+
+    // CASO 2: Cambió de válido → NO válido (RESTA deuda)
+    if (estadoAnteriorValido && !nuevoEstadoValido && precio > 0) {
+      await actualizarSaldoCliente(
+        trabajo.cliente,
+        moneda === "ARS" ? -precio : 0,
+        moneda === "USD" ? -precio : 0
+      );
+    }
+
+    await recargarTrabajos();
+  };
+
   // ✨ Estado para el modal de impresión
   const [mostrarModalImpresion, setMostrarModalImpresion] = useState(false);
   const [trabajoParaImprimir, setTrabajoParaImprimir] = useState<Trabajo | null>(null);
@@ -435,45 +494,19 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                           onChange={async (e) => {
                             const estadoAnterior = t.estado;
                             const nuevoEstado = e.target.value;
-                            const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
-                            const updates: any = {};
 
-                            const hoy = new Date();
-                            const fechaModificacion = hoy.toLocaleDateString("es-AR");
-                            updates.fechaModificacion = fechaModificacion;
-                            updates.estado = nuevoEstado;
-
-                            await updateDoc(ref, updates);
-
-                            // ⭐ NUEVO: Lógica de actualización de saldos
-                            const estadosValidos = ["ENTREGADO", "PAGADO"];
-                            const estadoAnteriorValido = estadosValidos.includes(estadoAnterior);
-                            const nuevoEstadoValido = estadosValidos.includes(nuevoEstado);
-
-                            const precio = Number(t.precio ?? 0);
-                            const moneda = t.moneda || "ARS";
-
-                            // CASO 1: Cambió de NO válido → válido (SUMA deuda)
-                            if (!estadoAnteriorValido && nuevoEstadoValido && precio > 0) {
-                              await actualizarSaldoCliente(
-                                t.cliente,
-                                moneda === "ARS" ? precio : 0,
-                                moneda === "USD" ? precio : 0
-                              );
-                              console.log(`✅ Deuda sumada por cambio a ${nuevoEstado}`);
+                            // Si se quiere pasar a REPARADO/ENTREGADO y no hay IMEI, pedí IMEI antes de cambiar.
+                            if (requiereIMEI(nuevoEstado) && faltaIMEI(t)) {
+                              setTrabajoParaIMEI(t);
+                              setEstadoAnteriorParaIMEI(estadoAnterior);
+                              setEstadoDestinoParaIMEI(nuevoEstado);
+                              setImeiInput("");
+                              setErrorIMEI(null);
+                              setMostrarModalIMEI(true);
+                              return;
                             }
 
-                            // CASO 2: Cambió de válido → NO válido (RESTA deuda)
-                            if (estadoAnteriorValido && !nuevoEstadoValido && precio > 0) {
-                              await actualizarSaldoCliente(
-                                t.cliente,
-                                moneda === "ARS" ? -precio : 0,
-                                moneda === "USD" ? -precio : 0
-                              );
-                              console.log(`✅ Deuda restada por cambio desde ${estadoAnterior}`);
-                            }
-                            
-                            await recargarTrabajos();
+                            await aplicarCambioEstadoConIMEI(t, estadoAnterior, nuevoEstado);
                           }}
                           className="w-full px-1 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-black text-xs font-normal"
                         >
@@ -778,6 +811,114 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
             await recargarTrabajos();
           }}
         />
+      )}
+
+      {/* Modal IMEI requerido */}
+      {mostrarModalIMEI && trabajoParaIMEI && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
+            <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] text-white rounded-t-2xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">📱</span>
+                  <h3 className="text-lg font-bold">IMEI requerido</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarModalIMEI(false);
+                    setTrabajoParaIMEI(null);
+                  }}
+                  className="text-white/90 hover:text-white p-2 rounded-lg"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 bg-[#f8f9fa]">
+              <div className="bg-white border border-[#ecf0f1] rounded-xl p-3">
+                <p className="text-sm text-[#2c3e50]">
+                  Este trabajo no tiene IMEI vinculado.
+                  <br />
+                  Cargá el IMEI para poder marcarlo como <strong>{estadoDestinoParaIMEI}</strong>.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#2c3e50]">IMEI</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={imeiInput}
+                  onChange={(e) => setImeiInput(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Ej: 123456789012345"
+                  className="w-full rounded-lg border border-[#bdc3c7] px-3 py-2 text-[#2c3e50] bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
+                />
+                {errorIMEI && <p className="text-sm text-red-600">{errorIMEI}</p>}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // Si cancelás, igual querés cambiar el estado (sin guardar IMEI)
+                    if (!trabajoParaIMEI) return;
+                    setErrorIMEI(null);
+                    setEnviandoIMEI(true);
+                    try {
+                      await aplicarCambioEstadoConIMEI(
+                        trabajoParaIMEI,
+                        estadoAnteriorParaIMEI,
+                        estadoDestinoParaIMEI
+                      );
+                      setMostrarModalIMEI(false);
+                      setTrabajoParaIMEI(null);
+                    } catch (e: any) {
+                      setErrorIMEI(e?.message || "Error al actualizar el estado.");
+                    } finally {
+                      setEnviandoIMEI(false);
+                    }
+                  }}
+                  className="flex-1 py-2 rounded-xl font-semibold bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                  disabled={enviandoIMEI}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const imei = imeiInput.trim();
+                    if (!imei) {
+                      setErrorIMEI("Ingresá el IMEI antes de continuar.");
+                      return;
+                    }
+                    setErrorIMEI(null);
+                    setEnviandoIMEI(true);
+                    try {
+                      await aplicarCambioEstadoConIMEI(
+                        trabajoParaIMEI,
+                        estadoAnteriorParaIMEI,
+                        estadoDestinoParaIMEI,
+                        imei
+                      );
+                      setMostrarModalIMEI(false);
+                      setTrabajoParaIMEI(null);
+                    } catch (e: any) {
+                      setErrorIMEI(e?.message || "Error al guardar el IMEI.");
+                    } finally {
+                      setEnviandoIMEI(false);
+                    }
+                  }}
+                  className="flex-1 py-2 rounded-xl font-semibold bg-[#9b59b6] text-white hover:bg-[#8e44ad] disabled:opacity-60"
+                  disabled={enviandoIMEI}
+                >
+                  Aceptar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
