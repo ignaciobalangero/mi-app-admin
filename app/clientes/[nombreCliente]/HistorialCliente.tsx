@@ -9,6 +9,26 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRol } from "@/lib/useRol";
 import GeneradorPDF from "./GeneradorPDF";
+import { monedaLineaProducto, totalesVentasPorMoneda } from "./ventasMonedaHelpers";
+
+/** Una sola línea para la tabla (no afecta cálculos de saldo). */
+function resumenLineaProductos(v: any): string {
+  const p = v.productos || [];
+  if (p.length === 0) return "Sin productos";
+  if (p.length === 1) {
+    const x = p[0];
+    const n = x.modelo || x.producto || x.descripcion || "Producto";
+    return `${n} ×${x.cantidad ?? 1}`;
+  }
+  const x = p[0];
+  const n = x.modelo || x.producto || x.descripcion || "Ítem";
+  return `${n} ×${x.cantidad ?? 1} · +${p.length - 1} más`;
+}
+
+/** Totales por venta: misma regla que cuenta corriente (moneda por línea). */
+function calcularMontosPorVentaFila(v: any): { totalARS: number; totalUSD: number } {
+  return totalesVentasPorMoneda(v.productos);
+}
 
 export default function ClienteDetalle() {
   const params = useParams();
@@ -23,6 +43,7 @@ export default function ClienteDetalle() {
   const [ventas, setVentas] = useState<any[]>([]);
   const [mostrarPagos, setMostrarPagos] = useState(false);
   const [mostrarVentas, setMostrarVentas] = useState(false);
+  const [ventaDetalle, setVentaDetalle] = useState<any | null>(null);
 
   useEffect(() => {
     if (rol?.negocioID) {
@@ -58,7 +79,10 @@ export default function ClienteDetalle() {
 
       const trabajosData = trabajosSnap.docs.map((doc) => doc.data());
       const pagosData = pagosSnap.docs.map((doc) => doc.data());
-      const ventasData = ventasSnap.docs.map((doc) => doc.data());
+      const ventasData = ventasSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Record<string, unknown>),
+      })) as any[];
 
       // Ordenar por fecha
       trabajosData.sort((a, b) => {
@@ -110,7 +134,7 @@ const calcularTotales = () => {
   // ✅ CORREGIDO: Solo usar el campo "moneda" del trabajo
   trabajosParaDeuda.forEach(t => {
     const precio = Number(t.precio || 0);
-    const moneda = t.moneda || "ARS";
+    const moneda = (t.moneda ?? "ARS").toString().toUpperCase();
     
     if (moneda === "USD") {
       totalTrabajosUSD += precio;
@@ -119,45 +143,17 @@ const calcularTotales = () => {
     }
   });
 
-  // ✅ VENTAS - LÓGICA CORREGIDA (igual a Cuenta Corriente)
-  ventas.forEach(v => {
-    const productos = v.productos || [];
-    
-    const hayTelefono = productos.some((p: any) => p.categoria === "Teléfono");
-    
-    let totalVentaPesos = 0;
-    let totalVentaUSD = 0;
-
-    productos.forEach((p: any) => {
-      if (hayTelefono) {
-        // CON TELÉFONO: Respetar moneda original de cada producto
-        if (p.categoria === "Teléfono") {
-          if (p.moneda?.toUpperCase() === "USD") {
-            totalVentaUSD += (p.precioUnitario * p.cantidad);
-          } else {
-            totalVentaPesos += (p.precioUnitario * p.cantidad);
-          }
-        } else {
-          // Accesorio/Repuesto: Según su moneda original
-          if (p.moneda?.toUpperCase() === "USD") {
-            totalVentaUSD += (p.precioUnitario * p.cantidad);
-          } else {
-            totalVentaPesos += (p.precioUnitario * p.cantidad);
-          }
-        }
-      } else {
-        // SIN TELÉFONO: TODO en pesos
-        totalVentaPesos += (p.precioUnitario * p.cantidad);
-      }
-    });
-    
-    totalVentasARS += totalVentaPesos;
-    totalVentasUSD += totalVentaUSD;
+  // ✅ VENTAS: todas las ventas; cada línea según p.moneda → ARS o USD (teléfono en ARS cuenta en ARS)
+  ventas.forEach((v) => {
+    const { totalARS, totalUSD } = totalesVentasPorMoneda(v.productos);
+    totalVentasARS += totalARS;
+    totalVentasUSD += totalUSD;
   });
 
   // Pagos
   pagos.forEach(p => {
-    if (p.moneda === "USD") {
+    const monedaPago = (p.moneda ?? "").toString().toUpperCase();
+    if (monedaPago === "USD") {
       totalPagosUSD += Number(p.montoUSD || 0);
     } else {
       totalPagosARS += Number(p.monto || 0);
@@ -350,176 +346,216 @@ const calcularTotales = () => {
             </div>
           </div>
 
-          {/* TABLA DE VENTAS - CORREGIDA */}
+          {/* TABLA DE VENTAS — fila compacta + detalle en modal */}
           {mostrarVentas && (
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-[#ecf0f1] mb-8">
-              
-              <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] text-white p-6">
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-200/80 mb-8 ring-1 ring-slate-100">
+              <div className="bg-gradient-to-r from-violet-600 to-purple-700 text-white p-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center shadow-inner">
                     <span className="text-2xl">🛍️</span>
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold">Ventas Realizadas</h3>
-                    <p className="text-purple-100 mt-1">
-                      {ventas.length} {ventas.length === 1 ? 'venta registrada' : 'ventas registradas'}
+                    <h3 className="text-2xl font-bold tracking-tight">Ventas realizadas</h3>
+                    <p className="text-violet-100 mt-1 text-sm">
+                      {ventas.length} {ventas.length === 1 ? "venta registrada" : "ventas registradas"} · una fila por venta
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[800px] border-collapse border-2 border-black">
-                  <thead className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb]">
-                    <tr>
-                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">📅</span>
-                          Fecha
-                        </div>
-                      </th>
-                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">📦</span>
-                          Productos
-                        </div>
-                      </th>
-                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">🚦</span>
-                          Estado
-                        </div>
-                      </th>
-                      <th className="p-3 text-left text-sm font-semibold text-[#2c3e50] border border-black">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">💱</span>
-                          Moneda
-                        </div>
-                      </th>
-                      <th className="p-3 text-right text-sm font-semibold text-[#2c3e50] border border-black">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-base">💰</span>
-                          Total
-                        </div>
-                      </th>
+                <table className="w-full min-w-[880px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/90 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      <th className="px-4 py-3 w-[120px]">Fecha</th>
+                      <th className="px-4 py-3 min-w-[200px]">Resumen</th>
+                      <th className="px-4 py-3 w-[110px]">Estado</th>
+                      <th className="px-4 py-3 w-[100px]">Moneda</th>
+                      <th className="px-4 py-3 text-right w-[160px]">Total</th>
+                      <th className="px-4 py-3 text-right w-[140px]"> </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {ventas.length > 0 ? (
                       ventas.map((v, i) => {
-                        const isEven = i % 2 === 0;
+                        const { totalARS, totalUSD } = calcularMontosPorVentaFila(v);
+                        const monedasSet = new Set<string>();
+                        v.productos?.forEach((p: any) => {
+                          monedasSet.add(monedaLineaProducto(p));
+                        });
+                        const monedasTxt = monedasSet.size ? Array.from(monedasSet).join(" · ") : "—";
                         return (
-                          <tr key={i} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
-                            <td className="p-3 border border-black">
-                              <span className="text-sm font-medium text-[#2c3e50] bg-[#ecf0f1] px-3 py-1 rounded-lg">
+                          <tr
+                            key={v.id || i}
+                            className="hover:bg-violet-50/40 transition-colors"
+                          >
+                            <td className="px-4 py-3 align-middle whitespace-nowrap">
+                              <span className="inline-flex text-sm font-medium text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg">
                                 {v.fecha}
                               </span>
                             </td>
-                            <td className="p-3 border border-black">
-                              <div className="text-sm text-[#2c3e50]">
-                                {v.productos && v.productos.length > 0 ? (
-                                  <div className="space-y-1">
-                                    {v.productos.map((producto: any, idx: number) => (
-                                      <div key={idx} className="bg-[#f8f9fa] px-2 py-1 rounded text-xs flex justify-between items-center">
-                                        <span className="font-medium">{producto.modelo || producto.nombre || "Producto"}</span>
-                                        <span className="text-[#7f8c8d] ml-2">x{producto.cantidad || 1}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-[#7f8c8d] italic">Sin detalles de productos</span>
-                                )}
-                              </div>
+                            <td className="px-4 py-3 align-middle max-w-md">
+                              <p className="text-slate-800 font-medium truncate" title={resumenLineaProductos(v)}>
+                                {resumenLineaProductos(v)}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {(v.productos?.length || 0)} {(v.productos?.length || 0) === 1 ? "ítem" : "ítems"}
+                              </p>
                             </td>
-                            <td className="p-3 border border-black">
-                              <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${
-                                v.estado === "PAGADO" ? "bg-[#27ae60] text-white" :
-                                v.estado === "ENTREGADO" ? "bg-[#f39c12] text-white" :
-                                "bg-[#e74c3c] text-white"
-                              }`}>
+                            <td className="px-4 py-3 align-middle whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
+                                  v.estado === "PAGADO"
+                                    ? "bg-emerald-100 text-emerald-900"
+                                    : v.estado === "ENTREGADO"
+                                      ? "bg-amber-100 text-amber-900"
+                                      : "bg-red-100 text-red-800"
+                                }`}
+                              >
                                 {v.estado || "PENDIENTE"}
                               </span>
                             </td>
-                            {/* COLUMNA MONEDA CORREGIDA */}
-                            <td className="p-3 border border-black">
-                              <div className="flex flex-col gap-1">
-                                {(() => {
-                                  const monedasUsadas = new Set<string>();
-                                  v.productos?.forEach((p: any) => {
-                                    if (p.categoria === "Teléfono" || p.moneda?.toUpperCase() === "USD") {
-                                      monedasUsadas.add("USD");
-                                    } else {
-                                      monedasUsadas.add("ARS");
-                                    }
-                                  });
-                                  
-                                  return Array.from(monedasUsadas).map((moneda, idx) => (
-                                    <span 
-                                      key={idx}
-                                      className="text-sm text-[#2c3e50] bg-[#3498db]/10 px-2 py-1 rounded font-mono text-center"
-                                    >
-                                      {moneda}
-                                    </span>
-                                  ));
-                                })()}
+                            <td className="px-4 py-3 align-middle whitespace-nowrap">
+                              <span className="text-xs font-mono text-slate-700 bg-sky-50 px-2 py-1 rounded-md border border-sky-100">
+                                {monedasTxt}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 align-middle text-right whitespace-nowrap">
+                              <div className="inline-flex flex-col items-end gap-1">
+                                {totalUSD > 0 && (
+                                  <span className="text-sm font-bold text-violet-800 tabular-nums">
+                                    USD {totalUSD.toLocaleString("es-AR")}
+                                  </span>
+                                )}
+                                {totalARS > 0 && (
+                                  <span className="text-sm font-bold text-violet-800 tabular-nums">
+                                    $ {totalARS.toLocaleString("es-AR")}
+                                  </span>
+                                )}
+                                {totalUSD <= 0 && totalARS <= 0 && (
+                                  <span className="text-slate-400">—</span>
+                                )}
                               </div>
                             </td>
-                            {/* COLUMNA TOTAL CORREGIDA */}
-                            <td className="p-3 border border-black text-right">
-                              <div className="flex flex-col gap-1 items-end">
-                                {(() => {
-                                  let totalARS = 0;
-                                  let totalUSD = 0;
-                                  
-                                  v.productos?.forEach((p: any) => {
-                                    // Teléfonos o productos explícitamente en USD
-                                    if (p.categoria === "Teléfono" || p.moneda?.toUpperCase() === "USD") {
-                                      totalUSD += (p.precioUnitario * p.cantidad);
-                                    } else {
-                                      // Todo lo demás en ARS
-                                      totalARS += (p.precioUnitario * p.cantidad);
-                                    }
-                                  });
-                                  
-                                  const totales = [];
-                                  
-                                  if (totalUSD > 0) {
-                                    totales.push(
-                                      <span key="usd" className="text-sm font-bold text-[#9b59b6] bg-purple-50 px-3 py-1 rounded-lg">
-                                        USD {totalUSD.toLocaleString("es-AR")}
-                                      </span>
-                                    );
-                                  }
-                                  
-                                  if (totalARS > 0) {
-                                    totales.push(
-                                      <span key="ars" className="text-sm font-bold text-[#9b59b6] bg-purple-50 px-3 py-1 rounded-lg">
-                                        $ {totalARS.toLocaleString("es-AR")}
-                                      </span>
-                                    );
-                                  }
-                                  
-                                  return totales;
-                                })()}
-                              </div>
+                            <td className="px-4 py-3 align-middle text-right">
+                              <button
+                                type="button"
+                                onClick={() => setVentaDetalle(v)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-800 shadow-sm hover:bg-violet-50 hover:border-violet-300 transition-colors"
+                              >
+                                Ver detalle
+                                <span aria-hidden>→</span>
+                              </button>
                             </td>
                           </tr>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan={5} className="p-12 text-center border border-black">
-                          <div className="flex flex-col items-center gap-4">
-                            <div className="w-16 h-16 bg-[#ecf0f1] rounded-2xl flex items-center justify-center">
-                              <span className="text-3xl">🛍️</span>
+                        <td colSpan={6} className="p-12 text-center">
+                          <div className="flex flex-col items-center gap-3 text-slate-500">
+                            <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-2xl">
+                              🛍️
                             </div>
-                            <p className="text-lg font-medium text-[#7f8c8d]">No hay ventas registradas</p>
+                            <p className="font-medium">No hay ventas registradas</p>
                           </div>
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Modal detalle venta (solo UI; no toca saldos) */}
+          {ventaDetalle && (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="venta-detalle-titulo"
+              onClick={() => setVentaDetalle(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[min(90vh,720px)] flex flex-col border border-slate-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-100 bg-gradient-to-r from-violet-600 to-purple-700 text-white rounded-t-2xl">
+                  <div>
+                    <h4 id="venta-detalle-titulo" className="text-lg font-bold">
+                      Detalle de venta
+                    </h4>
+                    <p className="text-sm text-violet-100 mt-1">
+                      {ventaDetalle.fecha}
+                      {ventaDetalle.nroVenta != null && ventaDetalle.nroVenta !== "" && (
+                        <span className="ml-2 inline-flex bg-white/20 px-2 py-0.5 rounded text-xs font-mono">
+                          #{ventaDetalle.nroVenta}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVentaDetalle(null)}
+                    className="shrink-0 rounded-lg bg-white/15 hover:bg-white/25 px-3 py-1.5 text-sm font-semibold"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+                <div className="p-5 overflow-y-auto flex-1">
+                  {ventaDetalle.productos && ventaDetalle.productos.length > 0 ? (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="w-full text-sm min-w-[520px]">
+                        <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          <tr>
+                            <th className="px-3 py-2">Producto</th>
+                            <th className="px-3 py-2">Marca</th>
+                            <th className="px-3 py-2">Modelo</th>
+                            <th className="px-3 py-2 text-center">Cant.</th>
+                            <th className="px-3 py-2 text-right">P. unit.</th>
+                            <th className="px-3 py-2 text-right">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {ventaDetalle.productos.map((producto: any, idx: number) => {
+                            const sub = Number(producto.precioUnitario || 0) * Number(producto.cantidad || 1);
+                            const esUsd =
+                              producto.categoria === "Teléfono" || producto.moneda?.toUpperCase() === "USD";
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50/80">
+                                <td className="px-3 py-2 font-medium text-slate-900">
+                                  {producto.producto || producto.descripcion || "—"}
+                                </td>
+                                <td className="px-3 py-2 text-slate-600">{producto.marca || "—"}</td>
+                                <td className="px-3 py-2 text-slate-600">{producto.modelo || "—"}</td>
+                                <td className="px-3 py-2 text-center tabular-nums">{producto.cantidad ?? 1}</td>
+                                <td className="px-3 py-2 text-right tabular-nums text-slate-700">
+                                  {esUsd
+                                    ? `US$ ${Number(producto.precioUnitario || 0).toLocaleString("es-AR")}`
+                                    : `$ ${Number(producto.precioUnitario || 0).toLocaleString("es-AR")}`}
+                                </td>
+                                <td className="px-3 py-2 text-right font-semibold text-violet-900 tabular-nums">
+                                  {esUsd
+                                    ? `US$ ${sub.toLocaleString("es-AR")}`
+                                    : `$ ${sub.toLocaleString("es-AR")}`}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 text-sm">Sin líneas de producto en esta venta.</p>
+                  )}
+                  {ventaDetalle.observaciones && (
+                    <p className="mt-4 text-sm text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <span className="font-semibold text-slate-700">Observaciones: </span>
+                      {ventaDetalle.observaciones}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}

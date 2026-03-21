@@ -11,18 +11,23 @@ export default function AppLayoutWrapper({
   
   // ✅ AGREGAR TODAS LAS RUTAS SIN SIDEBAR (incluyendo /registro)
   const rutasSinSidebar = [
-    "/login", 
-    "/register",      // Por si usas /register en algún lado
-    "/registro",      // ✅ AGREGAR ESTA LÍNEA
-    "/crear-cuenta",  // ✅ Por si tienes esta ruta también
+    "/login",
+    "/register", // Por si usas /register en algún lado
+    "/registro",
+    "/crear-cuenta",
     "/recuperar",
     "/recuperar-password",
-    "/suscripciones", // ✅ Agregar suscripciones también
+    "/suscripciones",
     "/terminos",
-    "/privacidad"
+    "/privacidad",
+    "/cliente", // solo coincide exacto; /clientes/* NO va acá
   ];
-  
-  const esRutaPublica = rutasSinSidebar.includes(pathname);
+
+  // Ojo: NO usar startsWith("/cliente") porque ocultaría el sidebar en /clientes/... (detalle admin).
+  const esPortalClienteFinal =
+    pathname === "/cliente" || pathname.startsWith("/cliente/");
+
+  const esRutaPublica = esPortalClienteFinal || rutasSinSidebar.includes(pathname);
 
   return esRutaPublica ? <>{children}</> : <SidebarWrapper>{children}</SidebarWrapper>;
 }

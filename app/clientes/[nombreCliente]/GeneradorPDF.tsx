@@ -3,6 +3,7 @@
 import { useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { normalizeMonedaCuenta, totalesVentasPorMoneda } from "./ventasMonedaHelpers";
 
 interface GeneradorPDFProps {
   nombreCliente: string;
@@ -57,33 +58,15 @@ export default function GeneradorPDF({
           tipo: "trabajo",
           descripcion: `${trabajo.modelo} - ${trabajo.trabajo}`,
           monto: Number(trabajo.precio || 0),
-          moneda: trabajo.moneda || "ARS",
+          moneda: normalizeMonedaCuenta(trabajo.moneda),
           esDeuda: true,
         });
       }
     });
 
-    // ✅ CORREGIDO: Agregar ventas con lógica correcta
+    // Ventas: cada línea según moneda del producto (default ARS)
     ventas.forEach((venta) => {
-      const productos = venta.productos || [];
-      const hayTelefono = productos.some((p: any) => p.categoria === "Teléfono");
-      
-      let totalARS = 0;
-      let totalUSD = 0;
-
-      productos.forEach((p: any) => {
-        if (hayTelefono) {
-          // CON TELÉFONO: Respetar moneda de cada producto
-          if (p.moneda?.toUpperCase() === "USD") {
-            totalUSD += (p.precioUnitario * p.cantidad);
-          } else {
-            totalARS += (p.precioUnitario * p.cantidad);
-          }
-        } else {
-          // SIN TELÉFONO: Todo en ARS
-          totalARS += (p.precioUnitario * p.cantidad);
-        }
-      });
+      const { totalARS, totalUSD } = totalesVentasPorMoneda(venta.productos);
 
       const descripcion = venta.productos
         ?.map((p: any) => p.modelo || p.nombre || "Producto")
@@ -118,10 +101,10 @@ export default function GeneradorPDF({
 
     // Agregar pagos
     pagos.forEach((pago) => {
-      const monto = pago.moneda === "USD" 
-        ? Number(pago.montoUSD || 0) 
-        : Number(pago.monto || 0);
-      
+      const mon = normalizeMonedaCuenta(pago.moneda);
+      const monto =
+        mon === "USD" ? Number(pago.montoUSD || 0) : Number(pago.monto || 0);
+
       if (monto > 0) {
         historial.push({
           fecha: pago.fecha,
@@ -129,7 +112,7 @@ export default function GeneradorPDF({
           tipo: "pago",
           descripcion: `Pago - ${pago.forma || "Efectivo"}`,
           monto: monto,
-          moneda: pago.moneda || "ARS",
+          moneda: mon,
           esDeuda: false,
         });
       }
@@ -146,7 +129,7 @@ export default function GeneradorPDF({
     for (let i = 0; i < historial.length; i++) {
       const item = historial[i];
 
-      if (item.moneda === "ARS") {
+      if (normalizeMonedaCuenta(item.moneda) === "ARS") {
         saldoARS += item.esDeuda ? item.monto : -item.monto;
       } else {
         saldoUSD += item.esDeuda ? item.monto : -item.monto;
@@ -171,7 +154,7 @@ export default function GeneradorPDF({
     let saldoAcumUSD = 0;
 
     return historialDesdeCero.map((item) => {
-      if (item.moneda === "ARS") {
+      if (normalizeMonedaCuenta(item.moneda) === "ARS") {
         saldoAcumARS += item.esDeuda ? item.monto : -item.monto;
       } else {
         saldoAcumUSD += item.esDeuda ? item.monto : -item.monto;
@@ -320,8 +303,9 @@ export default function GeneradorPDF({
           const tipoTexto = item.tipo === "trabajo" ? "Trabajo" : item.tipo === "venta" ? "Venta" : "Pago";
           
           const signo = item.esDeuda ? "+" : "-";
-          const montoARS = item.moneda === "ARS" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
-          const montoUSD = item.moneda === "USD" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
+          const mon = normalizeMonedaCuenta(item.moneda);
+          const montoARS = mon === "ARS" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
+          const montoUSD = mon === "USD" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
 
           const saldoARS = item.saldoAcumuladoARS.toLocaleString("es-AR");
           const saldoUSD = item.saldoAcumuladoUSD.toLocaleString("es-AR");
@@ -384,14 +368,14 @@ export default function GeneradorPDF({
 
             if (data.row.index >= 0 && data.column.index === 3) {
               const item = historialDesdeCero[realIndex];
-              if (item.moneda === "ARS") {
+              if (normalizeMonedaCuenta(item.moneda) === "ARS") {
                 data.cell.styles.textColor = item.esDeuda ? [231, 76, 60] : [39, 174, 96];
               }
             }
 
             if (data.row.index >= 0 && data.column.index === 4) {
               const item = historialDesdeCero[realIndex];
-              if (item.moneda === "USD") {
+              if (normalizeMonedaCuenta(item.moneda) === "USD") {
                 data.cell.styles.textColor = item.esDeuda ? [231, 76, 60] : [39, 174, 96];
               }
             }
@@ -481,31 +465,14 @@ export default function GeneradorPDF({
             tipo: "trabajo",
             descripcion: `${trabajo.modelo} - ${trabajo.trabajo}`,
             monto: Number(trabajo.precio || 0),
-            moneda: trabajo.moneda || "ARS",
+            moneda: normalizeMonedaCuenta(trabajo.moneda),
             esDeuda: true,
           });
         }
       });
 
-      // ✅ CORREGIDO: Agregar ventas con lógica correcta
       ventas.forEach((venta) => {
-        const productos = venta.productos || [];
-        const hayTelefono = productos.some((p: any) => p.categoria === "Teléfono");
-        
-        let totalARS = 0;
-        let totalUSD = 0;
-
-        productos.forEach((p: any) => {
-          if (hayTelefono) {
-            if (p.moneda?.toUpperCase() === "USD") {
-              totalUSD += (p.precioUnitario * p.cantidad);
-            } else {
-              totalARS += (p.precioUnitario * p.cantidad);
-            }
-          } else {
-            totalARS += (p.precioUnitario * p.cantidad);
-          }
-        });
+        const { totalARS, totalUSD } = totalesVentasPorMoneda(venta.productos);
 
         const descripcion = venta.productos
           ?.map((p: any) => p.modelo || p.nombre || "Producto")
@@ -537,10 +504,10 @@ export default function GeneradorPDF({
       });
 
       pagos.forEach((pago) => {
-        const monto = pago.moneda === "USD"
-          ? Number(pago.montoUSD || 0)
-          : Number(pago.monto || 0);
-        
+        const mon = normalizeMonedaCuenta(pago.moneda);
+        const monto =
+          mon === "USD" ? Number(pago.montoUSD || 0) : Number(pago.monto || 0);
+
         if (monto > 0) {
           historial.push({
             fecha: pago.fecha,
@@ -548,7 +515,7 @@ export default function GeneradorPDF({
             tipo: "pago",
             descripcion: `Pago - ${pago.forma || "Efectivo"}`,
             monto: monto,
-            moneda: pago.moneda || "ARS",
+            moneda: mon,
             esDeuda: false,
           });
         }
@@ -572,7 +539,7 @@ export default function GeneradorPDF({
       let saldoAcumUSD = 0;
 
       const historialConSaldos = historialFiltrado.map((item) => {
-        if (item.moneda === "ARS") {
+        if (normalizeMonedaCuenta(item.moneda) === "ARS") {
           saldoAcumARS += item.esDeuda ? item.monto : -item.monto;
         } else {
           saldoAcumUSD += item.esDeuda ? item.monto : -item.monto;
@@ -597,8 +564,9 @@ export default function GeneradorPDF({
           const tipoTexto = item.tipo === "trabajo" ? "Trabajo" : item.tipo === "venta" ? "Venta" : "Pago";
           
           const signo = item.esDeuda ? "+" : "-";
-          const montoARS = item.moneda === "ARS" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
-          const montoUSD = item.moneda === "USD" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
+          const mon = normalizeMonedaCuenta(item.moneda);
+          const montoARS = mon === "ARS" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
+          const montoUSD = mon === "USD" ? `${signo}${item.monto.toLocaleString("es-AR")}` : "";
 
           const saldoARS = item.saldoAcumuladoARS.toLocaleString("es-AR");
           const saldoUSD = item.saldoAcumuladoUSD.toLocaleString("es-AR");
@@ -657,14 +625,14 @@ export default function GeneradorPDF({
 
             if (data.row.index >= 0 && data.column.index === 3) {
               const item = historialConSaldos[data.row.index];
-              if (item.moneda === "ARS") {
+              if (normalizeMonedaCuenta(item.moneda) === "ARS") {
                 data.cell.styles.textColor = item.esDeuda ? [231, 76, 60] : [39, 174, 96];
               }
             }
 
             if (data.row.index >= 0 && data.column.index === 4) {
               const item = historialConSaldos[data.row.index];
-              if (item.moneda === "USD") {
+              if (normalizeMonedaCuenta(item.moneda) === "USD") {
                 data.cell.styles.textColor = item.esDeuda ? [231, 76, 60] : [39, 174, 96];
               }
             }
