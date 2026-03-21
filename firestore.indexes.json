@@ -1,0 +1,24 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "ventasGeneral",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cliente", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "trabajos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cliente", "order": "ASCENDING" },
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

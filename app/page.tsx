@@ -102,6 +102,12 @@ function Home() {
     cargarGraficoHistorico();
   }, [rol]);
 
+  useEffect(() => {
+    if (rol?.tipo === "cliente") {
+      router.replace("/cliente");
+    }
+  }, [rol, router]);
+
   if (!rol || !rol.tipo) {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
@@ -116,6 +122,15 @@ function Home() {
   }
 
   if (rol.tipo !== "admin" && rol.tipo !== "empleado") {
+    if (rol.tipo === "cliente") {
+      return (
+        <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-8 shadow-lg border border-[#ecf0f1] text-center">
+            <p className="text-[#2c3e50] font-semibold">Redirigiendo a tu cuenta...</p>
+          </div>
+        </div>
+      );
+    }
     return null;
   }
 

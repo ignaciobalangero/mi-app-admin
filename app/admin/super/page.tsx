@@ -5,8 +5,9 @@ import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged, signOut } 
 import { db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { getSuperAdminUidClient } from "@/lib/superAdminConstants";
 
-const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
+const SUPER_ADMIN_UID = getSuperAdminUidClient();
 
 export default function SuperAdminPage() {
   const auth = getAuth();
@@ -18,6 +19,11 @@ export default function SuperAdminPage() {
   const [negocioID, setNegocioID] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [creando, setCreando] = useState(false);
+
+  const [emailCambioPass, setEmailCambioPass] = useState("");
+  const [nuevaPass, setNuevaPass] = useState("");
+  const [cambiandoPass, setCambiandoPass] = useState(false);
+  const [mensajePass, setMensajePass] = useState("");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -88,6 +94,50 @@ export default function SuperAdminPage() {
       setMensaje(`❌ Error: ${error.message}`);
     } finally {
       setCreando(false);
+    }
+  };
+
+  const cambiarContrasenaUsuario = async () => {
+    if (!emailCambioPass.trim()) {
+      setMensajePass("⚠️ Ingresá el email del usuario");
+      return;
+    }
+    if (!nuevaPass || nuevaPass.length < 6) {
+      setMensajePass("⚠️ La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    setCambiandoPass(true);
+    setMensajePass("");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        setMensajePass("❌ No hay sesión");
+        return;
+      }
+      const res = await fetch("/api/superadmin/set-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: emailCambioPass.trim().toLowerCase(),
+          newPassword: nuevaPass,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMensajePass(`❌ ${data.error || res.statusText}`);
+        return;
+      }
+      setMensajePass(`✅ Contraseña actualizada (UID: ${data.uid || "—"})`);
+      setEmailCambioPass("");
+      setNuevaPass("");
+    } catch (e: any) {
+      setMensajePass(`❌ ${e?.message || "Error de red"}`);
+    } finally {
+      setCambiandoPass(false);
     }
   };
 
@@ -251,6 +301,69 @@ export default function SuperAdminPage() {
                 <p className="font-medium">{mensaje}</p>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Cambiar contraseña (cualquier usuario Auth) */}
+        <div className="bg-white rounded-2xl shadow-lg border border-[#ecf0f1] overflow-hidden">
+          <div className="bg-gradient-to-r from-[#e67e22] to-[#d35400] p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <span className="text-white text-lg">🔑</span>
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Cambiar contraseña de un usuario</h2>
+                <p className="text-orange-100 text-sm">
+                  Fijá una contraseña nueva en Firebase (ej. cliente) para poder iniciar sesión con ese mail.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[#2c3e50] mb-2">Email del usuario (Auth)</label>
+              <input
+                type="email"
+                placeholder="cliente@ejemplo.com"
+                value={emailCambioPass}
+                onChange={(e) => setEmailCambioPass(e.target.value)}
+                className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e67e22] focus:border-[#e67e22] transition-all text-[#2c3e50]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#2c3e50] mb-2">Nueva contraseña</label>
+              <input
+                type="password"
+                placeholder="Mínimo 6 caracteres"
+                value={nuevaPass}
+                onChange={(e) => setNuevaPass(e.target.value)}
+                className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e67e22] focus:border-[#e67e22] transition-all text-[#2c3e50]"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={cambiarContrasenaUsuario}
+              disabled={cambiandoPass}
+              className="w-full bg-gradient-to-r from-[#e67e22] to-[#d35400] hover:from-[#ca6f1d] hover:to-[#c0392b] text-white py-3 px-6 rounded-lg font-bold shadow-lg transition-all disabled:opacity-50"
+            >
+              {cambiandoPass ? "Actualizando…" : "Actualizar contraseña"}
+            </button>
+            {mensajePass && (
+              <div
+                className={`p-4 rounded-xl border ${
+                  mensajePass.includes("✅")
+                    ? "bg-[#d5f4e6] border-[#27ae60] text-[#1e8449]"
+                    : "bg-[#fadbd8] border-[#e74c3c] text-[#c0392b]"
+                }`}
+              >
+                <p className="font-medium text-sm">{mensajePass}</p>
+              </div>
+            )}
+            <p className="text-xs text-[#7f8c8d]">
+              Requiere variables de Admin SDK en el servidor (<code className="bg-gray-100 px-1 rounded">FIREBASE_PROJECT_ID</code>,{" "}
+              <code className="bg-gray-100 px-1 rounded">GOOGLE_CLIENT_EMAIL</code>,{" "}
+              <code className="bg-gray-100 px-1 rounded">GOOGLE_PRIVATE_KEY</code>).
+            </p>
           </div>
         </div>
 

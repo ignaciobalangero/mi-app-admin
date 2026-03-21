@@ -17,11 +17,16 @@ interface Trabajo {
   fecha: string;
   cliente: string;
   modelo: string;
+  color?: string;
   imei?: string;
   trabajo: string;
   clave?: string;
+  accesorios?: string;
   observaciones?: string;
   precio?: number;
+  anticipo?: number;
+  saldo?: number;
+  checkIn?: Record<string, any> | null;
   costo?: number; // ⭐ NUEVO
   moneda?: "ARS" | "USD"; // ⭐ NUEVO
   estado: string;
@@ -715,16 +720,66 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                   <span className="text-[#3498db] font-bold text-xs sm:text-sm">{trabajoSeleccionado.cliente}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Fecha:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">
+                    {trabajoSeleccionado.fecha || "—"}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">ID del Equipo:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">
+                    {trabajoSeleccionado.id || trabajoSeleccionado.firebaseId}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                   <strong className="text-black text-xs sm:text-sm">Modelo:</strong>
                   <span className="text-black font-bold text-xs sm:text-sm">{trabajoSeleccionado.modelo}</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Color:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">
+                    {trabajoSeleccionado.color || "—"}
+                  </span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                   <strong className="text-black text-xs sm:text-sm">Trabajo:</strong>
                   <span className="text-black font-bold text-xs sm:text-sm">{trabajoSeleccionado.trabajo}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Clave:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">
+                    {trabajoSeleccionado.clave || "—"}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">IMEI:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">
+                    {trabajoSeleccionado.imei || "—"}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Accesorios:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">
+                    {trabajoSeleccionado.accesorios || "—"}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                   <strong className="text-black text-xs sm:text-sm">Precio:</strong>
-                  <span className="text-[#1e7e34] font-bold text-xs sm:text-sm">${trabajoSeleccionado.precio?.toLocaleString('es-AR') || '0'}</span>
+                  <span className="text-[#1e7e34] font-bold text-xs sm:text-sm">
+                    ${Number(trabajoSeleccionado.precio ?? 0).toLocaleString("es-AR")}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Anticipo:</strong>
+                  <span className="text-[#1e7e34] font-bold text-xs sm:text-sm">
+                    ${Number(trabajoSeleccionado.anticipo ?? 0).toLocaleString("es-AR")}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Saldo:</strong>
+                  <span className="text-[#e74c3c] font-bold text-xs sm:text-sm">
+                    ${Number(trabajoSeleccionado.saldo ?? trabajoSeleccionado.precio ?? 0).toLocaleString("es-AR")}
+                  </span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                   <strong className="text-black text-xs sm:text-sm">Estado:</strong>
@@ -741,6 +796,55 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                   <p className="text-xs sm:text-sm"><strong className="text-black">Observaciones:</strong></p>
                   <p className="text-black text-xs sm:text-sm mt-1 bg-[#f8f9fa] p-2 rounded border font-bold">{trabajoSeleccionado.observaciones || "Sin observaciones"}</p>
                 </div>
+
+                {/* Check-In */}
+                {trabajoSeleccionado.checkIn && (
+                  <div className="pt-2 border-t border-[#ecf0f1]">
+                    <p className="text-xs sm:text-sm font-bold text-black">Check-In del equipo</p>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {trabajoSeleccionado.checkIn.color && (
+                        <div className="text-xs">
+                          <strong className="text-black">Color:</strong> {String(trabajoSeleccionado.checkIn.color)}
+                        </div>
+                      )}
+                      {trabajoSeleccionado.checkIn.imeiEstado && (
+                        <div className="text-xs">
+                          <strong className="text-black">Estado IMEI:</strong> {String(trabajoSeleccionado.checkIn.imeiEstado)}
+                        </div>
+                      )}
+                      {trabajoSeleccionado.checkIn.pantalla && (
+                        <div className="text-xs">
+                          <strong className="text-black">Pantalla:</strong> {String(trabajoSeleccionado.checkIn.pantalla)}
+                        </div>
+                      )}
+                      {trabajoSeleccionado.checkIn.camaras && (
+                        <div className="text-xs">
+                          <strong className="text-black">Cámaras:</strong> {String(trabajoSeleccionado.checkIn.camaras)}
+                        </div>
+                      )}
+                      {trabajoSeleccionado.checkIn.microfonos && (
+                        <div className="text-xs">
+                          <strong className="text-black">Micrófonos:</strong> {String(trabajoSeleccionado.checkIn.microfonos)}
+                        </div>
+                      )}
+                      {trabajoSeleccionado.checkIn.cargaCable && (
+                        <div className="text-xs">
+                          <strong className="text-black">Carga por Cable:</strong> {String(trabajoSeleccionado.checkIn.cargaCable)}
+                        </div>
+                      )}
+                      {trabajoSeleccionado.checkIn.cargaInalambrica && (
+                        <div className="text-xs">
+                          <strong className="text-black">Carga Inalámbrica:</strong> {String(trabajoSeleccionado.checkIn.cargaInalambrica)}
+                        </div>
+                      )}
+                      {trabajoSeleccionado.checkIn.tapaTrasera && (
+                        <div className="text-xs">
+                          <strong className="text-black">Tapa Trasera:</strong> {String(trabajoSeleccionado.checkIn.tapaTrasera)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div className="flex justify-end">

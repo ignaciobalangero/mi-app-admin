@@ -16,12 +16,17 @@ interface Trabajo {
   fecha: string;
   cliente: string;
   modelo: string;
+  color?: string;
   imei?: string;
   trabajo: string;
   clave: string;
   observaciones: string;
   estado: string;
   estadoCuentaCorriente?: string;
+  anticipo?: number;
+  saldo?: number;
+  accesorios?: string;
+  checkIn?: Record<string, any> | null;
   precio?: number;
   costo?: number;
   moneda?: "ARS" | "USD"; // ⭐ NUEVO
@@ -79,6 +84,8 @@ export default function TablaTrabajos({
   const [trabajoParaImprimir, setTrabajoParaImprimir] = useState<Trabajo | null>(null);
   const [trabajoParaFactura, setTrabajoParaFactura] = useState<Trabajo | null>(null);
   const [mostrarModalEmitirFactura, setMostrarModalEmitirFactura] = useState(false);
+  const [mostrarModalDetalle, setMostrarModalDetalle] = useState(false);
+  const [trabajoDetalle, setTrabajoDetalle] = useState<Trabajo | null>(null);
   const { facturacionElectronicaHabilitada } = useConfigFacturacion(negocioID);
 
   // ------------------------------
@@ -528,6 +535,13 @@ const eliminarTrabajo = async () => {
                   </div>
                 </th>
                 
+                <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[90px] md:min-w-[110px]">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs sm:text-sm">🎨</span>
+                    <span className="text-xs">Color</span>
+                  </div>
+                </th>
+                
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[100px] sm:min-w-[110px] md:min-w-[130px] max-w-[150px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">🔧</span>
@@ -629,6 +643,12 @@ const eliminarTrabajo = async () => {
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
                       <span className="text-xs truncate block" title={t.modelo}>
                         {t.modelo}
+                      </span>
+                    </td>
+                    
+                    <td className="p-1 sm:p-2 md:p-3 border border-black">
+                      <span className="text-xs truncate block" title={t.color || "—"}>
+                        {t.color || "—"}
                       </span>
                     </td>
                     
@@ -806,6 +826,17 @@ const eliminarTrabajo = async () => {
                           >
                             ✏️
                           </button>
+
+                          <button
+                            onClick={() => {
+                              setTrabajoDetalle(t);
+                              setMostrarModalDetalle(true);
+                            }}
+                            className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 lg:px-1.5 py-1 rounded text-xs font-medium transition-all duration-200 transform hover:scale-105 shadow-sm flex-shrink-0"
+                            title="Detalle del trabajo"
+                          >
+                            👁️
+                          </button>
                           
                           <button
                               onClick={() => confirmarEliminar(t.firebaseId)}
@@ -959,6 +990,199 @@ const eliminarTrabajo = async () => {
           }}
           onPagoGuardado={onRecargar}
         />
+      )}
+
+      {/* Modal Ver Detalle */}
+      {mostrarModalDetalle && trabajoDetalle && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-[99999] p-2 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xs sm:max-w-md md:max-w-lg w-full border-2 border-[#ecf0f1] transform transition-all duration-300 max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white rounded-t-2xl p-3 sm:p-4 md:p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                    <span className="text-lg sm:text-xl md:text-2xl">👁️</span>
+                  </div>
+                  <div>
+                    <h2 className="text-sm sm:text-lg md:text-xl font-bold">Detalle del Trabajo</h2>
+                    <p className="text-blue-100 text-xs sm:text-sm mt-1">Información completa</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarModalDetalle(false);
+                    setTrabajoDetalle(null);
+                  }}
+                  className="text-white hover:text-blue-200 transition-colors p-1"
+                >
+                  <span className="text-lg sm:text-xl md:text-2xl">✕</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 bg-[#f8f9fa]">
+              <div className="bg-white border border-[#ecf0f1] rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Cliente:</strong>
+                  <span className="text-[#3498db] font-bold text-xs sm:text-sm">{trabajoDetalle.cliente}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Fecha:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">{trabajoDetalle.fecha || "—"}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">ID del Equipo:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">
+                    {trabajoDetalle.id || trabajoDetalle.firebaseId}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Modelo:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">{trabajoDetalle.modelo}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Color:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">{trabajoDetalle.color || "—"}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Trabajo:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">{trabajoDetalle.trabajo}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Clave:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">{trabajoDetalle.clave || "—"}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">IMEI:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">{trabajoDetalle.imei || "—"}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Accesorios:</strong>
+                  <span className="text-black font-bold text-xs sm:text-sm">{trabajoDetalle.accesorios || "—"}</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Precio:</strong>
+                  <span className="text-[#1e7e34] font-bold text-xs sm:text-sm">
+                    ${Number(trabajoDetalle.precio ?? 0).toLocaleString("es-AR")}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Anticipo:</strong>
+                  <span className="text-[#1e7e34] font-bold text-xs sm:text-sm">
+                    ${Number(trabajoDetalle.anticipo ?? 0).toLocaleString("es-AR")}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Saldo:</strong>
+                  <span className="text-[#e74c3c] font-bold text-xs sm:text-sm">
+                    ${Number(trabajoDetalle.saldo ?? trabajoDetalle.precio ?? 0).toLocaleString("es-AR")}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Estado:</strong>
+                  <span
+                    className={`px-2 py-1 rounded-lg text-xs font-bold inline-block ${
+                      trabajoDetalle.estado === "PAGADO"
+                        ? "bg-[#1565C0] text-white"
+                        : trabajoDetalle.estado === "ENTREGADO"
+                        ? "bg-[#1B5E20] text-white"
+                        : trabajoDetalle.estado === "REPARADO"
+                        ? "bg-[#D84315] text-white"
+                        : "bg-[#B71C1C] text-white"
+                    }`}
+                  >
+                    {trabajoDetalle.estado}
+                  </span>
+                </div>
+
+                <div className="pt-2 border-t border-[#ecf0f1]">
+                  <p className="text-xs sm:text-sm">
+                    <strong className="text-black">Observaciones:</strong>
+                  </p>
+                  <p className="text-black text-xs sm:text-sm mt-1 bg-[#f8f9fa] p-2 rounded border font-bold">
+                    {trabajoDetalle.observaciones || "Sin observaciones"}
+                  </p>
+                </div>
+
+                {/* Check-In */}
+                {trabajoDetalle.checkIn && (
+                  <div className="pt-2 border-t border-[#ecf0f1]">
+                    <p className="text-xs sm:text-sm font-bold text-black">Check-In del equipo</p>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {trabajoDetalle.checkIn.color && (
+                        <div className="text-xs">
+                          <strong className="text-black">Color:</strong> {String(trabajoDetalle.checkIn.color)}
+                        </div>
+                      )}
+                      {trabajoDetalle.checkIn.imeiEstado && (
+                        <div className="text-xs">
+                          <strong className="text-black">Estado IMEI:</strong> {String(trabajoDetalle.checkIn.imeiEstado)}
+                        </div>
+                      )}
+                      {trabajoDetalle.checkIn.pantalla && (
+                        <div className="text-xs">
+                          <strong className="text-black">Pantalla:</strong> {String(trabajoDetalle.checkIn.pantalla)}
+                        </div>
+                      )}
+                      {trabajoDetalle.checkIn.camaras && (
+                        <div className="text-xs">
+                          <strong className="text-black">Cámaras:</strong> {String(trabajoDetalle.checkIn.camaras)}
+                        </div>
+                      )}
+                      {trabajoDetalle.checkIn.microfonos && (
+                        <div className="text-xs">
+                          <strong className="text-black">Micrófonos:</strong> {String(trabajoDetalle.checkIn.microfonos)}
+                        </div>
+                      )}
+                      {trabajoDetalle.checkIn.cargaCable && (
+                        <div className="text-xs">
+                          <strong className="text-black">Carga por Cable:</strong> {String(trabajoDetalle.checkIn.cargaCable)}
+                        </div>
+                      )}
+                      {trabajoDetalle.checkIn.cargaInalambrica && (
+                        <div className="text-xs">
+                          <strong className="text-black">Carga Inalámbrica:</strong>{" "}
+                          {String(trabajoDetalle.checkIn.cargaInalambrica)}
+                        </div>
+                      )}
+                      {trabajoDetalle.checkIn.tapaTrasera && (
+                        <div className="text-xs">
+                          <strong className="text-black">Tapa Trasera:</strong>{" "}
+                          {String(trabajoDetalle.checkIn.tapaTrasera)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarModalDetalle(false);
+                    setTrabajoDetalle(null);
+                  }}
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md text-xs sm:text-sm"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal IMEI requerido */}

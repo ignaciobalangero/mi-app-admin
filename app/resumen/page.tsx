@@ -15,11 +15,17 @@ interface Trabajo {
   fecha: string;
   cliente: string;
   modelo: string;
+  color?: string;
   trabajo: string;
+  imei?: string;
   clave: string;
   observaciones: string;
   estado: string;
   estadoCuentaCorriente?: string;
+  anticipo?: number;
+  saldo?: number;
+  accesorios?: string;
+  checkIn?: Record<string, any> | null;
   precio?: number;
   costo?: number;
   repuestosUsados?: any[];
@@ -71,6 +77,7 @@ export default function ResumenPage() {
         fecha: data.fecha,
         cliente: data.cliente,
         modelo: data.modelo,
+        color: data.color,
         trabajo: data.trabajo,
         clave: data.clave,
         observaciones: data.observaciones,
@@ -78,6 +85,11 @@ export default function ResumenPage() {
         estadoCuentaCorriente: data.estadoCuentaCorriente,
         precio: data.precio,
         costo: data.costo,
+        imei: data.imei,
+        anticipo: data.anticipo,
+        saldo: data.saldo,
+        accesorios: data.accesorios,
+        checkIn: data.checkIn ?? null,
         fechaModificacion: data.fechaModificacion,
       });
     });
@@ -92,11 +104,12 @@ export default function ResumenPage() {
   };
 
   const exportarCSV = () => {
-    const encabezado = ["Fecha", "Cliente", "Modelo", "Trabajo", "Clave", "Observaciones", "Estado", "Precio", "Costo", "Ganancia"];
+    const encabezado = ["Fecha", "Cliente", "Modelo", "Color", "Trabajo", "Clave", "Observaciones", "Estado", "Precio", "Costo", "Ganancia"];
     const filas = trabajosFiltrados.map((t) => [
       t.fecha,
       t.cliente,
       t.modelo,
+      t.color ?? "",
       t.trabajo,
       t.clave,
       t.observaciones,

@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
-import { auth } from "../../lib/firebase";
+import { auth, db } from "../../lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -22,8 +23,14 @@ export default function Login() {
     setError("");
     
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const userSnap = await getDoc(doc(db, "usuarios", cred.user.uid));
+      const tipo = userSnap.exists() ? (userSnap.data()?.rol as string | undefined) : undefined;
+      if (tipo === "cliente") {
+        router.push("/cliente");
+      } else {
+        router.push("/");
+      }
     } catch (err) {
       setError("Credenciales inválidas. Verifica tu email y contraseña.");
     } finally {
