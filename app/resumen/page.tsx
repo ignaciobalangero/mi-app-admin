@@ -8,6 +8,7 @@ import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 import { useRol } from "@/lib/useRol";
 import TablaTrabajos from "./componentes/TablaTrabajos";
+import FiltroTrabajos from "@/app/gestion-trabajos/componentes/FiltroTrabajos";
 
 interface Trabajo {
   firebaseId: string;
@@ -34,9 +35,10 @@ interface Trabajo {
 
 export default function ResumenPage() {
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
-  const [filtroCliente, setFiltroCliente] = useState("");
-  const [filtroModelo, setFiltroModelo] = useState("");
   const [filtroCodigo, setFiltroCodigo] = useState("");
+  const [filtroTexto, setFiltroTexto] = useState("");
+  const [filtroTrabajo, setFiltroTrabajo] = useState("");
+  const [filtroIMEI, setFiltroIMEI] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("TODOS");
   const [paginaActual, setPaginaActual] = useState(1);
   const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
@@ -104,11 +106,12 @@ export default function ResumenPage() {
   };
 
   const exportarCSV = () => {
-    const encabezado = ["Fecha", "Cliente", "Modelo", "Color", "Trabajo", "Clave", "Observaciones", "Estado", "Precio", "Costo", "Ganancia"];
+    const encabezado = ["Fecha", "Cliente", "Modelo", "IMEI", "Color", "Trabajo", "Clave", "Observaciones", "Estado", "Precio", "Costo", "Ganancia"];
     const filas = trabajosFiltrados.map((t) => [
       t.fecha,
       t.cliente,
       t.modelo,
+      t.imei ?? "",
       t.color ?? "",
       t.trabajo,
       t.clave,
@@ -129,15 +132,18 @@ export default function ResumenPage() {
   };
 
   const trabajosFiltrados = trabajos
-    .filter(
-      (t) =>
-        t.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) &&
-        (
-          t.modelo?.toLowerCase().includes(filtroModelo.toLowerCase()) ||
-          t.trabajo?.toLowerCase().includes(filtroModelo.toLowerCase())
-        ) &&
+    .filter((t) => {
+      const texto = filtroTexto.trim().toLowerCase();
+      const textoTrabajo = filtroTrabajo.trim().toLowerCase();
+      const textoIMEI = filtroIMEI.trim().toLowerCase();
+
+      return (
+        (!texto || [t.cliente, t.modelo, t.fecha].some((campo) => campo?.toLowerCase().includes(texto))) &&
+        (!textoTrabajo || t.trabajo?.toLowerCase().includes(textoTrabajo)) &&
+        (!textoIMEI || t.imei?.toLowerCase().includes(textoIMEI)) &&
         (filtroCodigo === "" || t.id?.toLowerCase().includes(filtroCodigo.toLowerCase()))
-    )
+      );
+    })
     .filter((t) => {
       if (!filtroFechaDesde && !filtroFechaHasta) return true;
       
@@ -215,20 +221,22 @@ export default function ResumenPage() {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-5 md:mb-6">
-              <input
-                type="text"
-                placeholder="🔍 Filtrar por cliente"
-                value={filtroCliente}
-                onChange={(e) => setFiltroCliente(e.target.value)}
-                className="px-3 sm:px-4 py-2 sm:py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm sm:text-base"
-              />
+              <div className="lg:col-span-2 sm:col-span-2">
+                <FiltroTrabajos
+                  filtroTexto={filtroTexto}
+                  setFiltroTexto={setFiltroTexto}
+                  filtroTrabajo={filtroTrabajo}
+                  setFiltroTrabajo={setFiltroTrabajo}
+                />
+              </div>
               
               <input
                 type="text"
-                placeholder="📱 Filtrar modelo/trabajo"
-                value={filtroModelo}
-                onChange={(e) => setFiltroModelo(e.target.value)}
+                placeholder="🔍 Buscar por IMEI"
+                value={filtroIMEI}
+                onChange={(e) => setFiltroIMEI(e.target.value)}
                 className="px-3 sm:px-4 py-2 sm:py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm sm:text-base"
+                title="Buscar por IMEI"
               />
               
               <input

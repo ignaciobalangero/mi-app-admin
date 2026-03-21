@@ -21,6 +21,7 @@ interface Trabajo {
   trabajo: string;
   clave: string;
   observaciones: string;
+  reparacionRealizada?: string;
   estado: string;
   estadoCuentaCorriente?: string;
   anticipo?: number;
@@ -99,8 +100,24 @@ export default function TablaTrabajos({
   const [errorIMEI, setErrorIMEI] = useState<string | null>(null);
   const [enviandoIMEI, setEnviandoIMEI] = useState(false);
 
+  // ------------------------------
+  // Modal: Reparación realizada
+  // ------------------------------
+  const [mostrarModalReparacion, setMostrarModalReparacion] = useState(false);
+  const [trabajoParaReparacion, setTrabajoParaReparacion] = useState<Trabajo | null>(null);
+  const [reparacionInput, setReparacionInput] = useState("");
+  const [errorReparacion, setErrorReparacion] = useState<string | null>(null);
+  const [enviandoReparacion, setEnviandoReparacion] = useState(false);
+
   const requiereIMEI = (estado: string) => estado === "REPARADO" || estado === "ENTREGADO";
   const faltaIMEI = (trabajo: Trabajo) => !String(trabajo.imei ?? "").trim();
+
+  const abrirModalReparacion = (trabajo: Trabajo) => {
+    setTrabajoParaReparacion(trabajo);
+    setReparacionInput(String(trabajo.reparacionRealizada ?? ""));
+    setErrorReparacion(null);
+    setMostrarModalReparacion(true);
+  };
 
   const aplicarCambioEstado = async (
     trabajo: Trabajo,
@@ -534,6 +551,13 @@ const eliminarTrabajo = async () => {
                     <span className="text-xs">Modelo</span>
                   </div>
                 </th>
+
+                <th className="hidden sm:table-cell p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[60px] md:min-w-[80px]">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs sm:text-sm">🔍</span>
+                    <span className="hidden md:inline text-xs">IMEI</span>
+                  </div>
+                </th>
                 
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[90px] md:min-w-[110px]">
                   <div className="flex items-center gap-1">
@@ -644,6 +668,25 @@ const eliminarTrabajo = async () => {
                       <span className="text-xs truncate block" title={t.modelo}>
                         {t.modelo}
                       </span>
+                    </td>
+
+                    <td className="hidden sm:table-cell p-1 sm:p-2 md:p-3 border border-black">
+                      {t.imei ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(t.imei || "");
+                            } catch {}
+                          }}
+                          className="text-xs font-mono bg-[#ecf0f1] hover:bg-[#3498db] hover:text-white px-1 py-1 rounded truncate block w-full text-left transition-colors duration-200 cursor-pointer"
+                          title={`IMEI completo: ${t.imei} (Click para copiar)`}
+                        >
+                          ...{t.imei.slice(-4)}
+                        </button>
+                      ) : (
+                        <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center">—</span>
+                      )}
                     </td>
                     
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
@@ -794,6 +837,12 @@ const eliminarTrabajo = async () => {
                             }
 
                             await aplicarCambioEstado(t, estadoAnterior, nuevoEstado);
+
+                            // Para REPARADO/ENTREGADO: pedir siempre qué reparación se le realizó.
+                            if (requiereIMEI(nuevoEstado)) {
+                              abrirModalReparacion(t);
+                              return;
+                            }
                           }}
                           className="w-full px-1 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-black text-xs font-normal"
                         >
@@ -1050,6 +1099,13 @@ const eliminarTrabajo = async () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                  <strong className="text-black text-xs sm:text-sm">Reparación realizada:</strong>
+                  <span className="bg-[#9b59b6]/10 text-[#8e44ad] font-bold text-xs sm:text-sm px-2 py-1 rounded-lg">
+                    {trabajoDetalle.reparacionRealizada || "—"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                   <strong className="text-black text-xs sm:text-sm">Trabajo:</strong>
                   <span className="text-black font-bold text-xs sm:text-sm">{trabajoDetalle.trabajo}</span>
                 </div>
@@ -1234,26 +1290,11 @@ const eliminarTrabajo = async () => {
                 <button
                   type="button"
                   onClick={() => {
-                    // Si cancelás, igual querés cambiar el estado (sin guardar IMEI)
-                    (async () => {
-                      if (!trabajoParaIMEI) return;
-                      setErrorIMEI(null);
-                      setEnviandoIMEI(true);
-                      try {
-                        await aplicarCambioEstado(
-                          trabajoParaIMEI,
-                          estadoAnteriorParaIMEI,
-                          estadoDestinoParaIMEI
-                        );
-                        setMostrarModalIMEI(false);
-                        setTrabajoParaIMEI(null);
-                        setImeiInput("");
-                      } catch (e: any) {
-                        setErrorIMEI(e?.message || "Error al actualizar el estado.");
-                      } finally {
-                        setEnviandoIMEI(false);
-                      }
-                    })();
+                    // Si cancelás, no se realiza el cambio de estado (IMEI requerido).
+                    setMostrarModalIMEI(false);
+                    setTrabajoParaIMEI(null);
+                    setImeiInput("");
+                    setErrorIMEI(null);
                   }}
                   className="flex-1 py-2 rounded-xl font-semibold bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
                   disabled={enviandoIMEI}
@@ -1272,8 +1313,9 @@ const eliminarTrabajo = async () => {
                     setErrorIMEI(null);
                     setEnviandoIMEI(true);
                     try {
+                      const trabajoDestino = trabajoParaIMEI;
                       await aplicarCambioEstado(
-                        trabajoParaIMEI,
+                        trabajoDestino,
                         estadoAnteriorParaIMEI,
                         estadoDestinoParaIMEI,
                         imei
@@ -1281,6 +1323,7 @@ const eliminarTrabajo = async () => {
                       setMostrarModalIMEI(false);
                       setTrabajoParaIMEI(null);
                       setImeiInput("");
+                      abrirModalReparacion(trabajoDestino);
                     } catch (e: any) {
                       setErrorIMEI(e?.message || "Error al guardar el IMEI.");
                     } finally {
@@ -1291,6 +1334,104 @@ const eliminarTrabajo = async () => {
                   disabled={enviandoIMEI}
                 >
                   Aceptar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Reparación realizada */}
+      {mostrarModalReparacion && trabajoParaReparacion && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[99999] p-2 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
+            <div className="bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white rounded-t-2xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🔧</span>
+                  <h3 className="text-lg font-bold">Reparación realizada</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarModalReparacion(false);
+                    setTrabajoParaReparacion(null);
+                    setReparacionInput("");
+                    setErrorReparacion(null);
+                  }}
+                  className="text-white/90 hover:text-white p-2 rounded-lg"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 bg-[#f8f9fa]">
+              <div className="bg-white border border-[#ecf0f1] rounded-xl p-3">
+                <p className="text-sm text-[#2c3e50] font-semibold">
+                  ¿Qué reparación se le realizó?
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#2c3e50]">Reparación</label>
+                <textarea
+                  value={reparacionInput}
+                  onChange={(e) => setReparacionInput(e.target.value)}
+                  placeholder="Ej: Cambio de pantalla, cambio de batería, limpieza de conector..."
+                  className="w-full min-h-[90px] rounded-lg border border-[#bdc3c7] px-3 py-2 text-[#2c3e50] bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
+                />
+                {errorReparacion && <p className="text-sm text-red-600">{errorReparacion}</p>}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarModalReparacion(false);
+                    setTrabajoParaReparacion(null);
+                    setReparacionInput("");
+                    setErrorReparacion(null);
+                  }}
+                  className="flex-1 py-2 rounded-xl font-semibold bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                  disabled={enviandoReparacion}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const reparacion = reparacionInput.trim();
+                    if (!reparacion) {
+                      setErrorReparacion("Ingresá qué reparación se le realizó.");
+                      return;
+                    }
+                    if (!trabajoParaReparacion) return;
+
+                    setErrorReparacion(null);
+                    setEnviandoReparacion(true);
+                    try {
+                      const ref = doc(db, `negocios/${negocioID}/trabajos/${trabajoParaReparacion.firebaseId}`);
+                      const hoy = new Date();
+                      const fechaModificacion = hoy.toLocaleDateString("es-AR");
+                      await updateDoc(ref, {
+                        reparacionRealizada: reparacion,
+                        fechaModificacion,
+                      });
+                      setMostrarModalReparacion(false);
+                      setTrabajoParaReparacion(null);
+                      setReparacionInput("");
+                      await onRecargar();
+                    } catch (e: any) {
+                      setErrorReparacion(e?.message || "Error al guardar la reparación.");
+                    } finally {
+                      setEnviandoReparacion(false);
+                    }
+                  }}
+                  className="flex-1 py-2 rounded-xl font-semibold bg-[#9b59b6] text-white hover:bg-[#8e44ad] disabled:opacity-60"
+                  disabled={enviandoReparacion}
+                >
+                  Guardar
                 </button>
               </div>
             </div>
