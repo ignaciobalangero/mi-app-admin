@@ -559,13 +559,6 @@ const eliminarTrabajo = async () => {
                   </div>
                 </th>
                 
-                <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[70px] sm:min-w-[90px] md:min-w-[110px]">
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs sm:text-sm">🎨</span>
-                    <span className="text-xs">Color</span>
-                  </div>
-                </th>
-                
                 <th className="p-1 sm:p-2 md:p-3 text-left text-xs font-bold text-black border border-black bg-[#ecf0f1] min-w-[100px] sm:min-w-[110px] md:min-w-[130px] max-w-[150px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs sm:text-sm">🔧</span>
@@ -687,12 +680,6 @@ const eliminarTrabajo = async () => {
                       ) : (
                         <span className="text-xs bg-[#ecf0f1] px-1 py-1 rounded block text-center">—</span>
                       )}
-                    </td>
-                    
-                    <td className="p-1 sm:p-2 md:p-3 border border-black">
-                      <span className="text-xs truncate block" title={t.color || "—"}>
-                        {t.color || "—"}
-                      </span>
                     </td>
                     
                     <td className="p-1 sm:p-2 md:p-3 border border-black max-w-[150px]">

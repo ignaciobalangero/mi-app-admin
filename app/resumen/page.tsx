@@ -21,6 +21,7 @@ interface Trabajo {
   imei?: string;
   clave: string;
   observaciones: string;
+  reparacionRealizada?: string;
   estado: string;
   estadoCuentaCorriente?: string;
   anticipo?: number;
@@ -83,6 +84,7 @@ export default function ResumenPage() {
         trabajo: data.trabajo,
         clave: data.clave,
         observaciones: data.observaciones,
+        reparacionRealizada: data.reparacionRealizada,
         estado: data.estado,
         estadoCuentaCorriente: data.estadoCuentaCorriente,
         precio: data.precio,
