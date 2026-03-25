@@ -5,6 +5,7 @@ import Header from "@/app/Header";
 import GestorProveedores from "./components/GestorProveedores";
 import CargadorListas from "./components/CargadorListas";
 import BuscadorComparativo from "./components/BuscadorComparativo";
+import FormadorPrecios from "./components/FormadorPrecios";
 
 interface Proveedor {
   id: string;
@@ -15,7 +16,9 @@ interface Proveedor {
 
 export default function BuscadorPrecios() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
-  const [vistaActual, setVistaActual] = useState<"proveedores" | "cargar" | "buscar">("buscar");
+  const [vistaActual, setVistaActual] = useState<
+    "proveedores" | "cargar" | "buscar" | "formador"
+  >("buscar");
 
   // Cargar proveedores desde localStorage
   useEffect(() => {
@@ -69,6 +72,17 @@ export default function BuscadorPrecios() {
               </button>
 
               <button
+                onClick={() => setVistaActual("formador")}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 ${
+                  vistaActual === "formador"
+                    ? "bg-gradient-to-r from-[#f39c12] to-[#d35400] text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                🧮 Formador de Precios
+              </button>
+
+              <button
                 onClick={() => setVistaActual("cargar")}
                 className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 ${
                   vistaActual === "cargar"
@@ -110,6 +124,8 @@ export default function BuscadorPrecios() {
           {vistaActual === "buscar" && (
             <BuscadorComparativo proveedores={proveedores} />
           )}
+
+          {vistaActual === "formador" && <FormadorPrecios />}
         </div>
       </main>
     </>

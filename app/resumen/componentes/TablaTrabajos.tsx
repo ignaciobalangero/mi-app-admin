@@ -1241,10 +1241,29 @@ const eliminarTrabajo = async () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setMostrarModalIMEI(false);
-                    setTrabajoParaIMEI(null);
+                    void (async () => {
+                      if (!trabajoParaIMEI) return;
+                      const t0 = trabajoParaIMEI;
+                      const ant = estadoAnteriorParaIMEI;
+                      const dest = estadoDestinoParaIMEI;
+                      setErrorIMEI(null);
+                      setEnviandoIMEI(true);
+                      try {
+                        await aplicarCambioEstado(t0, ant, dest);
+                        setMostrarModalIMEI(false);
+                        setTrabajoParaIMEI(null);
+                        setImeiInput("");
+                        abrirModalReparacion({ ...t0, estado: dest });
+                      } catch (e: any) {
+                        console.error(e);
+                        setErrorIMEI(e?.message || "No se pudo actualizar el estado.");
+                      } finally {
+                        setEnviandoIMEI(false);
+                      }
+                    })();
                   }}
-                  className="text-white/90 hover:text-white p-2 rounded-lg"
+                  className="text-white/90 hover:text-white p-2 rounded-lg disabled:opacity-50"
+                  disabled={enviandoIMEI}
                 >
                   ✕
                 </button>
@@ -1256,7 +1275,11 @@ const eliminarTrabajo = async () => {
                 <p className="text-sm text-[#2c3e50]">
                   Este trabajo no tiene IMEI vinculado.
                   <br />
-                  Cargá el IMEI para poder marcarlo como <strong>{estadoDestinoParaIMEI}</strong>.
+                  Cargá el IMEI para marcarlo como <strong>{estadoDestinoParaIMEI}</strong>.
+                  <br />
+                  <span className="text-xs text-[#5d6d7e]">
+                    Si no querés cargar IMEI, usá <strong>Cancelar</strong>: se aplica el estado igual y podés describir la reparación después.
+                  </span>
                 </p>
               </div>
 
@@ -1276,12 +1299,24 @@ const eliminarTrabajo = async () => {
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    // Si cancelás, no se realiza el cambio de estado (IMEI requerido).
-                    setMostrarModalIMEI(false);
-                    setTrabajoParaIMEI(null);
-                    setImeiInput("");
+                  onClick={async () => {
+                    if (!trabajoParaIMEI) return;
+                    const t0 = trabajoParaIMEI;
+                    const ant = estadoAnteriorParaIMEI;
+                    const dest = estadoDestinoParaIMEI;
                     setErrorIMEI(null);
+                    setEnviandoIMEI(true);
+                    try {
+                      await aplicarCambioEstado(t0, ant, dest);
+                      setMostrarModalIMEI(false);
+                      setTrabajoParaIMEI(null);
+                      setImeiInput("");
+                      abrirModalReparacion({ ...t0, estado: dest });
+                    } catch (e: any) {
+                      setErrorIMEI(e?.message || "No se pudo actualizar el estado.");
+                    } finally {
+                      setEnviandoIMEI(false);
+                    }
                   }}
                   className="flex-1 py-2 rounded-xl font-semibold bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
                   disabled={enviandoIMEI}
@@ -1354,9 +1389,12 @@ const eliminarTrabajo = async () => {
             </div>
 
             <div className="p-4 sm:p-5 space-y-4 bg-[#f8f9fa]">
-              <div className="bg-white border border-[#ecf0f1] rounded-xl p-3">
+              <div className="bg-white border border-[#ecf0f1] rounded-xl p-3 space-y-2">
                 <p className="text-sm text-[#2c3e50] font-semibold">
                   ¿Qué reparación se le realizó?
+                </p>
+                <p className="text-xs text-[#5d6d7e]">
+                  El estado del trabajo ya quedó guardado. Podés describir la reparación o cerrar / cancelar sin escribir.
                 </p>
               </div>
 
@@ -1388,12 +1426,15 @@ const eliminarTrabajo = async () => {
                 <button
                   type="button"
                   onClick={async () => {
+                    if (!trabajoParaReparacion) return;
                     const reparacion = reparacionInput.trim();
                     if (!reparacion) {
-                      setErrorReparacion("Ingresá qué reparación se le realizó.");
+                      setErrorReparacion(null);
+                      setMostrarModalReparacion(false);
+                      setTrabajoParaReparacion(null);
+                      setReparacionInput("");
                       return;
                     }
-                    if (!trabajoParaReparacion) return;
 
                     setErrorReparacion(null);
                     setEnviandoReparacion(true);
