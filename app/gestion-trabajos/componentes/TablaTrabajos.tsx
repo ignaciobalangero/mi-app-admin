@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { DollarSign } from "lucide-react";
 import { useState, useEffect } from "react";
-import { doc, updateDoc, getDocs, collection, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, getDoc, getDocs, collection, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ModalAgregarRepuesto from "@/app/resumen/componentes/ModalRepuestos";
 import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
@@ -31,6 +31,10 @@ interface Trabajo {
   costo?: number; // ⭐ NUEVO
   moneda?: "ARS" | "USD"; // ⭐ NUEVO
   estado: string;
+  precarga?: boolean;
+  precargaCreadaPorUid?: string | null;
+  precargaAceptadaEn?: any;
+  precargaPostergadaEn?: any;
   repuestosUsados?: any[]; 
   fechaModificacion?: string;
   estadoCuentaCorriente?: string;
@@ -57,9 +61,13 @@ export default function TablaTrabajos({
   recargarTrabajos,
 }: TablaProps) {
   const obtenerClaseEstado = (trabajo: Trabajo) => {
-    if (trabajo.estado === "PAGADO") return "bg-blue-100 border-l-4 border-[#1565C0]";
-    if (trabajo.estado === "ENTREGADO") return "bg-green-100 border-l-4 border-[#1B5E20]";
-    if (trabajo.estado === "REPARADO") return "bg-orange-100 border-l-4 border-[#D84315]";
+    const est = trabajo.estado?.toString().trim().toUpperCase();
+    if (est === "PAGADO") return "bg-blue-100 border-l-4 border-[#1565C0]";
+    if (est === "ENTREGADO") return "bg-green-100 border-l-4 border-[#1B5E20]";
+    if (est === "REPARADO") return "bg-orange-100 border-l-4 border-[#D84315]";
+    if (est === "PENDIENTE ACEPTACION")
+      return "bg-white border-l-4 border-[#5e35b1]";
+    if (est === "PENDIENTE") return "bg-red-100 border-l-4 border-[#B71C1C]";
     return "bg-red-100 border-l-4 border-[#B71C1C]";
   };
 
@@ -106,6 +114,43 @@ export default function TablaTrabajos({
 
   const requiereIMEI = (estado: string) => estado === "REPARADO" || estado === "ENTREGADO";
   const faltaIMEI = (trabajo: Trabajo) => !String(trabajo.imei ?? "").trim();
+
+  const esPendienteAceptacion = (estado: string) =>
+    estado?.toString().trim().toUpperCase() === "PENDIENTE ACEPTACION";
+
+  const aceptarPrecarga = async (t: Trabajo) => {
+    if (!negocioID) return;
+    try {
+      const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
+      const hoy = new Date().toLocaleDateString("es-AR");
+      await updateDoc(ref, {
+        estado: "PENDIENTE",
+        fechaModificacion: hoy,
+        precargaAceptadaEn: serverTimestamp(),
+      });
+      await recargarTrabajos();
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || "No se pudo aceptar la precarga.");
+    }
+  };
+
+  const postergarPrecarga = async (t: Trabajo) => {
+    if (!negocioID) return;
+    try {
+      const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
+      const hoy = new Date().toLocaleDateString("es-AR");
+      await updateDoc(ref, {
+        estado: "PENDIENTE ACEPTACION",
+        fechaModificacion: hoy,
+        precargaPostergadaEn: serverTimestamp(),
+      });
+      await recargarTrabajos();
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || "No se pudo postergar la precarga.");
+    }
+  };
 
   const abrirModalReparacion = (trabajo: Trabajo) => {
     setTrabajoParaReparacion(trabajo);
@@ -485,13 +530,15 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                         t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                         t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                         t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
+                        esPendienteAceptacion(t.estado) ? "bg-[#5e35b1] text-white border-2 border-[#4527a0]" :
                         t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
                         "bg-[#424242] text-white border-2 border-[#212121]"
                       }`}>
                         <span className="sm:hidden">
                           {t.estado === "PAGADO" ? "💰" : 
                            t.estado === "ENTREGADO" ? "📦" :
-                           t.estado === "REPARADO" ? "🔧" : "⏳"}
+                           t.estado === "REPARADO" ? "🔧" :
+                           esPendienteAceptacion(t.estado) ? "🕓" : "⏳"}
                         </span>
                         <span className="hidden sm:inline text-xs">
                           {t.estado}
@@ -538,11 +585,35 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                           }}
                           className="w-full px-1 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-black text-xs font-normal"
                         >
+                          {esPendienteAceptacion(t.estado) && (
+                            <option value="PENDIENTE ACEPTACION" disabled>
+                              🕓 Pendiente aceptación
+                            </option>
+                          )}
                           <option value="PENDIENTE">⏳ Pendiente</option>
                           <option value="REPARADO">🔧 Reparado</option>
                           <option value="ENTREGADO">📦 Entregado</option>
                           <option value="PAGADO">💰 Pagado</option>
                         </select>
+
+                        {esPendienteAceptacion(t.estado) && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => aceptarPrecarga(t)}
+                              className="flex-1 px-2 py-1 rounded-lg text-xs font-bold bg-[#27ae60] text-white hover:bg-[#229954] transition"
+                            >
+                              ✅ Aceptar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => postergarPrecarga(t)}
+                              className="flex-1 px-2 py-1 rounded-lg text-xs font-bold bg-[#f39c12] text-white hover:bg-[#d68910] transition"
+                            >
+                              🕒 Postergar
+                            </button>
+                          </div>
+                        )}
 
                         {/* Botones de acción - SIN WRAP, UNA SOLA FILA */}
                         <div className="flex gap-0.5 lg:gap-1 justify-center overflow-x-auto">
@@ -727,12 +798,38 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                     <p className="text-blue-100 text-xs sm:text-sm mt-1">Información completa</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setTrabajoSeleccionado(null)}
-                  className="text-white hover:text-blue-200 transition-colors p-1"
-                >
-                  <span className="text-lg sm:text-xl md:text-2xl">✕</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {esPendienteAceptacion(trabajoSeleccionado.estado) && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await aceptarPrecarga(trabajoSeleccionado);
+                          setTrabajoSeleccionado(null);
+                        }}
+                        className="hidden sm:inline-flex items-center gap-1 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-2 text-xs sm:text-sm font-bold text-white border border-white/30"
+                      >
+                        ✅ Aceptar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await postergarPrecarga(trabajoSeleccionado);
+                          setTrabajoSeleccionado(null);
+                        }}
+                        className="hidden sm:inline-flex items-center gap-1 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-2 text-xs sm:text-sm font-bold text-white border border-white/30"
+                      >
+                        🕒 Postergar
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => setTrabajoSeleccionado(null)}
+                    className="text-white hover:text-blue-200 transition-colors p-1"
+                  >
+                    <span className="text-lg sm:text-xl md:text-2xl">✕</span>
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -112,6 +112,57 @@ export default function TablaTrabajos({
   const requiereIMEI = (estado: string) => estado === "REPARADO" || estado === "ENTREGADO";
   const faltaIMEI = (trabajo: Trabajo) => !String(trabajo.imei ?? "").trim();
 
+  const esPendienteAceptacion = (estado: string) =>
+    estado?.toString().trim().toUpperCase() === "PENDIENTE ACEPTACION";
+
+  const aceptarPrecarga = async (t: Trabajo) => {
+    if (!negocioID) return;
+    try {
+      const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
+      const hoy = new Date().toLocaleDateString("es-AR");
+      await updateDoc(ref, {
+        estado: "PENDIENTE",
+        fechaModificacion: hoy,
+        precargaAceptadaEn: serverTimestamp(),
+      } as any);
+      setTrabajos((prev) =>
+        prev.map((x) =>
+          x.firebaseId === t.firebaseId
+            ? { ...x, estado: "PENDIENTE", fechaModificacion: hoy }
+            : x
+        )
+      );
+      await onRecargar();
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || "No se pudo aceptar la precarga.");
+    }
+  };
+
+  const postergarPrecarga = async (t: Trabajo) => {
+    if (!negocioID) return;
+    try {
+      const ref = doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`);
+      const hoy = new Date().toLocaleDateString("es-AR");
+      await updateDoc(ref, {
+        estado: "PENDIENTE ACEPTACION",
+        fechaModificacion: hoy,
+        precargaPostergadaEn: serverTimestamp(),
+      } as any);
+      setTrabajos((prev) =>
+        prev.map((x) =>
+          x.firebaseId === t.firebaseId
+            ? { ...x, estado: "PENDIENTE ACEPTACION", fechaModificacion: hoy }
+            : x
+        )
+      );
+      await onRecargar();
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || "No se pudo postergar la precarga.");
+    }
+  };
+
   const abrirModalReparacion = (trabajo: Trabajo) => {
     setTrabajoParaReparacion(trabajo);
     setReparacionInput(String(trabajo.reparacionRealizada ?? ""));
@@ -219,8 +270,14 @@ export default function TablaTrabajos({
   };
 
   const ITEMS_POR_PAGINA = 40;
-  const totalPaginas = Math.ceil(trabajos.length / ITEMS_POR_PAGINA);
-  const trabajosPaginados = trabajos.slice(
+  const trabajosOrdenados = [...trabajos].sort((a, b) => {
+    const pa = esPendienteAceptacion(a.estado) ? 0 : 1;
+    const pb = esPendienteAceptacion(b.estado) ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return 0;
+  });
+  const totalPaginas = Math.ceil(trabajosOrdenados.length / ITEMS_POR_PAGINA);
+  const trabajosPaginados = trabajosOrdenados.slice(
     (paginaActual - 1) * ITEMS_POR_PAGINA,
     paginaActual * ITEMS_POR_PAGINA
   );
@@ -720,6 +777,7 @@ const eliminarTrabajo = async () => {
                         t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                         t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                         t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
+                        esPendienteAceptacion(t.estado) ? "bg-[#5e35b1] text-white border-2 border-[#4527a0]" :
                         t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
                         "bg-[#424242] text-white border-2 border-[#212121]"
                       }`}>
@@ -727,6 +785,7 @@ const eliminarTrabajo = async () => {
                           {t.estado === "PAGADO" ? "💰" :
                            t.estado === "ENTREGADO" ? "📦" :
                            t.estado === "REPARADO" ? "🔧" :
+                           esPendienteAceptacion(t.estado) ? "🕓" :
                            t.estado === "PENDIENTE" ? "⏳" : "❓"}
                         </span>
                         <span className="hidden sm:inline">
@@ -833,11 +892,35 @@ const eliminarTrabajo = async () => {
                           }}
                           className="w-full px-1 py-1 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-black text-xs font-normal"
                         >
+                          {esPendienteAceptacion(t.estado) && (
+                            <option value="PENDIENTE ACEPTACION" disabled>
+                              🕓 Pendiente aceptación
+                            </option>
+                          )}
                           <option value="PENDIENTE">⏳ Pendiente</option>
                           <option value="REPARADO">🔧 Reparado</option>
                           <option value="ENTREGADO">📦 Entregado</option>
                           <option value="PAGADO">💰 Pagado</option>
                         </select>
+
+                        {esPendienteAceptacion(t.estado) && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => aceptarPrecarga(t)}
+                              className="flex-1 px-2 py-1 rounded-lg text-xs font-bold bg-[#27ae60] text-white hover:bg-[#229954] transition"
+                            >
+                              ✅ Aceptar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => postergarPrecarga(t)}
+                              className="flex-1 px-2 py-1 rounded-lg text-xs font-bold bg-[#f39c12] text-white hover:bg-[#d68910] transition"
+                            >
+                              🕒 Postergar
+                            </button>
+                          </div>
+                        )}
 
                         <div className="flex gap-0.5 lg:gap-1 justify-center overflow-x-auto">
                           <button

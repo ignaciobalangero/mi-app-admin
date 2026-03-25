@@ -41,6 +41,10 @@ interface Trabajo {
   fechaModificacion?: string;
 }
 
+function esPendienteAceptacion(estado: string | undefined) {
+  return estado?.toString().trim().toUpperCase() === "PENDIENTE ACEPTACION";
+}
+
 export default function GestionTrabajosPage() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
@@ -48,7 +52,9 @@ export default function GestionTrabajosPage() {
   const [filtroIMEI, setFiltroIMEI] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroTrabajo, setFiltroTrabajo] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADO">("TODOS");
+  const [filtroEstado, setFiltroEstado] = useState<
+    "TODOS" | "PENDIENTE ACEPTACION" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADO"
+  >("TODOS");
   
   // ✅ NUEVOS: Estados para filtros de fecha
   const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
@@ -303,6 +309,7 @@ export default function GestionTrabajosPage() {
       })
       .filter((t) => {
         if (filtroEstado === "TODOS") return true;
+        if (filtroEstado === "PENDIENTE ACEPTACION") return t.estado === "PENDIENTE ACEPTACION";
         if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE";
         if (filtroEstado === "ENTREGADO") return t.estado === "ENTREGADO";
         if (filtroEstado === "REPARADO") return t.estado === "REPARADO";
@@ -310,14 +317,17 @@ export default function GestionTrabajosPage() {
         return true;
       })
       .sort((a, b) => {
-        // Usar la fecha según el tipo seleccionado para ordenar
-        const fechaA = tipoFecha === "modificacion" 
-          ? (a.fechaModificacion || a.fecha) 
+        const pa = esPendienteAceptacion(a.estado) ? 0 : 1;
+        const pb = esPendienteAceptacion(b.estado) ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+
+        const fechaA = tipoFecha === "modificacion"
+          ? (a.fechaModificacion || a.fecha)
           : a.fecha;
-        const fechaB = tipoFecha === "modificacion" 
-          ? (b.fechaModificacion || b.fecha) 
+        const fechaB = tipoFecha === "modificacion"
+          ? (b.fechaModificacion || b.fecha)
           : b.fecha;
-        
+
         return parsearFecha(fechaB).getTime() - parsearFecha(fechaA).getTime();
       });
   }, [trabajos, filtroTexto, filtroEstado, filtroTrabajo, filtroIMEI, filtroFechaDesde, filtroFechaHasta, tipoFecha]);
@@ -420,7 +430,7 @@ export default function GestionTrabajosPage() {
 
               {/* Botones de estado a la derecha */}
               <div className="flex gap-2 flex-wrap">
-                {["TODOS", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADO"].map((estado) => (
+                {["TODOS", "PENDIENTE ACEPTACION", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADO"].map((estado) => (
                   <button
                     key={estado}
                     onClick={() => setFiltroEstado(estado as any)}
@@ -431,6 +441,7 @@ export default function GestionTrabajosPage() {
                     }`}
                   >
                     {estado === "TODOS" ? "📋 TODOS" :
+                     estado === "PENDIENTE ACEPTACION" ? "🕓 PEND. ACEPT." :
                      estado === "PENDIENTE" ? "⏳ PENDIENTE" :
                      estado === "REPARADO" ? "🔧 REPARADO" :
                      estado === "ENTREGADO" ? "📦 ENTREGADO" :
@@ -443,12 +454,18 @@ export default function GestionTrabajosPage() {
 
           {/* Estadísticas rápidas */}
           <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg border border-[#ecf0f1]">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-[#e74c3c]">
                   {trabajosFiltrados.filter(t => t.estado === "PENDIENTE").length}
                 </div>
                 <div className="text-sm text-[#7f8c8d]">Pendientes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-[#5e35b1]">
+                  {trabajosFiltrados.filter(t => t.estado === "PENDIENTE ACEPTACION").length}
+                </div>
+                <div className="text-sm text-[#7f8c8d]">Pend. acept.</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-[#f39c12]">

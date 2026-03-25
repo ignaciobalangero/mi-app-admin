@@ -11,19 +11,22 @@ import {
   getDoc,
   doc,
   getDocs,
+  addDoc,
   query,
   where,
   orderBy,
   limit,
   startAfter,
   getCountFromServer,
+  serverTimestamp,
   type QueryDocumentSnapshot,
   type DocumentData,
 } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
+import CheckInForm from "@/app/ingreso/CheckInForm";
 
 const ITEMS_POR_PAGINA = 40;
-const ESTADOS_PENDIENTES = ["PENDIENTE", "REPARADO"] as const;
+const ESTADOS_PENDIENTES = ["PENDIENTE", "REPARADO", "PENDIENTE ACEPTACION"] as const;
 const ESTADOS_HISTORIAL = ["ENTREGADO", "PAGADO"] as const;
 
 function normalizarNombre(s: string) {
@@ -302,12 +305,44 @@ export default function Cliente() {
   const [cargando, setCargando] = useState(true);
   const router = useRouter();
 
+  // ==========================================
+  // Precarga de trabajo (cliente -> taller)
+  // ==========================================
+  const [modalPrecargaAbierto, setModalPrecargaAbierto] = useState(false);
+  const [precargaModelo, setPrecargaModelo] = useState("");
+  const [precargaColor, setPrecargaColor] = useState("");
+  const [precargaImei, setPrecargaImei] = useState("");
+  const [precargaTrabajo, setPrecargaTrabajo] = useState("");
+  const [precargaAccesorios, setPrecargaAccesorios] = useState("");
+  const [precargaObservaciones, setPrecargaObservaciones] = useState("");
+  const [precargaGuardando, setPrecargaGuardando] = useState(false);
+  const [mensajeApp, setMensajeApp] = useState<{
+    tipo: "ok" | "error" | "aviso";
+    texto: string;
+  } | null>(null);
+
+  const [checkData, setCheckData] = useState({
+    imeiEstado: "",
+    pantalla: "",
+    camaras: "",
+    microfonos: "",
+    cargaCable: "",
+    cargaInalambrica: "",
+    tapaTrasera: "",
+  });
+
   const modoBusqueda = debouncedBusqueda.trim().length >= 1;
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusqueda(busquedaTrabajos), 320);
     return () => clearTimeout(t);
   }, [busquedaTrabajos]);
+
+  useEffect(() => {
+    if (!mensajeApp) return;
+    const id = window.setTimeout(() => setMensajeApp(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [mensajeApp]);
 
   useEffect(() => {
     if (!loadingAuth && !user) {
@@ -659,6 +694,22 @@ export default function Cliente() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Tu panel</h2>
+            <p className="text-xs text-slate-500">
+              Si querés, podés enviar la precarga del equipo antes de llevarlo al local.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setModalPrecargaAbierto(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+          >
+            📲 Enviar teléfono
+          </button>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2 mb-8">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo cuenta corriente</h2>
@@ -890,7 +941,9 @@ export default function Cliente() {
         <div className="mb-10">
           <div className="mb-3 rounded-xl border border-amber-100 bg-amber-50/80 px-5 py-3">
             <h3 className="text-lg font-bold text-amber-950">2 · Trabajos pendientes</h3>
-            <p className="text-sm text-amber-900/75">En taller o pendientes de reparación</p>
+            <p className="text-sm text-amber-900/75">
+              En taller, pendientes de reparación o esperando aceptación
+            </p>
           </div>
           <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <PaginacionSector
@@ -1017,6 +1070,235 @@ export default function Cliente() {
           />
         </div>
       </main>
+
+      {/* Modal precarga */}
+      {modalPrecargaAbierto && (
+        <div className="fixed inset-0 z-[999999] bg-black/40 backdrop-blur-sm flex items-start justify-center px-4 pt-24 pb-6">
+          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[calc(100vh-7rem)] flex flex-col overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold">Enviar teléfono (precarga)</h3>
+                  <p className="text-white/90 text-sm">
+                    Se crea como <strong>PENDIENTE ACEPTACION</strong> hasta que el taller lo confirme.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalPrecargaAbierto(false)}
+                  className="text-white/90 hover:text-white p-2 rounded-lg"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 bg-slate-50 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Modelo</label>
+                  <input
+                    value={precargaModelo}
+                    onChange={(e) => setPrecargaModelo(e.target.value)}
+                    placeholder="Ej: iPhone 13 128GB"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Color (opcional)</label>
+                  <input
+                    value={precargaColor}
+                    onChange={(e) => setPrecargaColor(e.target.value)}
+                    placeholder="Ej: Negro"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">IMEI (opcional)</label>
+                  <input
+                    value={precargaImei}
+                    onChange={(e) => setPrecargaImei(e.target.value)}
+                    placeholder="Ej: 123456789012345"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Accesorios (opcional)</label>
+                  <input
+                    value={precargaAccesorios}
+                    onChange={(e) => setPrecargaAccesorios(e.target.value)}
+                    placeholder="Ej: funda, cargador, cable…"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Trabajo / falla</label>
+                <textarea
+                  value={precargaTrabajo}
+                  onChange={(e) => setPrecargaTrabajo(e.target.value)}
+                  placeholder="Ej: no carga / pantalla rota / cambio de batería…"
+                  className="w-full min-h-[90px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Observaciones (opcional)</label>
+                <textarea
+                  value={precargaObservaciones}
+                  onChange={(e) => setPrecargaObservaciones(e.target.value)}
+                  placeholder="Ej: tiene golpe en esquina / sin tapa / etc."
+                  className="w-full min-h-[70px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Check-in (opcional)</p>
+                    <p className="text-xs text-slate-500">
+                      Si querés, completá un check rápido del equipo.
+                    </p>
+                  </div>
+                </div>
+                <CheckInForm checkData={checkData} setCheckData={setCheckData} />
+              </div>
+
+              <div className="flex gap-3 justify-end flex-wrap pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalPrecargaAbierto(false)}
+                  className="px-4 py-2.5 rounded-xl font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                  disabled={precargaGuardando}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!negocioID || !nombreClienteCanon) return;
+                    const modelo = precargaModelo.trim();
+                    const trabajo = precargaTrabajo.trim();
+                    if (!modelo) {
+                      setMensajeApp({ tipo: "aviso", texto: "Completá el modelo del equipo." });
+                      return;
+                    }
+                    if (!trabajo) {
+                      setMensajeApp({
+                        tipo: "aviso",
+                        texto: "Completá la falla o el trabajo a realizar.",
+                      });
+                      return;
+                    }
+
+                    setPrecargaGuardando(true);
+                    try {
+                      const hoy = new Date().toLocaleDateString("es-AR");
+                      const checkIn = {
+                        ...(checkData as any),
+                        color: precargaColor.trim() || null,
+                      };
+                      await addDoc(collection(db, `negocios/${negocioID}/trabajos`), {
+                        fecha: hoy,
+                        cliente: nombreClienteCanon,
+                        modelo,
+                        color: precargaColor.trim() || "",
+                        trabajo,
+                        observaciones: precargaObservaciones.trim() || "",
+                        accesorios: precargaAccesorios.trim() || "",
+                        clave: "",
+                        imei: precargaImei.trim() || "",
+                        precio: 0,
+                        anticipo: 0,
+                        saldo: 0,
+                        moneda: "ARS",
+                        estado: "PENDIENTE ACEPTACION",
+                        precarga: true,
+                        precargaCreadaPorUid: user?.uid || null,
+                        checkIn,
+                        creadoEn: serverTimestamp(),
+                      });
+
+                      setModalPrecargaAbierto(false);
+                      setPrecargaModelo("");
+                      setPrecargaColor("");
+                      setPrecargaImei("");
+                      setPrecargaTrabajo("");
+                      setPrecargaAccesorios("");
+                      setPrecargaObservaciones("");
+                      setCheckData({
+                        imeiEstado: "",
+                        pantalla: "",
+                        camaras: "",
+                        microfonos: "",
+                        cargaCable: "",
+                        cargaInalambrica: "",
+                        tapaTrasera: "",
+                      });
+                      setMensajeApp({
+                        tipo: "ok",
+                        texto:
+                          "Enviado correctamente. El taller lo revisará y lo aceptará cuando corresponda.",
+                      });
+                      await cargarPendientesPagina({ reiniciar: true });
+                    } catch (e: any) {
+                      console.error(e);
+                      setMensajeApp({
+                        tipo: "error",
+                        texto:
+                          e?.message ||
+                          "No se pudo enviar. Revisá tu conexión e intentá de nuevo.",
+                      });
+                    } finally {
+                      setPrecargaGuardando(false);
+                    }
+                  }}
+                  className="px-5 py-2.5 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  disabled={precargaGuardando}
+                >
+                  {precargaGuardando ? "Enviando..." : "Enviar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mensajeApp && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 left-1/2 z-[1000000] w-[min(100%-1.5rem,22rem)] -translate-x-1/2 sm:w-[min(100%-2rem,26rem)]"
+        >
+          <div
+            className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 shadow-2xl ring-1 ring-black/5 ${
+              mensajeApp.tipo === "ok"
+                ? "border-emerald-200/90 bg-white text-emerald-950"
+                : mensajeApp.tipo === "error"
+                  ? "border-red-200/90 bg-white text-red-950"
+                  : "border-amber-200/90 bg-white text-amber-950"
+            }`}
+          >
+            <span className="mt-0.5 text-lg leading-none" aria-hidden>
+              {mensajeApp.tipo === "ok"
+                ? "✓"
+                : mensajeApp.tipo === "error"
+                  ? "⚠"
+                  : "!"}
+            </span>
+            <p className="flex-1 text-sm font-semibold leading-snug">{mensajeApp.texto}</p>
+            <button
+              type="button"
+              onClick={() => setMensajeApp(null)}
+              className="-m-1 shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Cerrar aviso"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
