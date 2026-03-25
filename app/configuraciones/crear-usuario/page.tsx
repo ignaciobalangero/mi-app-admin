@@ -5,12 +5,8 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  fetchSignInMethodsForEmail,
-} from "firebase/auth";
-import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
+import PanelCuentasNegocio from "../components/PanelCuentasNegocio";
 
 type ClienteRow = { id: string; nombre: string };
 
@@ -29,6 +25,7 @@ export default function CrearUsuarioPage() {
   const sugerenciasRef = useRef<HTMLDivElement>(null);
 
   const [mensaje, setMensaje] = useState("");
+  const [mensajeOk, setMensajeOk] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [resumenCreado, setResumenCreado] = useState<{
     email: string;
@@ -36,6 +33,7 @@ export default function CrearUsuarioPage() {
     negocioID: string;
     nombre?: string;
   } | null>(null);
+  const [refreshCuentas, setRefreshCuentas] = useState(0);
 
   useEffect(() => {
     const obtenerNegocio = async () => {
@@ -93,6 +91,7 @@ export default function CrearUsuarioPage() {
   }, []);
 
   const crearUsuario = async () => {
+    setMensajeOk(false);
     if (rol === "cliente") {
       if (!nombre.trim()) {
         return setMensaje("⚠️ Buscá y seleccioná un cliente de la lista.");
@@ -106,81 +105,91 @@ export default function CrearUsuarioPage() {
     if (!rol) return setMensaje("⚠️ Seleccioná un rol válido.");
     if (!negocioID)
       return setMensaje("❌ No se encontró un negocioID válido. Iniciá sesión nuevamente.");
+    if (!user) return setMensaje("❌ Tenés que estar logueado.");
 
     setCargando(true);
     setMensaje("");
     setResumenCreado(null);
 
     try {
-      const authAdmin = getAuth();
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/crear-usuario-negocio", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          rol,
+          nombre: rol === "cliente" ? nombre.trim() : nombre.trim(),
+          negocioID,
+        }),
+      });
 
-      const metodos = await fetchSignInMethodsForEmail(authAdmin, email);
-      if (metodos.length > 0) {
-        setMensaje("❌ Ya existe un usuario con este email.");
-        setCargando(false);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setMensaje("❌ " + (typeof data.error === "string" ? data.error : "No se pudo crear el usuario."));
         return;
       }
-
-      const userCredential = await createUserWithEmailAndPassword(authAdmin, email, password);
-      const nuevoUID = userCredential.user.uid;
 
       const nombreGuardado =
         rol === "cliente" ? nombre.trim() : nombre.trim().toLowerCase();
 
-      const datosUsuario = {
-        email: email.toLowerCase(),
-        negocioID,
-        rol,
-        nombre: nombreGuardado,
-      };
-
-      await setDoc(doc(db, "usuarios", nuevoUID), datosUsuario);
-      console.log("✅ Usuario creado en /usuarios/");
-
-      await setDoc(doc(db, "negocios", negocioID, "usuarios", nuevoUID), {
-        ...datosUsuario,
-        fechaCreacion: new Date().toISOString(),
-        creadoPor: user?.email || "admin",
-      });
-      console.log("✅ Usuario creado en /negocios/{negocioID}/usuarios/");
-
-      const configRef = doc(db, "configuracion", negocioID);
-      const configSnap = await getDoc(configRef);
-      if (!configSnap.exists()) {
-        await setDoc(configRef, {
-          logoUrl: "",
-          creado: new Date().toISOString(),
-        });
-        console.log("✅ Configuración del negocio creada");
-      } else {
-        console.log("ℹ️ Configuración ya existente");
-      }
-
-      setMensaje("✅ Usuario creado correctamente en ambas ubicaciones.");
+      setMensajeOk(true);
+      setMensaje("");
       setResumenCreado({
-        email,
-        rol,
+        email: typeof data.email === "string" ? data.email : email.trim(),
+        rol: typeof data.rol === "string" ? data.rol : rol,
         negocioID,
-        nombre: nombreGuardado,
+        nombre: typeof data.nombre === "string" ? data.nombre : nombreGuardado,
       });
       setEmail("");
       setPassword("");
       setRol("empleado");
       setNombre("");
       setBusquedaCliente("");
-    } catch (error: any) {
+      setRefreshCuentas((k) => k + 1);
+    } catch (error: unknown) {
       console.error("Error al crear usuario:", error);
-      setMensaje("❌ " + error.message);
+      setMensaje("❌ " + (error instanceof Error ? error.message : "Error de red"));
+    } finally {
+      setCargando(false);
     }
-
-    setCargando(false);
   };
 
   return (
-    <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black">
+    <main className="pt-24 px-4 bg-gray-100 min-h-screen text-black pb-12">
       <h1 className="text-2xl font-bold mb-6 text-center">Crear usuario</h1>
 
       <div className="max-w-md mx-auto bg-white p-6 rounded shadow space-y-4">
+        {mensajeOk && resumenCreado && (
+          <div
+            role="status"
+            className="rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-950 shadow-sm"
+          >
+            <p className="font-bold text-emerald-900">Usuario creado con éxito</p>
+            <p className="mt-1 text-sm text-emerald-900/90">
+              <strong>{resumenCreado.email}</strong> — rol{" "}
+              <strong>
+                {resumenCreado.rol === "cliente"
+                  ? "Cliente (portal)"
+                  : resumenCreado.rol === "empleado"
+                    ? "Empleado"
+                    : resumenCreado.rol}
+              </strong>
+              {resumenCreado.nombre && (
+                <>
+                  <br />
+                  Nombre vinculado: <strong>{resumenCreado.nombre}</strong>
+                </>
+              )}
+            </p>
+          </div>
+        )}
+
         {rol === "empleado" ? (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del empleado</label>
@@ -311,24 +320,18 @@ export default function CrearUsuarioPage() {
           {cargando ? "Creando..." : "Crear usuario"}
         </button>
 
-        {mensaje && <p className="text-sm mt-2 text-center">{mensaje}</p>}
-
-        {resumenCreado && (
-          <div className="mt-4 text-sm text-green-700 text-center">
-            <p>
-              Usuario creado: <strong>{resumenCreado.email}</strong> ({resumenCreado.rol})<br />
-              {resumenCreado.nombre && (
-                <>
-                  Nombre vinculado: <strong>{resumenCreado.nombre}</strong>
-                  <br />
-                </>
-              )}
-              Asociado a: <strong>{resumenCreado.negocioID}</strong>
-              <br />
-              📍 Creado en ambas ubicaciones ✅
-            </p>
-          </div>
+        {mensaje && (
+          <p className="text-sm mt-2 text-center font-medium text-red-700">{mensaje}</p>
         )}
+      </div>
+
+      <div className="max-w-3xl mx-auto mt-8 px-2">
+        <PanelCuentasNegocio refreshKey={refreshCuentas} compacto />
+        <p className="mt-4 text-center text-sm text-slate-600">
+          <Link href="/configuraciones" className="text-blue-600 font-semibold hover:underline">
+            ← Volver a Configuraciones
+          </Link>
+        </p>
       </div>
     </main>
   );

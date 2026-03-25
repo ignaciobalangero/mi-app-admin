@@ -750,8 +750,11 @@ export default function IngresoForm() {
     if (res) {
       setMensajeExito(res.mensaje);
       setTrabajosParaImprimir(res.trabajosGuardados);
-      setTrabajoParaImprimir(trabajosPayload[0]);
-      setTrabajoSeleccionadoImpresion(res.trabajosGuardados[0] || null);
+      // Importante: no usar trabajosPayload[0] acá — no trae `cliente` (solo va en el batch).
+      // BotonesImpresionTrabajo valida trabajo.cliente para ticket/etiqueta.
+      const primeroGuardado = res.trabajosGuardados[0];
+      setTrabajoParaImprimir(primeroGuardado || null);
+      setTrabajoSeleccionadoImpresion(primeroGuardado || null);
 
       const totalAnticipo = (res.trabajosGuardados || []).reduce(
         (s: number, t: any) => s + Number(t.anticipo || 0),

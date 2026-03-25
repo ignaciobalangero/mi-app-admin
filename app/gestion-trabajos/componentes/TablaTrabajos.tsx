@@ -114,6 +114,7 @@ export default function TablaTrabajos({
 
   const requiereIMEI = (estado: string) => estado === "REPARADO" || estado === "ENTREGADO";
   const faltaIMEI = (trabajo: Trabajo) => !String(trabajo.imei ?? "").trim();
+  const faltaReparacion = (trabajo: Trabajo) => !String(trabajo.reparacionRealizada ?? "").trim();
 
   const esPendienteAceptacion = (estado: string) =>
     estado?.toString().trim().toUpperCase() === "PENDIENTE ACEPTACION";
@@ -577,8 +578,8 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
 
                             await aplicarCambioEstadoConIMEI(t, estadoAnterior, nuevoEstado);
 
-                            // Para REPARADO/ENTREGADO: pedir siempre qué reparación se realizó.
-                            if (requiereIMEI(nuevoEstado)) {
+                            // Reparación: solo si aún no está cargada (ej. REPARADO→ENTREGADO no repite si ya la completaste).
+                            if (requiereIMEI(nuevoEstado) && faltaReparacion(t)) {
                               abrirModalReparacion(t);
                               return;
                             }
@@ -1068,7 +1069,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                         setMostrarModalIMEI(false);
                         setTrabajoParaIMEI(null);
                         setImeiInput("");
-                        abrirModalReparacion({ ...t0, estado: dest });
+                        if (faltaReparacion(t0)) abrirModalReparacion({ ...t0, estado: dest });
                       } catch (e: any) {
                         console.error(e);
                         setErrorIMEI(e?.message || "No se pudo actualizar el estado.");
@@ -1126,7 +1127,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                       setMostrarModalIMEI(false);
                       setTrabajoParaIMEI(null);
                       setImeiInput("");
-                      abrirModalReparacion({ ...t0, estado: dest });
+                      if (faltaReparacion(t0)) abrirModalReparacion({ ...t0, estado: dest });
                     } catch (e: any) {
                       setErrorIMEI(e?.message || "No se pudo actualizar el estado.");
                     } finally {
@@ -1159,7 +1160,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                       setMostrarModalIMEI(false);
                       setTrabajoParaIMEI(null);
                       setImeiInput("");
-                      abrirModalReparacion(trabajoDestino);
+                      if (faltaReparacion(trabajoDestino)) abrirModalReparacion(trabajoDestino);
                     } catch (e: any) {
                       setErrorIMEI(e?.message || "Error al guardar el IMEI.");
                     } finally {

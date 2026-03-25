@@ -20,6 +20,8 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import PanelRecalculoGlobal from "./components/PanelRecalculoGlobal";
+import PanelCuentasNegocio from "./components/PanelCuentasNegocio";
+import { getSuperAdminUidClient } from "@/lib/superAdminConstants";
 
 export default function Configuraciones() {
   const [user] = useAuthState(auth);
@@ -44,7 +46,7 @@ export default function Configuraciones() {
   const [puntoVentaFacturacion, setPuntoVentaFacturacion] = useState("1");
   const [guardandoFacturacion, setGuardandoFacturacion] = useState(false);
 
-  const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
+  const SUPER_ADMIN_UID = getSuperAdminUidClient();
   const router = useRouter();
 
   useEffect(() => {
@@ -209,31 +211,44 @@ export default function Configuraciones() {
             </div>
           </div>
 
-          {rol?.tipo === "admin" && (
+          {(rol?.tipo === "admin" || rol?.tipo === "empleado") && (
             <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-[#3498db] rounded-xl flex items-center justify-center">
                   <span className="text-white text-lg">👤</span>
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-[#2c3e50]">Gestión de Usuarios</h2>
-                  <p className="text-[#7f8c8d] text-xs">Administra usuarios y permisos</p>
+                  <h2 className="text-lg font-bold text-[#2c3e50]">Usuarios del negocio</h2>
+                  <p className="text-[#7f8c8d] text-xs">
+                    {rol?.tipo === "admin"
+                      ? "Alta de cuentas, impresoras y listado de equipo + clientes con portal"
+                      : "Listado de administrador, empleados y clientes con acceso al portal"}
+                  </p>
                 </div>
               </div>
-              
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => router.push("/configuraciones/crear-usuario")}
-                  className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
-                >
-                  👤 Crear usuario
-                </button>
-                <button
-                  onClick={() => router.push("/configuraciones/impresion")}
-                  className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] hover:from-[#8e44ad] hover:to-[#7d3c98] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
-                >
-                  🖨️ Configurar Impresoras
-                </button>
+
+              {rol?.tipo === "admin" && (
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => router.push("/configuraciones/crear-usuario")}
+                    className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#21618c] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
+                  >
+                    👤 Crear usuario
+                  </button>
+                  <button
+                    onClick={() => router.push("/configuraciones/impresion")}
+                    className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] hover:from-[#8e44ad] hover:to-[#7d3c98] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
+                  >
+                    🖨️ Configurar Impresoras
+                  </button>
+                </div>
+              )}
+
+              <div className={`${rol?.tipo === "admin" ? "mt-6 border-t border-[#ecf0f1] pt-6" : ""}`}>
+                <PanelCuentasNegocio
+                  nombreNegocioLocal={nombreNegocio || undefined}
+                  negocioIdLocal={rol?.negocioID}
+                />
               </div>
             </div>
           )}

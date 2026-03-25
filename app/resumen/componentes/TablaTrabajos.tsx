@@ -111,6 +111,7 @@ export default function TablaTrabajos({
 
   const requiereIMEI = (estado: string) => estado === "REPARADO" || estado === "ENTREGADO";
   const faltaIMEI = (trabajo: Trabajo) => !String(trabajo.imei ?? "").trim();
+  const faltaReparacion = (trabajo: Trabajo) => !String(trabajo.reparacionRealizada ?? "").trim();
 
   const esPendienteAceptacion = (estado: string) =>
     estado?.toString().trim().toUpperCase() === "PENDIENTE ACEPTACION";
@@ -884,8 +885,7 @@ const eliminarTrabajo = async () => {
 
                             await aplicarCambioEstado(t, estadoAnterior, nuevoEstado);
 
-                            // Para REPARADO/ENTREGADO: pedir siempre qué reparación se le realizó.
-                            if (requiereIMEI(nuevoEstado)) {
+                            if (requiereIMEI(nuevoEstado) && faltaReparacion(t)) {
                               abrirModalReparacion(t);
                               return;
                             }
@@ -1336,7 +1336,7 @@ const eliminarTrabajo = async () => {
                         setMostrarModalIMEI(false);
                         setTrabajoParaIMEI(null);
                         setImeiInput("");
-                        abrirModalReparacion({ ...t0, estado: dest });
+                        if (faltaReparacion(t0)) abrirModalReparacion({ ...t0, estado: dest });
                       } catch (e: any) {
                         console.error(e);
                         setErrorIMEI(e?.message || "No se pudo actualizar el estado.");
@@ -1394,7 +1394,7 @@ const eliminarTrabajo = async () => {
                       setMostrarModalIMEI(false);
                       setTrabajoParaIMEI(null);
                       setImeiInput("");
-                      abrirModalReparacion({ ...t0, estado: dest });
+                      if (faltaReparacion(t0)) abrirModalReparacion({ ...t0, estado: dest });
                     } catch (e: any) {
                       setErrorIMEI(e?.message || "No se pudo actualizar el estado.");
                     } finally {
@@ -1428,7 +1428,7 @@ const eliminarTrabajo = async () => {
                       setMostrarModalIMEI(false);
                       setTrabajoParaIMEI(null);
                       setImeiInput("");
-                      abrirModalReparacion(trabajoDestino);
+                      if (faltaReparacion(trabajoDestino)) abrirModalReparacion(trabajoDestino);
                     } catch (e: any) {
                       setErrorIMEI(e?.message || "Error al guardar el IMEI.");
                     } finally {
