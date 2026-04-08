@@ -129,17 +129,35 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
   
   // 🚀 LÓGICA DE GANANCIA REAL BASADA EN COTIZACIÓN ACTUAL
   if (producto.moneda === "USD") {
-    // Venta en USD -> Costo en USD
-    costoCalculado = Number(stockData.precioCosto || 0);
+    // Venta en USD -> necesitamos costo en USD (aunque el stock tenga solo costo en ARS)
+    const stockMoneda = String(stockData.moneda || "USD").toUpperCase();
+    if (stockMoneda === "USD") {
+      const costoUSD =
+        Number(stockData.precioCosto || 0) ||
+        (Number(stockData.precioCostoPesos || 0) > 0 && cotizacionActual > 0
+          ? Number(stockData.precioCostoPesos || 0) / cotizacionActual
+          : 0);
+      costoCalculado = costoUSD;
+    } else {
+      // Stock en ARS vendido en USD -> convertir costo ARS a USD
+      const costoARS = Number(stockData.precioCostoPesos || stockData.precioCosto || 0);
+      costoCalculado = cotizacionActual > 0 ? costoARS / cotizacionActual : 0;
+    }
   } else {
     // Venta en ARS (Pesos)
-    if (stockData.moneda === "ARS") {
-      // Producto nativo ARS -> Costo en ARS directo
-      costoCalculado = Number(stockData.precioCosto || 0);
+    const stockMoneda = String(stockData.moneda || "USD").toUpperCase();
+    if (stockMoneda === "ARS") {
+      // Producto nativo ARS -> costo ARS directo
+      costoCalculado = Number(stockData.precioCostoPesos || stockData.precioCosto || 0);
     } else {
-      // Stock en USD vendido en ARS -> Convertimos costo USD a Pesos de HOY
-      const costoUSD = Number(stockData.precioCosto || 0);
-      costoCalculado = costoUSD * cotizacionActual;
+      // Stock en USD vendido en ARS -> costo USD * cotización (o usar costo en ARS si ya existe)
+      const costoARSDirecto = Number(stockData.precioCostoPesos || 0);
+      if (costoARSDirecto > 0) {
+        costoCalculado = costoARSDirecto;
+      } else {
+        const costoUSD = Number(stockData.precioCosto || 0);
+        costoCalculado = costoUSD * cotizacionActual;
+      }
     }
   }
 
@@ -209,13 +227,27 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       } else {
         // 🔌 ACCESORIO/REPUESTO
         if (stockData) {
-          precioCosto = stockData.precioCosto || 0;
+          const stockMoneda = String(stockData.moneda || "USD").toUpperCase();
+          // Guardar costo "crudo" (USD o ARS) si existe; si falta, derivarlo desde el otro campo.
+          if (stockMoneda === "USD") {
+            precioCosto =
+              Number(stockData.precioCosto || 0) ||
+              (Number(stockData.precioCostoPesos || 0) > 0 && cotizacionActual > 0
+                ? Number(stockData.precioCostoPesos || 0) / cotizacionActual
+                : 0);
+          } else {
+            precioCosto = Number(stockData.precioCosto || stockData.precioCostoPesos || 0);
+          }
           
           // Guardamos el costo en pesos actualizado para el historial de la venta
-          if (stockData.moneda === "USD") {
-            precioCostoPesos = precioCosto * cotizacionActual; 
+          if (stockMoneda === "USD") {
+            // Si ya tenemos costo en ARS directo (precioCostoPesos), priorizarlo; si no, derivar.
+            precioCostoPesos =
+              Number(stockData.precioCostoPesos || 0) > 0
+                ? Number(stockData.precioCostoPesos || 0)
+                : precioCosto * cotizacionActual;
           } else {
-            precioCostoPesos = precioCosto; // Nativo ARS
+            precioCostoPesos = Number(stockData.precioCostoPesos || precioCosto); // Nativo ARS
           }
           
           // Calculamos ganancia (si es venta USD, será resta directa; si es ARS, usará cotización)
@@ -569,9 +601,60 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
       productos: productosConCodigo.length
     });
 
-    // ✅ PREPARAR PAGOS SEPARADOS
+    // ✅ PREPARAR PAGOS (evitar duplicar ARS + USD en `pagos` cuando la venta es solo USD)
     const pagoARS = Number(pago?.monto || 0);
     const pagoUSD = Number(pago?.montoUSD || 0);
+    const cotizPago =
+      Number(pago?.cotizacionPago) > 0 ? Number(pago.cotizacionPago) : cotizacion;
+    const cotEfectiva =
+      cotizPago > 0 ? cotizPago : cotizacion > 0 ? cotizacion : 0;
+    const ventaSoloUSD = totalARS === 0 && totalUSD > 0;
+    const cotParaConversion =
+      cotEfectiva > 0 ? cotEfectiva : cotizacion > 0 ? cotizacion : 1000;
+
+    let usdPagoUnico: number | null = null;
+    let notaPagoARSaUSD = "";
+    if (ventaSoloUSD && (pagoARS > 0 || pagoUSD > 0)) {
+      const usd =
+        pagoUSD > 0 ? pagoUSD : pagoARS > 0 ? pagoARS / cotParaConversion : 0;
+      if (usd > 0 && Number.isFinite(usd)) {
+        usdPagoUnico = usd;
+        if (pagoARS > 0) {
+          notaPagoARSaUSD = `Pago recibido en ARS $${Number(pagoARS).toLocaleString("es-AR")} aplicado a USD ${usd.toFixed(2)} (cotización $1 USD = $${Number(cotParaConversion).toLocaleString("es-AR")} ARS)`;
+        }
+      }
+    }
+
+    const pagoVentaFirestore =
+      ventaSoloUSD && usdPagoUnico != null && usdPagoUnico > 0
+        ? {
+            monto: null,
+            montoUSD: usdPagoUnico,
+            moneda: "USD" as const,
+            forma: pago?.formaPago || "Efectivo",
+            destino: pago?.destino || "",
+            observaciones: [pago?.observaciones || "", notaPagoARSaUSD].filter(Boolean).join(" • "),
+            cotizacion,
+            cotizacionPago: cotEfectiva > 0 ? cotEfectiva : cotParaConversion,
+            pagoARSAplicadoAUSD: pagoARS > 0,
+          }
+        : {
+            monto: pagoARS || null,
+            montoUSD: pagoUSD || null,
+            moneda:
+              pagoUSD > 0 && pagoARS > 0 ? "DUAL" : pagoUSD > 0 ? "USD" : "ARS",
+            forma:
+              pagoUSD > 0 && pagoARS > 0
+                ? "Efectivo ARS + USD"
+                : pagoUSD > 0
+                  ? "Efectivo USD"
+                  : pago?.formaPago || "Efectivo",
+            destino: pago?.destino || "",
+            observaciones: pago?.observaciones || "",
+            cotizacion,
+            cotizacionPago: cotizPago,
+            pagoARSAplicadoAUSD: false,
+          };
 
     // Crear la venta
     const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
@@ -605,21 +688,12 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
         precioUnitarioARS: p.moneda === "ARS" ? p.precioUnitario : null,
         precioVentaUSD: p.moneda === "USD" ? p.precioVenta : null,
         precioVentaARS: p.moneda === "ARS" ? p.precioVenta : null,
+        cotizacionUsada: p.cotizacionUsada ?? null,
       })),
       cliente,
       fecha,
       observaciones,
-      pago: {
-        monto: pagoARS || null,
-        montoUSD: pagoUSD || null,
-        moneda: pagoUSD > 0 && pagoARS > 0 ? "DUAL" : pagoUSD > 0 ? "USD" : "ARS",
-        forma: pagoUSD > 0 && pagoARS > 0 ? "Efectivo ARS + USD" : 
-               pagoUSD > 0 ? "Efectivo USD" : 
-               pago?.formaPago || "Efectivo",
-        destino: pago?.destino || "",
-        observaciones: pago?.observaciones || "",
-        cotizacion: cotizacion,
-      },
+      pago: pagoVentaFirestore,
       totalARS,                    // ✅ Total en pesos
       totalUSD,                    // ✅ Total en dólares  
       total: totalAproximado,      // ✅ Para compatibilidad
@@ -632,46 +706,67 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
 // ⭐ NUEVO: Actualizar saldo del cliente por la venta
 await actualizarSaldoCliente(cliente, totalARS, totalUSD);
 console.log('💳 Saldo actualizado por venta normal');
-    // ✅ GUARDAR PAGOS SEPARADOS (ARS + USD independientes)
-    
-    // Guardar pago en ARS si existe
-    if (pagoARS > 0) {
-      await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-        cliente,
-        fecha,
-        monto: pagoARS,
-        montoUSD: null,
-        moneda: "ARS",
-        forma: pago?.formaPago || "Efectivo",
-        destino: pago?.destino || "",
-        observaciones: pago?.observaciones || "",
-        cotizacion: cotizacion,
-        timestamp: serverTimestamp(),
-        nroVenta: nroVenta,
-      });
-      console.log('✅ Pago ARS guardado:', pagoARS);
-    }
-// ⭐ NUEVO: Restar pago ARS del saldo
-await actualizarSaldoCliente(cliente, -pagoARS, 0);
-    // Guardar pago en USD si existe
-    if (pagoUSD > 0) {
+    // ✅ Un solo documento en `pagos` si la venta es solo USD; si es ARS o mixta, ARS y USD por separado
+    if (ventaSoloUSD && usdPagoUnico != null && usdPagoUnico > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
         cliente,
         fecha,
         monto: null,
-        montoUSD: pagoUSD,
+        montoUSD: usdPagoUnico,
         moneda: "USD",
         forma: pago?.formaPago || "Efectivo",
         destino: pago?.destino || "",
-        observaciones: pago?.observaciones || "",
-        cotizacion: cotizacion,
+        observaciones: [pago?.observaciones || "", notaPagoARSaUSD].filter(Boolean).join(" • "),
+        cotizacion: cotParaConversion,
+        detallesPago:
+          pagoARS > 0
+            ? {
+                tipo: "ARS_a_USD",
+                montoARSOriginal: pagoARS,
+                cotizacionPago: cotParaConversion,
+              }
+            : { tipo: "USD" },
         timestamp: serverTimestamp(),
         nroVenta: nroVenta,
       });
-      console.log('✅ Pago USD guardado:', pagoUSD);
+      console.log("✅ Pago venta solo USD (único doc):", { pagoARS, pagoUSD, usdPagoUnico, cotParaConversion });
+      await actualizarSaldoCliente(cliente, 0, -usdPagoUnico);
+    } else if (!ventaSoloUSD) {
+      if (pagoARS > 0) {
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          cliente,
+          fecha,
+          monto: pagoARS,
+          montoUSD: null,
+          moneda: "ARS",
+          forma: pago?.formaPago || "Efectivo",
+          destino: pago?.destino || "",
+          observaciones: pago?.observaciones || "",
+          cotizacion: cotizacion,
+          timestamp: serverTimestamp(),
+          nroVenta: nroVenta,
+        });
+        console.log("✅ Pago ARS guardado:", pagoARS);
+        await actualizarSaldoCliente(cliente, -pagoARS, 0);
+      }
+      if (pagoUSD > 0) {
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          cliente,
+          fecha,
+          monto: null,
+          montoUSD: pagoUSD,
+          moneda: "USD",
+          forma: pago?.formaPago || "Efectivo",
+          destino: pago?.destino || "",
+          observaciones: pago?.observaciones || "",
+          cotizacion: cotizacion,
+          timestamp: serverTimestamp(),
+          nroVenta: nroVenta,
+        });
+        console.log("✅ Pago USD guardado:", pagoUSD);
+        await actualizarSaldoCliente(cliente, 0, -pagoUSD);
+      }
     }
-// ⭐ NUEVO: Restar pago USD del saldo
-await actualizarSaldoCliente(cliente, 0, -pagoUSD);
     // ✅ 4. SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
 if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
   // Buscar datos del proveedor
@@ -679,12 +774,16 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
   const proveedor = proveedoresSnap.docs.find(doc => doc.data().nombre === pago.proveedorDestino);
   
   if (proveedor) {
+    const montoProvARS =
+      ventaSoloUSD && usdPagoUnico != null && usdPagoUnico > 0 ? pagoARS : pagoARS || 0;
+    const montoProvUSD =
+      ventaSoloUSD && usdPagoUnico != null && usdPagoUnico > 0 ? usdPagoUnico : pagoUSD || 0;
     const pagoProveedor = {
       proveedorId: proveedor.id,
       proveedorNombre: proveedor.data().nombre,
       fecha: fecha,
-      monto: pagoARS || 0,
-      montoUSD: pagoUSD || 0,
+      monto: montoProvARS,
+      montoUSD: montoProvUSD,
       forma: pago?.formaPago || "Efectivo",
       referencia: `Pago desde venta general #${nroVenta}`,
       notas: `Cliente: ${cliente}${pago?.observaciones ? ` - ${pago.observaciones}` : ''}`,

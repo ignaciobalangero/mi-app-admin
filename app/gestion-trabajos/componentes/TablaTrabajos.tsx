@@ -10,6 +10,7 @@ import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
 import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
 import ModalEmitirFactura from "@/app/ventas-general/componentes/ModalEmitirFactura";
 import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
+import { PatronViewer } from "@/app/components/PatronDesbloqueo";
 
 interface Trabajo {
   firebaseId: string;
@@ -21,6 +22,7 @@ interface Trabajo {
   imei?: string;
   trabajo: string;
   clave?: string;
+  patronDesbloqueo?: number[];
   accesorios?: string;
   observaciones?: string;
   reparacionRealizada?: string;
@@ -111,6 +113,8 @@ export default function TablaTrabajos({
   const [reparacionInput, setReparacionInput] = useState("");
   const [errorReparacion, setErrorReparacion] = useState<string | null>(null);
   const [enviandoReparacion, setEnviandoReparacion] = useState(false);
+  const [mostrarModalPatron, setMostrarModalPatron] = useState(false);
+  const [patronTrabajo, setPatronTrabajo] = useState<Trabajo | null>(null);
 
   const requiereIMEI = (estado: string) => estado === "REPARADO" || estado === "ENTREGADO";
   const faltaIMEI = (trabajo: Trabajo) => !String(trabajo.imei ?? "").trim();
@@ -506,9 +510,24 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                     
                     {/* Clave */}
                     <td className="hidden lg:table-cell p-1 sm:p-2 md:p-3 border border-black">
-                      <span className="text-xs truncate block" title={t.clave || "—"}>
-                        {t.clave || "—"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs truncate block flex-1" title={t.clave || "—"}>
+                          {t.clave || "—"}
+                        </span>
+                        {Array.isArray((t as any).patronDesbloqueo) && (t as any).patronDesbloqueo.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPatronTrabajo(t);
+                              setMostrarModalPatron(true);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-[#3498db] hover:bg-[#2980b9] text-white text-xs font-bold shadow-sm"
+                            title="Ver patrón de desbloqueo"
+                          >
+                            Ver
+                          </button>
+                        )}
+                      </div>
                     </td>
                     
                     {/* Observaciones */}
@@ -1276,6 +1295,48 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                   disabled={enviandoReparacion}
                 >
                   Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ver patrón */}
+      {mostrarModalPatron && patronTrabajo && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-[#ecf0f1] overflow-hidden">
+            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold">🔒 Patrón de desbloqueo</h3>
+                <p className="text-xs text-white/80">
+                  {patronTrabajo.id ? `Orden ${patronTrabajo.id}` : patronTrabajo.modelo}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarModalPatron(false);
+                  setPatronTrabajo(null);
+                }}
+                className="h-10 w-10 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-2xl leading-none"
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-5 bg-[#f8f9fa]">
+              <PatronViewer patron={(patronTrabajo as any).patronDesbloqueo} />
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarModalPatron(false);
+                    setPatronTrabajo(null);
+                  }}
+                  className="px-4 py-2 rounded-xl font-semibold bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                >
+                  Cerrar
                 </button>
               </div>
             </div>

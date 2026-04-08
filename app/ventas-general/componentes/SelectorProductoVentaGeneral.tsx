@@ -66,6 +66,26 @@ export default function SelectorProductoVentaGeneral({
   const [usandoPrecioManual, setUsandoPrecioManual] = useState(false);
   const [monedaSeleccionada, setMonedaSeleccionada] = useState<"ARS" | "USD">("ARS");
 
+  const obtenerUSDOriginalDesdePrecioElegido = () => {
+    if (!productoSeleccionado) return 0;
+    if (productoSeleccionado.moneda !== "USD") return 0;
+    // `precioElegido` para productos nativos USD suele venir como ARS (precioXPesos).
+    // Mapeamos al USD original si coincide; si no, aproximamos por cotización.
+    if (precioElegido === productoSeleccionado.precio1Pesos) return productoSeleccionado.precio1 || 0;
+    if (precioElegido === productoSeleccionado.precio2Pesos) return productoSeleccionado.precio2 || 0;
+    if (precioElegido === productoSeleccionado.precio3Pesos) return productoSeleccionado.precio3 || 0;
+    return cotizacion > 0 ? precioElegido / cotizacion : 0;
+  };
+
+  const sugerirPrecioEnMonedaSeleccionada = () => {
+    if (!productoSeleccionado) return 0;
+    if (monedaSeleccionada === "USD") {
+      if (productoSeleccionado.moneda === "USD") return obtenerUSDOriginalDesdePrecioElegido();
+      return cotizacion > 0 ? precioElegido / cotizacion : 0;
+    }
+    return precioElegido || 0;
+  };
+
 
 // ✅ REEMPLAZAR TODO EL useEffect POR ESTE:
 
@@ -261,9 +281,10 @@ useEffect(() => {
       return;
     }
     
-    const precioAUsar = usandoPrecioManual ? precioManual : precioElegido;
+    // `precioManual` siempre representa el valor en la moneda seleccionada (ARS o USD).
+    const precioAUsar = usandoPrecioManual ? precioManual : sugerirPrecioEnMonedaSeleccionada();
     
-    if (precioAUsar <= 0) {
+    if (precioAUsar <= 0 || !Number.isFinite(precioAUsar)) {
       alert("⚠️ El precio debe ser mayor a 0");
       return;
     }
@@ -273,29 +294,13 @@ useEffect(() => {
     let precioUSD: number | null = null;
     
     if (monedaSeleccionada === "USD") {
-      if (productoSeleccionado.moneda === "USD") {
-        let precioUSDOriginal;
-        if (precioElegido === productoSeleccionado.precio1Pesos) {
-          precioUSDOriginal = productoSeleccionado.precio1;
-        } else if (precioElegido === productoSeleccionado.precio2Pesos) {
-          precioUSDOriginal = productoSeleccionado.precio2;
-        } else if (precioElegido === productoSeleccionado.precio3Pesos) {
-          precioUSDOriginal = productoSeleccionado.precio3;
-        } else {
-          precioUSDOriginal = precioAUsar / cotizacion;
-        }
-        precioUnitarioFinal = precioUSDOriginal;
-      } else {
-        precioUnitarioFinal = precioAUsar / cotizacion;
-      }
+      // En USD, `precioAUsar` ya está en USD (sea manual o sugerido).
+      precioUnitarioFinal = precioAUsar;
       precioUSD = precioUnitarioFinal;
       precioARS = null;
     } else {
-      if (productoSeleccionado.moneda === "USD") {
-        precioUnitarioFinal = precioAUsar;
-      } else {
-        precioUnitarioFinal = precioAUsar;
-      }
+      // En ARS, `precioAUsar` ya está en ARS.
+      precioUnitarioFinal = precioAUsar;
       precioARS = precioUnitarioFinal;
       precioUSD = null;
     }
@@ -637,7 +642,10 @@ useEffect(() => {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setMonedaSeleccionada("ARS")}
+                    onClick={() => {
+                      setMonedaSeleccionada("ARS");
+                      if (usandoPrecioManual) setPrecioManual(precioElegido || 0);
+                    }}
                     className={`flex-1 p-3 rounded-lg border-2 transition-all font-medium ${
                       monedaSeleccionada === "ARS" 
                         ? "bg-[#27ae60] text-white border-[#27ae60]"
@@ -648,7 +656,10 @@ useEffect(() => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMonedaSeleccionada("USD")}
+                    onClick={() => {
+                      setMonedaSeleccionada("USD");
+                      if (usandoPrecioManual) setPrecioManual(sugerirPrecioEnMonedaSeleccionada());
+                    }}
                     className={`flex-1 p-3 rounded-lg border-2 transition-all font-medium ${
                       monedaSeleccionada === "USD" 
                         ? "bg-[#3498db] text-white border-[#3498db]"
@@ -730,7 +741,7 @@ useEffect(() => {
                     onChange={(e) => {
                       setUsandoPrecioManual(e.target.checked);
                       if (e.target.checked) {
-                        setPrecioManual(precioElegido || 0);
+                        setPrecioManual(sugerirPrecioEnMonedaSeleccionada());
                       }
                     }}
                     className="w-4 h-4 text-[#f39c12] bg-white border-2 border-[#bdc3c7] rounded focus:ring-2 focus:ring-[#f39c12]"
@@ -745,7 +756,7 @@ useEffect(() => {
                   <div className="bg-[#fff3cd] border border-[#f39c12] rounded-lg p-3">
                     <div className="mb-2">
                       <label className="block text-sm font-medium text-[#856404] mb-1">
-                        💰 Precio personalizado:
+                        💰 Precio personalizado ({monedaSeleccionada === "USD" ? "USD" : "ARS"}):
                       </label>
                       <input
                         type="number"
@@ -754,7 +765,7 @@ useEffect(() => {
                         min="0"
                         step="0.01"
                         className="w-full border-2 border-[#f39c12] p-2 rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] text-[#2c3e50] transition-all text-lg font-medium text-center"
-                        placeholder="Precio personalizado"
+                        placeholder={monedaSeleccionada === "USD" ? "Precio en USD" : "Precio en ARS"}
                       />
                     </div>
                     
@@ -826,7 +837,7 @@ useEffect(() => {
                       <span className="font-bold text-xl">
                         {monedaSeleccionada === "USD" ? "USD $" : "$"}
                         {monedaSeleccionada === "USD" 
-                          ? (((usandoPrecioManual ? precioManual : precioElegido) / cotizacion) * cantidad).toFixed(2)
+                          ? ((usandoPrecioManual ? precioManual : sugerirPrecioEnMonedaSeleccionada()) * cantidad).toFixed(2)
                           : ((usandoPrecioManual ? precioManual : precioElegido) * cantidad).toLocaleString("es-AR")
                         }
                       </span>

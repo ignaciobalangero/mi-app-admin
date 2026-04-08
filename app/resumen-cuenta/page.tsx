@@ -1,12 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Header from "../Header";
 import { useRol } from "../../lib/useRol";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import * as XLSX from "xlsx";
+
+/** Líneas de venta que corresponden a stock extra (hoja / Google Sheets), no accesorios ni repuestos clásicos. */
+function esLineaStockExtra(p: Record<string, unknown>): boolean {
+  const origen = String(p?.origenStock ?? "");
+  const tipo = String(p?.tipo ?? "");
+  if (origen === "stockExtra" || tipo === "stockExtra") return true;
+  if (tipo === "general" && (origen === "stockExtra" || origen === "")) return true;
+  return false;
+}
+
+function agregarRepuestosDesdeVentas(productos: unknown[]): {
+  unidades: number;
+  gananciaARS: number;
+  gananciaUSD: number;
+} {
+  let unidades = 0;
+  let gananciaARS = 0;
+  let gananciaUSD = 0;
+  for (const raw of productos || []) {
+    const p = raw as Record<string, unknown>;
+    if (!esLineaStockExtra(p)) continue;
+    const cant = Number(p.cantidad ?? 1) || 1;
+    const g = Number(p.ganancia ?? 0) || 0;
+    unidades += cant;
+    const moneda = String(p.moneda ?? "ARS").toUpperCase();
+    if (moneda === "USD") gananciaUSD += g;
+    else gananciaARS += g;
+  }
+  return { unidades, gananciaARS, gananciaUSD };
+}
 
 interface DatosMes {
   mes: string;
@@ -25,6 +55,12 @@ export default function ResumenSimplificado() {
   const [datos, setDatos] = useState<DatosMes[]>([]);
   const [mesSeleccionado, setMesSeleccionado] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [repuestosDesdeVentas, setRepuestosDesdeVentas] = useState<{
+    unidades: number;
+    gananciaARS: number;
+    gananciaUSD: number;
+  } | null>(null);
+  const [cargandoFallbackRepuestos, setCargandoFallbackRepuestos] = useState(false);
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -94,14 +130,67 @@ export default function ResumenSimplificado() {
     cargarDatos();
   }, [rol]);
 
+  useEffect(() => {
+    if (!rol?.negocioID || !mesSeleccionado) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const parts = mesSeleccionado.split("-");
+      if (parts.length !== 2) return;
+      const mesNum = parseInt(parts[0], 10);
+      const anioNum = parseInt(parts[1], 10);
+      if (!mesNum || !anioNum) return;
+
+      setCargandoFallbackRepuestos(true);
+      setRepuestosDesdeVentas(null);
+
+      try {
+        const start = Timestamp.fromDate(new Date(anioNum, mesNum - 1, 1, 0, 0, 0, 0));
+        const end = Timestamp.fromDate(new Date(anioNum, mesNum, 0, 23, 59, 59, 999));
+        const q = query(
+          collection(db, `negocios/${rol.negocioID}/ventasGeneral`),
+          where("timestamp", ">=", start),
+          where("timestamp", "<=", end),
+          orderBy("timestamp")
+        );
+        const snap = await getDocs(q);
+        if (cancelled) return;
+
+        let unidades = 0;
+        let gananciaARS = 0;
+        let gananciaUSD = 0;
+        snap.forEach((d) => {
+          const data = d.data();
+          const a = agregarRepuestosDesdeVentas(data.productos || []);
+          unidades += a.unidades;
+          gananciaARS += a.gananciaARS;
+          gananciaUSD += a.gananciaUSD;
+        });
+        setRepuestosDesdeVentas({ unidades, gananciaARS, gananciaUSD });
+      } catch (e) {
+        console.error("Resumen cuenta: fallback repuestos/stock extra:", e);
+        if (!cancelled) setRepuestosDesdeVentas(null);
+      } finally {
+        if (!cancelled) setCargandoFallbackRepuestos(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [rol?.negocioID, mesSeleccionado]);
+
   const exportarExcel = () => {
-    const datosExcel = datos.map(item => ({
-      "Mes": item.mes,
+    const datosExcel = datos.map((item) => ({
+      Mes: item.mes,
       "Ganancia Trabajos": item.trabajos,
       "Ganancia Ventas ARS": item.ventasARS,
       "Ganancia Ventas USD": item.ventasUSD,
+      "Ganancia Repuestos ARS (stock extra)": item.gananciaGeneralesARS || 0,
+      "Ganancia Repuestos USD (stock extra)": item.gananciaGeneralesUSD || 0,
       "Total Trabajos": item.totalTrabajos,
-      "Total Ventas": item.totalVentas
+      "Total Ventas": item.totalVentas,
     }));
     
     const ws = XLSX.utils.json_to_sheet(datosExcel);
@@ -111,19 +200,60 @@ export default function ResumenSimplificado() {
   };
 
   const mesActual = datos.find(item => item.mes === mesSeleccionado);
-  const totalARS = mesActual
-  ? mesActual.trabajos
-    + mesActual.ventasARS
-    + (mesActual.gananciaGeneralesARS || 0)
-  : 0;
-  const totalUSD = mesActual ? mesActual.ventasUSD : 0;
 
-  const datosGrafico = mesActual ? [{
-    mes: mesActual.mes,
-    "Trabajos": Math.round(mesActual.trabajos),
-    "Ventas ARS": Math.round(mesActual.ventasARS),
-    "Ventas USD": Math.round(mesActual.ventasUSD)
-  }] : [];
+  const repuestosDisplay = useMemo(() => {
+    if (!mesActual) return null;
+    const statsU = mesActual.generalesVendidos || 0;
+    const statsARS = mesActual.gananciaGeneralesARS || 0;
+    const statsUSD = mesActual.gananciaGeneralesUSD || 0;
+    const statsTiene =
+      statsU > 0 || Math.abs(statsARS) > 0.005 || Math.abs(statsUSD) > 0.005;
+    if (statsTiene) {
+      return {
+        unidades: statsU,
+        gananciaARS: statsARS,
+        gananciaUSD: statsUSD,
+        fuente: "estadisticas" as const,
+      };
+    }
+    if (
+      repuestosDesdeVentas &&
+      (repuestosDesdeVentas.unidades > 0 ||
+        Math.abs(repuestosDesdeVentas.gananciaARS) > 0.005 ||
+        Math.abs(repuestosDesdeVentas.gananciaUSD) > 0.005)
+    ) {
+      return {
+        unidades: repuestosDesdeVentas.unidades,
+        gananciaARS: repuestosDesdeVentas.gananciaARS,
+        gananciaUSD: repuestosDesdeVentas.gananciaUSD,
+        fuente: "ventas" as const,
+      };
+    }
+    return null;
+  }, [mesActual, repuestosDesdeVentas]);
+
+  const totalARS = mesActual
+    ? mesActual.trabajos +
+      mesActual.ventasARS +
+      (repuestosDisplay?.gananciaARS ?? mesActual.gananciaGeneralesARS ?? 0)
+    : 0;
+  const totalUSD = mesActual
+    ? mesActual.ventasUSD +
+      (repuestosDisplay?.gananciaUSD ?? mesActual.gananciaGeneralesUSD ?? 0)
+    : 0;
+
+  const datosGrafico = mesActual
+    ? [
+        {
+          mes: mesActual.mes,
+          Trabajos: Math.round(mesActual.trabajos),
+          "Ventas ARS": Math.round(mesActual.ventasARS),
+          "Ventas USD": Math.round(mesActual.ventasUSD),
+          "Repuestos ARS": Math.round(repuestosDisplay?.gananciaARS ?? 0),
+          "Repuestos USD": Math.round(repuestosDisplay?.gananciaUSD ?? 0),
+        },
+      ]
+    : [];
 
   if (rol?.tipo !== "admin") {
     return (
@@ -216,7 +346,7 @@ export default function ResumenSimplificado() {
                     <h2 className="text-xl font-bold text-gray-900 mb-4">
                       📊 Resumen de {mesSeleccionado}
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
                       <div className="bg-slate-100 p-4 rounded-lg border-2 border-slate-300 shadow-sm">
                         <span className="font-bold text-slate-900 text-base">Trabajos:</span>
                         <div className="font-bold text-slate-800 text-lg">{mesActual.totalTrabajos}</div>
@@ -232,6 +362,25 @@ export default function ResumenSimplificado() {
                       <div className="bg-amber-100 p-4 rounded-lg border-2 border-amber-400 shadow-sm">
                         <span className="font-bold text-amber-900 text-base">Ventas USD:</span>
                         <div className="font-bold text-amber-800 text-lg">USD ${mesActual.ventasUSD.toLocaleString()}</div>
+                      </div>
+                      <div className="bg-orange-50 p-4 rounded-lg border-2 border-orange-300 shadow-sm">
+                        <span className="font-bold text-orange-900 text-base">Ganancia Repuestos (stock extra):</span>
+                        <div className="font-bold text-orange-900 text-lg">
+                          {cargandoFallbackRepuestos && !repuestosDisplay ? (
+                            <span className="text-sm text-orange-700">…</span>
+                          ) : repuestosDisplay ? (
+                            <>
+                              ${repuestosDisplay.gananciaARS.toLocaleString("es-AR")}
+                              {repuestosDisplay.gananciaUSD > 0 && (
+                                <span className="block text-sm font-semibold text-orange-800">
+                                  USD {repuestosDisplay.gananciaUSD.toLocaleString("es-AR")}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-sm text-orange-700">—</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -291,35 +440,49 @@ export default function ResumenSimplificado() {
                       </div>
                     </div>
 
-                    {mesActual.generalesVendidos > 0 && (
-  <div className="bg-white rounded-2xl p-6 border-4 border-orange-300 shadow-xl mt-6">
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-base font-bold text-orange-900 mb-2 uppercase tracking-wide">
-          📦 Ventas Repuestos
-        </p>
+                    {(repuestosDisplay || cargandoFallbackRepuestos) && (
+                      <div className="bg-white rounded-2xl p-6 border-4 border-orange-300 shadow-xl mt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-base font-bold text-orange-900 mb-2 uppercase tracking-wide">
+                              📦 Ventas Repuestos (stock extra)
+                            </p>
 
-        <p className="text-3xl font-black text-orange-800">
-          ${mesActual.gananciaGeneralesARS?.toLocaleString("es-AR")}
-        </p>
+                            {cargandoFallbackRepuestos && !repuestosDisplay ? (
+                              <p className="text-sm text-orange-800">
+                                Calculando ganancia desde ventas del mes…
+                              </p>
+                            ) : repuestosDisplay ? (
+                              <>
+                                <p className="text-3xl font-black text-orange-800">
+                                  ${repuestosDisplay.gananciaARS.toLocaleString("es-AR")}
+                                </p>
+                                {repuestosDisplay.gananciaUSD > 0 && (
+                                  <p className="text-lg font-bold text-orange-700 mt-1">
+                                    USD {repuestosDisplay.gananciaUSD.toLocaleString("es-AR")}
+                                  </p>
+                                )}
+                                <p className="text-sm text-orange-700 font-semibold mt-1">
+                                  {repuestosDisplay.unidades} unidades (stock extra / hoja)
+                                </p>
+                                {repuestosDisplay.fuente === "ventas" && (
+                                  <p className="text-xs text-orange-600 mt-2 max-w-xl">
+                                    Detalle calculado desde tus ventas del mes (documentos{" "}
+                                    <code className="bg-orange-100 px-1 rounded">ventasGeneral</code>
+                                    ). Cuando las estadísticas mensuales en Firebase estén al día, se
+                                    unifican con el mismo total.
+                                  </p>
+                                )}
+                              </>
+                            ) : null}
+                          </div>
 
-        {mesActual.gananciaGeneralesUSD > 0 && (
-          <p className="text-lg font-bold text-orange-700 mt-1">
-            USD {mesActual.gananciaGeneralesUSD.toLocaleString("es-AR")}
-          </p>
-        )}
-
-        <p className="text-sm text-orange-700 font-semibold mt-1">
-          {mesActual.generalesVendidos} ventas desde stock extra
-        </p>
-      </div>
-
-      <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
-        <span className="text-2xl">📦</span>
-      </div>
-    </div>
-  </div>
-)}
+                          <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+                            <span className="text-2xl">📦</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                   </div>
 
@@ -333,7 +496,7 @@ export default function ResumenSimplificado() {
                             ${totalARS.toLocaleString("es-AR")}
                           </p>
                           <p className="text-sm text-slate-700 font-semibold mt-1">
-                            Trabajos + Ventas ARS
+                            Trabajos + Ventas ARS + Repuestos ARS
                           </p>
                         </div>
                         <div className="w-16 h-16 bg-slate-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -350,7 +513,7 @@ export default function ResumenSimplificado() {
                             USD ${totalUSD.toLocaleString("es-AR")}
                           </p>
                           <p className="text-sm text-yellow-700 font-semibold mt-1">
-                            Solo ventas en dólares
+                            Ventas USD + ganancia repuestos USD (stock extra)
                           </p>
                         </div>
                         <div className="w-16 h-16 bg-yellow-500 rounded-2xl flex items-center justify-center shadow-lg">
@@ -367,7 +530,7 @@ export default function ResumenSimplificado() {
                       Ganancias de {mesSeleccionado}
                     </h3>
                     
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={320}>
                       <BarChart data={datosGrafico}>
                         <XAxis 
                           dataKey="mes" 
@@ -380,7 +543,12 @@ export default function ResumenSimplificado() {
                           axisLine={{ stroke: '#9CA3AF' }}
                         />
                         <Tooltip 
-                          formatter={(value) => [`$${Number(value).toLocaleString("es-AR")}`, ""]}
+                          formatter={(value, name) => [
+                            name?.toString().includes("USD")
+                              ? `USD ${Number(value).toLocaleString("es-AR")}`
+                              : `$${Number(value).toLocaleString("es-AR")}`,
+                            name,
+                          ]}
                           labelStyle={{ color: '#374151', fontWeight: 'bold' }}
                           contentStyle={{ 
                             backgroundColor: 'white', 
@@ -389,9 +557,12 @@ export default function ResumenSimplificado() {
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                           }}
                         />
+                        <Legend />
                         <Bar dataKey="Trabajos" fill="#10B981" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="Ventas ARS" fill="#3B82F6" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="Ventas USD" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Repuestos ARS" fill="#ea580c" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Repuestos USD" fill="#c2410c" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

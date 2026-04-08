@@ -24,6 +24,7 @@ import CheckInForm from "./CheckInForm";
 import { Combobox } from "@headlessui/react";
 import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
 import ModalConfirmarImpresion from "./ModalConfirmarImpresion";
+import { PatronDrawer, PatronViewer, type Patron } from "@/app/components/PatronDesbloqueo";
 
 interface Cliente {
   nombre: string;
@@ -47,6 +48,7 @@ const inicialForm = {
   color: "",
   trabajo: "",
   clave: "",
+  patronDesbloqueo: [] as Patron,
   observaciones: "",
   imei: "",
   accesorios: "",
@@ -59,6 +61,7 @@ const inicialEquipo = {
   color: "",
   trabajo: "",
   clave: "",
+  patronDesbloqueo: [] as Patron,
   observaciones: "",
   imei: "",
   accesorios: "",
@@ -100,6 +103,11 @@ export default function IngresoForm() {
   const [formaPagoAnticipo, setFormaPagoAnticipo] = useState("");
   const [trabajosGuardadosConAnticipo, setTrabajosGuardadosConAnticipo] = useState<any[]>([]);
   const [totalAnticipoPendiente, setTotalAnticipoPendiente] = useState(0);
+  const [mostrarModalPatron, setMostrarModalPatron] = useState(false);
+  const [patronTarget, setPatronTarget] = useState<
+    { tipo: "principal" } | { tipo: "extra"; idx: number } | null
+  >(null);
+  const [patronBorrador, setPatronBorrador] = useState<Patron>([]);
 
   // ✨ FUNCIÓN PARA FORMATEAR NÚMEROS CON PUNTOS (50.000)
   const formatearNumero = (valor: string) => {
@@ -120,6 +128,32 @@ export default function IngresoForm() {
     const anticipo = parseFloat(obtenerValorNumerico(form.anticipo || "0"));
     const saldo = precio - anticipo;
     return saldo >= 0 ? formatearNumero(saldo.toString()) : "0";
+  };
+
+  const abrirPatronPara = (target: { tipo: "principal" } | { tipo: "extra"; idx: number }) => {
+    setPatronTarget(target);
+    if (target.tipo === "principal") {
+      setPatronBorrador((form as any).patronDesbloqueo || []);
+    } else {
+      const eq = equiposExtra[target.idx];
+      setPatronBorrador((eq as any)?.patronDesbloqueo || []);
+    }
+    setMostrarModalPatron(true);
+  };
+
+  const guardarPatronActual = () => {
+    if (!patronTarget) return;
+    if (patronTarget.tipo === "principal") {
+      setForm((prev: any) => ({ ...prev, patronDesbloqueo: patronBorrador }));
+    } else {
+      setEquiposExtra((prev) =>
+        prev.map((e: any, i: number) =>
+          i === patronTarget.idx ? { ...e, patronDesbloqueo: patronBorrador } : e
+        )
+      );
+    }
+    setMostrarModalPatron(false);
+    setPatronTarget(null);
   };
 
   const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
@@ -728,6 +762,7 @@ export default function IngresoForm() {
         color: e.color || "",
         trabajo: e.trabajo || "",
         clave: e.clave || "",
+        patronDesbloqueo: Array.isArray((e as any).patronDesbloqueo) ? (e as any).patronDesbloqueo : [],
         observaciones: e.observaciones || "",
         imei: e.imei || "",
         accesorios: e.accesorios || "",
@@ -1073,13 +1108,23 @@ export default function IngresoForm() {
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
                   🔑 Clave
                 </label>
-                <input
-                  type="text"
-                  value={form.clave}
-                  onChange={(e) => setForm((prev) => ({ ...prev, clave: e.target.value }))}
-                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-                  placeholder="Clave del dispositivo"
-                />
+                <div className="flex gap-2 items-stretch">
+                  <input
+                    type="text"
+                    value={(form as any).clave}
+                    onChange={(e) => setForm((prev: any) => ({ ...prev, clave: e.target.value }))}
+                    className="flex-1 px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                    placeholder="Clave del dispositivo"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => abrirPatronPara({ tipo: "principal" })}
+                    className="px-4 py-3 rounded-lg border-2 border-[#bdc3c7] bg-white hover:bg-[#f8f9fa] text-[#2c3e50] font-semibold whitespace-nowrap"
+                    title="Dibujar patrón de desbloqueo (Android)"
+                  >
+                    {(form as any).patronDesbloqueo?.length ? "🔒 Ver patrón" : "🔒 Patrón"}
+                  </button>
+                </div>
               </div>
 
               {/* IMEI */}
@@ -1245,13 +1290,23 @@ export default function IngresoForm() {
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">🔑 Clave</label>
-                          <input
-                            type="text"
-                            value={eq.clave}
-                            onChange={(e) => actualizarEquipoExtra(idx, { clave: e.target.value })}
-                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
-                            placeholder="Clave del dispositivo"
-                          />
+                          <div className="flex gap-2 items-stretch">
+                            <input
+                              type="text"
+                              value={eq.clave}
+                              onChange={(e) => actualizarEquipoExtra(idx, { clave: e.target.value })}
+                              className="flex-1 px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
+                              placeholder="Clave del dispositivo"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => abrirPatronPara({ tipo: "extra", idx })}
+                              className="px-3 py-3 rounded-lg border-2 border-[#bdc3c7] bg-white hover:bg-[#f8f9fa] text-[#2c3e50] font-semibold whitespace-nowrap"
+                              title="Dibujar patrón de desbloqueo (Android)"
+                            >
+                              {(eq as any).patronDesbloqueo?.length ? "🔒 Ver" : "🔒"}
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📲 IMEI</label>
@@ -1548,6 +1603,66 @@ export default function IngresoForm() {
                       ocultarEtiquetasA4={true}
                     />
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal patrón de desbloqueo */}
+          {mostrarModalPatron && (
+            <div className="fixed inset-0 z-[999999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white p-5 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold">🔒 Patrón de desbloqueo</h3>
+                    <p className="text-xs text-white/80">Dibujá el patrón tipo Android (3×3).</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostrarModalPatron(false);
+                      setPatronTarget(null);
+                    }}
+                    className="h-10 w-10 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-2xl leading-none"
+                    aria-label="Cerrar"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="p-5 bg-slate-50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                      <p className="text-sm font-bold text-slate-800 mb-3">Dibujar</p>
+                      <PatronDrawer initial={patronBorrador} onChange={setPatronBorrador} />
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                      <p className="text-sm font-bold text-slate-800 mb-3">Vista previa</p>
+                      <PatronViewer patron={patronBorrador} />
+                      <p className="mt-3 text-xs text-slate-600">
+                        Consejo: si el patrón está vacío, se guardará como “sin patrón”.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMostrarModalPatron(false);
+                        setPatronTarget(null);
+                      }}
+                      className="px-4 py-2.5 rounded-xl font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={guardarPatronActual}
+                      className="px-4 py-2.5 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Guardar patrón
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

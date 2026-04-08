@@ -50,6 +50,13 @@ export default function ModalPago({
 }: Props) {
   // 🆕 Estado para proveedores
   const [proveedores, setProveedores] = useState<any[]>([]);
+  const [cotizacionPago, setCotizacionPago] = useState<number>(totalesVenta?.cotizacion || 1000);
+
+  useEffect(() => {
+    if (!mostrar) return;
+    // Al abrir, tomar la cotización actual que viene del modal de venta (editable acá).
+    setCotizacionPago(totalesVenta?.cotizacion || 1000);
+  }, [mostrar, totalesVenta?.cotizacion]);
 
   // 🆕 Cargar proveedores al abrir el modal
   useEffect(() => {
@@ -90,14 +97,28 @@ export default function ModalPago({
   // ✅ CÁLCULOS DE SALDOS DUALES (incluyendo teléfono como parte de pago)
   const pagoARS = parseFloat(pagoSeguro.monto) || 0;
   const pagoUSD = parseFloat(pagoSeguro.montoUSD) || 0;
-  
+  const cotizacionUsada = cotizacionPago > 0 ? cotizacionPago : (totalesVenta?.cotizacion || 1000);
+
+  const ventaSoloUSD = !!(
+    totalesVenta &&
+    totalesVenta.totalARS === 0 &&
+    totalesVenta.totalUSD > 0
+  );
+
+  // Venta solo USD + ARS: el peso cancela deuda en USD (no hace falta “tildar” nada)
+  const usdDesdeARS =
+    ventaSoloUSD && pagoARS > 0 && cotizacionUsada > 0 ? pagoARS / cotizacionUsada : 0;
+  const creditoUSD = pagoUSD > 0 ? pagoUSD : ventaSoloUSD ? usdDesdeARS : 0;
+  const pagoARSCuentaSaldoARS =
+    ventaSoloUSD && pagoARS > 0 ? 0 : pagoARS;
+
   // ✅ TELÉFONO COMO PARTE DE PAGO
   const valorTelefonoPago = telefonoComoPago ? telefonoComoPago.valorPago : 0;
   const monedaTelefonoPago = telefonoComoPago ? telefonoComoPago.moneda : "ARS";
-  
+
   // ✅ APLICAR DESCUENTO DEL TELÉFONO SEGÚN SU MONEDA
-  let saldoARS = totalesVenta ? totalesVenta.totalARS - pagoARS : 0;
-  let saldoUSD = totalesVenta ? totalesVenta.totalUSD - pagoUSD : 0;
+  let saldoARS = totalesVenta ? totalesVenta.totalARS - pagoARSCuentaSaldoARS : 0;
+  let saldoUSD = totalesVenta ? totalesVenta.totalUSD - creditoUSD : 0;
   
   // Descontar teléfono según su moneda
   if (telefonoComoPago) {
@@ -108,11 +129,15 @@ export default function ModalPago({
     }
   }
   
-  const totalAproximado = totalesVenta ? 
-    totalesVenta.totalARS + (totalesVenta.totalUSD * totalesVenta.cotizacion) : 0;
-  const pagoAproximado = pagoARS + (pagoUSD * (totalesVenta?.cotizacion || 1000));
+  const totalAproximado = totalesVenta
+    ? totalesVenta.totalARS + totalesVenta.totalUSD * cotizacionUsada
+    : 0;
+  // Si los ARS cancelan deuda en USD (venta solo USD), no sumar también USD×cotización (evita duplicar).
+  const soloUSD =
+    totalesVenta && totalesVenta.totalARS === 0 && totalesVenta.totalUSD > 0;
+  const pagoAproximado = soloUSD && pagoARS > 0 ? pagoARS : pagoARS + pagoUSD * cotizacionUsada;
   const telefonoAproximado = telefonoComoPago ? 
-    (monedaTelefonoPago === "USD" ? valorTelefonoPago * (totalesVenta?.cotizacion || 1000) : valorTelefonoPago) : 0;
+    (monedaTelefonoPago === "USD" ? valorTelefonoPago * cotizacionUsada : valorTelefonoPago) : 0;
   const saldoAproximado = totalAproximado - pagoAproximado - telefonoAproximado;
 
   // 🆕 FUNCIÓN PARA OBTENER DESTINO FORMATEADO
@@ -126,16 +151,29 @@ export default function ModalPago({
 
   // ✅ FUNCIÓN PARA FORMATEAR PAGO DUAL (actualizada con proveedores)
   const handleGuardarPago = () => {
+    const pagoARSActual = parseFloat(pagoSeguro.monto) || 0;
+    const pagoUSDActual = parseFloat(pagoSeguro.montoUSD) || 0;
+    const usdEquiv =
+      ventaSoloUSD && pagoARSActual > 0 && cotizacionUsada > 0
+        ? pagoARSActual / cotizacionUsada
+        : 0;
+    const notaConversion =
+      ventaSoloUSD && pagoARSActual > 0 && cotizacionUsada > 0
+        ? `Pago en ARS $${pagoARSActual.toLocaleString()} aplicado a USD ${(pagoUSDActual > 0 ? pagoUSDActual : usdEquiv).toFixed(2)} (cotización $1 USD = $${cotizacionUsada.toLocaleString()} ARS)`
+        : "";
     const pagoFormateado = {
       // ✅ AMBAS MONEDAS SIMULTÁNEAMENTE
       monto: pagoSeguro.monto || "0",        // ARS
       montoUSD: pagoSeguro.montoUSD || "0",  // USD
-      moneda: pagoUSD > 0 ? "USD" : "ARS", // Moneda principal para compatibilidad
+      moneda:
+        pagoUSDActual > 0 || (ventaSoloUSD && usdEquiv > 0) ? "USD" : "ARS", // compatibilidad
       formaPago: pagoSeguro.formaPago,
       destino: obtenerDestino(),                    // 🆕 Usar destino formateado
       tipoDestino: pagoSeguro.tipoDestino,          // 🆕
       proveedorDestino: pagoSeguro.tipoDestino === "proveedor" ? pagoSeguro.proveedorSeleccionado : null, // 🆕
-      observaciones: pagoSeguro.observaciones,
+      observaciones: [pagoSeguro.observaciones, notaConversion].filter(Boolean).join(" • "),
+      cotizacionPago: cotizacionUsada,
+      pagoARSAplicadoAUSD: ventaSoloUSD && pagoARSActual > 0,
     };
 
     console.log('🎯 Pago dual con proveedores enviado al ModalVenta:', pagoFormateado);
@@ -145,6 +183,14 @@ export default function ModalPago({
   // ✅ MANEJAR CAMBIOS EN CAMPOS DUALES (actualizado)
   const handleDualChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     handlePagoChange(e);
+  };
+
+  const aplicarPagoARSComoUSD = () => {
+    const ars = parseFloat(pagoSeguro.monto) || 0;
+    if (!ars || !Number.isFinite(ars)) return;
+    if (!cotizacionUsada || cotizacionUsada <= 0) return;
+    const usd = ars / cotizacionUsada;
+    handleDualChange({ target: { name: "montoUSD", value: usd.toFixed(2) } } as any);
   };
 
   return (
@@ -168,7 +214,7 @@ export default function ModalPago({
             <div className="hidden sm:flex items-center gap-2 bg-white/20 rounded-lg px-3 py-2">
               <span className="text-green-100 text-xs">💱</span>
               <span className="text-white text-sm font-medium">
-                $1 USD = ${totalesVenta.cotizacion.toLocaleString()} ARS
+                $1 USD = ${cotizacionUsada.toLocaleString()} ARS
               </span>
             </div>
           )}
@@ -338,6 +384,45 @@ export default function ModalPago({
                     💰 ARS ${parseFloat(pagoSeguro.monto).toLocaleString()}
                   </div>
                 )}
+
+                {totalesVenta && totalesVenta.totalUSD > 0 && (
+                  <div className="mt-2 bg-[#f1f5ff] border border-blue-200 rounded-lg p-3 space-y-2">
+                    {ventaSoloUSD && (
+                      <p className="text-xs text-blue-900 font-medium">
+                        Venta en USD: lo que cargues en pesos se imputa a la deuda en USD según la cotización de abajo.
+                      </p>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
+                      <div>
+                        <div className="text-xs text-blue-800 font-medium mb-1">
+                          Cotización {ventaSoloUSD ? "para este pago" : "para equivalencias"}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={cotizacionPago}
+                          onChange={(e) => setCotizacionPago(Number(e.target.value))}
+                          className="w-full p-2 border-2 border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm font-medium text-[#2c3e50]"
+                          placeholder="Ej: 1430"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={aplicarPagoARSComoUSD}
+                        disabled={(parseFloat(pagoSeguro.monto) || 0) <= 0 || cotizacionUsada <= 0}
+                        className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-200 text-white rounded-lg text-sm font-semibold transition-colors"
+                      >
+                        Convertir ARS → USD
+                      </button>
+                    </div>
+                    {(parseFloat(pagoSeguro.monto) || 0) > 0 && cotizacionUsada > 0 && (
+                      <div className="text-xs text-blue-800">
+                        ≈ USD {((parseFloat(pagoSeguro.monto) || 0) / cotizacionUsada).toFixed(2)} al cambio $
+                        {cotizacionUsada.toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               
               {/* Pago en USD */}
@@ -362,7 +447,7 @@ export default function ModalPago({
                     💵 USD ${parseFloat(pagoSeguro.montoUSD).toFixed(2)}
                     {totalesVenta && (
                       <span className="text-gray-500 ml-2">
-                        (≈ ${(parseFloat(pagoSeguro.montoUSD) * totalesVenta.cotizacion).toLocaleString()} ARS)
+                        (≈ ${(parseFloat(pagoSeguro.montoUSD) * cotizacionUsada).toLocaleString()} ARS)
                       </span>
                     )}
                   </div>

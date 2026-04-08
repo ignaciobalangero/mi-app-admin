@@ -10,6 +10,7 @@ interface TrabajoData {
   color?: string;
   trabajo: string;
   clave: string;
+  patronDesbloqueo?: number[];
   observaciones: string;
   imei: string;
   precio: string;

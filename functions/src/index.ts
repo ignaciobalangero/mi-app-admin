@@ -231,7 +231,7 @@ export const actualizarEstadisticas = onDocumentWritten(
               p.moneda === "USD" ?
                 stats.gananciaVentasUSD += ganancia :
                 stats.gananciaVentasARS += ganancia;
-            } else if (p.tipo === "general") {
+            } else if (p.tipo === "general" || p.tipo === "stockExtra") {
               stats.generalesVendidos += cantidad;
               p.moneda === "USD" ?
                 stats.gananciaGeneralesUSD += ganancia :
@@ -265,7 +265,7 @@ export const actualizarEstadisticas = onDocumentWritten(
               } else {
                 stats.gananciaVentasARS -= ganancia;
               }
-            } else if (p.tipo === "general") {
+            } else if (p.tipo === "general" || p.tipo === "stockExtra") {
               stats.generalesVendidos = Math.max(0, stats.generalesVendidos - cantidad);
               if (p.moneda === "USD") {
                 stats.gananciaGeneralesUSD -= ganancia;

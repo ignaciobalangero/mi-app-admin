@@ -16,6 +16,11 @@ export interface PagoConOrigen {
   forma: string;
   destino?: string;
   cotizacion?: number;
+  detallesPago?: {
+    tipo?: string;
+    montoARSOriginal?: number;
+    cotizacionPago?: number;
+  };
   origen: "pagos" | "pagos";
 }
 

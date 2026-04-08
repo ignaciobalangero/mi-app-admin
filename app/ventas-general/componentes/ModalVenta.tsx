@@ -1042,24 +1042,32 @@ export default function ModalVenta({
   }}
   onGuardarPago={(nuevoPago) => {
     console.log('💰 Pago recibido del ModalPago:', nuevoPago);
-    
-    const pagoConvertido = {
-      monto: nuevoPago.monto || "",
-      montoUSD: nuevoPago.montoUSD || "",
-      moneda: nuevoPago.moneda || "ARS",
-      formaPago: nuevoPago.formaPago || "",
-      destino: nuevoPago.destino || "",
-      observaciones: nuevoPago.observaciones || "",
-      tipoDestino: nuevoPago.tipoDestino || "libre",                    // 🆕 AGREGAR
-      proveedorDestino: nuevoPago.proveedorDestino || null,             // 🆕 AGREGAR
-    };
-    
-    setPago(pagoConvertido);
+
+    setPago((prev: any) => {
+      // Conservar cotización manual del pago y ARS→USD (antes se perdían al armar el objeto)
+      const pagoConvertido = {
+        ...prev,
+        monto: nuevoPago.monto != null ? String(nuevoPago.monto) : "",
+        montoUSD: nuevoPago.montoUSD != null ? String(nuevoPago.montoUSD) : "",
+        moneda: nuevoPago.moneda || "ARS",
+        formaPago: nuevoPago.formaPago || "",
+        destino: nuevoPago.destino || "",
+        observaciones: nuevoPago.observaciones || "",
+        tipoDestino: nuevoPago.tipoDestino || "libre",
+        proveedorDestino: nuevoPago.proveedorDestino ?? null,
+        destinoLibre: nuevoPago.destinoLibre ?? prev.destinoLibre,
+        cotizacionPago:
+          typeof nuevoPago.cotizacionPago === "number" && nuevoPago.cotizacionPago > 0
+            ? nuevoPago.cotizacionPago
+            : prev.cotizacionPago,
+        pagoARSAplicadoAUSD: Boolean(nuevoPago.pagoARSAplicadoAUSD),
+      };
+      console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
+      return pagoConvertido;
+    });
     setGuardadoConExito(true);
     setTimeout(() => setGuardadoConExito(false), 2000);
     setModalPagoAbierto(false);
-    
-    console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
   }}
   guardadoConExito={guardadoConExito}
 />

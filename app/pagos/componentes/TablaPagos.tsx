@@ -547,11 +547,21 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
                       <span className="text-sm font-semibold text-[#3498db]">{pago.cliente}</span>
                     </td>
                     <td className="p-4 border border-black">
-                      <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
-                        {pago.moneda === "USD"
-                          ? `USD ${Number(pago.montoUSD).toLocaleString()}`
-                          : `$ ${Number(pago.monto).toLocaleString()}`}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg w-fit">
+                          {String(pago.moneda || "ARS").toUpperCase() === "USD"
+                            ? `USD ${Number(pago.montoUSD || 0).toLocaleString("es-AR")}`
+                            : `$ ${Number(pago.monto || 0).toLocaleString("es-AR")}`}
+                        </span>
+                        {pago?.detallesPago?.tipo === "ARS_a_USD" &&
+                          Number(pago?.detallesPago?.montoARSOriginal || 0) > 0 &&
+                          Number(pago?.detallesPago?.cotizacionPago || 0) > 0 && (
+                            <span className="text-[11px] text-[#7f8c8d]">
+                              Pagado en ARS ${Number(pago.detallesPago.montoARSOriginal).toLocaleString("es-AR")} a cotización{" "}
+                              ${Number(pago.detallesPago.cotizacionPago).toLocaleString("es-AR")}
+                            </span>
+                          )}
+                      </div>
                     </td>
                     <td className="p-4 border border-black">
                       <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold shadow-sm ${

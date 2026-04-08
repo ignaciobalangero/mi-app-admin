@@ -368,9 +368,21 @@ export default function ClienteDetalle() {
                             </span>
                           </td>
                           <td className="p-3 border border-black text-right">
-                            <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
-                              ${p.monto}
-                            </span>
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="text-sm font-bold text-[#27ae60] bg-green-50 px-3 py-1 rounded-lg">
+                                {String(p.moneda || "ARS").toUpperCase() === "USD"
+                                  ? `US$ ${Number(p.montoUSD || 0).toLocaleString("es-AR")}`
+                                  : `$ ${Number(p.monto || 0).toLocaleString("es-AR")}`}
+                              </span>
+                              {p?.detallesPago?.tipo === "ARS_a_USD" &&
+                                Number(p?.detallesPago?.montoARSOriginal || 0) > 0 &&
+                                Number(p?.detallesPago?.cotizacionPago || 0) > 0 && (
+                                  <span className="text-[11px] text-[#7f8c8d]">
+                                    Pagado en ARS ${Number(p.detallesPago.montoARSOriginal).toLocaleString("es-AR")} a cotización{" "}
+                                    ${Number(p.detallesPago.cotizacionPago).toLocaleString("es-AR")}
+                                  </span>
+                                )}
+                            </div>
                           </td>
                           <td className="p-3 border border-black">
                             <span className="text-sm text-[#2c3e50]">{p.forma}</span>

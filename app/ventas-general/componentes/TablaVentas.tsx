@@ -27,6 +27,7 @@ import ModalRemitoImpresion from "./ModalRemitoImpresion";
 import ModalEditarVenta from "./ModalEditarVenta";
 import ModalEmitirFactura from "./ModalEmitirFactura";
 import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
+import { gananciaLineaProductoVenta } from "@/app/clientes/[nombreCliente]/ventasMonedaHelpers";
 
 interface Props {
   refrescar: boolean;
@@ -872,16 +873,39 @@ export default function TablaVentas({ refrescar }: Props) {
 <td className="p-1 text-center border border-[#bdc3c7]">
   <div className="text-xs font-bold">
     {(() => {
-      const ganancia = p.ganancia || 0;
+      const monedaP = String(p.moneda || "ARS").toUpperCase();
+      // Solo cotización “de la venta” (línea o pago embebido). El hook del día puede desentonar con ventas viejas o cargar tarde (0).
+      const cotDeVenta = Number(p.cotizacionUsada || venta?.pago?.cotizacion || 0);
+      const cotHook = Number(cotizacion || 0);
+      const cotRazonable = (c: number) => c >= 50 && c <= 500_000;
+      const cotCosto = cotRazonable(cotDeVenta)
+        ? cotDeVenta
+        : cotRazonable(cotHook)
+          ? cotHook
+          : 0;
+      const ganancia = gananciaLineaProductoVenta(p, cotCosto);
       const colorClass = ganancia > 0 ? 'text-[#27ae60]' : 
                        ganancia < 0 ? 'text-[#e74c3c]' : 
                        'text-[#7f8c8d]';
       
-      const montoFormateado = p.moneda?.toUpperCase() === "USD" 
+      const montoFormateado = monedaP === "USD"
         ? `USD $${ganancia.toLocaleString("es-AR")}`
         : `$${ganancia.toLocaleString("es-AR")} ARS`;
-      
-      return <span className={colorClass}>{montoFormateado}</span>;
+
+      const cotGanancia =
+        Number(venta?.pago?.cotizacionPago || venta?.pago?.cotizacion || p.cotizacionUsada || cotizacion || 0) || 0;
+      const gananciaARS = monedaP === "USD" && cotGanancia > 0 ? ganancia * cotGanancia : null;
+
+      return (
+        <div className="flex flex-col items-center leading-tight">
+          <span className={colorClass}>{montoFormateado}</span>
+          {gananciaARS != null && (
+            <span className="text-[10px] text-[#7f8c8d]">
+              ≈ ${Math.round(gananciaARS).toLocaleString("es-AR")} ARS
+            </span>
+          )}
+        </div>
+      );
     })()}
   </div>
 </td>
