@@ -203,47 +203,43 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
     titulo: string;
   } | null>(null);
   const primeraCargaRef = useRef(true);
+  const qRef = useRef(q);
+  qRef.current = q;
 
-  useEffect(() => setPortalReady(true), []);
+  const recargarStock = useCallback(async (query: string, esInicial: boolean) => {
+    if (esInicial) setLoading(true);
+    else setSearching(true);
+    setError(null);
 
-  const ops = useMemo(() => mergeOps(payload?.catalogoPublico), [payload?.catalogoPublico]);
+    const params = new URLSearchParams({
+      negocioId: negocioID,
+      limit: String(BROWSE_LIMIT),
+      _: String(Date.now()),
+    });
+    const qTrim = query.trim();
+    if (qTrim.length >= MIN_BUSQUEDA_CHARS) {
+      params.set("q", qTrim);
+    }
 
-  /** Misma cotización que Ventas general → `negocios/{id}/configuracion/moneda` (solo lectura en la tienda). */
-  const cotizacionSistema = useMemo(() => {
-    const n = payload?.cotizacionUSD;
-    return typeof n === "number" && n > 0 ? n : 1200;
-  }, [payload?.cotizacionUSD]);
+    try {
+      const res = await fetch(`/api/stock-publico?${params}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo cargar el stock.");
+      setPayload(data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Error de red.");
+    } finally {
+      if (esInicial) setLoading(false);
+      else setSearching(false);
+    }
+  }, [negocioID]);
 
   useEffect(() => {
     let cancel = false;
 
     async function cargar(query: string, esInicial: boolean) {
-      if (esInicial) setLoading(true);
-      else setSearching(true);
-      setError(null);
-
-      const params = new URLSearchParams({
-        negocioId: negocioID,
-        limit: String(BROWSE_LIMIT),
-      });
-      const qTrim = query.trim();
-      if (qTrim.length >= MIN_BUSQUEDA_CHARS) {
-        params.set("q", qTrim);
-      }
-
-      try {
-        const res = await fetch(`/api/stock-publico?${params}`, { cache: "no-store" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "No se pudo cargar el stock.");
-        if (!cancel) setPayload(data);
-      } catch (e: unknown) {
-        if (!cancel) setError(e instanceof Error ? e.message : "Error de red.");
-      } finally {
-        if (!cancel) {
-          if (esInicial) setLoading(false);
-          else setSearching(false);
-        }
-      }
+      if (cancel) return;
+      await recargarStock(query, esInicial);
     }
 
     const qTrim = q.trim();
@@ -267,7 +263,30 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
       cancel = true;
       window.clearTimeout(timer);
     };
-  }, [negocioID, q]);
+  }, [negocioID, q, recargarStock]);
+
+  /** Al volver a la pestaña (ej. después de cargar stock en el panel), refrescar datos. */
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void recargarStock(qRef.current, false);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [recargarStock]);
+
+  useEffect(() => setPortalReady(true), []);
+
+  const ops = useMemo(() => mergeOps(payload?.catalogoPublico), [payload?.catalogoPublico]);
+
+  const soloMarcadosCatalogo = ops.catalogoSoloRepuestosMarcados === true;
+
+  /** Misma cotización que Ventas general → `negocios/{id}/configuracion/moneda` (solo lectura en la tienda). */
+  const cotizacionSistema = useMemo(() => {
+    const n = payload?.cotizacionUSD;
+    return typeof n === "number" && n > 0 ? n : 1200;
+  }, [payload?.cotizacionUSD]);
 
   useEffect(() => {
     if (!payload?.items?.length) return;
@@ -318,7 +337,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
       if (!map.has(m)) map.set(m, []);
       map.get(m)!.push(it);
     }
-    return [...map.entries()].sort((a, b) =>
+    return Array.from(map.entries()).sort((a, b) =>
       a[0].localeCompare(b[0], "es", { sensitivity: "base" })
     );
   }, [visibles, ops.agruparPorMarca]);
@@ -600,9 +619,18 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
         </nav>
       </header>
 
+      {soloMarcadosCatalogo && payload && !loading && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-950 sm:text-sm">
+          Solo se muestran repuestos marcados con{" "}
+          <strong>publicar en tienda</strong> (ícono verde en Stock repuestos). Si no ves un producto,
+          activalo ahí o buscalo por nombre/código.
+        </div>
+      )}
+
       {payload && !loading && (
         <div className="border-b border-neutral-200 bg-white">
-          <div className="mx-auto max-w-7xl px-4 py-2 text-xs text-neutral-600">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs text-neutral-600">
+            <span>
             {searching ? (
               <span className="text-neutral-500">Buscando…</span>
             ) : filtrados.length > 0 ? (
@@ -626,6 +654,15 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
             ) : q.trim().length > 0 ? (
               <span className="text-neutral-400">Escribí al menos {MIN_BUSQUEDA_CHARS} letras para buscar en todo el stock</span>
             ) : null}
+            </span>
+            <button
+              type="button"
+              onClick={() => void recargarStock(q, false)}
+              disabled={searching || loading}
+              className="shrink-0 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            >
+              ↻ Actualizar stock
+            </button>
           </div>
         </div>
       )}

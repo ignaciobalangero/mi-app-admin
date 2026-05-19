@@ -411,7 +411,7 @@ export default function RealizarPedidos() {
         if (exact?.length) return exact;
         if (!suave || keyNorm.length < 2) return undefined;
 
-        for (const [wk, list] of keyToIndices) {
+        for (const [wk, list] of Array.from(keyToIndices.entries())) {
           if (!wk || wk.length < 2) continue;
           if (keyNorm.includes(wk) || wk.includes(keyNorm)) return list;
         }
@@ -419,7 +419,7 @@ export default function RealizarPedidos() {
         let bestWk: string | null = null;
         let bestScore = 0;
         let secondScore = 0;
-        for (const [wk] of keyToIndices) {
+        for (const wk of Array.from(keyToIndices.keys())) {
           if (!wk || wk.length < 2) continue;
           const sc = scoreSimilitudNombreProveedorRef(keyNorm, wk);
           if (sc > bestScore) {

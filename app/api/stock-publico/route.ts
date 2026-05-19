@@ -4,6 +4,8 @@ import { filtrarItemsBusqueda } from "@/lib/stockPublicoBusqueda";
 import type { CatalogoPublicoOpciones, ItemStockPublico } from "@/lib/stockPublicoTypes";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const DEFAULT_BROWSE_LIMIT = 24;
 const MAX_LIMIT = 80;
@@ -245,9 +247,14 @@ async function fetchStockPublicoInterno(
       ? await stockCol.where("publicarEnCatalogoWeb", "==", true).get()
       : await stockCol.get();
   } else if (soloMarcados) {
-    stockSnap = await stockCol.where("publicarEnCatalogoWeb", "==", true).limit(limite).get();
+    // Todos los publicados en web, ordenamos en memoria (evita índice compuesto y no pierde ítems al azar).
+    stockSnap = await stockCol.where("publicarEnCatalogoWeb", "==", true).limit(500).get();
   } else {
-    stockSnap = await stockCol.limit(limite).get();
+    try {
+      stockSnap = await stockCol.orderBy("codigo", "asc").limit(limite).get();
+    } catch {
+      stockSnap = await stockCol.limit(limite).get();
+    }
   }
 
   let items: ItemStockPublico[] = stockSnap.docs
@@ -267,6 +274,9 @@ async function fetchStockPublicoInterno(
     items = filtrarItemsBusqueda(items, qBusqueda);
     total = items.length;
     hayMas = total > limite;
+    items = items.slice(0, limite);
+  } else if (soloMarcados || items.length > limite) {
+    hayMas = items.length > limite;
     items = items.slice(0, limite);
   }
 
