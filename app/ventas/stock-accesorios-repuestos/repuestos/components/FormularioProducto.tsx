@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
+import CampoFotoRepuesto from "./CampoFotoRepuesto";
 
 interface Props {
   codigo: string;
@@ -43,6 +44,11 @@ interface Props {
   editandoId: string | null;
   stockBajo?: number;
   setStockBajo?: (val: number) => void;
+  fotoURL?: string;
+  setFotoURL?: (val: string) => void;
+  observacion?: string;
+  setObservacion?: (val: string) => void;
+  negocioID?: string;
 }
 
 export default function FormularioProducto({
@@ -86,6 +92,11 @@ export default function FormularioProducto({
   editandoId,
   stockBajo = 3,
   setStockBajo = () => {},
+  fotoURL = "",
+  setFotoURL = () => {},
+  observacion = "",
+  setObservacion = () => {},
+  negocioID = "",
 }: Props) {
 
   return (
@@ -159,6 +170,20 @@ export default function FormularioProducto({
             className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]" 
           />
         </div>
+        <div className="md:col-span-2">
+          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+            📝 Observación (tienda web)
+          </label>
+          <input
+            value={observacion}
+            onChange={(e) => setObservacion(e.target.value)}
+            placeholder="Ej: Premium · OLED · Con marco"
+            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+          />
+          <p className="mt-1 text-[10px] text-[#7f8c8d]">
+            Texto chico bajo el título en el catálogo público. Opcional.
+          </p>
+        </div>
         <div>
           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
             📂 Categoría
@@ -190,6 +215,18 @@ export default function FormularioProducto({
             className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]" 
           />
         </div>
+        <div className="lg:col-span-4">
+          {negocioID ? (
+            <CampoFotoRepuesto
+              negocioID={negocioID}
+              productoId={editandoId || undefined}
+              fotoURL={fotoURL}
+              onChange={setFotoURL}
+            />
+          ) : (
+            <p className="text-xs text-[#95a5a6]">Iniciá sesión para cargar fotos.</p>
+          )}
+        </div>
         <div>
           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
             💸 Precio de costo
@@ -217,10 +254,13 @@ export default function FormularioProducto({
           </select>
         </div>
 
-        {/* 🆕 NUEVOS CAMPOS DE PRECIOS DE VENTA */}
+        <div className="lg:col-span-4 rounded-lg border border-[#3498db]/30 bg-[#ebf5fb] px-2 py-1.5 text-[10px] text-[#2c3e50]">
+          Precios de venta en <strong>{moneda}</strong>. Si elegís USD, en la tienda se muestran en{" "}
+          <strong>ARS</strong> según la cotización del sistema (la editás en Ventas general).
+        </div>
         <div>
           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
-            💰 Precio 1 (opcional)
+            💰 Precio venta 1 ({moneda})
           </label>
           <input
             type="number"

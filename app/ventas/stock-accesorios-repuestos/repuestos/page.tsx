@@ -13,6 +13,7 @@ import * as XLSX from "xlsx";
 // 🆕 IMPORTAR EL HOOK DE COTIZACIÓN CENTRALIZADO
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import { useRol } from "@/lib/useRol";
+import { normalizarMoneda } from "@/lib/monedaRepuesto";
 
 // Componentes
 import ResumenCapital from "./components/ResumenCapital";
@@ -58,7 +59,7 @@ export default function RepuestosPage() {
   const [marca, setMarca] = useState("");
   const [color, setColor] = useState("");
   const [precioCosto, setPrecioCosto] = useState(0);
-  const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+  const [moneda, setMoneda] = useState<"ARS" | "USD">("USD");
   const [cantidad, setCantidad] = useState(1);
   const [stockIdeal, setStockIdeal] = useState(5);
   const [stockBajo, setStockBajo] = useState(3);
@@ -74,6 +75,8 @@ export default function RepuestosPage() {
   const [precio1Pesos, setPrecio1Pesos] = useState(0);
   const [precio2Pesos, setPrecio2Pesos] = useState(0);
   const [precio3Pesos, setPrecio3Pesos] = useState(0);
+  const [fotoURL, setFotoURL] = useState("");
+  const [observacion, setObservacion] = useState("");
   
   // 🔄 ESTADOS SIMPLIFICADOS - La tabla optimizada maneja sus propios productos
   const [productosResumen, setProductosResumen] = useState<ProductoRepuesto[]>([]); // Solo para cálculos de resumen
@@ -193,6 +196,8 @@ export default function RepuestosPage() {
       precio2Pesos: precio2Pesos || 0,
       precio3Pesos: precio3Pesos || 0,
       tipo: "repuesto",
+      fotoURL: fotoURL.trim(),
+      observacion: observacion.trim(),
     };
     
     try {
@@ -232,7 +237,7 @@ export default function RepuestosPage() {
     setCantidad(1);
     setStockIdeal(5);
     setStockBajo(3);
-    setMoneda("ARS");
+    setMoneda("USD");
     // 🆕 RESET DE ESTADOS ADICIONALES
     setPrecio1(0);
     setPrecio2(0);
@@ -241,6 +246,8 @@ export default function RepuestosPage() {
     setPrecio2Pesos(0);
     setPrecio3Pesos(0);
     setPrecioCostoPesos(0);
+    setFotoURL("");
+    setObservacion("");
     setMostrarFormulario(false);
   };
 
@@ -265,7 +272,7 @@ export default function RepuestosPage() {
     setMarca(prod.marca || "");
     setColor(prod.color || "");
     setPrecioCosto(prod.precioCosto || 0);
-    setMoneda(prod.moneda || "ARS");
+    setMoneda(normalizarMoneda(prod.moneda));
     setCantidad(prod.cantidad || 1);
     setStockIdeal(prod.stockIdeal || 5);
     setStockBajo(prod.stockBajo || 3);
@@ -278,6 +285,8 @@ export default function RepuestosPage() {
     setPrecio2Pesos(prod.precio2Pesos || 0);
     setPrecio3Pesos(prod.precio3Pesos || 0);
     setPrecioCostoPesos(prod.precioCostoPesos || prod.precioCosto || 0);
+    setFotoURL(typeof prod.fotoURL === "string" ? prod.fotoURL : "");
+    setObservacion(typeof prod.observacion === "string" ? prod.observacion : "");
     
     setEditandoId(prod.id || "");
     setMostrarFormulario(true);
@@ -309,7 +318,9 @@ export default function RepuestosPage() {
         proveedor: producto.proveedor,
         precioCostoPesos: producto.precioCostoPesos || 0,
         cotizacion: cotizacionSegura,
-        ultimaActualizacion: new Date()
+        ultimaActualizacion: new Date(),
+        fotoURL: typeof producto.fotoURL === "string" ? producto.fotoURL.trim() : "",
+        observacion: typeof producto.observacion === "string" ? producto.observacion.trim() : "",
       });
 
       console.log("✅ Producto actualizado correctamente en Firebase");
@@ -440,6 +451,11 @@ export default function RepuestosPage() {
               setPrecio2Pesos={setPrecio2Pesos}
               precio3Pesos={precio3Pesos}
               setPrecio3Pesos={setPrecio3Pesos}
+              fotoURL={fotoURL}
+              setFotoURL={setFotoURL}
+              observacion={observacion}
+              setObservacion={setObservacion}
+              negocioID={rol?.negocioID || negocioID}
               cantidad={cantidad}
               setCantidad={setCantidad}
               stockIdeal={stockIdeal}

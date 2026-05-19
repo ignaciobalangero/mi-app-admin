@@ -23,11 +23,16 @@ export default function AppLayoutWrapper({
     "/cliente", // solo coincide exacto; /clientes/* NO va acá
   ];
 
+  const esConsultaStockPublico = pathname.startsWith("/consulta-stock");
+
   // Ojo: NO usar startsWith("/cliente") porque ocultaría el sidebar en /clientes/... (detalle admin).
   const esPortalClienteFinal =
     pathname === "/cliente" || pathname.startsWith("/cliente/");
 
-  const esRutaPublica = esPortalClienteFinal || rutasSinSidebar.includes(pathname);
+  const esRutaPublica =
+    esConsultaStockPublico ||
+    esPortalClienteFinal ||
+    rutasSinSidebar.includes(pathname);
 
   return esRutaPublica ? <>{children}</> : <SidebarWrapper>{children}</SidebarWrapper>;
 }

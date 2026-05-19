@@ -28,8 +28,16 @@ export default function AppWrapper({ children }: AppWrapperProps) {
     '/privacidad'
   ];
 
+  const esConsultaStockPublico = pathname.startsWith('/consulta-stock');
+
   // Verificar si la página actual está en la lista de páginas libres
-  const esPaginaLibre = paginasLibres.some(pagina => pathname.startsWith(pagina));
+  const esPaginaLibre =
+    esConsultaStockPublico ||
+    paginasLibres.some((pagina) => pathname.startsWith(pagina));
+
+  if (esConsultaStockPublico) {
+    return <>{children}</>;
+  }
 
   // ✅ MANEJAR REDIRECCIÓN EN useEffect (evita el error de React)
   useEffect(() => {

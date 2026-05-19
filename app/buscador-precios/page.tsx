@@ -6,6 +6,7 @@ import GestorProveedores from "./components/GestorProveedores";
 import CargadorListas from "./components/CargadorListas";
 import BuscadorComparativo from "./components/BuscadorComparativo";
 import FormadorPrecios from "./components/FormadorPrecios";
+import RealizarPedidos from "./components/RealizarPedidos";
 
 interface Proveedor {
   id: string;
@@ -17,7 +18,7 @@ interface Proveedor {
 export default function BuscadorPrecios() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [vistaActual, setVistaActual] = useState<
-    "proveedores" | "cargar" | "buscar" | "formador"
+    "proveedores" | "cargar" | "buscar" | "formador" | "pedidos"
   >("buscar");
 
   // Cargar proveedores desde localStorage
@@ -69,6 +70,17 @@ export default function BuscadorPrecios() {
                 }`}
               >
                 🔍 Buscar Precios
+              </button>
+
+              <button
+                onClick={() => setVistaActual("pedidos")}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 ${
+                  vistaActual === "pedidos"
+                    ? "bg-gradient-to-r from-[#16a085] to-[#1abc9c] text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                📦 Realizar pedidos
               </button>
 
               <button
@@ -126,6 +138,8 @@ export default function BuscadorPrecios() {
           )}
 
           {vistaActual === "formador" && <FormadorPrecios />}
+
+          {vistaActual === "pedidos" && <RealizarPedidos />}
         </div>
       </main>
     </>
