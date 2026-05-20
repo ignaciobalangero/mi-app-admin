@@ -26,6 +26,9 @@ import {
   sinPrecioLista,
 } from "@/lib/stockPublicoPrecios";
 import { coincideBusqueda, tokensBusqueda } from "@/lib/stockPublicoBusqueda";
+import FooterTienda from "../components/FooterTienda";
+import type { TiendaPublicaInfo } from "@/lib/tiendaPublicaTypes";
+import { useLogo } from "@/app/components/LogoProvider";
 
 const DEFAULT_OPS: CatalogoPublicoOpciones = {
   mostrarCodigo: true,
@@ -40,6 +43,8 @@ const DEFAULT_OPS: CatalogoPublicoOpciones = {
 type Payload = {
   negocioId: string;
   nombreTienda: string;
+  logoUrl?: string | null;
+  tiendaPublica?: TiendaPublicaInfo;
   whatsappPedidos: string | null;
   catalogoPublico?: CatalogoPublicoOpciones;
   cotizacionUSD: number;
@@ -188,6 +193,7 @@ function construirUrlWhatsApp(telefonoDigitos: string, mensaje: string): string 
 }
 
 export default function ConsultaStockCliente({ negocioID }: { negocioID: string }) {
+  const { logoUrl: logoNegocio, cargandoLogo } = useLogo();
   const [payload, setPayload] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -279,8 +285,6 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
   useEffect(() => setPortalReady(true), []);
 
   const ops = useMemo(() => mergeOps(payload?.catalogoPublico), [payload?.catalogoPublico]);
-
-  const soloMarcadosCatalogo = ops.catalogoSoloRepuestosMarcados === true;
 
   /** Misma cotización que Ventas general → `negocios/{id}/configuracion/moneda` (solo lectura en la tienda). */
   const cotizacionSistema = useMemo(() => {
@@ -467,7 +471,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
           )}
         </div>
         <div className="flex flex-1 flex-col p-3 sm:p-4">
-          <h2 className="line-clamp-2 min-h-[2.5rem] text-[13px] font-semibold leading-snug text-neutral-900 sm:min-h-[2.75rem] sm:text-[15px]">
+          <h2 className="line-clamp-2 min-h-[2.75rem] text-sm font-semibold leading-snug text-neutral-900 sm:min-h-[2.75rem] sm:text-[15px]">
             {it.producto}
           </h2>
           {ops.mostrarMarca !== false && it.marca && (
@@ -552,19 +556,49 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
   }
 
   const nombreMostrar = payload?.nombreTienda ?? "Repuestos";
+  const logoTienda =
+    logoNegocio ||
+    payload?.logoUrl?.trim() ||
+    payload?.tiendaPublica?.logoUrl?.trim() ||
+    null;
+
+  const irInicioTienda = useCallback(() => {
+    setQ("");
+    setChipCategoria("todas");
+    setDrawerAbierto(false);
+    setFotoAmpliada(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   return (
     <div className="min-h-screen bg-neutral-100 text-neutral-900 antialiased [color-scheme:light]">
-      <div className="bg-[#1e3a5f] py-1.5 text-center text-[11px] font-medium text-white sm:text-xs">
+      <div className="bg-[#1e3a5f] py-2 text-center text-xs font-medium text-white sm:text-sm">
         Pedidos por WhatsApp · Precios en pesos argentinos
       </div>
 
       <header className="sticky top-0 z-40 bg-neutral-950 text-white shadow-lg">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:gap-4 sm:py-4">
-          <div className="min-w-0 shrink-0">
-            <h1 className="truncate text-base font-bold sm:text-lg">{nombreMostrar}</h1>
-            <p className="text-[10px] text-neutral-400">Tienda de repuestos</p>
-          </div>
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:gap-4 sm:py-4">
+          <button
+            type="button"
+            onClick={irInicioTienda}
+            className="min-w-0 flex-1 text-left sm:max-w-[12rem] md:max-w-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-lg"
+            aria-label={`Inicio - ${nombreMostrar}`}
+          >
+            {logoTienda ? (
+              <img
+                src={logoTienda}
+                alt={nombreMostrar}
+                className="h-11 max-w-[55vw] object-contain object-left sm:h-12 sm:max-w-[180px]"
+              />
+            ) : cargandoLogo ? (
+              <span className="block h-11 w-[120px] animate-pulse rounded-lg bg-white/10 sm:h-12" />
+            ) : (
+              <>
+                <h1 className="truncate text-lg font-bold leading-tight sm:text-xl">{nombreMostrar}</h1>
+                <p className="mt-0.5 text-xs text-neutral-400 sm:text-sm">Tienda de repuestos</p>
+              </>
+            )}
+          </button>
           <label className="relative mx-auto hidden min-w-0 max-w-xl flex-1 sm:block">
             <Search className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
             <input
@@ -578,10 +612,11 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
           <button
             type="button"
             onClick={() => setDrawerAbierto(true)}
-            className="relative flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-semibold text-neutral-900 sm:px-4"
+            className="relative flex shrink-0 items-center gap-2 rounded-full bg-white px-3.5 py-2.5 text-sm font-semibold text-neutral-900 sm:px-4"
+            aria-label="Abrir carrito"
           >
-            <ShoppingBag className="h-5 w-5" />
-            <span className="hidden sm:inline">Carrito</span>
+            <ShoppingBag className="h-5 w-5 sm:h-5 sm:w-5" />
+            <span>Carrito</span>
             {cantItemsCarrito > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#2563eb] px-1 text-[10px] font-bold text-white">
                 {cantItemsCarrito > 99 ? "99+" : cantItemsCarrito}
@@ -589,43 +624,35 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
             )}
           </button>
         </div>
-        <label className="relative mx-4 mb-3 block sm:hidden">
-          <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+        <label className="relative mx-4 mb-3.5 block sm:hidden">
+          <Search className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
           <input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="¿Qué estás buscando?"
-            className="w-full rounded-full bg-white py-3 pl-4 pr-10 text-base text-neutral-900 touch-manipulation"
+            className="w-full rounded-full bg-white py-3.5 pl-4 pr-11 text-base text-neutral-900 touch-manipulation"
           />
         </label>
         <nav className="border-t border-white/10 bg-neutral-900">
-          <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 py-2">
+          <div className="mx-auto flex max-w-7xl gap-1.5 overflow-x-auto px-2 py-2.5 sm:py-2">
             {CHIPS.map(({ id, label, hint, Icon }) => (
               <button
                 key={id}
                 type="button"
                 title={hint}
                 onClick={() => setChipCategoria(id)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-[11px] font-semibold uppercase sm:text-xs ${
+                className={`flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2.5 text-xs font-semibold uppercase sm:text-xs ${
                   chipCategoria === id ? "bg-white text-neutral-900" : "text-neutral-300 hover:bg-white/10"
                 }`}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-4 w-4" />
                 {label}
               </button>
             ))}
           </div>
         </nav>
       </header>
-
-      {soloMarcadosCatalogo && payload && !loading && (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-950 sm:text-sm">
-          Solo se muestran repuestos marcados con{" "}
-          <strong>publicar en tienda</strong> (ícono verde en Stock repuestos). Si no ves un producto,
-          activalo ahí o buscalo por nombre/código.
-        </div>
-      )}
 
       {payload && !loading && (
         <div className="border-b border-neutral-200 bg-white">
@@ -724,6 +751,16 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
           </>
         )}
       </main>
+
+      {payload?.tiendaPublica && !loading && (
+        <FooterTienda
+          info={{
+            ...payload.tiendaPublica,
+            logoUrl: logoTienda || payload.tiendaPublica.logoUrl,
+          }}
+          onIrInicio={irInicioTienda}
+        />
+      )}
 
       {cantItemsCarrito > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-neutral-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">

@@ -25,6 +25,11 @@ import { Store, Package } from "lucide-react";
 // 📦 Tabla de productos – Sección REPUESTOS OPTIMIZADA CON PAGINACIÓN
 
 import { normalizarMoneda, pesosDesdeMoneda } from "@/lib/monedaRepuesto";
+import { margenDesdePrecio, precioDesdeMargen } from "@/lib/margenRepuesto";
+import {
+  comprimirImagenParaCatalogo,
+  formatearPesoImagen,
+} from "@/lib/comprimirImagenCliente";
 
 interface Producto {
   id: string;
@@ -306,15 +311,19 @@ export default function TablaProductos({
     fotoURL: "",
     observacion: "",
   });
+  const [porcentaje, setPorcentaje] = useState<number | "">("");
+  const autoDesdePorcentaje = useRef(false);
 
   // FUNCIONES DEL MODAL
   const abrirModal = (producto: Producto) => {
     setProductoEditando(producto);
     const moneda = normalizarMoneda(producto.moneda);
+    const costo = producto.precioCosto ?? 0;
+    const p1 = producto.precio1 ?? 0;
     setFormulario({
       ...producto,
       moneda,
-      precio1: producto.precio1 ?? 0,
+      precio1: p1,
       precio2: producto.precio2 ?? 0,
       precio3: producto.precio3 ?? 0,
       precio1Pesos: producto.precio1Pesos ?? 0,
@@ -324,6 +333,12 @@ export default function TablaProductos({
       fotoURL: producto.fotoURL ?? "",
       observacion: producto.observacion ?? "",
     });
+    if (costo > 0 && p1 > 0) {
+      setPorcentaje(margenDesdePrecio(costo, p1) ?? "");
+    } else {
+      setPorcentaje("");
+    }
+    autoDesdePorcentaje.current = false;
     setModalAbierto(true);
   };
   
@@ -354,25 +369,83 @@ export default function TablaProductos({
       fotoURL: "",
       observacion: "",
     });
+    setPorcentaje("");
+    autoDesdePorcentaje.current = false;
   };
 
   const manejarCambio = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+
+    if (name === "porcentaje") {
+      if (value === "") {
+        setPorcentaje("");
+        autoDesdePorcentaje.current = false;
+        return;
+      }
+      const pct = parseFloat(value);
+      if (Number.isNaN(pct)) return;
+      setPorcentaje(pct);
+      autoDesdePorcentaje.current = true;
+      setFormulario((prev) => {
+        const costo = Number(prev.precioCosto) || 0;
+        if (costo <= 0) return prev;
+        const p1 = precioDesdeMargen(costo, pct);
+        return {
+          ...prev,
+          precio1: p1,
+          precio1Pesos: pesosDesdeMoneda(p1, prev.moneda, cotizacionSegura),
+        };
+      });
+      return;
+    }
+
+    const esNumero =
+      name === "precioCosto" ||
+      name === "precioCostoPesos" ||
+      name === "cantidad" ||
+      name === "stockBajo" ||
+      name === "precio1" ||
+      name === "precio2" ||
+      name === "precio3" ||
+      name === "precio1Pesos" ||
+      name === "precio2Pesos" ||
+      name === "precio3Pesos";
+
+    if (name === "precioCosto") {
+      const costo = parseFloat(value) || 0;
+      setFormulario((prev) => {
+        const next = { ...prev, precioCosto: costo };
+        if (autoDesdePorcentaje.current && porcentaje !== "" && costo > 0) {
+          const p1 = precioDesdeMargen(costo, Number(porcentaje));
+          next.precio1 = p1;
+          next.precio1Pesos = pesosDesdeMoneda(p1, prev.moneda, cotizacionSegura);
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (name === "precio1") {
+      const p1 = parseFloat(value) || 0;
+      autoDesdePorcentaje.current = false;
+      setFormulario((prev) => {
+        const costo = Number(prev.precioCosto) || 0;
+        if (costo > 0 && p1 > 0) {
+          const m = margenDesdePrecio(costo, p1);
+          if (m !== null) setPorcentaje(m);
+        }
+        return {
+          ...prev,
+          precio1: p1,
+          precio1Pesos: pesosDesdeMoneda(p1, prev.moneda, cotizacionSegura),
+        };
+      });
+      return;
+    }
+
     setFormulario(prev => ({
       ...prev,
-      [name]:
-        name === "precioCosto" ||
-        name === "precioCostoPesos" ||
-        name === "cantidad" ||
-        name === "stockBajo" ||
-        name === "precio1" ||
-        name === "precio2" ||
-        name === "precio3" ||
-        name === "precio1Pesos" ||
-        name === "precio2Pesos" ||
-        name === "precio3Pesos"
-          ? parseFloat(value) || 0
-          : value,
+      [name]: esNumero ? parseFloat(value) || 0 : value,
     }));
   };
 
@@ -496,17 +569,23 @@ export default function TablaProductos({
       alert("Usá JPG, PNG, WEBP o GIF.");
       return;
     }
-    if (file.size > 2.5 * 1024 * 1024) {
-      alert("La imagen debe pesar menos de 2,5 MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("La imagen es demasiado grande (máx. 15 MB).");
       return;
     }
     setSubiendoFoto(true);
     try {
-      const path = `negocios/${rol.negocioID}/repuestos/${formulario.id}/${Date.now()}.${ext}`;
+      const optimizada = await comprimirImagenParaCatalogo(file);
+      const path = `negocios/${rol.negocioID}/repuestos/${formulario.id}/${Date.now()}.${optimizada.extension}`;
       const r = refStorage(storage, path);
-      await uploadBytes(r, file);
+      await uploadBytes(r, optimizada.blob, { contentType: optimizada.mimeType });
       const url = await getDownloadURL(r);
       setFormulario((prev) => ({ ...prev, fotoURL: url }));
+      if (optimizada.bytesComprimidos < optimizada.bytesOriginales) {
+        alert(
+          `Imagen optimizada: ${formatearPesoImagen(optimizada.bytesOriginales)} → ${formatearPesoImagen(optimizada.bytesComprimidos)}`
+        );
+      }
     } catch (err) {
       console.error(err);
       alert(
@@ -1220,34 +1299,58 @@ export default function TablaProductos({
                   />
                 </div>
 
-                {/* Moneda */}
-                <div className="space-y-2">
-                  <label className="block text-xs sm:text-sm font-semibold text-[#2c3e50]">
-                    💱 Moneda del producto
-                  </label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => manejarCambioMoneda("ARS")}
-                      className={`flex-1 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition ${
-                        formulario.moneda === "ARS"
-                          ? "border-[#27ae60] bg-[#eafaf1] text-[#1e8449]"
-                          : "border-[#bdc3c7] bg-white text-[#7f8c8d] hover:border-[#27ae60]/50"
-                      }`}
-                    >
-                      🇦🇷 ARS
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => manejarCambioMoneda("USD")}
-                      className={`flex-1 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition ${
-                        formulario.moneda === "USD"
-                          ? "border-[#3498db] bg-[#ebf5fb] text-[#2471a3]"
-                          : "border-[#bdc3c7] bg-white text-[#7f8c8d] hover:border-[#3498db]/50"
-                      }`}
-                    >
-                      🇺🇸 USD
-                    </button>
+                {/* Moneda + margen */}
+                <div className="space-y-2 md:col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-[#2c3e50]">
+                        💱 Moneda del producto
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => manejarCambioMoneda("ARS")}
+                          className={`flex-1 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition ${
+                            formulario.moneda === "ARS"
+                              ? "border-[#27ae60] bg-[#eafaf1] text-[#1e8449]"
+                              : "border-[#bdc3c7] bg-white text-[#7f8c8d] hover:border-[#27ae60]/50"
+                          }`}
+                        >
+                          🇦🇷 ARS
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => manejarCambioMoneda("USD")}
+                          className={`flex-1 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition ${
+                            formulario.moneda === "USD"
+                              ? "border-[#3498db] bg-[#ebf5fb] text-[#2471a3]"
+                              : "border-[#bdc3c7] bg-white text-[#7f8c8d] hover:border-[#3498db]/50"
+                          }`}
+                        >
+                          🇺🇸 USD
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-xs sm:text-sm font-semibold text-[#2c3e50]">
+                        📈 Margen % → Precio 1
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          name="porcentaje"
+                          value={porcentaje}
+                          onChange={manejarCambio}
+                          step="0.1"
+                          placeholder="Ej: 50"
+                          className="w-full p-2 sm:p-3 pr-8 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#7f8c8d] font-semibold">%</span>
+                      </div>
+                      <p className="text-[11px] text-[#7f8c8d]">
+                        Sobre el costo. Precio 1 sigue editable a mano.
+                      </p>
+                    </div>
                   </div>
                   <p className="text-[11px] text-[#7f8c8d]">
                     Los precios de costo y venta se interpretan en esta moneda.
@@ -1497,10 +1600,10 @@ export default function TablaProductos({
                       onClick={() => inputFotoRef.current?.click()}
                       className="rounded-lg bg-[#9b59b6] px-3 py-2 text-xs font-semibold text-white shadow hover:bg-[#8e44ad] disabled:opacity-50"
                     >
-                      {subiendoFoto ? "Subiendo…" : "Subir imagen"}
+                      {subiendoFoto ? "Optimizando y subiendo…" : "Subir imagen"}
                     </button>
                     <span className="text-[11px] text-[#7f8c8d]">
-                      JPG/PNG/WebP/GIF · máx. 2,5 MB · en Firebase solo se guarda la URL; el peso es de Storage.
+                      Se optimiza sola al subir (máx. 1200 px, ~400 KB).
                     </span>
                   </div>
                   {formulario.fotoURL?.startsWith("http") ? (

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db as adminDb } from "@/lib/firebaseAdmin";
 import { filtrarItemsBusqueda } from "@/lib/stockPublicoBusqueda";
 import type { CatalogoPublicoOpciones, ItemStockPublico } from "@/lib/stockPublicoTypes";
+import { parseTiendaPublica, type TiendaPublicaInfo } from "@/lib/tiendaPublicaTypes";
+import { extraerLogoUrl, rutasConfigLogo } from "@/lib/logoNegocio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -187,6 +189,8 @@ async function fetchStockPublicoInterno(
 ): Promise<{
   negocioId: string;
   nombreTienda: string;
+  logoUrl: string | null;
+  tiendaPublica: TiendaPublicaInfo;
   whatsappPedidos: string | null;
   catalogoPublico: CatalogoPublicoOpciones;
   cotizacionUSD: number;
@@ -217,9 +221,23 @@ async function fetchStockPublicoInterno(
   ]);
 
   const neg = negSnap.exists ? negSnap.data() : {};
-  const nombreTienda = String(neg?.nombre || negocioId).trim() || negocioId;
-
   const datos = datosSnap.exists ? (datosSnap.data() as Record<string, unknown>) : {};
+
+  let logoUrl =
+    extraerLogoUrl(datos) || extraerLogoUrl(neg as Record<string, unknown>);
+
+  if (!logoUrl) {
+    for (const ruta of rutasConfigLogo(negocioId).slice(1)) {
+      const subId = ruta.split("/").pop()!;
+      if (subId === "datos") continue;
+      const snap = await adminDb.doc(ruta).get();
+      if (snap.exists) {
+        logoUrl = extraerLogoUrl(snap.data() as Record<string, unknown>);
+        if (logoUrl) break;
+      }
+    }
+  }
+
   const rawWa = String(
     datos?.whatsappPedidos ??
       datos?.whatsappPedido ??
@@ -229,6 +247,15 @@ async function fetchStockPublicoInterno(
   ).trim();
   const soloDigitos = rawWa.replace(/\D/g, "");
   const whatsappPedidos = soloDigitos.length >= 10 ? soloDigitos : null;
+
+  const tiendaPublica = parseTiendaPublica(
+    datos,
+    (neg ?? {}) as Record<string, unknown>,
+    negocioId,
+    whatsappPedidos,
+    logoUrl
+  );
+  const nombreTienda = tiendaPublica.nombre;
 
   const catalogoPublico = mergeCatalogo(datos?.catalogoPublico);
 
@@ -283,6 +310,8 @@ async function fetchStockPublicoInterno(
   return {
     negocioId,
     nombreTienda,
+    logoUrl,
+    tiendaPublica,
     whatsappPedidos,
     catalogoPublico,
     cotizacionUSD,

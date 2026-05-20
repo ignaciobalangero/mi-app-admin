@@ -1,4 +1,3 @@
-// LogoProvider.tsx
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
@@ -7,8 +6,13 @@ import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { usePathname } from "next/navigation";
-import { useRol } from "@/lib/useRol"; // ✅ Usamos el hook central
+import { useRol } from "@/lib/useRol";
 import { esConsultaStockPublico } from "@/lib/rutasPublicas";
+import {
+  extraerLogoUrl,
+  negocioIdDesdeRutaConsultaStock,
+  rutasConfigLogo,
+} from "@/lib/logoNegocio";
 
 interface LogoContextProps {
   logoUrl: string | null;
@@ -20,79 +24,80 @@ const LogoContext = createContext<LogoContextProps>({
   cargandoLogo: true,
 });
 
+async function cargarLogoFirestore(negocioId: string): Promise<string | null> {
+  for (const ruta of rutasConfigLogo(negocioId)) {
+    try {
+      const snap = await getDoc(doc(db, ruta));
+      if (snap.exists()) {
+        const logo = extraerLogoUrl(snap.data());
+        if (logo) return logo;
+      }
+    } catch {
+      // siguiente ruta
+    }
+  }
+  try {
+    const negSnap = await getDoc(doc(db, `negocios/${negocioId}`));
+    if (negSnap.exists()) {
+      const logo = extraerLogoUrl(negSnap.data());
+      if (logo) return logo;
+    }
+  } catch {
+    // sin logo en doc negocio
+  }
+  return null;
+}
+
 export function LogoProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const esTiendaPublica = esConsultaStockPublico(pathname);
+  const negocioIdTienda = esTiendaPublica ? negocioIdDesdeRutaConsultaStock(pathname) : null;
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [cargandoLogo, setCargandoLogo] = useState(!esTiendaPublica);
+  const [cargandoLogo, setCargandoLogo] = useState(true);
   const [user, loading] = useAuthState(auth);
   const { rol } = useRol();
   const negocioID = rol?.negocioID || "";
 
   useEffect(() => {
-    if (esTiendaPublica) {
+    let cancel = false;
+
+    const finalizar = (logo: string | null) => {
+      if (cancel) return;
+      setLogoUrl(logo);
       setCargandoLogo(false);
-      return;
+    };
+
+    async function cargarTiendaPublica(id: string) {
+      setCargandoLogo(true);
+      const logo = await cargarLogoFirestore(id);
+      finalizar(logo);
     }
 
-    const cargarLogo = async () => {
-      if (loading || !user || !rol || !rol.negocioID) {
-        // Si no hay negocio, usar logo por defecto
-        setLogoUrl("/logo.png");
-        setCargandoLogo(false);
+    async function cargarAdmin() {
+      if (loading) return;
+
+      if (!user || !rol?.negocioID) {
+        finalizar("/logo.png");
         return;
       }
 
-      try {
-        console.log("🔍 Cargando logo para negocio:", negocioID);
-        
-        // 🔧 RUTAS CORREGIDAS - En el orden correcto
-        const posiblesRutas = [
-          `negocios/${negocioID}/configuracion/datos`,      // ✅ PRIMERA - Es la correcta
-          `negocios/${negocioID}/configuracion/general`,     // Fallback 1
-          `negocios/${negocioID}/configuracion/logo`         // Fallback 2
-        ];
+      setCargandoLogo(true);
+      const logo = await cargarLogoFirestore(negocioID);
+      finalizar(logo ?? "/logo.png");
+    }
 
-        let logoEncontrado = false;
+    if (esTiendaPublica && negocioIdTienda) {
+      void cargarTiendaPublica(negocioIdTienda);
+    } else if (esTiendaPublica) {
+      finalizar(null);
+    } else {
+      void cargarAdmin();
+    }
 
-        for (const ruta of posiblesRutas) {
-          try {
-            console.log(`🔍 Probando ruta: ${ruta}`);
-            const ref = doc(db, ruta);
-            const snap = await getDoc(ref);
-            
-            if (snap.exists()) {
-              const data = snap.data();
-              const logo = data.logoUrl || data.logo || null;
-              
-              if (logo) {
-                console.log("✅ Logo encontrado:", logo);
-                setLogoUrl(logo);
-                logoEncontrado = true;
-                break;
-              }
-            }
-          } catch (error) {
-            console.log(`❌ Error en ruta ${ruta}:`, error);
-            // Continuar con la siguiente ruta
-          }
-        }
-
-        if (!logoEncontrado) {
-          console.warn("⛔ No se encontró logo en ninguna ubicación, usando por defecto");
-          setLogoUrl("/logo.png");
-        }
-
-      } catch (error) {
-        console.error("❌ Error general al cargar el logo:", error);
-        setLogoUrl("/logo.png");
-      } finally {
-        setCargandoLogo(false);
-      }
+    return () => {
+      cancel = true;
     };
-
-    cargarLogo();
-  }, [user, loading, negocioID, rol, esTiendaPublica]);
+  }, [user, loading, negocioID, rol, esTiendaPublica, negocioIdTienda]);
 
   return (
     <LogoContext.Provider value={{ logoUrl, cargandoLogo }}>

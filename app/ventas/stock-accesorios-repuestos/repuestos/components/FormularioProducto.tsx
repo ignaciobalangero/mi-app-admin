@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import CampoFotoRepuesto from "./CampoFotoRepuesto";
+import { margenDesdePrecio, precioDesdeMargen } from "@/lib/margenRepuesto";
 
 interface Props {
   codigo: string;
@@ -98,6 +99,51 @@ export default function FormularioProducto({
   setObservacion = () => {},
   negocioID = "",
 }: Props) {
+  const [porcentaje, setPorcentaje] = useState<number | "">("");
+  const autoDesdePorcentaje = useRef(false);
+
+  useEffect(() => {
+    if (precioCosto > 0 && precio1 > 0) {
+      const m = margenDesdePrecio(precioCosto, precio1);
+      setPorcentaje(m ?? "");
+    } else {
+      setPorcentaje("");
+    }
+    autoDesdePorcentaje.current = false;
+  }, [editandoId]);
+
+  const aplicarPorcentaje = (costo: number, pct: number) => {
+    if (costo > 0) setPrecio1(precioDesdeMargen(costo, pct));
+  };
+
+  const handlePrecioCostoChange = (val: number) => {
+    setPrecioCosto(val);
+    if (autoDesdePorcentaje.current && porcentaje !== "" && val > 0) {
+      aplicarPorcentaje(val, Number(porcentaje));
+    }
+  };
+
+  const handlePorcentajeChange = (raw: string) => {
+    if (raw === "") {
+      setPorcentaje("");
+      autoDesdePorcentaje.current = false;
+      return;
+    }
+    const pct = parseFloat(raw);
+    if (Number.isNaN(pct)) return;
+    setPorcentaje(pct);
+    autoDesdePorcentaje.current = true;
+    aplicarPorcentaje(precioCosto, pct);
+  };
+
+  const handlePrecio1Change = (val: number) => {
+    autoDesdePorcentaje.current = false;
+    setPrecio1(val);
+    if (precioCosto > 0 && val > 0) {
+      const m = margenDesdePrecio(precioCosto, val);
+      if (m !== null) setPorcentaje(m);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
@@ -234,7 +280,7 @@ export default function FormularioProducto({
           <input 
             type="number" 
             value={precioCosto} 
-            onChange={(e) => setPrecioCosto(Number(e.target.value))} 
+            onChange={(e) => handlePrecioCostoChange(Number(e.target.value))} 
             className={`p-2 border-2 rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d] ${
               precioCosto <= 0 ? "border-[#e74c3c] focus:border-[#e74c3c]" : "border-[#bdc3c7] focus:border-[#3498db]"
             }`}
@@ -253,6 +299,25 @@ export default function FormularioProducto({
             <option value="USD">🇺🇸 Dólares</option>
           </select>
         </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+            📈 Margen % → Precio 1
+          </label>
+          <div className="relative">
+            <input
+              type="number"
+              value={porcentaje}
+              onChange={(e) => handlePorcentajeChange(e.target.value)}
+              step="0.1"
+              placeholder="Ej: 50"
+              className="p-2 pr-7 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#7f8c8d] font-semibold">%</span>
+          </div>
+          <p className="mt-1 text-[10px] text-[#7f8c8d]">
+            Sobre el costo. Precio 1 sigue editable a mano.
+          </p>
+        </div>
 
         <div className="lg:col-span-4 rounded-lg border border-[#3498db]/30 bg-[#ebf5fb] px-2 py-1.5 text-[10px] text-[#2c3e50]">
           Precios de venta en <strong>{moneda}</strong>. Si elegís USD, en la tienda se muestran en{" "}
@@ -265,7 +330,7 @@ export default function FormularioProducto({
           <input
             type="number"
             value={precio1}
-            onChange={(e) => setPrecio1(Number(e.target.value))}
+            onChange={(e) => handlePrecio1Change(Number(e.target.value))}
             className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
             placeholder="0 = sin precio"
           />

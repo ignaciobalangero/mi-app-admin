@@ -3,6 +3,10 @@
 import { useRef, useState } from "react";
 import { ref as refStorage, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
+import {
+  comprimirImagenParaCatalogo,
+  formatearPesoImagen,
+} from "@/lib/comprimirImagenCliente";
 import { ImagePlus, Package } from "lucide-react";
 
 type Props = {
@@ -22,6 +26,7 @@ export default function CampoFotoRepuesto({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [infoOptimizacion, setInfoOptimizacion] = useState("");
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -32,16 +37,25 @@ export default function CampoFotoRepuesto({
       alert("Usá JPG, PNG, WEBP o GIF.");
       return;
     }
-    if (file.size > 2.5 * 1024 * 1024) {
-      alert("La imagen debe pesar menos de 2,5 MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("La imagen es demasiado grande (máx. 15 MB).");
       return;
     }
     setSubiendo(true);
+    setInfoOptimizacion("");
     try {
+      const optimizada = await comprimirImagenParaCatalogo(file);
+      if (optimizada.bytesComprimidos < optimizada.bytesOriginales) {
+        setInfoOptimizacion(
+          `Optimizada: ${formatearPesoImagen(optimizada.bytesOriginales)} → ${formatearPesoImagen(optimizada.bytesComprimidos)}`
+        );
+      }
       const carpeta = productoId || `temp-${Date.now()}`;
-      const path = `negocios/${negocioID}/repuestos/${carpeta}/${Date.now()}.${ext}`;
+      const path = `negocios/${negocioID}/repuestos/${carpeta}/${Date.now()}.${optimizada.extension}`;
       const r = refStorage(storage, path);
-      await uploadBytes(r, file);
+      await uploadBytes(r, optimizada.blob, {
+        contentType: optimizada.mimeType,
+      });
       onChange(await getDownloadURL(r));
     } catch (err) {
       console.error(err);
@@ -82,14 +96,17 @@ export default function CampoFotoRepuesto({
           className="inline-flex items-center gap-1.5 rounded-lg bg-[#9b59b6] px-3 py-2 text-xs font-semibold text-white shadow hover:bg-[#8e44ad] disabled:opacity-50"
         >
           <ImagePlus className="h-4 w-4" />
-          {subiendo ? "Subiendo…" : "Subir imagen"}
+          {subiendo ? "Optimizando y subiendo…" : "Subir imagen"}
         </button>
         {!compact && (
           <span className="text-[10px] text-[#95a5a6]">
-            Recomendado: PNG/WebP menores a 400 KB para que cargue rápido en la tienda.
+            Se optimiza sola al subir (máx. 1200 px, ~400 KB). Podés elegir fotos grandes del celular.
           </span>
         )}
       </div>
+      {infoOptimizacion ? (
+        <p className="text-[10px] font-medium text-[#27ae60]">{infoOptimizacion}</p>
+      ) : null}
       {fotoURL.startsWith("http") ? (
         <img
           src={fotoURL}

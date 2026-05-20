@@ -22,6 +22,11 @@ import { useRouter } from "next/navigation";
 import PanelRecalculoGlobal from "./components/PanelRecalculoGlobal";
 import PanelCuentasNegocio from "./components/PanelCuentasNegocio";
 import { getSuperAdminUidClient } from "@/lib/superAdminConstants";
+import {
+  TIENDA_PUBLICA_VACIA,
+  tiendaPublicaDesdeFirestore,
+  type TiendaPublicaEditable,
+} from "@/lib/tiendaPublicaTypes";
 
 export default function Configuraciones() {
   const [user] = useAuthState(auth);
@@ -36,6 +41,9 @@ export default function Configuraciones() {
   const [logoUrl, setLogoUrl] = useState("");
   const [nuevoLogo, setNuevoLogo] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null); // ✅ NUEVO: preview local
+  const [tiendaPublica, setTiendaPublica] = useState<TiendaPublicaEditable>({
+    ...TIENDA_PUBLICA_VACIA,
+  });
   const [guardando, setGuardando] = useState(false);
   const [pestanaActiva, setPestanaActiva] = useState("general");
   const [mostrarPanelExentos, setMostrarPanelExentos] = useState(false);
@@ -72,6 +80,7 @@ export default function Configuraciones() {
             setTextoGarantiaServicio(data.textoGarantia || "");
             setTextoGarantiaTelefonos(data.textoGarantiaTelefonos || "");
             setLogoUrl(data.logoUrl || "");
+            setTiendaPublica(tiendaPublicaDesdeFirestore(data.tiendaPublica));
             setFacturacionElectronicaHabilitada(!!data.facturacionElectronicaHabilitada);
             setFacturacionElectronicaSolicitada(!!data.facturacionElectronicaSolicitada);
             setCuitFacturacion(data.cuit != null ? String(data.cuit) : "");
@@ -119,6 +128,21 @@ export default function Configuraciones() {
           textoGarantia: textoGarantiaServicio,
           textoGarantiaTelefonos: textoGarantiaTelefonos,
           logoUrl: finalLogoUrl,
+          tiendaPublica: {
+            telefono: tiendaPublica.telefono.trim(),
+            email: tiendaPublica.email.trim(),
+            direccion: tiendaPublica.direccion.trim(),
+            horarios: tiendaPublica.horarios.trim(),
+            comoComprar: tiendaPublica.comoComprar.trim(),
+            pagoEnvios: tiendaPublica.pagoEnvios.trim(),
+            productosGarantia: tiendaPublica.productosGarantia.trim(),
+            mediosPago: tiendaPublica.mediosPago.trim(),
+            mediosEnvio: tiendaPublica.mediosEnvio.trim(),
+            instagram: tiendaPublica.instagram.trim(),
+            facebook: tiendaPublica.facebook.trim(),
+            youtube: tiendaPublica.youtube.trim(),
+            tiktok: tiendaPublica.tiktok.trim(),
+          },
         },
         { merge: true }
       );
@@ -354,9 +378,76 @@ export default function Configuraciones() {
                         </div>
                       )}
                       <p className="text-xs text-[#7f8c8d]">
-                        PNG, JPG o WEBP. Se mostrará en tickets y documentos del sistema.
+                        PNG, JPG o WEBP. Se muestra en tickets, documentos y la tienda web de consulta-stock.
                       </p>
                     </div>
+                  </div>
+
+                  {/* TIENDA WEB PÚBLICA */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-[#1a2433] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">🛒</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-[#2c3e50]">Tienda web (consulta-stock)</h3>
+                        <p className="text-xs text-[#7f8c8d]">
+                          Pie de página y datos de contacto visibles para tus clientes.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
+                      {(
+                        [
+                          ["telefono", "Teléfono / WhatsApp", "549351…"],
+                          ["email", "Email", "contacto@tunegocio.com"],
+                          ["direccion", "Dirección", "Calle 123, Ciudad"],
+                          ["horarios", "Horarios", "Lun a Vie 9–18 hs"],
+                          ["instagram", "Instagram (URL)", "https://instagram.com/…"],
+                          ["facebook", "Facebook (URL)", "https://facebook.com/…"],
+                          ["youtube", "YouTube (URL)", ""],
+                          ["tiktok", "TikTok (URL)", ""],
+                          ["mediosPago", "Medios de pago", "Transferencia, efectivo, MP…"],
+                          ["mediosEnvio", "Medios de envío", "Retiro en local, Andreani…"],
+                        ] as const
+                      ).map(([key, label, placeholder]) => (
+                        <div key={key} className={key.startsWith("como") || key.startsWith("pago") || key.startsWith("productos") ? "md:col-span-2" : ""}>
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">{label}</label>
+                          <input
+                            type="text"
+                            value={tiendaPublica[key]}
+                            onChange={(e) =>
+                              setTiendaPublica((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            placeholder={placeholder}
+                            className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm text-[#2c3e50] focus:border-[#3498db] focus:ring-2 focus:ring-[#3498db]/20"
+                          />
+                        </div>
+                      ))}
+                      {(
+                        [
+                          ["comoComprar", "¿Cómo comprar?"],
+                          ["pagoEnvios", "Pago y envíos"],
+                          ["productosGarantia", "Productos y garantía"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <div key={key} className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">{label}</label>
+                          <textarea
+                            value={tiendaPublica[key]}
+                            onChange={(e) =>
+                              setTiendaPublica((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            rows={3}
+                            className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm text-[#2c3e50] focus:border-[#3498db] focus:ring-2 focus:ring-[#3498db]/20 resize-y"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-[#7f8c8d] mt-3">
+                      El WhatsApp de pedidos se configura en Stock repuestos. El logo de arriba se usa en el encabezado y el pie.
+                    </p>
                   </div>
 
                   <IntegracionGoogleSheet />
