@@ -1,11 +1,12 @@
 // components/AppWrapper.tsx
 "use client";
-import { useEffect } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from '@/lib/firebase';
-import { useRouter, usePathname } from 'next/navigation';
-import { useVerificarEstadoCuenta } from '@/lib/verificarEstadoCuenta';
-import CuentaVencida from '@/app/components/CuentaVencida';
+import { useEffect } from "react";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/firebase";
+import { useRouter, usePathname } from "next/navigation";
+import { useVerificarEstadoCuenta } from "@/lib/verificarEstadoCuenta";
+import { esConsultaStockPublico, esRutaPublica } from "@/lib/rutasPublicas";
+import CuentaVencida from "@/app/components/CuentaVencida";
 
 interface AppWrapperProps {
   children: React.ReactNode;
@@ -15,38 +16,23 @@ export default function AppWrapper({ children }: AppWrapperProps) {
   const [user, userLoading] = useAuthState(auth);
   const { estadoCuenta, loading } = useVerificarEstadoCuenta();
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
-  // ✅ PÁGINAS QUE NO REQUIEREN VERIFICACIÓN DE CUENTA
-  const paginasLibres = [
-    '/login',
-    '/registro',
-    '/crear-cuenta',
-    '/suscripciones',
-    '/recuperar-password',
-    '/terminos',
-    '/privacidad'
-  ];
+  const esPublica = esRutaPublica(pathname);
+  const esTiendaStock = esConsultaStockPublico(pathname);
 
-  const esConsultaStockPublico = pathname.startsWith('/consulta-stock');
+  useEffect(() => {
+    if (esPublica) return;
+    if (!userLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, userLoading, esPublica, router]);
 
-  // Verificar si la página actual está en la lista de páginas libres
-  const esPaginaLibre =
-    esConsultaStockPublico ||
-    paginasLibres.some((pagina) => pathname.startsWith(pagina));
-
-  if (esConsultaStockPublico) {
+  // Tienda /consulta-stock/[negocioID]: acceso libre, sin login ni bloqueo de cuenta
+  if (esTiendaStock || esPublica) {
     return <>{children}</>;
   }
 
-  // ✅ MANEJAR REDIRECCIÓN EN useEffect (evita el error de React)
-  useEffect(() => {
-    if (!userLoading && !user && !esPaginaLibre) {
-      router.push('/login');
-    }
-  }, [user, userLoading, esPaginaLibre, router]);
-
-  // Loading state
   if (userLoading || loading) {
     return (
       <div className="fixed inset-0 bg-gray-100 flex items-center justify-center">
@@ -58,8 +44,7 @@ export default function AppWrapper({ children }: AppWrapperProps) {
     );
   }
 
-  // Si no hay usuario y no es página libre, mostrar loading mientras redirige
-  if (!user && !esPaginaLibre) {
+  if (!user) {
     return (
       <div className="fixed inset-0 bg-gray-100 flex items-center justify-center">
         <div className="text-center">
@@ -70,21 +55,14 @@ export default function AppWrapper({ children }: AppWrapperProps) {
     );
   }
 
-  // ✅ SI ES PÁGINA LIBRE, MOSTRAR SIN RESTRICCIONES (SIN SIDEBAR)
-  if (esPaginaLibre) {
-    return <>{children}</>;
-  }
-
-  // Si hay estado de cuenta y NO está activa, mostrar pantalla de cuenta vencida
   if (estadoCuenta && !estadoCuenta.activa) {
     return (
-      <CuentaVencida 
+      <CuentaVencida
         estadoCuenta={estadoCuenta}
-        onPagarAhora={() => router.push('/suscripciones')}
+        onPagarAhora={() => router.push("/suscripciones")}
       />
     );
   }
 
-  // Si todo está bien, mostrar la aplicación normal
   return <>{children}</>;
 }

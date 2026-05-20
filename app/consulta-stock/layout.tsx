@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 
+/** Catálogo público: sin login. El negocioID va en la URL. */
 export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "default" },
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

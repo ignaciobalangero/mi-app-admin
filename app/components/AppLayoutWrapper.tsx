@@ -1,5 +1,6 @@
 "use client";
 import { usePathname } from "next/navigation";
+import { esRutaSinSidebar } from "@/lib/rutasPublicas";
 import SidebarWrapper from "./SidebarWrapper";
 
 export default function AppLayoutWrapper({
@@ -7,32 +8,7 @@ export default function AppLayoutWrapper({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  
-  // ✅ AGREGAR TODAS LAS RUTAS SIN SIDEBAR (incluyendo /registro)
-  const rutasSinSidebar = [
-    "/login",
-    "/register", // Por si usas /register en algún lado
-    "/registro",
-    "/crear-cuenta",
-    "/recuperar",
-    "/recuperar-password",
-    "/suscripciones",
-    "/terminos",
-    "/privacidad",
-    "/cliente", // solo coincide exacto; /clientes/* NO va acá
-  ];
+  const pathname = usePathname() ?? "";
 
-  const esConsultaStockPublico = pathname.startsWith("/consulta-stock");
-
-  // Ojo: NO usar startsWith("/cliente") porque ocultaría el sidebar en /clientes/... (detalle admin).
-  const esPortalClienteFinal =
-    pathname === "/cliente" || pathname.startsWith("/cliente/");
-
-  const esRutaPublica =
-    esConsultaStockPublico ||
-    esPortalClienteFinal ||
-    rutasSinSidebar.includes(pathname);
-
-  return esRutaPublica ? <>{children}</> : <SidebarWrapper>{children}</SidebarWrapper>;
+  return esRutaSinSidebar(pathname) ? <>{children}</> : <SidebarWrapper>{children}</SidebarWrapper>;
 }

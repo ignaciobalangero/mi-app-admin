@@ -6,7 +6,9 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { usePathname } from "next/navigation";
 import { useRol } from "@/lib/useRol"; // ✅ Usamos el hook central
+import { esConsultaStockPublico } from "@/lib/rutasPublicas";
 
 interface LogoContextProps {
   logoUrl: string | null;
@@ -19,13 +21,20 @@ const LogoContext = createContext<LogoContextProps>({
 });
 
 export function LogoProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() ?? "";
+  const esTiendaPublica = esConsultaStockPublico(pathname);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [cargandoLogo, setCargandoLogo] = useState(true);
+  const [cargandoLogo, setCargandoLogo] = useState(!esTiendaPublica);
   const [user, loading] = useAuthState(auth);
   const { rol } = useRol();
   const negocioID = rol?.negocioID || "";
 
   useEffect(() => {
+    if (esTiendaPublica) {
+      setCargandoLogo(false);
+      return;
+    }
+
     const cargarLogo = async () => {
       if (loading || !user || !rol || !rol.negocioID) {
         // Si no hay negocio, usar logo por defecto
@@ -83,7 +92,7 @@ export function LogoProvider({ children }: { children: React.ReactNode }) {
     };
 
     cargarLogo();
-  }, [user, loading, negocioID, rol]);
+  }, [user, loading, negocioID, rol, esTiendaPublica]);
 
   return (
     <LogoContext.Provider value={{ logoUrl, cargandoLogo }}>
