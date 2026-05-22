@@ -18,6 +18,7 @@ import {
   DocumentData,
   updateDoc,
   setDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { ref as refStorage, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Store, Package } from "lucide-react";
@@ -30,6 +31,14 @@ import {
   comprimirImagenParaCatalogo,
   formatearPesoImagen,
 } from "@/lib/comprimirImagenCliente";
+import CalculadoraCostoUsd from "./CalculadoraCostoUsd";
+import {
+  type AlcanceAjustePrecio,
+  type CampoPrecioAjuste,
+  patchAjustePrecioARS,
+  esRepuestoARS,
+  ejemploAjuste,
+} from "@/lib/ajustePrecioRepuesto";
 
 interface Producto {
   id: string;
@@ -90,6 +99,26 @@ export default function TablaProductos({
   // 🆕 ESTADOS PARA LOS MODALES
   const [modalAbierto, setModalAbierto] = useState(false);
   const [modalEliminar, setModalEliminar] = useState<string | null>(null);
+  const [modalEliminarMasivo, setModalEliminarMasivo] = useState(false);
+  const [modoSeleccion, setModoSeleccion] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(() => new Set());
+  const [eliminandoMasivo, setEliminandoMasivo] = useState(false);
+  const [cargandoIdsTotales, setCargandoIdsTotales] = useState(false);
+  const [modalAjustePrecios, setModalAjustePrecios] = useState(false);
+  const [ajustePorcentaje, setAjustePorcentaje] = useState("10");
+  const [ajusteAlcance, setAjusteAlcance] = useState<AlcanceAjustePrecio>("seleccionados");
+  const [ajusteCampos, setAjusteCampos] = useState({
+    precioCosto: false,
+    precio1: true,
+    precio2: false,
+    precio3: false,
+  });
+  const [aplicandoAjuste, setAplicandoAjuste] = useState(false);
+  const [previewAjuste, setPreviewAjuste] = useState<{ total: number; ejemplo: string | null }>({
+    total: 0,
+    ejemplo: null,
+  });
+  const [cargandoPreviewAjuste, setCargandoPreviewAjuste] = useState(false);
   const [productoEditando, setProductoEditando] = useState<Producto | null>(null);
   const [catalogoSoloMarcados, setCatalogoSoloMarcados] = useState(false);
   const [whatsappPedidosInput, setWhatsappPedidosInput] = useState("");
@@ -533,10 +562,243 @@ export default function TablaProductos({
     try {
       await eliminarProducto(id);
       setModalEliminar(null);
+      setSeleccionados((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       refrescarProductos();
+      onProductoActualizado?.();
     } catch (error) {
       console.error("Error al eliminar:", error);
     }
+  };
+
+  const toggleSeleccion = (id: string) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const seleccionarTodosVisibles = () => {
+    setSeleccionados(new Set(productosFiltrados.map((p) => p.id)));
+  };
+
+  const limpiarSeleccion = () => setSeleccionados(new Set());
+
+  const salirModoSeleccion = () => {
+    setModoSeleccion(false);
+    limpiarSeleccion();
+    setModalEliminarMasivo(false);
+    setModalAjustePrecios(false);
+  };
+
+  const camposAjusteActivos = useMemo((): CampoPrecioAjuste[] => {
+    const list: CampoPrecioAjuste[] = [];
+    if (ajusteCampos.precioCosto) list.push("precioCosto");
+    if (ajusteCampos.precio1) list.push("precio1");
+    if (ajusteCampos.precio2) list.push("precio2");
+    if (ajusteCampos.precio3) list.push("precio3");
+    return list;
+  }, [ajusteCampos]);
+
+  const listarRepuestosParaAjuste = async (
+    alcance: AlcanceAjustePrecio
+  ): Promise<{ id: string; data: Record<string, unknown> }[]> => {
+    if (!rol?.negocioID) return [];
+    const colPath = `negocios/${rol.negocioID}/stockRepuestos`;
+
+    if (alcance === "visiblesARS") {
+      return productosFiltrados
+        .filter((p) => normalizarMoneda(p.moneda) === "ARS")
+        .map((p) => ({ id: p.id, data: p as unknown as Record<string, unknown> }));
+    }
+
+    if (alcance === "seleccionados") {
+      const out: { id: string; data: Record<string, unknown> }[] = [];
+      for (const id of seleccionados) {
+        const snap = await getDoc(doc(db, colPath, id));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (esRepuestoARS(data)) out.push({ id: snap.id, data });
+        }
+      }
+      return out;
+    }
+
+    const snap = await getDocs(collection(db, colPath));
+    return snap.docs
+      .filter((d) => esRepuestoARS(d.data()))
+      .map((d) => ({ id: d.id, data: d.data() }));
+  };
+
+  const actualizarPreviewAjuste = async () => {
+    setCargandoPreviewAjuste(true);
+    try {
+      const items = await listarRepuestosParaAjuste(ajusteAlcance);
+      const pct = parseFloat(ajustePorcentaje);
+      let ejemplo: string | null = null;
+
+      if (camposAjusteActivos.length > 0 && Number.isFinite(pct)) {
+        for (const item of items) {
+          for (const campo of camposAjusteActivos) {
+            const v = Number(item.data[campo]) || 0;
+            if (v > 0) {
+              const ex = ejemploAjuste(v, pct);
+              if (ex) {
+                const label =
+                  campo === "precioCosto"
+                    ? "Costo"
+                    : campo === "precio1"
+                      ? "Precio 1"
+                      : campo === "precio2"
+                        ? "Precio 2"
+                        : "Precio 3";
+                ejemplo = `${label}: $${ex.antes.toLocaleString("es-AR")} → $${ex.despues.toLocaleString("es-AR")}`;
+                break;
+              }
+            }
+          }
+          if (ejemplo) break;
+        }
+      }
+
+      setPreviewAjuste({ total: items.length, ejemplo });
+    } catch (e) {
+      console.error(e);
+      setPreviewAjuste({ total: 0, ejemplo: null });
+    } finally {
+      setCargandoPreviewAjuste(false);
+    }
+  };
+
+  const confirmarAjustePrecios = async () => {
+    const pct = parseFloat(ajustePorcentaje);
+    if (!Number.isFinite(pct) || pct === 0) {
+      alert("Ingresá un porcentaje distinto de cero (ej: 10 o -5).");
+      return;
+    }
+    if (camposAjusteActivos.length === 0) {
+      alert("Elegí al menos un campo a ajustar.");
+      return;
+    }
+    if (!rol?.negocioID) return;
+
+    setAplicandoAjuste(true);
+    try {
+      const items = await listarRepuestosParaAjuste(ajusteAlcance);
+      if (items.length === 0) {
+        alert("No hay repuestos en ARS para ajustar con ese alcance.");
+        return;
+      }
+
+      const CHUNK = 450;
+      let actualizados = 0;
+
+      for (let i = 0; i < items.length; i += CHUNK) {
+        const batch = writeBatch(db);
+        let ops = 0;
+        for (const item of items.slice(i, i + CHUNK)) {
+          const patch = patchAjustePrecioARS(item.data, pct, camposAjusteActivos);
+          if (Object.keys(patch).length === 0) continue;
+          batch.update(doc(db, `negocios/${rol.negocioID}/stockRepuestos`, item.id), patch);
+          ops++;
+        }
+        if (ops > 0) {
+          await batch.commit();
+          actualizados += ops;
+        }
+      }
+
+      setModalAjustePrecios(false);
+      await refrescarProductos();
+      onProductoActualizado?.();
+      alert(
+        actualizados > 0
+          ? `✅ Precios actualizados en ${actualizados} repuesto(s) en ARS (${pct > 0 ? "+" : ""}${pct}%).`
+          : "No había precios > 0 en los campos elegidos para actualizar."
+      );
+    } catch (error) {
+      console.error("Error al ajustar precios:", error);
+      alert("No se pudieron actualizar los precios. Revisá la consola e intentá de nuevo.");
+    } finally {
+      setAplicandoAjuste(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!modalAjustePrecios) return;
+    void actualizarPreviewAjuste();
+  }, [
+    modalAjustePrecios,
+    ajusteAlcance,
+    ajustePorcentaje,
+    ajusteCampos,
+    seleccionados,
+    productosFiltrados,
+  ]);
+
+  const seleccionarTodoElStock = async () => {
+    if (!rol?.negocioID) return;
+    setCargandoIdsTotales(true);
+    try {
+      const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockRepuestos`));
+      setSeleccionados(new Set(snap.docs.map((d) => d.id)));
+      if (!modoSeleccion) setModoSeleccion(true);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo cargar la lista completa del stock.");
+    } finally {
+      setCargandoIdsTotales(false);
+    }
+  };
+
+  const confirmarEliminacionMasiva = async () => {
+    const ids = Array.from(seleccionados);
+    if (!rol?.negocioID || ids.length === 0) return;
+
+    setEliminandoMasivo(true);
+    try {
+      const CHUNK = 450;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch = writeBatch(db);
+        for (const id of ids.slice(i, i + CHUNK)) {
+          batch.delete(doc(db, `negocios/${rol.negocioID}/stockRepuestos`, id));
+        }
+        await batch.commit();
+      }
+      setModalEliminarMasivo(false);
+      salirModoSeleccion();
+      await refrescarProductos();
+      onProductoActualizado?.();
+    } catch (error) {
+      console.error("Error al eliminar en lote:", error);
+      alert("No se pudieron eliminar todos los productos. Revisá la consola e intentá de nuevo.");
+    } finally {
+      setEliminandoMasivo(false);
+    }
+  };
+
+  const productosSeleccionados = useMemo(
+    () => productos.filter((p) => seleccionados.has(p.id)),
+    [productos, seleccionados]
+  );
+
+  const aplicarCostoDesdeCalculadora = (usd: number) => {
+    setFormulario((prev) => {
+      const next = { ...prev, precioCosto: usd };
+      next.precioCostoPesos = pesosDesdeMoneda(usd, prev.moneda, cotizacionSegura);
+      if (autoDesdePorcentaje.current && porcentaje !== "" && usd > 0) {
+        const p1 = precioDesdeMargen(usd, Number(porcentaje));
+        next.precio1 = p1;
+        next.precio1Pesos = pesosDesdeMoneda(p1, prev.moneda, cotizacionSegura);
+      }
+      return next;
+    });
   };
 
   const persistirWhatsappPedidos = async () => {
@@ -842,29 +1104,114 @@ export default function TablaProductos({
         
         {/* Header de la tabla */}
         <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-4">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-6 h-6 sm:w-10 sm:h-10 bg-white/20 rounded-lg flex items-center justify-center">
-              <span className="text-sm sm:text-2xl">📦</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-10 sm:h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                <span className="text-sm sm:text-2xl">📦</span>
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-lg font-bold">Stock de Repuestos</h3>
+                <p className="text-blue-100 text-xs sm:text-sm">
+                  Mostrando {estadisticas.totalFiltrados} productos
+                  {totalProductos > 0 && (
+                    <span className="ml-2">
+                      • Página {paginaActual} • Total: {totalProductos}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm sm:text-lg font-bold">Stock de Repuestos</h3>
-              <p className="text-blue-100 text-xs sm:text-sm">
-                Mostrando {estadisticas.totalFiltrados} productos
-                {totalProductos > 0 && (
-                  <span className="ml-2">
-                    • Página {paginaActual} • Total: {totalProductos}
-                  </span>
-                )}
-              </p>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (modoSeleccion && seleccionados.size === 0) {
+                    setAjusteAlcance("todosARS");
+                  } else if (seleccionados.size > 0) {
+                    setAjusteAlcance("seleccionados");
+                  }
+                  setModalAjustePrecios(true);
+                }}
+                className="rounded-lg bg-[#f39c12] px-3 py-2 text-xs font-bold text-white shadow hover:bg-[#e67e22] sm:text-sm"
+              >
+                📈 Ajustar %
+              </button>
+              <button
+                type="button"
+                onClick={() => (modoSeleccion ? salirModoSeleccion() : setModoSeleccion(true))}
+                className={`rounded-lg px-3 py-2 text-xs font-bold transition sm:text-sm ${
+                  modoSeleccion
+                    ? "bg-white/20 text-white ring-2 ring-white/40"
+                    : "bg-white text-[#2c3e50] hover:bg-blue-50"
+                }`}
+              >
+                {modoSeleccion ? "✕ Salir selección" : "☑️ Seleccionar varios"}
+              </button>
             </div>
           </div>
         </div>
+
+        {modoSeleccion && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#3498db]/30 bg-[#ebf5fb] px-3 py-2.5 sm:px-4">
+            <span className="text-sm font-semibold text-[#2c3e50]">
+              {seleccionados.size} seleccionado{seleccionados.size === 1 ? "" : "s"}
+            </span>
+            <button
+              type="button"
+              onClick={seleccionarTodosVisibles}
+              disabled={productosFiltrados.length === 0}
+              className="rounded-lg border border-[#3498db] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#2980b9] hover:bg-[#ebf5fb] disabled:opacity-40"
+            >
+              Todos visibles ({productosFiltrados.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => void seleccionarTodoElStock()}
+              disabled={cargandoIdsTotales || totalProductos === 0}
+              className="rounded-lg border border-[#9b59b6] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#8e44ad] hover:bg-purple-50 disabled:opacity-40"
+            >
+              {cargandoIdsTotales ? "Cargando…" : `Todo el stock (${totalProductos})`}
+            </button>
+            <button
+              type="button"
+              onClick={limpiarSeleccion}
+              disabled={seleccionados.size === 0}
+              className="rounded-lg border border-[#bdc3c7] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#7f8c8d] hover:bg-neutral-50 disabled:opacity-40"
+            >
+              Ninguno
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAjusteAlcance("seleccionados");
+                setModalAjustePrecios(true);
+              }}
+              disabled={seleccionados.size === 0}
+              className="rounded-lg border border-[#f39c12] bg-[#fef5e7] px-2.5 py-1.5 text-xs font-semibold text-[#d68910] hover:bg-[#fdebd0] disabled:opacity-40"
+            >
+              📈 Ajustar % selección
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalEliminarMasivo(true)}
+              disabled={seleccionados.size === 0 || eliminandoMasivo}
+              className="ml-auto rounded-lg bg-[#e74c3c] px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-[#c0392b] disabled:opacity-40 sm:text-sm"
+            >
+              🗑️ Eliminar seleccionados
+            </button>
+          </div>
+        )}
 
         {/* Tabla responsive */}
         <div className="w-full">
           <table className="w-full border-collapse table-fixed text-xs">
             <thead className="bg-[#ecf0f1]">
               <tr>
+                {modoSeleccion && (
+                  <th className="w-9 p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                    ☑️
+                  </th>
+                )}
                 <th className="w-[8%] lg:w-[6%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   🏷️ Código
                 </th>
@@ -905,7 +1252,7 @@ export default function TablaProductos({
             <tbody>
               {productosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-[#7f8c8d] border border-[#bdc3c7]">
+                  <td colSpan={modoSeleccion ? 12 : 11} className="p-8 text-center text-[#7f8c8d] border border-[#bdc3c7]">
                     <div className="flex flex-col items-center gap-4">
                       <div className="w-12 h-12 bg-[#ecf0f1] rounded-full flex items-center justify-center">
                         <span className="text-2xl">📦</span>
@@ -927,18 +1274,32 @@ export default function TablaProductos({
               ) : (
                 productosFiltrados.map((p) => {
                   const isEven = productosFiltrados.indexOf(p) % 2 === 0;
+                  const marcado = seleccionados.has(p.id);
                   
                   return (
                     <tr
                       key={p.id}
                       className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
-                        (p.cantidad || 0) === 0
+                        marcado
+                          ? "bg-[#fdebd0] ring-1 ring-inset ring-[#f39c12]"
+                          : (p.cantidad || 0) === 0
                           ? "bg-red-50"
                           : (p.cantidad || 0) <= (p.stockBajo ?? 3)
                           ? "bg-yellow-50"
                           : isEven ? "bg-white" : "bg-[#f8f9fa]"
                       }`}
                     >
+                      {modoSeleccion && (
+                        <td className="p-1 text-center align-middle border border-[#bdc3c7]">
+                          <input
+                            type="checkbox"
+                            checked={marcado}
+                            onChange={() => toggleSeleccion(p.id)}
+                            aria-label={`Seleccionar ${p.producto || p.codigo}`}
+                            className="h-4 w-4 rounded border-[#bdc3c7] text-[#3498db] focus:ring-[#3498db]"
+                          />
+                        </td>
+                      )}
                       {/* Código */}
                       <td className="p-1 text-center border border-[#bdc3c7]">
                         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-bold bg-[#3498db] text-white">
@@ -1299,41 +1660,45 @@ export default function TablaProductos({
                   />
                 </div>
 
-                {/* Moneda + margen */}
+                {/* Moneda + margen + calculadora USD */}
                 <div className="space-y-2 md:col-span-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <label className="block text-xs sm:text-sm font-semibold text-[#2c3e50]">
-                        💱 Moneda del producto
-                      </label>
-                      <div className="flex gap-2">
+                  <div
+                    className={`grid gap-2 ${
+                      formulario.moneda === "USD"
+                        ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+                        : "grid-cols-1 sm:grid-cols-2"
+                    }`}
+                  >
+                    <div className="space-y-2 min-w-0">
+                      <label className="block text-xs font-semibold text-[#2c3e50]">💱 Moneda</label>
+                      <div className="flex gap-1">
                         <button
                           type="button"
                           onClick={() => manejarCambioMoneda("ARS")}
-                          className={`flex-1 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition ${
+                          className={`flex-1 rounded-lg border-2 px-2 py-2 text-xs font-semibold transition ${
                             formulario.moneda === "ARS"
                               ? "border-[#27ae60] bg-[#eafaf1] text-[#1e8449]"
-                              : "border-[#bdc3c7] bg-white text-[#7f8c8d] hover:border-[#27ae60]/50"
+                              : "border-[#bdc3c7] bg-white text-[#7f8c8d]"
                           }`}
                         >
-                          🇦🇷 ARS
+                          ARS
                         </button>
                         <button
                           type="button"
                           onClick={() => manejarCambioMoneda("USD")}
-                          className={`flex-1 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition ${
+                          className={`flex-1 rounded-lg border-2 px-2 py-2 text-xs font-semibold transition ${
                             formulario.moneda === "USD"
                               ? "border-[#3498db] bg-[#ebf5fb] text-[#2471a3]"
-                              : "border-[#bdc3c7] bg-white text-[#7f8c8d] hover:border-[#3498db]/50"
+                              : "border-[#bdc3c7] bg-white text-[#7f8c8d]"
                           }`}
                         >
-                          🇺🇸 USD
+                          USD
                         </button>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="block text-xs sm:text-sm font-semibold text-[#2c3e50]">
-                        📈 Margen % → Precio 1
+                    <div className="space-y-2 min-w-0">
+                      <label className="block text-xs font-semibold text-[#2c3e50] truncate">
+                        📈 Margen %
                       </label>
                       <div className="relative">
                         <input
@@ -1342,19 +1707,31 @@ export default function TablaProductos({
                           value={porcentaje}
                           onChange={manejarCambio}
                           step="0.1"
-                          placeholder="Ej: 50"
-                          className="w-full p-2 sm:p-3 pr-8 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm"
+                          placeholder="50"
+                          className="w-full p-2 pr-7 border-2 border-[#bdc3c7] rounded-lg text-sm focus:border-[#3498db] focus:ring-2 focus:ring-[#3498db]/20"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#7f8c8d] font-semibold">%</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#7f8c8d] font-semibold">
+                          %
+                        </span>
                       </div>
-                      <p className="text-[11px] text-[#7f8c8d]">
-                        Sobre el costo. Precio 1 sigue editable a mano.
-                      </p>
                     </div>
+                    {formulario.moneda === "USD" && (
+                      <CalculadoraCostoUsd
+                        compact
+                        cotizacionSistema={cotizacionSegura}
+                        onAplicarCosto={aplicarCostoDesdeCalculadora}
+                      />
+                    )}
                   </div>
-                  <p className="text-[11px] text-[#7f8c8d]">
-                    Los precios de costo y venta se interpretan en esta moneda.
-                  </p>
+                  {formulario.moneda === "USD" ? (
+                    <p className="text-[11px] text-[#7f8c8d]">
+                      ARS ÷ cotización = costo USD. Botón → copia al precio de costo.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-[#7f8c8d]">
+                      Margen % sobre el costo → Precio 1.
+                    </p>
+                  )}
                 </div>
 
                 {/* Precio Costo */}
@@ -1670,6 +2047,223 @@ export default function TablaProductos({
               </div>
             </div>
           </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {mounted &&
+        modalAjustePrecios &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-ajuste-precios-titulo"
+          >
+            <button
+              type="button"
+              className="absolute inset-0 z-0 bg-black/40"
+              onClick={() => !aplicandoAjuste && setModalAjustePrecios(false)}
+              aria-label="Cerrar"
+            />
+            <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
+              <div className="pointer-events-auto w-full max-w-lg rounded-2xl border-2 border-[#ecf0f1] bg-white shadow-2xl">
+                <div className="rounded-t-2xl bg-gradient-to-r from-[#f39c12] to-[#e67e22] p-4 text-white sm:p-6">
+                  <h2 id="modal-ajuste-precios-titulo" className="text-lg font-bold sm:text-xl">
+                    Ajustar precios en ARS
+                  </h2>
+                  <p className="text-sm text-orange-100">
+                    Subí o bajá un % sobre costo y listas (solo moneda ARS)
+                  </p>
+                </div>
+                <div className="space-y-4 p-4 sm:p-6">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-[#2c3e50]">Alcance</label>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      {(
+                        [
+                          ["seleccionados", `Seleccionados (${seleccionados.size})`],
+                          ["visiblesARS", `Visibles ARS (${productosFiltrados.filter((p) => normalizarMoneda(p.moneda) === "ARS").length})`],
+                          ["todosARS", "Todos en ARS del stock"],
+                        ] as const
+                      ).map(([valor, label]) => (
+                        <label
+                          key={valor}
+                          className={`flex cursor-pointer items-center gap-2 rounded-lg border-2 px-3 py-2 text-xs font-medium ${
+                            ajusteAlcance === valor
+                              ? "border-[#f39c12] bg-[#fef5e7] text-[#d68910]"
+                              : "border-[#bdc3c7] bg-white text-[#7f8c8d]"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="alcanceAjuste"
+                            checked={ajusteAlcance === valor}
+                            onChange={() => setAjusteAlcance(valor)}
+                            className="sr-only"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-[#2c3e50]">
+                      Porcentaje (+ sube / − baja)
+                    </label>
+                    <div className="relative max-w-[140px]">
+                      <input
+                        type="number"
+                        value={ajustePorcentaje}
+                        onChange={(e) => setAjustePorcentaje(e.target.value)}
+                        step="0.1"
+                        placeholder="10"
+                        className="w-full rounded-lg border-2 border-[#bdc3c7] p-2 pr-7 text-sm focus:border-[#f39c12] focus:ring-2 focus:ring-[#f39c12]/20"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#7f8c8d]">%</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold text-[#2c3e50]">
+                      Campos a ajustar
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {(
+                        [
+                          ["precioCosto", "Precio costo"],
+                          ["precio1", "Precio 1"],
+                          ["precio2", "Precio 2"],
+                          ["precio3", "Precio 3"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <label key={key} className="flex cursor-pointer items-center gap-1.5 text-sm text-[#2c3e50]">
+                          <input
+                            type="checkbox"
+                            checked={ajusteCampos[key]}
+                            onChange={(e) =>
+                              setAjusteCampos((prev) => ({ ...prev, [key]: e.target.checked }))
+                            }
+                            className="h-4 w-4 rounded border-[#bdc3c7] text-[#f39c12] focus:ring-[#f39c12]"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-[11px] text-[#7f8c8d]">
+                      Ítems con precio 0 en ese campo se omiten.
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#f39c12]/40 bg-[#fef9f0] p-3 text-sm text-[#2c3e50]">
+                    {cargandoPreviewAjuste ? (
+                      <span className="text-[#7f8c8d]">Calculando vista previa…</span>
+                    ) : (
+                      <>
+                        <p>
+                          Se actualizarán{" "}
+                          <strong>{previewAjuste.total}</strong> repuesto
+                          {previewAjuste.total === 1 ? "" : "s"} en <strong>ARS</strong>.
+                        </p>
+                        {previewAjuste.ejemplo && (
+                          <p className="mt-1 text-xs text-[#7f8c8d]">
+                            Ejemplo: {previewAjuste.ejemplo}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      disabled={aplicandoAjuste}
+                      onClick={() => setModalAjustePrecios(false)}
+                      className="rounded-lg bg-[#7f8c8d] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={aplicandoAjuste || cargandoPreviewAjuste || previewAjuste.total === 0}
+                      onClick={() => void confirmarAjustePrecios()}
+                      className="rounded-lg bg-[#f39c12] px-4 py-2 text-sm font-bold text-white shadow-lg hover:bg-[#e67e22] disabled:opacity-50"
+                    >
+                      {aplicandoAjuste ? "Aplicando…" : "Aplicar ajuste"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {mounted &&
+        modalEliminarMasivo &&
+        createPortal(
+          <div className="fixed inset-0 z-[100]" role="alertdialog" aria-modal="true" aria-labelledby="modal-eliminar-masivo-titulo">
+            <button
+              type="button"
+              className="absolute inset-0 z-0 bg-black/40"
+              onClick={() => !eliminandoMasivo && setModalEliminarMasivo(false)}
+              aria-label="Cerrar"
+            />
+            <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
+              <div className="pointer-events-auto w-full max-w-lg rounded-2xl border-2 border-[#ecf0f1] bg-white shadow-2xl">
+                <div className="rounded-t-2xl bg-gradient-to-r from-[#e74c3c] to-[#c0392b] p-4 text-white sm:p-6">
+                  <h2 id="modal-eliminar-masivo-titulo" className="text-lg font-bold sm:text-xl">
+                    Eliminar {seleccionados.size} producto{seleccionados.size === 1 ? "" : "s"}
+                  </h2>
+                  <p className="text-sm text-red-100">Esta acción no se puede deshacer</p>
+                </div>
+                <div className="space-y-4 p-4 sm:p-6">
+                  <div className="rounded-lg border-2 border-[#e74c3c] bg-red-50 p-3 sm:p-4">
+                    <p className="text-sm font-medium text-[#e74c3c]">
+                      ¿Eliminar {seleccionados.size} repuesto{seleccionados.size === 1 ? "" : "s"} del stock?
+                    </p>
+                    {productosSeleccionados.length > 0 && (
+                      <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto text-xs text-[#7f8c8d]">
+                        {productosSeleccionados.slice(0, 12).map((p) => (
+                          <li key={p.id}>
+                            <strong>{p.codigo}</strong> — {p.producto}
+                          </li>
+                        ))}
+                        {seleccionados.size > 12 && (
+                          <li className="font-medium text-[#e74c3c]">
+                            … y {seleccionados.size - 12} más
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                    {seleccionados.size > productosSeleccionados.length && (
+                      <p className="mt-2 text-xs text-[#7f8c8d]">
+                        Incluye productos que no están cargados en pantalla ({seleccionados.size - productosSeleccionados.length} adicionales).
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      disabled={eliminandoMasivo}
+                      onClick={() => setModalEliminarMasivo(false)}
+                      className="rounded-lg bg-[#7f8c8d] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={eliminandoMasivo}
+                      onClick={() => void confirmarEliminacionMasiva()}
+                      className="rounded-lg bg-[#e74c3c] px-4 py-2 text-sm font-bold text-white shadow-lg hover:bg-[#c0392b] disabled:opacity-50"
+                    >
+                      {eliminandoMasivo ? "Eliminando…" : `Sí, eliminar ${seleccionados.size}`}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>,
           document.body

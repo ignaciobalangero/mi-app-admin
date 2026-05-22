@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import CampoFotoRepuesto from "./CampoFotoRepuesto";
+import CalculadoraCostoUsd from "./CalculadoraCostoUsd";
 import { margenDesdePrecio, precioDesdeMargen } from "@/lib/margenRepuesto";
 
 interface Props {
@@ -273,50 +274,77 @@ export default function FormularioProducto({
             <p className="text-xs text-[#95a5a6]">Iniciá sesión para cargar fotos.</p>
           )}
         </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
-            💸 Precio de costo
-          </label>
-          <input 
-            type="number" 
-            value={precioCosto} 
-            onChange={(e) => handlePrecioCostoChange(Number(e.target.value))} 
-            className={`p-2 border-2 rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d] ${
-              precioCosto <= 0 ? "border-[#e74c3c] focus:border-[#e74c3c]" : "border-[#bdc3c7] focus:border-[#3498db]"
+        <div className="lg:col-span-4">
+          <div
+            className={`grid gap-2 ${
+              moneda === "USD"
+                ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+                : "grid-cols-1 sm:grid-cols-3"
             }`}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
-            💱 Moneda
-          </label>
-          <select 
-            value={moneda} 
-            onChange={(e) => setMoneda(e.target.value as "ARS" | "USD")} 
-            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs"
           >
-            <option value="ARS">🇦🇷 Pesos</option>
-            <option value="USD">🇺🇸 Dólares</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
-            📈 Margen % → Precio 1
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              value={porcentaje}
-              onChange={(e) => handlePorcentajeChange(e.target.value)}
-              step="0.1"
-              placeholder="Ej: 50"
-              className="p-2 pr-7 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#7f8c8d] font-semibold">%</span>
+            <div>
+              <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+                💸 Precio de costo
+              </label>
+              <input
+                type="number"
+                value={precioCosto}
+                onChange={(e) => handlePrecioCostoChange(Number(e.target.value))}
+                className={`p-2 border-2 rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d] ${
+                  precioCosto <= 0
+                    ? "border-[#e74c3c] focus:border-[#e74c3c]"
+                    : "border-[#bdc3c7] focus:border-[#3498db]"
+                }`}
+              />
+            </div>
+            <div className={moneda === "USD" ? "min-w-0" : ""}>
+              <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+                💱 Moneda
+              </label>
+              <select
+                value={moneda}
+                onChange={(e) => setMoneda(e.target.value as "ARS" | "USD")}
+                className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs"
+              >
+                <option value="ARS">🇦🇷 ARS</option>
+                <option value="USD">🇺🇸 USD</option>
+              </select>
+            </div>
+            <div className={moneda === "USD" ? "min-w-0" : ""}>
+              <label className="block text-xs font-semibold text-[#2c3e50] mb-1 truncate">
+                📈 Margen %
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={porcentaje}
+                  onChange={(e) => handlePorcentajeChange(e.target.value)}
+                  step="0.1"
+                  placeholder="50"
+                  className="p-2 pr-6 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#7f8c8d] font-semibold">
+                  %
+                </span>
+              </div>
+            </div>
+            {moneda === "USD" && (
+              <CalculadoraCostoUsd
+                cotizacionSistema={cotizacion}
+                onAplicarCosto={handlePrecioCostoChange}
+              />
+            )}
           </div>
-          <p className="mt-1 text-[10px] text-[#7f8c8d]">
-            Sobre el costo. Precio 1 sigue editable a mano.
-          </p>
+          {moneda === "USD" && (
+            <p className="mt-1.5 text-[10px] text-[#7f8c8d]">
+              Calculadora: precio en pesos ÷ cotización = costo USD. Botón → copia al costo. Margen sigue calculando Precio 1.
+            </p>
+          )}
+          {moneda !== "USD" && (
+            <p className="mt-1.5 text-[10px] text-[#7f8c8d]">
+              Margen % sobre el costo → Precio 1 (editable a mano).
+            </p>
+          )}
         </div>
 
         <div className="lg:col-span-4 rounded-lg border border-[#3498db]/30 bg-[#ebf5fb] px-2 py-1.5 text-[10px] text-[#2c3e50]">
