@@ -50,6 +50,8 @@ interface Props {
   setFotoURL?: (val: string) => void;
   observacion?: string;
   setObservacion?: (val: string) => void;
+  publicarEnCatalogoWeb?: boolean;
+  setPublicarEnCatalogoWeb?: (val: boolean) => void;
   negocioID?: string;
 }
 
@@ -98,6 +100,8 @@ export default function FormularioProducto({
   setFotoURL = () => {},
   observacion = "",
   setObservacion = () => {},
+  publicarEnCatalogoWeb = false,
+  setPublicarEnCatalogoWeb = () => {},
   negocioID = "",
 }: Props) {
   const [porcentaje, setPorcentaje] = useState<number | "">("");
@@ -273,6 +277,38 @@ export default function FormularioProducto({
           ) : (
             <p className="text-xs text-[#95a5a6]">Iniciá sesión para cargar fotos.</p>
           )}
+        </div>
+        <div className="md:col-span-2 lg:col-span-4">
+          <button
+            type="button"
+            onClick={() => setPublicarEnCatalogoWeb(!publicarEnCatalogoWeb)}
+            className={`flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all ${
+              publicarEnCatalogoWeb
+                ? "border-[#1abc9c] bg-[#e8f8f5] shadow-sm"
+                : "border-[#bdc3c7] bg-white hover:border-[#1abc9c]/50 hover:bg-[#f8fffe]"
+            }`}
+          >
+            <span
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg ${
+                publicarEnCatalogoWeb
+                  ? "bg-[#1abc9c] text-white"
+                  : "bg-[#ecf0f1] text-[#95a5a6]"
+              }`}
+              aria-hidden
+            >
+              🌐
+            </span>
+            <span>
+              <span className="block text-sm font-bold text-[#2c3e50]">
+                {publicarEnCatalogoWeb ? "Se publica en la tienda web" : "Publicar en la tienda web"}
+              </span>
+              <span className="mt-0.5 block text-[11px] text-[#7f8c8d]">
+                {publicarEnCatalogoWeb
+                  ? "Visible en consulta-stock al guardar. Podés desmarcarlo antes de guardar."
+                  : "Marcá acá para no tener que buscarlo después en la tabla."}
+              </span>
+            </span>
+          </button>
         </div>
         <div className="lg:col-span-4">
           <div

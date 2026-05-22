@@ -77,6 +77,7 @@ export default function RepuestosPage() {
   const [precio3Pesos, setPrecio3Pesos] = useState(0);
   const [fotoURL, setFotoURL] = useState("");
   const [observacion, setObservacion] = useState("");
+  const [publicarEnCatalogoWeb, setPublicarEnCatalogoWeb] = useState(false);
   
   // 🔄 ESTADOS SIMPLIFICADOS - La tabla optimizada maneja sus propios productos
   const [productosResumen, setProductosResumen] = useState<ProductoRepuesto[]>([]); // Solo para cálculos de resumen
@@ -168,6 +169,24 @@ export default function RepuestosPage() {
     }
   };
 
+  const activarCatalogoSoloMarcadosSiHaceFalta = async (currentNegocioID: string) => {
+    const datosRef = doc(db, `negocios/${currentNegocioID}/configuracion/datos`);
+    const snap = await getDoc(datosRef);
+    const cp = snap.data()?.catalogoPublico as { catalogoSoloRepuestosMarcados?: boolean } | undefined;
+    if (cp?.catalogoSoloRepuestosMarcados === true) return;
+
+    const prevCat =
+      snap.exists() &&
+      snap.data()?.catalogoPublico &&
+      typeof snap.data()!.catalogoPublico === "object"
+        ? { ...(snap.data()!.catalogoPublico as Record<string, unknown>) }
+        : {};
+
+    await updateDoc(datosRef, {
+      catalogoPublico: { ...prevCat, catalogoSoloRepuestosMarcados: true },
+    });
+  };
+
   const guardarProducto = async () => {
     const currentNegocioID = rol?.negocioID || negocioID;
     if (!currentNegocioID || !producto || precioCosto <= 0 || cantidad < 0) return;
@@ -198,6 +217,7 @@ export default function RepuestosPage() {
       tipo: "repuesto",
       fotoURL: fotoURL.trim(),
       observacion: observacion.trim(),
+      publicarEnCatalogoWeb,
     };
     
     try {
@@ -212,6 +232,10 @@ export default function RepuestosPage() {
           ...data,
           codigo: nuevoCodigo,
         });
+      }
+
+      if (publicarEnCatalogoWeb) {
+        await activarCatalogoSoloMarcadosSiHaceFalta(currentNegocioID);
       }
 
       // Reset del formulario
@@ -248,6 +272,7 @@ export default function RepuestosPage() {
     setPrecioCostoPesos(0);
     setFotoURL("");
     setObservacion("");
+    setPublicarEnCatalogoWeb(false);
     setMostrarFormulario(false);
   };
 
@@ -287,6 +312,7 @@ export default function RepuestosPage() {
     setPrecioCostoPesos(prod.precioCostoPesos || prod.precioCosto || 0);
     setFotoURL(typeof prod.fotoURL === "string" ? prod.fotoURL : "");
     setObservacion(typeof prod.observacion === "string" ? prod.observacion : "");
+    setPublicarEnCatalogoWeb(prod.publicarEnCatalogoWeb === true);
     
     setEditandoId(prod.id || "");
     setMostrarFormulario(true);
@@ -455,6 +481,8 @@ export default function RepuestosPage() {
               setFotoURL={setFotoURL}
               observacion={observacion}
               setObservacion={setObservacion}
+              publicarEnCatalogoWeb={publicarEnCatalogoWeb}
+              setPublicarEnCatalogoWeb={setPublicarEnCatalogoWeb}
               negocioID={rol?.negocioID || negocioID}
               cantidad={cantidad}
               setCantidad={setCantidad}
