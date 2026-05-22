@@ -72,7 +72,7 @@ interface Props {
   editarProducto?: (producto: Producto) => void; // ⚠️ DEPRECATED - Usa modal interno
   eliminarProducto: (id: string) => void;
   actualizarProducto?: (producto: Producto) => Promise<void>;
-  onProductoActualizado?: (producto: Producto) => void;
+  onProductoActualizado?: () => void;
   cotizacion: number;
   onCotizacionChange: (nuevaCotizacion: number) => void;
   negocioID?: string;
@@ -620,7 +620,7 @@ export default function TablaProductos({
 
     if (alcance === "seleccionados") {
       const out: { id: string; data: Record<string, unknown> }[] = [];
-      for (const id of seleccionados) {
+      for (const id of Array.from(seleccionados)) {
         const snap = await getDoc(doc(db, colPath, id));
         if (snap.exists()) {
           const data = snap.data();
