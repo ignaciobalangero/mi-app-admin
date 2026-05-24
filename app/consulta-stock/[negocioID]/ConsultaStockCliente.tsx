@@ -1,8 +1,6 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
-import Image from "next/image";
 import {
   Search,
   ShoppingBag,
@@ -27,6 +25,15 @@ import {
 } from "@/lib/stockPublicoPrecios";
 import { coincideBusqueda, tokensBusqueda } from "@/lib/stockPublicoBusqueda";
 import FooterTienda from "../components/FooterTienda";
+import BannersTienda from "../components/BannersTienda";
+import { resolverUrlFotoProducto } from "@/lib/fotoProductoUrl";
+import {
+  type ChipCategoria,
+  coincideChipCategoria,
+  coincideMarca,
+  esItemPantalla,
+  marcasUnicas,
+} from "@/lib/catalogoChipCategoria";
 import type { TiendaPublicaInfo } from "@/lib/tiendaPublicaTypes";
 import { useLogo } from "@/app/components/LogoProvider";
 
@@ -50,6 +57,7 @@ type Payload = {
   cotizacionUSD: number;
   actualizadoISO: string;
   modo: "browse" | "search";
+  chip?: ChipCategoria;
   limite: number;
   total: number;
   hayMas: boolean;
@@ -73,8 +81,6 @@ function normalizarBusqueda(s: string): string {
     .replace(/\s+/g, " ");
 }
 
-type ChipCategoria = "todas" | "pantallas" | "baterias" | "otros";
-
 const CHIPS: {
   id: ChipCategoria;
   label: string;
@@ -84,24 +90,8 @@ const CHIPS: {
   { id: "todas", label: "Todos", hint: "Ver catálogo completo", Icon: LayoutGrid },
   { id: "pantallas", label: "Pantallas", hint: "Módulos, LCD, OLED…", Icon: Monitor },
   { id: "baterias", label: "Baterías", hint: "Baterías y pilas", Icon: Battery },
-  { id: "otros", label: "Otros", hint: "Resto de repuestos", Icon: Layers },
+  { id: "otros", label: "Otros", hint: "Flex, tapas, conectores y más", Icon: Layers },
 ];
-
-/** Filtro en cliente (siguiente paso: query Firestore por categoría para menos lecturas). */
-function coincideChipCategoria(it: ItemStockPublico, chip: ChipCategoria): boolean {
-  if (chip === "todas") return true;
-  const blob = normalizarBusqueda(
-    [it.categoria, it.producto, it.marca].filter(Boolean).join(" ")
-  );
-  const esPantalla = ["pantalla", "modulo", "módulo", "lcd", "oled", "display", "touch"].some((k) =>
-    blob.includes(k)
-  );
-  const esBateria = ["bater", "pila"].some((k) => blob.includes(k));
-  if (chip === "pantallas") return esPantalla;
-  if (chip === "baterias") return esBateria;
-  if (chip === "otros") return !esPantalla && !esBateria;
-  return true;
-}
 
 function mergeOps(raw?: CatalogoPublicoOpciones): CatalogoPublicoOpciones {
   return { ...DEFAULT_OPS, ...raw };
@@ -123,9 +113,10 @@ function MiniFoto({
 }) {
   const [fallo, setFallo] = useState(false);
   const [cargando, setCargando] = useState(true);
-  const clickable = Boolean(onClick && url && !fallo);
+  const src = resolverUrlFotoProducto(url);
+  const clickable = Boolean(onClick && src && !fallo);
 
-  if (!url || fallo) {
+  if (!src || fallo) {
     return (
       <div
         className={`flex items-center justify-center bg-white text-neutral-300 ${className ?? ""}`}
@@ -157,15 +148,13 @@ function MiniFoto({
       {cargando && (
         <div className="absolute inset-0 z-[1] animate-pulse bg-neutral-100" aria-hidden />
       )}
-      <Image
-        src={url}
+      <img
+        src={src}
         alt={alt}
-        fill
-        sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 240px"
-        className={`relative z-[2] bg-white object-contain transition-opacity duration-300 ${cargando ? "opacity-0" : "opacity-100"}`}
+        className={`absolute inset-0 z-[2] h-full w-full bg-white object-contain transition-opacity duration-300 ${cargando ? "opacity-0" : "opacity-100"}`}
         style={{ backgroundColor: "#ffffff" }}
-        priority={priority}
         loading={priority ? "eager" : "lazy"}
+        decoding="async"
         onLoad={() => setCargando(false)}
         onError={() => {
           setFallo(true);
@@ -200,9 +189,9 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
   const [searching, setSearching] = useState(false);
   const [q, setQ] = useState("");
   const [chipCategoria, setChipCategoria] = useState<ChipCategoria>("todas");
+  const [marcaPantalla, setMarcaPantalla] = useState("");
   const [carrito, setCarrito] = useState<Record<string, LineaCarrito>>({});
   const [drawerAbierto, setDrawerAbierto] = useState(false);
-  const [portalReady, setPortalReady] = useState(false);
   const [fotoAmpliada, setFotoAmpliada] = useState<{
     url: string;
     alt: string;
@@ -210,21 +199,29 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
   } | null>(null);
   const primeraCargaRef = useRef(true);
   const qRef = useRef(q);
+  const chipRef = useRef(chipCategoria);
   qRef.current = q;
+  chipRef.current = chipCategoria;
 
-  const recargarStock = useCallback(async (query: string, esInicial: boolean) => {
+  const recargarStock = useCallback(async (query: string, chip: ChipCategoria, esInicial: boolean) => {
     if (esInicial) setLoading(true);
     else setSearching(true);
     setError(null);
 
+    const qTrim = query.trim();
+    const esBusqueda = qTrim.length >= MIN_BUSQUEDA_CHARS;
+    const limite = esBusqueda || chip !== "todas" ? 80 : BROWSE_LIMIT;
+
     const params = new URLSearchParams({
       negocioId: negocioID,
-      limit: String(BROWSE_LIMIT),
+      limit: String(limite),
       _: String(Date.now()),
     });
-    const qTrim = query.trim();
-    if (qTrim.length >= MIN_BUSQUEDA_CHARS) {
+    if (esBusqueda) {
       params.set("q", qTrim);
+    }
+    if (chip !== "todas") {
+      params.set("chip", chip);
     }
 
     try {
@@ -243,14 +240,14 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
   useEffect(() => {
     let cancel = false;
 
-    async function cargar(query: string, esInicial: boolean) {
+    async function cargar(query: string, chip: ChipCategoria, esInicial: boolean) {
       if (cancel) return;
-      await recargarStock(query, esInicial);
+      await recargarStock(query, chip, esInicial);
     }
 
     const qTrim = q.trim();
     if (qTrim.length === 0) {
-      void cargar("", primeraCargaRef.current);
+      void cargar("", chipCategoria, primeraCargaRef.current);
       primeraCargaRef.current = false;
       return () => {
         cancel = true;
@@ -262,27 +259,33 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
     }
 
     const timer = window.setTimeout(() => {
-      void cargar(qTrim, false);
+      void cargar(qTrim, chipCategoria, false);
     }, 350);
 
     return () => {
       cancel = true;
       window.clearTimeout(timer);
     };
-  }, [negocioID, q, recargarStock]);
+  }, [negocioID, q, chipCategoria, recargarStock]);
 
   /** Al volver a la pestaña (ej. después de cargar stock en el panel), refrescar datos. */
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        void recargarStock(qRef.current, false);
+        void recargarStock(qRef.current, chipRef.current, false);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [recargarStock]);
 
-  useEffect(() => setPortalReady(true), []);
+  useEffect(() => {
+    const bloqueado = drawerAbierto || fotoAmpliada !== null;
+    document.body.style.overflow = bloqueado ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [drawerAbierto, fotoAmpliada]);
 
   const ops = useMemo(() => mergeOps(payload?.catalogoPublico), [payload?.catalogoPublico]);
 
@@ -320,6 +323,8 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
     return n.length >= 10 ? n : "";
   }, [payload?.whatsappPedidos]);
 
+  const esInicioTienda = chipCategoria === "todas" && q.trim().length === 0;
+
   const tokens = useMemo(() => tokensBusqueda(q), [q]);
 
   const filtrados = useMemo(() => {
@@ -328,8 +333,23 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
     if (payload.modo === "browse" && tokens.length > 0) {
       list = list.filter((it) => coincideBusqueda(it, tokens));
     }
-    return list.filter((it) => coincideChipCategoria(it, chipCategoria));
-  }, [payload, tokens, chipCategoria]);
+    list = list.filter((it) => coincideChipCategoria(it, chipCategoria));
+    if (chipCategoria === "pantallas" && marcaPantalla) {
+      list = list.filter((it) => coincideMarca(it, marcaPantalla));
+    }
+    return list;
+  }, [payload, tokens, chipCategoria, marcaPantalla]);
+
+  const marcasPantallas = useMemo(() => {
+    if (!payload?.items.length) return [];
+    const pantallas = payload.items.filter((it) => {
+      if (payload.modo === "browse" && tokens.length > 0 && !coincideBusqueda(it, tokens)) {
+        return false;
+      }
+      return esItemPantalla(it);
+    });
+    return marcasUnicas(pantallas);
+  }, [payload, tokens]);
 
   const visibles = filtrados;
 
@@ -457,7 +477,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
                 it.fotoURL
                   ? () =>
                       setFotoAmpliada({
-                        url: it.fotoURL!,
+                        url: resolverUrlFotoProducto(it.fotoURL),
                         alt: it.producto,
                         titulo: it.producto,
                       })
@@ -565,6 +585,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
   const irInicioTienda = useCallback(() => {
     setQ("");
     setChipCategoria("todas");
+    setMarcaPantalla("");
     setDrawerAbierto(false);
     setFotoAmpliada(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -641,7 +662,10 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
                 key={id}
                 type="button"
                 title={hint}
-                onClick={() => setChipCategoria(id)}
+                onClick={() => {
+                  setChipCategoria(id);
+                  if (id !== "pantallas") setMarcaPantalla("");
+                }}
                 className={`flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2.5 text-xs font-semibold uppercase sm:text-xs ${
                   chipCategoria === id ? "bg-white text-neutral-900" : "text-neutral-300 hover:bg-white/10"
                 }`}
@@ -651,6 +675,40 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
               </button>
             ))}
           </div>
+          {chipCategoria === "pantallas" && marcasPantallas.length > 0 && (
+            <div className="border-t border-white/10 bg-neutral-800/95">
+              <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto px-2 py-2 sm:px-3">
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-neutral-400 sm:text-xs">
+                  Marca
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMarcaPantalla("")}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    !marcaPantalla
+                      ? "bg-white text-neutral-900"
+                      : "bg-white/10 text-neutral-300 hover:bg-white/20"
+                  }`}
+                >
+                  Todas
+                </button>
+                {marcasPantallas.map((marca) => (
+                  <button
+                    key={marca}
+                    type="button"
+                    onClick={() => setMarcaPantalla(marca)}
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      marcaPantalla.toLowerCase() === marca.toLowerCase()
+                        ? "bg-[#2563eb] text-white"
+                        : "bg-white/10 text-neutral-200 hover:bg-white/20"
+                    }`}
+                  >
+                    {marca}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </nav>
       </header>
 
@@ -663,7 +721,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
             ) : filtrados.length > 0 ? (
               <>
                 {filtrados.length} producto{filtrados.length === 1 ? "" : "s"}
-                {payload.modo === "browse" && !q.trim() && (
+                {payload.modo === "browse" && esInicioTienda && (
                   <span className="text-neutral-400">
                     {" "}
                     · mostrando {BROWSE_LIMIT} para empezar
@@ -684,7 +742,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
             </span>
             <button
               type="button"
-              onClick={() => void recargarStock(q, false)}
+              onClick={() => void recargarStock(q, chipCategoria, false)}
               disabled={searching || loading}
               className="shrink-0 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
             >
@@ -695,6 +753,10 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
       )}
 
       <main className="mx-auto max-w-7xl px-3 pb-28 pt-4 sm:px-4 sm:pb-10 sm:pt-6">
+        {payload?.tiendaPublica && !loading && !error && esInicioTienda && (
+          <BannersTienda tienda={payload.tiendaPublica} logoNegocio={logoTienda} />
+        )}
+
         {loading && (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#00a650] border-t-transparent" />
@@ -742,7 +804,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
                   : "No hay productos para mostrar."}
               </p>
             )}
-            {payload.modo === "browse" && !q.trim() && filtrados.length > 0 && (
+            {payload.modo === "browse" && esInicioTienda && filtrados.length > 0 && (
               <p className="mt-6 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-xs text-neutral-600">
                 Mostramos algunos productos para empezar. Usá el buscador (mín. {MIN_BUSQUEDA_CHARS}{" "}
                 letras) para encontrar el resto del catálogo.
@@ -792,16 +854,13 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
         </a>
       )}
 
-      {portalReady &&
-        drawerAbierto &&
-        createPortal(
+      {drawerAbierto && (
           <div className="fixed inset-0 z-[300]" role="dialog" aria-modal="true" aria-label="Carrito">
-            {/* Capa oscura siempre por debajo del panel (z-0 vs z-10) */}
-            <button
-              type="button"
+            <div
+              role="presentation"
               className="absolute inset-0 z-0 bg-black/40"
               onClick={() => setDrawerAbierto(false)}
-              aria-label="Cerrar"
+              aria-hidden
             />
             <div className="absolute inset-y-0 right-0 z-10 flex h-full w-full max-w-md flex-col border-l border-neutral-200 bg-white shadow-2xl sm:inset-y-3 sm:right-3 sm:max-h-[calc(100vh-1.5rem)] sm:rounded-2xl sm:border sm:border-neutral-200 antialiased">
             <div className="flex items-center justify-between border-b border-neutral-100 bg-white px-4 py-4">
@@ -920,24 +979,21 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
               </div>
             </div>
           </div>
-        </div>,
-          document.body
-        )}
+        </div>
+      )}
 
-      {portalReady &&
-        fotoAmpliada &&
-        createPortal(
+      {fotoAmpliada && (
           <div
             className="fixed inset-0 z-[500]"
             role="dialog"
             aria-modal="true"
             aria-label={`Imagen: ${fotoAmpliada.titulo}`}
           >
-            <button
-              type="button"
+            <div
+              role="presentation"
               className="absolute inset-0 z-0 bg-black/75"
               onClick={() => setFotoAmpliada(null)}
-              aria-label="Cerrar"
+              aria-hidden
             />
             <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
               <div
@@ -957,7 +1013,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
                 </div>
                 <div className="relative z-20 flex min-h-[240px] flex-1 items-center justify-center bg-white p-4 [color-scheme:light] sm:p-6">
                   <img
-                    src={fotoAmpliada.url}
+                    src={resolverUrlFotoProducto(fotoAmpliada.url)}
                     alt={fotoAmpliada.alt}
                     className="max-h-[75vh] max-w-full bg-white object-contain"
                     style={{ backgroundColor: "#ffffff" }}
@@ -966,9 +1022,8 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
                 </div>
               </div>
             </div>
-          </div>,
-          document.body
-        )}
+          </div>
+      )}
     </div>
   );
 }

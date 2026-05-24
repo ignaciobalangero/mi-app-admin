@@ -14,6 +14,7 @@ import * as XLSX from "xlsx";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import { useRol } from "@/lib/useRol";
 import { normalizarMoneda } from "@/lib/monedaRepuesto";
+import { normalizarCategoriaKey } from "@/lib/categoriaRepuesto";
 
 // Componentes
 import ResumenCapital from "./components/ResumenCapital";
@@ -198,6 +199,7 @@ export default function RepuestosPage() {
       proveedor,
       producto,
       categoria,
+      categoriaKey: normalizarCategoriaKey(categoria),
       marca,
       color,
       precioCosto,

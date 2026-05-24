@@ -5,6 +5,11 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { setDoc, doc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import PrecioOfertaGestione from "../components/PrecioOfertaGestione";
+import {
+  PRECIO_MENSUAL_OFERTA_ARS,
+  formatoPrecioGestione,
+} from "@/lib/preciosGestione";
 
 export default function Registro() {
   const router = useRouter();
@@ -198,9 +203,12 @@ export default function Registro() {
               </div>
               <h2 className="text-xl sm:text-2xl font-bold">Crear Cuenta</h2>
             </div>
-            <p className="text-green-100 text-xs sm:text-sm">
-              ¡Prueba gratuita de 7 días sin compromiso!
+            <p className="text-green-100 text-xs sm:text-sm mb-3">
+              7 días gratis · sin tarjeta
             </p>
+            <div className="rounded-xl bg-white/15 px-3 py-2 backdrop-blur-sm">
+              <PrecioOfertaGestione compact />
+            </div>
           </div>
 
           {/* Contenido del formulario */}
@@ -313,19 +321,22 @@ export default function Registro() {
               </div>
             )}
 
-            {/* Información del trial */}
-            <div className="p-3 bg-gradient-to-r from-[#3498db]/10 to-[#2980b9]/10 border-2 border-[#3498db] rounded-lg sm:rounded-xl">
-              <h4 className="text-[#3498db] font-bold text-xs mb-1 flex items-center gap-2">
-                <span>✨</span>
-                ¿Qué incluye tu prueba gratuita?
-              </h4>
-              <ul className="text-[#2c3e50] text-xs space-y-0.5">
-                <li>• 7 días de acceso completo</li>
-                <li>• Todas las funcionalidades disponibles</li>
-                <li>• Sin límite de transacciones</li>
-                <li>• Soporte técnico incluido</li>
-                <li>• Sin compromiso de pago</li>
-              </ul>
+            {/* Plan y prueba */}
+            <div className="p-3 sm:p-4 bg-gradient-to-r from-[#3498db]/10 to-[#2980b9]/10 border-2 border-[#3498db] rounded-lg sm:rounded-xl space-y-3">
+              <PrecioOfertaGestione />
+              <div>
+                <h4 className="text-[#3498db] font-bold text-xs mb-1 flex items-center gap-2">
+                  <span>✨</span>
+                  ¿Qué incluye tu prueba gratuita?
+                </h4>
+                <ul className="text-[#2c3e50] text-xs space-y-0.5">
+                  <li>• 7 días de acceso completo</li>
+                  <li>• Todas las funcionalidades disponibles</li>
+                  <li>• Sin límite de transacciones</li>
+                  <li>• Soporte técnico incluido</li>
+                  <li>• Después del trial: {formatoPrecioGestione(PRECIO_MENSUAL_OFERTA_ARS)}/mes (oferta)</li>
+                </ul>
+              </div>
             </div>
 
             {/* Botón de registro */}

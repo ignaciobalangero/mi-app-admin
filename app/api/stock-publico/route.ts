@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { db as adminDb } from "@/lib/firebaseAdmin";
 import { filtrarItemsBusqueda } from "@/lib/stockPublicoBusqueda";
+import {
+  coincideChipCategoria,
+  type ChipCategoria,
+} from "@/lib/catalogoChipCategoria";
 import type { CatalogoPublicoOpciones, ItemStockPublico } from "@/lib/stockPublicoTypes";
 import { parseTiendaPublica, type TiendaPublicaInfo } from "@/lib/tiendaPublicaTypes";
 import { extraerLogoUrl, rutasConfigLogo } from "@/lib/logoNegocio";
@@ -12,6 +16,14 @@ export const revalidate = 0;
 const DEFAULT_BROWSE_LIMIT = 24;
 const MAX_LIMIT = 80;
 const MIN_SEARCH_CHARS = 2;
+const CHIPS_VALIDOS: ChipCategoria[] = ["todas", "pantallas", "baterias", "otros"];
+
+function parseChip(raw: string | null | undefined): ChipCategoria {
+  const v = String(raw ?? "todas")
+    .trim()
+    .toLowerCase();
+  return CHIPS_VALIDOS.includes(v as ChipCategoria) ? (v as ChipCategoria) : "todas";
+}
 
 const DEFAULT_CATALOGO: CatalogoPublicoOpciones = {
   mostrarCodigo: true,
@@ -185,7 +197,7 @@ function ordenarItems(items: ItemStockPublico[]): ItemStockPublico[] {
 
 async function fetchStockPublicoInterno(
   negocioId: string,
-  opts?: { q?: string; limit?: number }
+  opts?: { q?: string; limit?: number; chip?: ChipCategoria }
 ): Promise<{
   negocioId: string;
   nombreTienda: string;
@@ -196,16 +208,23 @@ async function fetchStockPublicoInterno(
   cotizacionUSD: number;
   actualizadoISO: string;
   modo: "browse" | "search";
+  chip: ChipCategoria;
   limite: number;
   total: number;
   hayMas: boolean;
   items: ItemStockPublico[];
 }> {
   const qBusqueda = (opts?.q ?? "").trim();
+  const chip = parseChip(opts?.chip);
   const modo: "browse" | "search" =
     qBusqueda.length >= MIN_SEARCH_CHARS ? "search" : "browse";
+  const needsFullCatalog = modo === "search" || chip !== "todas";
   const limite = Math.min(
-    Math.max(Number(opts?.limit) || (modo === "search" ? 60 : DEFAULT_BROWSE_LIMIT), 1),
+    Math.max(
+      Number(opts?.limit) ||
+        (modo === "search" ? 80 : chip !== "todas" ? 80 : DEFAULT_BROWSE_LIMIT),
+      1
+    ),
     MAX_LIMIT
   );
 
@@ -269,12 +288,11 @@ async function fetchStockPublicoInterno(
   const soloMarcados = catalogoPublico.catalogoSoloRepuestosMarcados === true;
 
   let stockSnap;
-  if (modo === "search") {
+  if (needsFullCatalog) {
     stockSnap = soloMarcados
       ? await stockCol.where("publicarEnCatalogoWeb", "==", true).get()
       : await stockCol.get();
   } else if (soloMarcados) {
-    // Todos los publicados en web, ordenamos en memoria (evita índice compuesto y no pierde ítems al azar).
     stockSnap = await stockCol.where("publicarEnCatalogoWeb", "==", true).limit(500).get();
   } else {
     try {
@@ -299,13 +317,14 @@ async function fetchStockPublicoInterno(
 
   if (modo === "search") {
     items = filtrarItemsBusqueda(items, qBusqueda);
-    total = items.length;
-    hayMas = total > limite;
-    items = items.slice(0, limite);
-  } else if (soloMarcados || items.length > limite) {
-    hayMas = items.length > limite;
-    items = items.slice(0, limite);
   }
+  if (chip !== "todas") {
+    items = items.filter((it) => coincideChipCategoria(it, chip));
+  }
+
+  total = items.length;
+  hayMas = total > limite;
+  items = items.slice(0, limite);
 
   return {
     negocioId,
@@ -317,6 +336,7 @@ async function fetchStockPublicoInterno(
     cotizacionUSD,
     actualizadoISO: new Date().toISOString(),
     modo,
+    chip,
     limite,
     total,
     hayMas,
@@ -336,8 +356,9 @@ export async function GET(req: Request) {
     const q = searchParams.get("q")?.trim() ?? "";
     const limitRaw = searchParams.get("limit");
     const limit = limitRaw ? Number(limitRaw) : undefined;
+    const chip = parseChip(searchParams.get("chip"));
 
-    const payload = await fetchStockPublicoInterno(negocioId, { q, limit });
+    const payload = await fetchStockPublicoInterno(negocioId, { q, limit, chip });
     return NextResponse.json(payload, {
       headers: {
         "Cache-Control": "private, no-store, max-age=0",

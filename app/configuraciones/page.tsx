@@ -27,6 +27,7 @@ import {
   tiendaPublicaDesdeFirestore,
   type TiendaPublicaEditable,
 } from "@/lib/tiendaPublicaTypes";
+import { normalizarUrlExterna } from "@/lib/urlExterna";
 
 export default function Configuraciones() {
   const [user] = useAuthState(auth);
@@ -40,7 +41,9 @@ export default function Configuraciones() {
   const [textoGarantiaTelefonos, setTextoGarantiaTelefonos] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [nuevoLogo, setNuevoLogo] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null); // ✅ NUEVO: preview local
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [nuevoLogoGestione, setNuevoLogoGestione] = useState<File | null>(null);
+  const [logoGestionePreview, setLogoGestionePreview] = useState<string | null>(null);
   const [tiendaPublica, setTiendaPublica] = useState<TiendaPublicaEditable>({
     ...TIENDA_PUBLICA_VACIA,
   });
@@ -104,6 +107,14 @@ export default function Configuraciones() {
     }
   };
 
+  const handleLogoGestioneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      setNuevoLogoGestione(file);
+      setLogoGestionePreview(URL.createObjectURL(file));
+    }
+  };
+
   const guardarConfiguracion = async () => {
     if (!user) return;
     setGuardando(true);
@@ -113,11 +124,18 @@ export default function Configuraciones() {
       if (!negocioID) throw new Error("No se encontró el negocioID del usuario");      
   
       let finalLogoUrl = logoUrl;
+      let finalGestioneLogoUrl = tiendaPublica.gestioneLogoUrl;
   
       if (nuevoLogo) {
         const storageRef = ref(storage, `logos/${negocioID}/logo.png`);
         await uploadBytes(storageRef, nuevoLogo);
         finalLogoUrl = `${await getDownloadURL(storageRef)}?v=${Date.now()}`;
+      }
+
+      if (nuevoLogoGestione) {
+        const storageRef = ref(storage, `logos/${negocioID}/gestione-logo.png`);
+        await uploadBytes(storageRef, nuevoLogoGestione);
+        finalGestioneLogoUrl = `${await getDownloadURL(storageRef)}?v=${Date.now()}`;
       }
   
       const refDoc = doc(db, `negocios/${negocioID}/configuracion`, "datos");
@@ -142,6 +160,10 @@ export default function Configuraciones() {
             facebook: tiendaPublica.facebook.trim(),
             youtube: tiendaPublica.youtube.trim(),
             tiktok: tiendaPublica.tiktok.trim(),
+            gestioneLogoUrl: finalGestioneLogoUrl.trim(),
+            gestioneEnlace: normalizarUrlExterna(tiendaPublica.gestioneEnlace),
+            listaPreciosGremioUrl: normalizarUrlExterna(tiendaPublica.listaPreciosGremioUrl),
+            listaPreciosGremioTitulo: tiendaPublica.listaPreciosGremioTitulo.trim(),
           },
         },
         { merge: true }
@@ -150,7 +172,10 @@ export default function Configuraciones() {
       alert("✅ Configuración guardada correctamente.");
       setNuevoLogo(null);
       setLogoPreview(null);
+      setNuevoLogoGestione(null);
+      setLogoGestionePreview(null);
       setLogoUrl(finalLogoUrl);
+      setTiendaPublica((prev) => ({ ...prev, gestioneLogoUrl: finalGestioneLogoUrl }));
     } catch (error: any) {
       console.error("❌ Error al guardar configuración:", error);
       alert("Hubo un error al guardar: " + error.message);
@@ -448,6 +473,121 @@ export default function Configuraciones() {
                     <p className="text-xs text-[#7f8c8d] mt-3">
                       El WhatsApp de pedidos se configura en Stock repuestos. El logo de arriba se usa en el encabezado y el pie.
                     </p>
+                  </div>
+
+                  {/* BANNERS CONSULTA-STOCK */}
+                  <div className="border-t border-[#ecf0f1] pt-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-gradient-to-br from-[#3498db] to-[#9b59b6] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">🖼️</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-[#2c3e50]">Banners en consulta-stock</h3>
+                        <p className="text-xs text-[#7f8c8d]">
+                          Dos carteles promocionales arriba del catálogo (estilo tienda profesional).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 max-w-4xl lg:grid-cols-2">
+                      <div className="rounded-xl border-2 border-sky-200 bg-sky-50/50 p-4">
+                        <h4 className="text-sm font-bold text-[#1e3a5f] mb-1">Banner 1 — Gestione</h4>
+                        <p className="text-xs text-[#7f8c8d] mb-3">
+                          Logo del software Gestione. Subilo acá (PNG/JPG con fondo transparente recomendado).
+                        </p>
+                        {(logoGestionePreview || tiendaPublica.gestioneLogoUrl) && (
+                          <div className="mb-3 flex justify-center rounded-lg bg-white p-3 border border-sky-100">
+                            <img
+                              src={logoGestionePreview || tiendaPublica.gestioneLogoUrl}
+                              alt="Logo Gestione"
+                              className="max-h-16 object-contain"
+                            />
+                          </div>
+                        )}
+                        <label
+                          htmlFor="logoGestioneUpload"
+                          className="cursor-pointer inline-flex items-center gap-2 bg-gradient-to-r from-[#3498db] to-[#2980b9] text-white font-medium py-2 px-4 rounded-lg text-sm shadow hover:scale-[1.02] transition"
+                        >
+                          📤 {tiendaPublica.gestioneLogoUrl ? "Cambiar logo Gestione" : "Subir logo Gestione"}
+                        </label>
+                        <input
+                          id="logoGestioneUpload"
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={handleLogoGestioneChange}
+                          className="hidden"
+                        />
+                        {nuevoLogoGestione && (
+                          <p className="mt-2 text-xs text-[#7f8c8d]">📎 {nuevoLogoGestione.name} — guardá para aplicar</p>
+                        )}
+                        <div className="mt-3">
+                          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+                            Enlace opcional (web Gestione)
+                          </label>
+                          <input
+                            type="url"
+                            value={tiendaPublica.gestioneEnlace}
+                            onChange={(e) =>
+                              setTiendaPublica((prev) => ({ ...prev, gestioneEnlace: e.target.value }))
+                            }
+                            placeholder="https://www.gestione.com.ar"
+                            className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border-2 border-neutral-300 bg-neutral-50 p-4">
+                        <h4 className="text-sm font-bold text-[#2c3e50] mb-1">Banner 2 — Lista gremio</h4>
+                        <p className="text-xs text-[#7f8c8d] mb-3">
+                          Usa el <strong>logo del negocio</strong> (arriba). Pegá acá el link de Google Drive — el banner entero es clicable.
+                        </p>
+                        {(logoPreview || logoUrl) && (
+                          <div className="mb-3 flex justify-center rounded-lg bg-neutral-900 p-4">
+                            <img
+                              src={logoPreview || logoUrl}
+                              alt="Logo negocio"
+                              className="max-h-14 object-contain"
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+                              Link Google Drive (lista de precios)
+                            </label>
+                            <input
+                              type="url"
+                              value={tiendaPublica.listaPreciosGremioUrl}
+                              onChange={(e) =>
+                                setTiendaPublica((prev) => ({
+                                  ...prev,
+                                  listaPreciosGremioUrl: e.target.value,
+                                }))
+                              }
+                              placeholder="https://drive.google.com/file/d/…/view"
+                              className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm focus:border-[#3498db]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+                              Texto del banner
+                            </label>
+                            <input
+                              type="text"
+                              value={tiendaPublica.listaPreciosGremioTitulo}
+                              onChange={(e) =>
+                                setTiendaPublica((prev) => ({
+                                  ...prev,
+                                  listaPreciosGremioTitulo: e.target.value,
+                                }))
+                              }
+                              placeholder="Lista de precios de trabajos a gremio"
+                              className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <IntegracionGoogleSheet />

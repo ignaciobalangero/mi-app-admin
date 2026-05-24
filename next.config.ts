@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
         hostname: "storage.googleapis.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "assets.rediredi.com",
+        pathname: "/**",
+      },
     ],
   },
 };

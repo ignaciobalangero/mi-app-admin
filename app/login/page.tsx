@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import PrecioOfertaGestione from "../components/PrecioOfertaGestione";
 
 export default function Login() {
   const router = useRouter();
@@ -162,17 +163,12 @@ export default function Login() {
               </Link>
             </div>
 
-            {/* Información de prueba gratuita */}
+            {/* Precio y prueba gratuita */}
             <div className="mt-6 p-4 bg-gradient-to-r from-[#27ae60]/10 to-[#2ecc71]/10 border-2 border-[#27ae60] rounded-xl">
-              <div className="text-center">
-                <p className="text-[#27ae60] font-bold text-sm flex items-center justify-center gap-2 mb-1">
-                  <span>🎉</span>
-                  ¡Prueba gratuita de 7 días!
-                </p>
-                <p className="text-[#2c3e50] text-xs">
-                  Regístrate y usa GestiOne sin compromiso
-                </p>
-              </div>
+              <PrecioOfertaGestione compact />
+              <p className="mt-2 text-[#2c3e50] text-xs text-center">
+                Regístrate y probá GestiOne sin compromiso
+              </p>
             </div>
           </div>
         </div>

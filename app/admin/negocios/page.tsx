@@ -362,13 +362,49 @@ export default function GestionSuscripciones() {
       return { estado: 'activo', dias: diasRestantes, color: 'text-green-600' };
     }
   };
+
+  const prioridadEstadoSuscripcion = (estado: string): number => {
+    switch (estado) {
+      case "activo":
+        return 1;
+      case "por_vencer":
+        return 2;
+      case "vencido":
+        return 3;
+      case "sin_plan":
+        return 4;
+      case "exento":
+        return 5;
+      default:
+        return 6;
+    }
+  };
+
+  const compararAdminsSuscripcion = (a: AdminSuscripcion, b: AdminSuscripcion): number => {
+    const sa = obtenerEstadoSuscripcion(a);
+    const sb = obtenerEstadoSuscripcion(b);
+    const pa = prioridadEstadoSuscripcion(sa.estado);
+    const pb = prioridadEstadoSuscripcion(sb.estado);
+    if (pa !== pb) return pa - pb;
+
+    if (sa.estado === "activo" || sa.estado === "por_vencer") {
+      return (sa.dias ?? 0) - (sb.dias ?? 0);
+    }
+    if (sa.estado === "vencido") {
+      return (sa.dias ?? 0) - (sb.dias ?? 0);
+    }
+
+    return a.negocioID.localeCompare(b.negocioID, "es", { sensitivity: "base" });
+  };
+
   const formatearFecha = (fecha: any) => {
     if (!fecha) return 'N/A';
     return fecha.toDate().toLocaleDateString('es-AR');
   };
 
-  // Filtrar admins
-  const adminsFiltrados = adminsSuscripcion.filter(admin => {
+  // Filtrar y ordenar admins
+  const adminsFiltrados = adminsSuscripcion
+    .filter(admin => {
     if (filtro === 'todos') return true;
     
     const { estado } = obtenerEstadoSuscripcion(admin);
@@ -385,7 +421,8 @@ export default function GestionSuscripciones() {
       default:
         return true;
     }
-  });
+  })
+    .sort(compararAdminsSuscripcion);
 
   // Estadísticas
   const estadisticas = {

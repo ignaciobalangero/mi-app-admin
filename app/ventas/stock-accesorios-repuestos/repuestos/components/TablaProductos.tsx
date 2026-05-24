@@ -39,6 +39,17 @@ import {
   esRepuestoARS,
   ejemploAjuste,
 } from "@/lib/ajustePrecioRepuesto";
+import {
+  type ModoEdicionProducto,
+  aplicarTextoProducto,
+  ejemploEdicionProducto,
+} from "@/lib/edicionMasivaProducto";
+import {
+  fusionarCategoriasUnicas,
+  fusionarValoresUnicos,
+  mismoCategoria,
+  normalizarCategoriaKey,
+} from "@/lib/categoriaRepuesto";
 
 interface Producto {
   id: string;
@@ -119,6 +130,10 @@ export default function TablaProductos({
     ejemplo: null,
   });
   const [cargandoPreviewAjuste, setCargandoPreviewAjuste] = useState(false);
+  const [modalEdicionProducto, setModalEdicionProducto] = useState(false);
+  const [edicionProductoTexto, setEdicionProductoTexto] = useState("");
+  const [edicionProductoModo, setEdicionProductoModo] = useState<ModoEdicionProducto>("prepend");
+  const [aplicandoEdicionProducto, setAplicandoEdicionProducto] = useState(false);
   const [productoEditando, setProductoEditando] = useState<Producto | null>(null);
   const [catalogoSoloMarcados, setCatalogoSoloMarcados] = useState(false);
   const [whatsappPedidosInput, setWhatsappPedidosInput] = useState("");
@@ -136,6 +151,9 @@ export default function TablaProductos({
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
   const [filtroStock, setFiltroStock] = useState<"todos" | "disponible" | "bajo" | "agotado">("todos");
+  const [categoriasUnicas, setCategoriasUnicas] = useState<string[]>([]);
+  const [proveedoresUnicos, setProveedoresUnicos] = useState<string[]>([]);
+  const listaFiltradaCategoriaRef = useRef<Producto[]>([]);
   
   // 🚀 ESTADOS PARA PAGINACIÓN OPTIMIZADA
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -147,6 +165,24 @@ export default function TablaProductos({
   
   // 🔥 CONFIGURACIÓN DE PAGINACIÓN
   const ITEMS_POR_PAGINA = 100;
+
+  const cargarOpcionesFiltro = async () => {
+    if (!rol?.negocioID) return;
+    try {
+      const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockRepuestos`));
+      const categoriasOrdenadas: string[] = [];
+      const proveedores: string[] = [];
+      for (const d of snap.docs) {
+        const data = d.data();
+        categoriasOrdenadas.push(String(data.categoria ?? "").trim());
+        proveedores.push(String(data.proveedor ?? "").trim());
+      }
+      setCategoriasUnicas(fusionarCategoriasUnicas(categoriasOrdenadas));
+      setProveedoresUnicos(fusionarValoresUnicos(proveedores));
+    } catch (e) {
+      console.error("Error cargando opciones de filtro:", e);
+    }
+  };
 
   // 🚀 FUNCIÓN OPTIMIZADA PARA CARGAR PRODUCTOS CON PAGINACIÓN
   const cargarProductosPaginados = async (esNuevaCarga = false, filtros?: {
@@ -170,16 +206,28 @@ export default function TablaProductos({
         limit(ITEMS_POR_PAGINA)
       );
 
-      // Aplicar filtros si existen
       if (filtros?.categoria && filtros.categoria !== "") {
-        queryProductos = query(
-          collection(db, `negocios/${rol.negocioID}/stockRepuestos`),
-          where("categoria", "==", filtros.categoria),
-          orderBy("codigo", "asc"),
-          limit(ITEMS_POR_PAGINA)
-        );
+        const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockRepuestos`));
+        const filtrados = snap.docs
+          .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }) as Producto)
+          .filter((p) => mismoCategoria(p.categoria, filtros.categoria))
+          .sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), "es"));
+
+        listaFiltradaCategoriaRef.current = filtrados;
+        const pagina = esNuevaCarga ? 1 : paginaActual + 1;
+        const fin = pagina * ITEMS_POR_PAGINA;
+
+        setProductos(filtrados.slice(0, fin));
+        setPaginaActual(pagina);
+        setHayMasPaginas(fin < filtrados.length);
+        setUltimoDoc(null);
+        setTotalProductos(filtrados.length);
+        return;
       }
 
+      listaFiltradaCategoriaRef.current = [];
+
+      // Aplicar filtros si existen
       if (filtros?.proveedor && filtros.proveedor !== "") {
         queryProductos = query(
           collection(db, `negocios/${rol.negocioID}/stockRepuestos`),
@@ -190,10 +238,9 @@ export default function TablaProductos({
       }
 
       if (!esNuevaCarga && ultimoDoc) {
-        const ordenActual = filtros?.categoria || filtros?.proveedor ? "codigo" : "codigo";
         queryProductos = query(
           collection(db, `negocios/${rol.negocioID}/stockRepuestos`),
-          orderBy(ordenActual, "asc"),
+          orderBy("codigo", "asc"),
           startAfter(ultimoDoc),
           limit(ITEMS_POR_PAGINA)
         );
@@ -244,16 +291,20 @@ export default function TablaProductos({
   };
 
   const cargarMasProductos = () => {
-    if (hayMasPaginas && !cargando) {
-      cargarProductosPaginados(false);
+    if (!hayMasPaginas || cargando) return;
+    if (listaFiltradaCategoriaRef.current.length > 0 && filtroCategoria) {
+      const pagina = paginaActual + 1;
+      const fin = pagina * ITEMS_POR_PAGINA;
+      setProductos(listaFiltradaCategoriaRef.current.slice(0, fin));
+      setPaginaActual(pagina);
+      setHayMasPaginas(fin < listaFiltradaCategoriaRef.current.length);
+      return;
     }
+    cargarProductosPaginados(false);
   };
 
-  const { proveedoresUnicos, categoriasUnicas, productosFiltrados } = useMemo(() => {
-    const proveedores = Array.from(new Set(productos.map(p => p.proveedor).filter(Boolean)));
-    const categorias = Array.from(new Set(productos.map(p => p.categoria).filter(Boolean)));
-    
-    const filtrados = productos.filter(p => {
+  const productosFiltrados = useMemo(() => {
+    return productos.filter((p) => {
       // 🆕 FILTRO DE BÚSQUEDA MEJORADO - Busca en todos los campos relevantes
       const matchBusqueda = !filtroBusqueda || (() => {
         // Crear un texto combinado con todos los campos searchables
@@ -276,7 +327,7 @@ export default function TablaProductos({
       
       // Filtros específicos (solo si están seleccionados)
       const matchProveedor = !filtroProveedor || p.proveedor === filtroProveedor;
-      const matchCategoria = !filtroCategoria || p.categoria === filtroCategoria;
+      const matchCategoria = !filtroCategoria || mismoCategoria(p.categoria, filtroCategoria);
       
       // Filtro por stock
       const matchStock = filtroStock === "todos" || 
@@ -286,12 +337,6 @@ export default function TablaProductos({
       
       return matchBusqueda && matchProveedor && matchCategoria && matchStock;
     });
-    
-    return {
-      proveedoresUnicos: proveedores,
-      categoriasUnicas: categorias,
-      productosFiltrados: filtrados
-    };
   }, [productos, filtroBusqueda, filtroProveedor, filtroCategoria, filtroStock]);
 
   // 🆕 FUNCIÓN PARA CALCULAR PRECIO DINÁMICO
@@ -523,6 +568,7 @@ export default function TablaProductos({
       await updateDoc(ref, {
         codigo: formulario.codigo,
         categoria: formulario.categoria,
+        categoriaKey: normalizarCategoriaKey(formulario.categoria),
         producto: formulario.producto,
         marca: formulario.marca,
         color: formulario.color,
@@ -595,6 +641,7 @@ export default function TablaProductos({
     limpiarSeleccion();
     setModalEliminarMasivo(false);
     setModalAjustePrecios(false);
+    setModalEdicionProducto(false);
   };
 
   const camposAjusteActivos = useMemo((): CampoPrecioAjuste[] => {
@@ -788,6 +835,80 @@ export default function TablaProductos({
     [productos, seleccionados]
   );
 
+  const previewEdicionProducto = useMemo(() => {
+    const ejemplo = productosSeleccionados[0] ?? null;
+    if (!ejemplo) return null;
+    return ejemploEdicionProducto(ejemplo.producto, edicionProductoTexto, edicionProductoModo);
+  }, [productosSeleccionados, edicionProductoTexto, edicionProductoModo]);
+
+  const listarSeleccionadosParaEdicionProducto = async (): Promise<
+    { id: string; producto: string }[]
+  > => {
+    if (!rol?.negocioID) return [];
+    const colPath = `negocios/${rol.negocioID}/stockRepuestos`;
+    const out: { id: string; producto: string }[] = [];
+    for (const id of Array.from(seleccionados)) {
+      const snap = await getDoc(doc(db, colPath, id));
+      if (snap.exists()) {
+        out.push({ id: snap.id, producto: String(snap.data().producto ?? "") });
+      }
+    }
+    return out;
+  };
+
+  const confirmarEdicionProductoMasiva = async () => {
+    const texto = edicionProductoTexto.trim();
+    if (!texto) {
+      alert("Escribí el texto que querés agregar.");
+      return;
+    }
+    if (!rol?.negocioID || seleccionados.size === 0) return;
+
+    setAplicandoEdicionProducto(true);
+    try {
+      const items = await listarSeleccionadosParaEdicionProducto();
+      if (items.length === 0) {
+        alert("No se encontraron los repuestos seleccionados.");
+        return;
+      }
+
+      const CHUNK = 450;
+      let actualizados = 0;
+
+      for (let i = 0; i < items.length; i += CHUNK) {
+        const batch = writeBatch(db);
+        let ops = 0;
+        for (const item of items.slice(i, i + CHUNK)) {
+          const nuevo = aplicarTextoProducto(item.producto, texto, edicionProductoModo);
+          if (nuevo === item.producto) continue;
+          batch.update(doc(db, `negocios/${rol.negocioID}/stockRepuestos`, item.id), {
+            producto: nuevo,
+          });
+          ops++;
+        }
+        if (ops > 0) {
+          await batch.commit();
+          actualizados += ops;
+        }
+      }
+
+      setModalEdicionProducto(false);
+      setEdicionProductoTexto("");
+      await refrescarProductos();
+      onProductoActualizado?.();
+      alert(
+        actualizados > 0
+          ? `✅ Nombre actualizado en ${actualizados} repuesto(s).`
+          : "No hubo cambios (el texto ya estaba aplicado o los nombres quedaron igual)."
+      );
+    } catch (error) {
+      console.error("Error al editar productos en lote:", error);
+      alert("No se pudieron actualizar los nombres. Revisá la consola e intentá de nuevo.");
+    } finally {
+      setAplicandoEdicionProducto(false);
+    }
+  };
+
   const aplicarCostoDesdeCalculadora = (usd: number) => {
     setFormulario((prev) => {
       const next = { ...prev, precioCosto: usd };
@@ -920,6 +1041,7 @@ export default function TablaProductos({
   useEffect(() => {
     if (rol?.negocioID) {
       cargarProductosPaginados(true);
+      void cargarOpcionesFiltro();
     }
   }, [rol?.negocioID, refrescar]);
 
@@ -1179,6 +1301,18 @@ export default function TablaProductos({
               className="rounded-lg border border-[#bdc3c7] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#7f8c8d] hover:bg-neutral-50 disabled:opacity-40"
             >
               Ninguno
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEdicionProductoModo("prepend");
+                setEdicionProductoTexto("");
+                setModalEdicionProducto(true);
+              }}
+              disabled={seleccionados.size === 0}
+              className="rounded-lg border border-[#3498db] bg-[#ebf5fb] px-2.5 py-1.5 text-xs font-semibold text-[#2980b9] hover:bg-[#d6eaf8] disabled:opacity-40"
+            >
+              ✏️ Editar producto
             </button>
             <button
               type="button"
@@ -2192,6 +2326,129 @@ export default function TablaProductos({
                       className="rounded-lg bg-[#f39c12] px-4 py-2 text-sm font-bold text-white shadow-lg hover:bg-[#e67e22] disabled:opacity-50"
                     >
                       {aplicandoAjuste ? "Aplicando…" : "Aplicar ajuste"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {mounted &&
+        modalEdicionProducto &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-edicion-producto-titulo"
+          >
+            <button
+              type="button"
+              className="absolute inset-0 z-0 bg-black/40"
+              onClick={() => !aplicandoEdicionProducto && setModalEdicionProducto(false)}
+              aria-label="Cerrar"
+            />
+            <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
+              <div className="pointer-events-auto w-full max-w-lg rounded-2xl border-2 border-[#ecf0f1] bg-white shadow-2xl">
+                <div className="rounded-t-2xl bg-gradient-to-r from-[#3498db] to-[#2980b9] p-4 text-white sm:p-6">
+                  <h2 id="modal-edicion-producto-titulo" className="text-lg font-bold sm:text-xl">
+                    Edición masiva — campo Producto
+                  </h2>
+                  <p className="text-sm text-blue-100">
+                    {seleccionados.size} repuesto{seleccionados.size === 1 ? "" : "s"} seleccionado
+                    {seleccionados.size === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="space-y-4 p-4 sm:p-6">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-[#2c3e50]">
+                      Texto a agregar
+                    </label>
+                    <input
+                      type="text"
+                      value={edicionProductoTexto}
+                      onChange={(e) => setEdicionProductoTexto(e.target.value)}
+                      placeholder="Ej: OLED, Premium, iPhone 14…"
+                      autoFocus
+                      className="w-full rounded-lg border-2 border-[#bdc3c7] p-2.5 text-sm focus:border-[#3498db] focus:ring-2 focus:ring-[#3498db]/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold text-[#2c3e50]">
+                      Dónde agregarlo
+                    </label>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      {(
+                        [
+                          ["prepend", "Al inicio (antes del nombre actual)"],
+                          ["append", "Al final (después del nombre actual)"],
+                        ] as const
+                      ).map(([valor, label]) => (
+                        <label
+                          key={valor}
+                          className={`flex cursor-pointer items-center gap-2 rounded-lg border-2 px-3 py-2 text-xs font-medium ${
+                            edicionProductoModo === valor
+                              ? "border-[#3498db] bg-[#ebf5fb] text-[#2980b9]"
+                              : "border-[#bdc3c7] bg-white text-[#7f8c8d]"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="modoEdicionProducto"
+                            checked={edicionProductoModo === valor}
+                            onChange={() => setEdicionProductoModo(valor)}
+                            className="sr-only"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-[#7f8c8d]">
+                      No borra ni reemplaza el texto existente: solo agrega la palabra o frase que escribas.
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#3498db]/40 bg-[#ebf5fb] p-3 text-sm text-[#2c3e50]">
+                    {previewEdicionProducto ? (
+                      <>
+                        <p className="text-xs font-semibold text-[#2980b9]">Vista previa (1er seleccionado visible)</p>
+                        <p className="mt-1 text-xs text-[#7f8c8d] line-through">{previewEdicionProducto.antes}</p>
+                        <p className="mt-0.5 font-medium">{previewEdicionProducto.despues}</p>
+                      </>
+                    ) : (
+                      <span className="text-[#7f8c8d]">
+                        {edicionProductoTexto.trim()
+                          ? "Seleccioná al menos un repuesto visible para ver la vista previa."
+                          : "Escribí el texto para ver cómo quedaría."}
+                      </span>
+                    )}
+                    {seleccionados.size > productosSeleccionados.length && (
+                      <p className="mt-2 text-[11px] text-[#7f8c8d]">
+                        Incluye {seleccionados.size - productosSeleccionados.length} seleccionado
+                        {seleccionados.size - productosSeleccionados.length === 1 ? "" : "s"} que no están en pantalla.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      disabled={aplicandoEdicionProducto}
+                      onClick={() => setModalEdicionProducto(false)}
+                      className="rounded-lg bg-[#7f8c8d] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={aplicandoEdicionProducto || !edicionProductoTexto.trim()}
+                      onClick={() => void confirmarEdicionProductoMasiva()}
+                      className="rounded-lg bg-[#3498db] px-4 py-2 text-sm font-bold text-white shadow-lg hover:bg-[#2980b9] disabled:opacity-50"
+                    >
+                      {aplicandoEdicionProducto ? "Aplicando…" : `Aplicar a ${seleccionados.size}`}
                     </button>
                   </div>
                 </div>

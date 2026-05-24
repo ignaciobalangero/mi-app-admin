@@ -1,3 +1,5 @@
+import { normalizarUrlExterna } from "@/lib/urlExterna";
+
 /** Datos de contacto e información del pie de la tienda web pública. */
 export type TiendaPublicaInfo = {
   nombre: string;
@@ -16,7 +18,18 @@ export type TiendaPublicaInfo = {
   facebook: string | null;
   youtube: string | null;
   tiktok: string | null;
+  /** Logo Gestione para banner promocional en consulta-stock. */
+  gestioneLogoUrl: string | null;
+  /** Enlace opcional al hacer clic en el banner Gestione. */
+  gestioneEnlace: string | null;
+  /** URL Google Drive u otro enlace — banner lista precios gremio. */
+  listaPreciosGremioUrl: string | null;
+  /** Texto del banner clicable (lista gremio). */
+  listaPreciosGremioTitulo: string;
 };
+
+export const DEFAULT_LISTA_PRECIOS_GREMIO_TITULO =
+  "Lista de precios de trabajos a gremio";
 
 export const DEFAULT_TIENDA_PUBLICA_TEXTOS = {
   comoComprar:
@@ -87,6 +100,17 @@ export function parseTiendaPublica(
     facebook: strOrNull(tp.facebook),
     youtube: strOrNull(tp.youtube),
     tiktok: strOrNull(tp.tiktok),
+    gestioneLogoUrl: strOrNull(tp.gestioneLogoUrl),
+    gestioneEnlace: (() => {
+      const u = normalizarUrlExterna(strOrNull(tp.gestioneEnlace) ?? "");
+      return u || null;
+    })(),
+    listaPreciosGremioUrl: (() => {
+      const u = normalizarUrlExterna(strOrNull(tp.listaPreciosGremioUrl) ?? "");
+      return u || null;
+    })(),
+    listaPreciosGremioTitulo:
+      strOrNull(tp.listaPreciosGremioTitulo) ?? DEFAULT_LISTA_PRECIOS_GREMIO_TITULO,
   };
 }
 
@@ -104,6 +128,10 @@ export type TiendaPublicaEditable = {
   facebook: string;
   youtube: string;
   tiktok: string;
+  gestioneLogoUrl: string;
+  gestioneEnlace: string;
+  listaPreciosGremioUrl: string;
+  listaPreciosGremioTitulo: string;
 };
 
 export const TIENDA_PUBLICA_VACIA: TiendaPublicaEditable = {
@@ -120,6 +148,10 @@ export const TIENDA_PUBLICA_VACIA: TiendaPublicaEditable = {
   facebook: "",
   youtube: "",
   tiktok: "",
+  gestioneLogoUrl: "",
+  gestioneEnlace: "",
+  listaPreciosGremioUrl: "",
+  listaPreciosGremioTitulo: DEFAULT_LISTA_PRECIOS_GREMIO_TITULO,
 };
 
 export function tiendaPublicaDesdeFirestore(raw: unknown): TiendaPublicaEditable {
@@ -139,5 +171,11 @@ export function tiendaPublicaDesdeFirestore(raw: unknown): TiendaPublicaEditable
     facebook: String(tp.facebook ?? ""),
     youtube: String(tp.youtube ?? ""),
     tiktok: String(tp.tiktok ?? ""),
+    gestioneLogoUrl: String(tp.gestioneLogoUrl ?? ""),
+    gestioneEnlace: String(tp.gestioneEnlace ?? ""),
+    listaPreciosGremioUrl: String(tp.listaPreciosGremioUrl ?? ""),
+    listaPreciosGremioTitulo: String(
+      tp.listaPreciosGremioTitulo ?? DEFAULT_LISTA_PRECIOS_GREMIO_TITULO
+    ),
   };
 }
