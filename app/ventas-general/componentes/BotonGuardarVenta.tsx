@@ -21,8 +21,7 @@ import {
   STORAGE_PEDIDO_TIENDA,
   STORAGE_PEDIDO_TIENDA_ACTIVO,
 } from "@/lib/usePedidosTiendaPendientesVenta";
-import { descontarAccesorioDelStock } from "@/app/ventas-general/componentes/descontarAccesorioDelStock";
-import { descontarRepuestoDelStock, esProductoAccesorio, esProductoRepuestoOGeneral } from "@/app/ventas-general/componentes/descontarRepuestoDelStock";
+import { esProductoAccesorio, esProductoRepuestoOGeneral } from "@/lib/ventasStockProducto";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 import { query, where, limit } from "firebase/firestore";
 export default function BotonGuardarVenta({
@@ -87,6 +86,47 @@ export default function BotonGuardarVenta({
       localStorage.removeItem(STORAGE_PEDIDO_TIENDA);
     } catch (error) {
       console.error("Error vinculando pedido tienda:", error);
+    }
+  };
+
+  const actualizarStockVentaViaApi = async (
+    negocioId: string,
+    items: any[],
+    accion: "descontar" | "reponer" = "descontar"
+  ) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Sesión expirada. Volvé a iniciar sesión.");
+
+    const productos = items
+      .filter((p) => {
+        const codigo = String(p.codigo ?? p.id ?? "").trim();
+        return codigo && (esProductoAccesorio(p) || esProductoRepuestoOGeneral(p));
+      })
+      .map((p) => ({
+        codigo: p.codigo,
+        id: p.id,
+        cantidad: p.cantidad,
+        tipo: p.tipo,
+        categoria: p.categoria,
+        origenStock: p.origenStock,
+        hoja: p.hoja,
+      }));
+
+    if (productos.length === 0) return;
+
+    const token = await user.getIdToken();
+    const res = await fetch("/api/ventas/descontar-stock", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ negocioId, productos, accion }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(String(data.error || "No se pudo actualizar el stock."));
     }
   };
 
@@ -602,36 +642,26 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
     const pedidoMetaStock = leerMetaPedidoTienda();
     const negocioStock = pedidoMetaStock?.negocioId || rol.negocioID;
 
-    // Descontar del stock
+    await actualizarStockVentaViaApi(negocioStock, productosConCodigo, "descontar");
+
     for (const producto of productosConCodigo) {
       const codigo = String(producto.codigo ?? producto.id ?? "").trim();
-      if (!codigo) continue;
+      if (!codigo || !esProductoRepuestoOGeneral(producto)) continue;
 
-      if (esProductoAccesorio(producto)) {
-        await descontarAccesorioDelStock(negocioStock, codigo, producto.cantidad);
-      } else if (esProductoRepuestoOGeneral(producto)) {
-        await descontarRepuestoDelStock(
-          negocioStock,
-          codigo,
-          producto.cantidad,
-          producto.id
-        );
+      const hojaFirebase = producto.hoja;
+      const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);
 
-        const hojaFirebase = producto.hoja;
-        const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);
-
-        if (sheetConfig?.id) {
-          await fetch("/api/actualizar-stock-sheet", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sheetID: sheetConfig.id,
-              hoja: hojaFirebase,
-              codigo,
-              cantidadVendida: producto.cantidad,
-            }),
-          });
-        }
+      if (sheetConfig?.id) {
+        await fetch("/api/actualizar-stock-sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sheetID: sheetConfig.id,
+            hoja: hojaFirebase,
+            codigo,
+            cantidadVendida: producto.cantidad,
+          }),
+        });
       }
     }
 
@@ -880,35 +910,26 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
           const snap = await getDoc(configRef);
           const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
           
+          await actualizarStockVentaViaApi(rol.negocioID, otrosProductosConDatos, "descontar");
+
           for (const producto of otrosProductosConDatos) {
             const codigo = String(producto.codigo ?? producto.id ?? "").trim();
-            if (!codigo) continue;
+            if (!codigo || !esProductoRepuestoOGeneral(producto)) continue;
 
-            if (esProductoAccesorio(producto)) {
-              await descontarAccesorioDelStock(rol.negocioID, codigo, producto.cantidad);
-            } else if (esProductoRepuestoOGeneral(producto)) {
-              await descontarRepuestoDelStock(
-                rol.negocioID,
-                codigo,
-                producto.cantidad,
-                producto.id
-              );
+            const hojaFirebase = producto.hoja;
+            const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);
 
-              const hojaFirebase = producto.hoja;
-              const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);
-
-              if (sheetConfig?.id) {
-                await fetch("/api/actualizar-stock-sheet", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    sheetID: sheetConfig.id,
-                    hoja: hojaFirebase,
-                    codigo,
-                    cantidadVendida: producto.cantidad,
-                  }),
-                });
-              }
+            if (sheetConfig?.id) {
+              await fetch("/api/actualizar-stock-sheet", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  sheetID: sheetConfig.id,
+                  hoja: hojaFirebase,
+                  codigo,
+                  cantidadVendida: producto.cantidad,
+                }),
+              });
             }
           }
           
@@ -981,6 +1002,7 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
       router.push("/ventas-general");
     } catch (error) {
       console.error("Error al guardar la venta:", error);
+      alert(error instanceof Error ? error.message : "Error al guardar la venta.");
     } finally {
       guardandoRef.current = false;
       setGuardando(false);

@@ -1,5 +1,9 @@
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
+export {
+  esProductoAccesorio,
+  esProductoRepuestoOGeneral,
+} from "@/lib/ventasStockProducto";
 
 async function restarCantidad(
   ref: ReturnType<typeof doc>,
@@ -29,13 +33,11 @@ export async function descontarRepuestoDelStock(
   const cod = String(codigo ?? "").trim();
   const ids = Array.from(new Set([String(docId ?? "").trim(), cod].filter(Boolean)));
 
-  // 1) Por id de documento en stockRepuestos
   for (const id of ids) {
     const ref = doc(db, `negocios/${negocioID}/stockRepuestos/${id}`);
     if (await restarCantidad(ref, cantidadVendida)) return;
   }
 
-  // 2) Por campo codigo en stockRepuestos / stockExtra
   if (cod) {
     for (const colName of ["stockRepuestos", "stockExtra"] as const) {
       const q = query(
@@ -53,34 +55,4 @@ export async function descontarRepuestoDelStock(
   console.warn(
     `[descontarRepuestoDelStock] No se encontró ${cod || ids.join(",")} en negocios/${negocioID}`
   );
-}
-
-export function esProductoRepuestoOGeneral(producto: {
-  tipo?: string;
-  categoria?: string;
-  origenStock?: string;
-  hoja?: string;
-}): boolean {
-  const t = String(producto.tipo ?? "").toLowerCase();
-  const c = String(producto.categoria ?? "").toLowerCase();
-  const origen = String(producto.origenStock ?? "");
-  return (
-    t === "repuesto" ||
-    t === "general" ||
-    c === "repuesto" ||
-    c === "repuestos" ||
-    origen === "stockRepuestos" ||
-    origen === "stockExtra" ||
-    !!producto.hoja
-  );
-}
-
-export function esProductoAccesorio(producto: {
-  tipo?: string;
-  categoria?: string;
-  origenStock?: string;
-}): boolean {
-  const t = String(producto.tipo ?? "").toLowerCase();
-  const c = String(producto.categoria ?? "").toLowerCase();
-  return t === "accesorio" || c === "accesorio" || producto.origenStock === "stockAccesorios";
 }
