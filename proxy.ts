@@ -17,7 +17,7 @@ function rutaPermitidaEnDominioTienda(pathname: string): boolean {
   return RUTAS_PERMITIDAS_TIENDA.some((re) => re.test(pathname));
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const negocioId = negocioIdDesdeHost(host);
   if (!negocioId) return NextResponse.next();
