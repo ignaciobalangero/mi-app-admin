@@ -5,7 +5,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter, usePathname } from "next/navigation";
 import { useVerificarEstadoCuenta } from "@/lib/verificarEstadoCuenta";
-import { esConsultaStockPublico, esRutaPublica } from "@/lib/rutasPublicas";
+import { esConsultaStockPublico, esInicioDominioTienda, esRutaPublica } from "@/lib/rutasPublicas";
 import CuentaVencida from "@/app/components/CuentaVencida";
 
 interface AppWrapperProps {
@@ -18,8 +18,11 @@ export default function AppWrapper({ children }: AppWrapperProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "";
 
-  const esPublica = esRutaPublica(pathname);
-  const esTiendaStock = esConsultaStockPublico(pathname);
+  const host =
+    typeof window !== "undefined" ? window.location.host : null;
+  const esPublica = esRutaPublica(pathname, host);
+  const esTiendaStock =
+    esConsultaStockPublico(pathname) || esInicioDominioTienda(pathname, host);
 
   useEffect(() => {
     if (esPublica) return;
