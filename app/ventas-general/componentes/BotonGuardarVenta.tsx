@@ -599,7 +599,11 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
 
     console.log('✅ Productos procesados respetando monedas:', productosConCodigo);
 
-    // Descontar del stock
+    // Descontar del stock (pedidos tienda ya descontaron al checkout)
+    const pedidoMeta = leerMetaPedidoTienda();
+    const omitirDescuentoStock = !!pedidoMeta?.pedidoId;
+
+    if (!omitirDescuentoStock) {
     for (const producto of productosConCodigo) {
       const codigo = producto.codigo;
       if (!codigo) continue;
@@ -627,6 +631,9 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
           });
         }
       }
+    }
+    } else {
+      console.log("📦 Stock ya descontado al confirmar pedido tienda — omitiendo descuento en venta.");
     }
 
     // ✅ CALCULAR TOTALES SEPARADOS POR MONEDA
@@ -700,7 +707,6 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
           };
 
     // Crear la venta
-    const pedidoMeta = leerMetaPedidoTienda();
     const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
       productos: productosConCodigo.map(p => ({
         categoria: p.categoria,

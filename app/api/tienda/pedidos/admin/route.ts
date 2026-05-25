@@ -3,6 +3,7 @@ import { db } from "@/lib/firebaseAdmin";
 import { negocioIdValido, colPedidosTienda } from "@/lib/tiendaAuthServer";
 import { verificarAccesoPedidosTienda } from "@/lib/tiendaPanelAuth";
 import type { PedidoTienda } from "@/lib/tiendaClienteTypes";
+import { reponerStockPedidoTienda } from "@/lib/tiendaDescontarStockServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +69,8 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Pedido no encontrado." }, { status: 404 });
     }
 
+    const pedidoActual = snap.data() as PedidoTienda;
+
     const ahora = new Date().toISOString();
     const update: Record<string, unknown> = { actualizadoEn: ahora };
 
@@ -87,6 +90,15 @@ export async function PATCH(req: Request) {
       update.ventaGeneralId = ventaGeneralId;
       update.convertidoEn = ahora;
       if (!estado) update.estado = "confirmado";
+    }
+
+    if (
+      estado === "cancelado" &&
+      pedidoActual.stockDescontadoEn &&
+      pedidoActual.estado !== "cancelado"
+    ) {
+      await reponerStockPedidoTienda(negocioId, pedidoActual.lineas);
+      update.stockDescontadoEn = null;
     }
 
     await ref.update(update);

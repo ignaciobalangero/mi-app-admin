@@ -79,6 +79,8 @@ export type PedidoTienda = {
   /** Venta registrada en Gestione (`negocios/.../ventasGeneral`). */
   ventaGeneralId?: string;
   convertidoEn?: string;
+  /** ISO — stock descontado al confirmar checkout en la tienda. */
+  stockDescontadoEn?: string;
 };
 
 export const ROL_CLIENTE_TIENDA = "cliente_tienda" as const;
