@@ -8,6 +8,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import {
   guardarPedidoParaVenta,
   leerPedidoParaVenta,
+  limpiarPedidoParaVenta,
+  pedidoTiendaYaProcesado,
   usePedidosTiendaPendientesVenta,
 } from "@/lib/usePedidosTiendaPendientesVenta";
 
@@ -31,26 +33,42 @@ export default function VistaVentas() {
   useEffect(() => {
     const desdeTelefono = searchParams.get("desdeTelefono");
     const desdePedido = searchParams.get("desdePedido");
+    const datosPedido = leerPedidoParaVenta();
+    const pedidoId = (datosPedido?.pedido as { id?: string } | undefined)?.id;
 
     if (desdeTelefono === "1" || localStorage.getItem("ventaTelefonoPendiente")) {
       setMostrarModalVenta(true);
       setDesdeTelefono(true);
     }
-    if (desdePedido === "1" || leerPedidoParaVenta()) {
+
+    if (desdePedido === "1") {
+      if (datosPedido && pedidoId && !pedidoTiendaYaProcesado(pedidoId)) {
+        setMostrarModalVenta(true);
+        setDesdePedidoTienda(true);
+      } else {
+        router.replace("/ventas-general");
+      }
+      return;
+    }
+
+    if (datosPedido && pedidoId && !pedidoTiendaYaProcesado(pedidoId)) {
       setMostrarModalVenta(true);
       setDesdePedidoTienda(true);
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (autoPedidoAbierto.current) return;
     if (!tieneAccesoPedidos || pedidos.length === 0) return;
-    if (leerPedidoParaVenta()) return;
     if (searchParams.get("desdePedido") === "1") return;
+    if (leerPedidoParaVenta()) return;
     if (searchParams.get("desdeTelefono") === "1" || localStorage.getItem("ventaTelefonoPendiente")) return;
 
+    const proximo = pedidos.find((p) => !pedidoTiendaYaProcesado(p.id));
+    if (!proximo) return;
+
     autoPedidoAbierto.current = true;
-    guardarPedidoParaVenta(negocioId, pedidos[0]);
+    guardarPedidoParaVenta(negocioId, proximo);
     setMostrarModalVenta(true);
     setDesdePedidoTienda(true);
   }, [pedidos, tieneAccesoPedidos, negocioId, searchParams]);
@@ -219,6 +237,10 @@ export default function VistaVentas() {
           onClose={() => {
             setMostrarModalVenta(false);
             setDesdePedidoTienda(false);
+            if (searchParams.get("desdePedido") === "1") {
+              limpiarPedidoParaVenta();
+              router.replace("/ventas-general");
+            }
           }}
           desdeTelefono={desdeTelefono}
           desdePedidoTienda={desdePedidoTienda}

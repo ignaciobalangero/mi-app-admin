@@ -20,6 +20,7 @@ import { useRol } from "@/lib/useRol";
 import {
   STORAGE_PEDIDO_TIENDA,
   STORAGE_PEDIDO_TIENDA_ACTIVO,
+  marcarPedidoTiendaProcesado,
 } from "@/lib/usePedidosTiendaPendientesVenta";
 import { esProductoAccesorio, esProductoRepuestoOGeneral } from "@/lib/ventasStockProducto";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
@@ -82,6 +83,7 @@ export default function BotonGuardarVenta({
           ventaGeneralId,
         }),
       });
+      marcarPedidoTiendaProcesado(meta.pedidoId);
       localStorage.removeItem(STORAGE_PEDIDO_TIENDA_ACTIVO);
       localStorage.removeItem(STORAGE_PEDIDO_TIENDA);
     } catch (error) {
@@ -999,7 +1001,11 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
       }
       
       if (onGuardar) onGuardar();
-      router.push("/ventas-general");
+      const metaFinal = leerMetaPedidoTienda();
+      if (metaFinal?.pedidoId) {
+        marcarPedidoTiendaProcesado(metaFinal.pedidoId);
+      }
+      router.replace("/ventas-general");
     } catch (error) {
       console.error("Error al guardar la venta:", error);
       alert(error instanceof Error ? error.message : "Error al guardar la venta.");

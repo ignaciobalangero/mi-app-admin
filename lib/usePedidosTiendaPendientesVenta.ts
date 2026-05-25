@@ -68,6 +68,34 @@ export function usePedidosTiendaPendientesVenta(negocioIdOverride?: string) {
 
 export const STORAGE_PEDIDO_TIENDA = "ventaPedidoTiendaPendiente";
 export const STORAGE_PEDIDO_TIENDA_ACTIVO = "ventaPedidoTiendaActivo";
+const SESSION_PEDIDOS_PROCESADOS = "pedidosTiendaVentaProcesados";
+
+export function marcarPedidoTiendaProcesado(pedidoId: string) {
+  if (!pedidoId) return;
+  try {
+    const ids = new Set<string>(JSON.parse(sessionStorage.getItem(SESSION_PEDIDOS_PROCESADOS) || "[]"));
+    ids.add(pedidoId);
+    sessionStorage.setItem(SESSION_PEDIDOS_PROCESADOS, JSON.stringify(Array.from(ids)));
+  } catch {
+    sessionStorage.setItem(SESSION_PEDIDOS_PROCESADOS, JSON.stringify([pedidoId]));
+  }
+}
+
+export function pedidoTiendaYaProcesado(pedidoId: string): boolean {
+  if (!pedidoId) return false;
+  try {
+    const ids: string[] = JSON.parse(sessionStorage.getItem(SESSION_PEDIDOS_PROCESADOS) || "[]");
+    return ids.includes(pedidoId);
+  } catch {
+    return false;
+  }
+}
+
+export function idPedidoDesdeStorage(): string | null {
+  const datos = leerPedidoParaVenta();
+  const pedido = datos?.pedido as { id?: string } | undefined;
+  return pedido?.id ? String(pedido.id) : null;
+}
 
 export function guardarPedidoParaVenta(negocioId: string, pedido: unknown) {
   localStorage.setItem(
