@@ -12,7 +12,6 @@ import {
   generarNumeroPedido,
 } from "@/lib/tiendaCheckoutOpciones";
 import { cargarCheckoutConfigTienda } from "@/lib/tiendaWebConfigServer";
-import { descontarStockPedidoTienda } from "@/lib/tiendaDescontarStockServer";
 import {
   metodosPagoActivos,
   recargoMetodoConfig,
@@ -190,23 +189,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Completá nombre y teléfono de contacto." }, { status: 400 });
     }
 
-    const descuento = await descontarStockPedidoTienda(negocioId, lineas);
-    if (descuento.ok === false) {
-      return NextResponse.json({ error: descuento.error }, { status: 409 });
-    }
-
     const docRef = await db.collection(colPedidosTienda(negocioId)).add({
       ...pedido,
-      stockDescontadoEn: descuento.stockDescontadoEn,
       creadoEnTs: FieldValue.serverTimestamp(),
     });
 
-    return NextResponse.json({
-      ok: true,
-      pedidoId: docRef.id,
-      numero,
-      pedido: { ...pedido, id: docRef.id, stockDescontadoEn: descuento.stockDescontadoEn },
-    });
+    return NextResponse.json({ ok: true, pedidoId: docRef.id, numero, pedido: { ...pedido, id: docRef.id } });
   } catch (e: unknown) {
     console.error("[tienda/pedidos POST]", e);
     return NextResponse.json({ error: "No se pudo crear el pedido." }, { status: 500 });

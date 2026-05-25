@@ -1,8 +1,9 @@
 import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
 
 /**
- * Resta del stock un repuesto según código y cantidad
+ * Resta del stock un repuesto según código y cantidad.
+ * Busca en stockRepuestos y stockExtra (misma lógica que al reponer).
  */
 export async function descontarRepuestoDelStock(
   negocioID: string,
@@ -11,16 +12,31 @@ export async function descontarRepuestoDelStock(
 ) {
   if (!codigo) return;
 
-  const ref = doc(db, `negocios/${negocioID}/stockExtra/${codigo}`);
-  const snap = await getDoc(ref);
+  const colecciones = ["stockRepuestos", "stockExtra"];
 
-  if (!snap.exists()) return;
+  for (const colName of colecciones) {
+    const q = query(
+      collection(db, `negocios/${negocioID}/${colName}`),
+      where("codigo", "==", codigo)
+    );
+    const snap = await getDocs(q);
 
-  const data = snap.data();
-  const cantidadActual = data.cantidad || 0;
-  const nuevaCantidad = Math.max(cantidadActual - cantidadVendida, 0);
+    if (!snap.empty) {
+      const docRef = snap.docs[0];
+      const cantidadActual = Number(docRef.data().cantidad) || 0;
+      await updateDoc(docRef.ref, {
+        cantidad: Math.max(0, cantidadActual - cantidadVendida),
+      });
+      return;
+    }
+  }
 
-  await updateDoc(ref, {
-    cantidad: nuevaCantidad,
-  });
+  const refExtra = doc(db, `negocios/${negocioID}/stockExtra/${codigo}`);
+  const snapExtra = await getDoc(refExtra);
+  if (snapExtra.exists()) {
+    const cantidadActual = Number(snapExtra.data().cantidad) || 0;
+    await updateDoc(refExtra, {
+      cantidad: Math.max(0, cantidadActual - cantidadVendida),
+    });
+  }
 }
