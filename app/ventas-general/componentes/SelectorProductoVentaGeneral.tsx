@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, doc, updateDoc, increment } from "firebase/firestore";
+import { collection, getDocs, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import useCotizacion from "@/lib/hooks/useCotizacion";
@@ -23,6 +23,7 @@ interface ProductoStock {
   moneda: "ARS" | "USD";
   cantidad?: number;
   tipo: "accesorio" | "repuesto" | "general";
+  origenStock?: string;
   hoja?: string;
   precioUnitario?: number;
   precioARS?: number | null;
@@ -262,17 +263,6 @@ useEffect(() => {
     return palabrasBusqueda.every(palabra => textoCompleto.includes(palabra));
   });
 
-  const descontarStockRepuesto = async (repuestoId: string, cantidadVendida: number) => {
-    try {
-      const repuestoRef = doc(db, `negocios/${rol?.negocioID}/stockRepuestos/${repuestoId}`);
-      await updateDoc(repuestoRef, {
-        cantidad: increment(-cantidadVendida)
-      });
-    } catch (error) {
-      console.error("❌ Error descontando stock:", error);
-    }
-  };
-
   const confirmarAgregar = async () => {
     if (!productoSeleccionado) return;
     const yaExiste = productos.find(p => p.id === productoSeleccionado.id);
@@ -305,15 +295,6 @@ useEffect(() => {
       precioUSD = null;
     }
     
-    if (productoSeleccionado.tipo === "repuesto") {
-      await descontarStockRepuesto(productoSeleccionado.id, cantidad);
-      setTodos(prev => prev.map(item => 
-        item.id === productoSeleccionado.id 
-          ? { ...item, cantidad: (item.cantidad || 0) - cantidad }
-          : item
-      ));
-    }
-    
     setProductos([
       ...productos,
       {
@@ -326,6 +307,12 @@ useEffect(() => {
         moneda: monedaSeleccionada,
         precioManualUsado: usandoPrecioManual,
         precioOriginal: precioElegido,
+        origenStock:
+          productoSeleccionado.tipo === "repuesto"
+            ? "stockRepuestos"
+            : productoSeleccionado.tipo === "accesorio"
+              ? "stockAccesorios"
+              : "stockExtra",
       },
     ]);
     

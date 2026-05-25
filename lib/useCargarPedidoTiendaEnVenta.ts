@@ -14,6 +14,7 @@ import {
 type StockIndex = Map<
   string,
   {
+    id?: string;
     categoria?: string;
     tipo?: "accesorio" | "repuesto" | "general";
     producto?: string;
@@ -38,6 +39,7 @@ async function indexarStock(negocioID: string): Promise<StockIndex> {
       const codigo = String(data.codigo ?? d.id).trim();
       if (!codigo) return;
       map.set(codigo.toLowerCase(), {
+        id: d.id,
         categoria: String(data.categoria ?? (tipo === "repuesto" ? "Repuesto" : "Accesorio")),
         tipo,
         producto: String(data.producto ?? ""),

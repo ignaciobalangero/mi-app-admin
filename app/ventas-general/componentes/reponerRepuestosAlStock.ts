@@ -1,30 +1,57 @@
-// lib/stock/reponerRepuestosAlStock.ts
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
 
-export const reponerRepuestosAlStock = async ({ productos, negocioID }: { productos: any[], negocioID: string }) => {
+export const reponerRepuestosAlStock = async ({
+  productos,
+  negocioID,
+}: {
+  productos: any[];
+  negocioID: string;
+}) => {
   for (const producto of productos) {
     const cantidadAReponer = Number(producto.cantidad) || 0;
-    if (!producto.codigo || cantidadAReponer <= 0) continue;
+    const codigo = String(producto.codigo ?? "").trim();
+    const docId = String(producto.id ?? "").trim();
+    if (cantidadAReponer <= 0) continue;
 
-    // Buscamos en ambas colecciones por las dudas
+    const ids = Array.from(new Set([docId, codigo].filter(Boolean)));
+
+    for (const id of ids) {
+      const refRep = doc(db, `negocios/${negocioID}/stockRepuestos/${id}`);
+      const snapRep = await getDoc(refRep);
+      if (snapRep.exists()) {
+        const stockActual = Number(snapRep.data().cantidad) || 0;
+        await updateDoc(refRep, { cantidad: stockActual + cantidadAReponer });
+        console.log(`✅ Stock devuelto: ${id} (+${cantidadAReponer}) en stockRepuestos`);
+        break;
+      }
+    }
+
+    if (!codigo) continue;
+
     const colecciones = ["stockRepuestos", "stockExtra"];
-    
+    let repuesto = false;
+
     for (const colName of colecciones) {
       const colRef = collection(db, `negocios/${negocioID}/${colName}`);
-      const q = query(colRef, where("codigo", "==", producto.codigo));
+      const q = query(colRef, where("codigo", "==", codigo));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
-        const docRef = querySnapshot.docs[0].ref;
-        const stockActual = Number(querySnapshot.docs[0].data().cantidad) || 0;
-        
-        await updateDoc(docRef, {
-          cantidad: stockActual + cantidadAReponer
+        const docRef = querySnapshot.docs[0];
+        const stockActual = Number(docRef.data().cantidad) || 0;
+
+        await updateDoc(docRef.ref, {
+          cantidad: stockActual + cantidadAReponer,
         });
-        console.log(`✅ Stock devuelto: ${producto.codigo} (+${cantidadAReponer}) en ${colName}`);
-        break; // Si lo encontró en una, no busca en la otra
+        console.log(`✅ Stock devuelto: ${codigo} (+${cantidadAReponer}) en ${colName}`);
+        repuesto = true;
+        break;
       }
+    }
+
+    if (!repuesto) {
+      console.warn(`⚠️ No se encontró stock para reponer: ${codigo || ids.join(",")}`);
     }
   }
 };

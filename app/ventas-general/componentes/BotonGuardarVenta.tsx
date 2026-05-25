@@ -22,7 +22,7 @@ import {
   STORAGE_PEDIDO_TIENDA_ACTIVO,
 } from "@/lib/usePedidosTiendaPendientesVenta";
 import { descontarAccesorioDelStock } from "@/app/ventas-general/componentes/descontarAccesorioDelStock";
-import { descontarRepuestoDelStock } from "@/app/ventas-general/componentes/descontarRepuestoDelStock";
+import { descontarRepuestoDelStock, esProductoAccesorio, esProductoRepuestoOGeneral } from "@/app/ventas-general/componentes/descontarRepuestoDelStock";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 import { query, where, limit } from "firebase/firestore";
 export default function BotonGuardarVenta({
@@ -599,17 +599,23 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
 
     console.log('✅ Productos procesados respetando monedas:', productosConCodigo);
 
+    const pedidoMetaStock = leerMetaPedidoTienda();
+    const negocioStock = pedidoMetaStock?.negocioId || rol.negocioID;
+
     // Descontar del stock
     for (const producto of productosConCodigo) {
-      const codigo = producto.codigo;
+      const codigo = String(producto.codigo ?? producto.id ?? "").trim();
       if (!codigo) continue;
 
-      if (producto.tipo === "accesorio") {
-        await descontarAccesorioDelStock(rol.negocioID, codigo, producto.cantidad);
-      }
-
-      if (producto.tipo === "repuesto" || producto.tipo === "general") {
-        await descontarRepuestoDelStock(rol.negocioID, codigo, producto.cantidad);
+      if (esProductoAccesorio(producto)) {
+        await descontarAccesorioDelStock(negocioStock, codigo, producto.cantidad);
+      } else if (esProductoRepuestoOGeneral(producto)) {
+        await descontarRepuestoDelStock(
+          negocioStock,
+          codigo,
+          producto.cantidad,
+          producto.id
+        );
 
         const hojaFirebase = producto.hoja;
         const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);
@@ -875,15 +881,18 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
           const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
           
           for (const producto of otrosProductosConDatos) {
-            const codigo = producto.codigo;
+            const codigo = String(producto.codigo ?? producto.id ?? "").trim();
             if (!codigo) continue;
 
-            if (producto.tipo === "accesorio") {
+            if (esProductoAccesorio(producto)) {
               await descontarAccesorioDelStock(rol.negocioID, codigo, producto.cantidad);
-            }
-
-            if (producto.tipo === "repuesto" || producto.tipo === "general") {
-              await descontarRepuestoDelStock(rol.negocioID, codigo, producto.cantidad);
+            } else if (esProductoRepuestoOGeneral(producto)) {
+              await descontarRepuestoDelStock(
+                rol.negocioID,
+                codigo,
+                producto.cantidad,
+                producto.id
+              );
 
               const hojaFirebase = producto.hoja;
               const sheetConfig = sheets.find((s) => s.hoja === hojaFirebase);

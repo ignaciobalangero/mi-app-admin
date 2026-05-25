@@ -15,6 +15,9 @@ export type ProductoVentaDesdePedido = {
   moneda: "ARS" | "USD";
   codigo: string;
   tipo: "accesorio" | "repuesto" | "general";
+  /** Firestore doc id en stockRepuestos / stockAccesorios / stockExtra */
+  id?: string;
+  origenStock?: string;
 };
 
 export function observacionesDesdePedido(p: PedidoTienda): string {
@@ -49,6 +52,7 @@ export function observacionesDesdePedido(p: PedidoTienda): string {
 export function lineaPedidoAProductoVenta(
   linea: LineaPedidoTienda,
   stock?: {
+    id?: string;
     categoria?: string;
     tipo?: "accesorio" | "repuesto" | "general";
     producto?: string;
@@ -74,6 +78,13 @@ export function lineaPedidoAProductoVenta(
     moneda: "ARS",
     codigo: linea.codigo,
     tipo: stock?.tipo || "repuesto",
+    id: stock?.id,
+    origenStock:
+      stock?.tipo === "accesorio"
+        ? "stockAccesorios"
+        : stock?.tipo === "general"
+          ? "stockExtra"
+          : "stockRepuestos",
   };
 }
 
