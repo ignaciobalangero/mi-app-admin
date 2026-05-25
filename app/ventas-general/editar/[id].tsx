@@ -8,8 +8,10 @@ import { db } from "@/lib/firebase";
 import Header from "../../Header";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
-import { reponerAccesoriosAlStock } from "@/app/ventas-general/componentes/reponerAccesorioEnStock";
-import { reponerRepuestosAlStock } from "@/app/ventas-general/componentes/reponerRepuestosAlStock"; // si querés cubrir también repuestos
+import {
+  actualizarStockVentaViaApi,
+  productosConStockDeVenta,
+} from "@/lib/actualizarStockVentaApi";
 
 interface ProductoVenta {
   descripcion: string;
@@ -114,13 +116,10 @@ export default function FormularioEdicionVenta() {
   
     const venta = snap.data();
   
-    // Reponer accesorios
-    const accesorios = venta.productos.filter((p: any) => p.categoria === "Accesorio" && p.codigo);
-    await reponerAccesoriosAlStock({ productos: accesorios, negocioID: rol.negocioID });
-  
-    // Reponer repuestos
-    const repuestos = venta.productos.filter((p: any) => p.categoria === "Repuesto" && p.codigo);
-    await reponerRepuestosAlStock({ productos: repuestos, negocioID: rol.negocioID });
+    const productosStock = productosConStockDeVenta(venta.productos ?? []);
+    if (productosStock.length > 0) {
+      await actualizarStockVentaViaApi(rol.negocioID, productosStock, "reponer");
+    }
   
     // Reponer teléfonos y eliminar ventaTelefonos si corresponde
     if (venta.tipo === "telefono") {

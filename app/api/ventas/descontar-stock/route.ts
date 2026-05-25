@@ -29,7 +29,10 @@ export async function POST(req: Request) {
     }
 
     if (accion === "reponer") {
-      await reponerStockVentaServer(negocioId, productos);
+      const result = await reponerStockVentaServer(negocioId, productos);
+      if (result.ok === false) {
+        return NextResponse.json({ error: result.error }, { status: 409 });
+      }
       return NextResponse.json({ ok: true });
     }
 

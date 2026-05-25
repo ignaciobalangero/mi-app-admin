@@ -19,8 +19,10 @@ import {
   QueryDocumentSnapshot,
   DocumentData,
 } from "firebase/firestore";
-import { reponerAccesoriosAlStock } from "./reponerAccesorioEnStock";
-import { reponerRepuestosAlStock } from "./reponerRepuestosAlStock";
+import {
+  actualizarStockVentaViaApi,
+  productosConStockDeVenta,
+} from "@/lib/actualizarStockVentaApi";
 import React from "react";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import ModalRemitoImpresion from "./ModalRemitoImpresion";
@@ -229,21 +231,10 @@ export default function TablaVentas({ refrescar }: Props) {
     await eliminarVentaCompleta(venta);
     return; 
   }
-    if (productoEliminado.codigo) {
-      // Normalizamos a minúsculas para no fallar
-      const tipo = productoEliminado.tipo?.toLowerCase();
-      const cat = productoEliminado.categoria?.toLowerCase();
-    
-      if (tipo === "accesorio" || cat === "accesorio") {
-        await reponerAccesoriosAlStock({
-          productos: [productoEliminado],
-          negocioID: rol.negocioID,
-        });
-      } else if (tipo === "repuesto" || tipo === "general" || cat === "repuesto" || productoEliminado.hoja) {
-        await reponerRepuestosAlStock({
-          productos: [productoEliminado],
-          negocioID: rol.negocioID,
-        });
+    if (productoEliminado.codigo || productoEliminado.id) {
+      const items = productosConStockDeVenta([productoEliminado]);
+      if (items.length > 0) {
+        await actualizarStockVentaViaApi(rol.negocioID, items, "reponer");
       }
     }
 
@@ -333,34 +324,11 @@ export default function TablaVentas({ refrescar }: Props) {
       }
     }
 
-    const accesorios = venta.productos.filter((p: any) => {
-      const t = p.tipo?.toLowerCase();
-      const c = p.categoria?.toLowerCase();
-      return (t === "accesorio" || c === "accesorio") && p.codigo;
-    });
-    
-    const repuestos = venta.productos.filter((p: any) => {
-      const t = p.tipo?.toLowerCase();
-      const c = p.categoria?.toLowerCase();
-      return (t === "repuesto" || t === "general" || c === "repuesto" || p.hoja) && p.codigo;
-    });
-    
-    if (accesorios.length > 0) {
-      console.log('🔌 Reponiendo accesorios al stock:', accesorios.length);
-      await reponerAccesoriosAlStock({
-        productos: accesorios,
-        negocioID: rol.negocioID,
-      });
-      console.log('✅ Accesorios repuestos al stock');
-    }
-
-    if (repuestos.length > 0) {
-      console.log('🔧 Reponiendo repuestos al stock:', repuestos.length);
-      await reponerRepuestosAlStock({
-        productos: repuestos,
-        negocioID: rol.negocioID,
-      });
-      console.log('✅ Repuestos repuestos al stock');
+    const productosStock = productosConStockDeVenta(venta.productos);
+    if (productosStock.length > 0) {
+      console.log("🔧 Reponiendo stock de la venta:", productosStock.length);
+      await actualizarStockVentaViaApi(rol.negocioID, productosStock, "reponer");
+      console.log("✅ Stock repuesto");
     }
 
     // 🔥 PASO 3: FINALMENTE ELIMINAR DE ventasGeneral
@@ -373,8 +341,13 @@ export default function TablaVentas({ refrescar }: Props) {
 
   const eliminarVenta = async () => {
     if (ventaAEliminar) {
-      await eliminarVentaCompleta(ventaAEliminar);
-      setMostrarConfirmarEliminar(false);
+      try {
+        await eliminarVentaCompleta(ventaAEliminar);
+        setMostrarConfirmarEliminar(false);
+      } catch (error) {
+        console.error("Error al eliminar venta:", error);
+        alert(error instanceof Error ? error.message : "No se pudo eliminar la venta.");
+      }
     }
   };
 

@@ -149,8 +149,8 @@ export async function descontarStockVentaServer(
 export async function reponerStockVentaServer(
   negocioId: string,
   productos: LineaStock[]
-): Promise<void> {
-  const batch = db.batch();
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ops: Array<{ hit: StockHit; cantidad: number; label: string }> = [];
 
   for (const p of productos) {
     const cantidad = Math.max(1, Number(p.cantidad) || 1);
@@ -159,15 +159,39 @@ export async function reponerStockVentaServer(
 
     if (esProductoAccesorio(p)) {
       const hit = await buscarAccesorio(negocioId, codigo);
-      if (hit) batch.update(hit.ref, { cantidad: hit.cantidadActual + cantidad });
+      if (!hit) {
+        return { ok: false, error: `Accesorio no encontrado para reponer: ${codigo}` };
+      }
+      ops.push({ hit, cantidad, label: codigo });
       continue;
     }
 
     if (esProductoRepuestoOGeneral(p)) {
       const hit = await buscarRepuesto(negocioId, codigo, p.id);
-      if (hit) batch.update(hit.ref, { cantidad: hit.cantidadActual + cantidad });
+      if (!hit) {
+        return { ok: false, error: `Repuesto no encontrado para reponer: ${codigo}` };
+      }
+      ops.push({ hit, cantidad, label: codigo });
     }
   }
 
-  await batch.commit();
+  if (ops.length === 0) {
+    return { ok: false, error: "Ningún producto de la venta coincide con stock para reponer." };
+  }
+
+  try {
+    await db.runTransaction(async (tx) => {
+      for (const { hit, cantidad } of ops) {
+        const snap = await tx.get(hit.ref);
+        if (!snap.exists) throw new Error("Producto no encontrado al reponer.");
+        const actual = Number(snap.data()?.cantidad ?? 0);
+        tx.update(hit.ref, { cantidad: actual + cantidad });
+      }
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Error al reponer stock.";
+    return { ok: false, error: msg };
+  }
+
+  return { ok: true };
 }
