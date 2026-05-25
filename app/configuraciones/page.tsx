@@ -21,7 +21,7 @@ import { auth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import PanelRecalculoGlobal from "./components/PanelRecalculoGlobal";
 import PanelCuentasNegocio from "./components/PanelCuentasNegocio";
-import { getSuperAdminUidClient } from "@/lib/superAdminConstants";
+import { getSuperAdminUidClient, esSuperAdminUsuario } from "@/lib/superAdminConstants";
 import {
   TIENDA_PUBLICA_VACIA,
   tiendaPublicaDesdeFirestore,
@@ -58,6 +58,7 @@ export default function Configuraciones() {
   const [guardandoFacturacion, setGuardandoFacturacion] = useState(false);
 
   const SUPER_ADMIN_UID = getSuperAdminUidClient();
+  const esSuperAdmin = esSuperAdminUsuario(user);
   const router = useRouter();
 
   useEffect(() => {
@@ -132,50 +133,53 @@ export default function Configuraciones() {
         finalLogoUrl = `${await getDownloadURL(storageRef)}?v=${Date.now()}`;
       }
 
-      if (nuevoLogoGestione) {
+      if (esSuperAdmin && nuevoLogoGestione) {
         const storageRef = ref(storage, `logos/${negocioID}/gestione-logo.png`);
         await uploadBytes(storageRef, nuevoLogoGestione);
         finalGestioneLogoUrl = `${await getDownloadURL(storageRef)}?v=${Date.now()}`;
       }
   
       const refDoc = doc(db, `negocios/${negocioID}/configuracion`, "datos");
-      await setDoc(
-        refDoc,
-        {
-          nombreNegocio: nombreNegocio.trim(),                      // ✅ NUEVO
-          textoGarantia: textoGarantiaServicio,
-          textoGarantiaTelefonos: textoGarantiaTelefonos,
-          logoUrl: finalLogoUrl,
-          tiendaPublica: {
-            telefono: tiendaPublica.telefono.trim(),
-            email: tiendaPublica.email.trim(),
-            direccion: tiendaPublica.direccion.trim(),
-            horarios: tiendaPublica.horarios.trim(),
-            comoComprar: tiendaPublica.comoComprar.trim(),
-            pagoEnvios: tiendaPublica.pagoEnvios.trim(),
-            productosGarantia: tiendaPublica.productosGarantia.trim(),
-            mediosPago: tiendaPublica.mediosPago.trim(),
-            mediosEnvio: tiendaPublica.mediosEnvio.trim(),
-            instagram: tiendaPublica.instagram.trim(),
-            facebook: tiendaPublica.facebook.trim(),
-            youtube: tiendaPublica.youtube.trim(),
-            tiktok: tiendaPublica.tiktok.trim(),
-            gestioneLogoUrl: finalGestioneLogoUrl.trim(),
-            gestioneEnlace: normalizarUrlExterna(tiendaPublica.gestioneEnlace),
-            listaPreciosGremioUrl: normalizarUrlExterna(tiendaPublica.listaPreciosGremioUrl),
-            listaPreciosGremioTitulo: tiendaPublica.listaPreciosGremioTitulo.trim(),
-          },
-        },
-        { merge: true }
-      );
+      const datosGuardar: Record<string, unknown> = {
+        nombreNegocio: nombreNegocio.trim(),
+        textoGarantia: textoGarantiaServicio,
+        textoGarantiaTelefonos: textoGarantiaTelefonos,
+        logoUrl: finalLogoUrl,
+      };
+
+      if (esSuperAdmin) {
+        datosGuardar.tiendaPublica = {
+          telefono: tiendaPublica.telefono.trim(),
+          email: tiendaPublica.email.trim(),
+          direccion: tiendaPublica.direccion.trim(),
+          horarios: tiendaPublica.horarios.trim(),
+          comoComprar: tiendaPublica.comoComprar.trim(),
+          pagoEnvios: tiendaPublica.pagoEnvios.trim(),
+          productosGarantia: tiendaPublica.productosGarantia.trim(),
+          mediosPago: tiendaPublica.mediosPago.trim(),
+          mediosEnvio: tiendaPublica.mediosEnvio.trim(),
+          instagram: tiendaPublica.instagram.trim(),
+          facebook: tiendaPublica.facebook.trim(),
+          youtube: tiendaPublica.youtube.trim(),
+          tiktok: tiendaPublica.tiktok.trim(),
+          gestioneLogoUrl: finalGestioneLogoUrl.trim(),
+          gestioneEnlace: normalizarUrlExterna(tiendaPublica.gestioneEnlace),
+          listaPreciosGremioUrl: normalizarUrlExterna(tiendaPublica.listaPreciosGremioUrl),
+          listaPreciosGremioTitulo: tiendaPublica.listaPreciosGremioTitulo.trim(),
+        };
+      }
+
+      await setDoc(refDoc, datosGuardar, { merge: true });
   
       alert("✅ Configuración guardada correctamente.");
       setNuevoLogo(null);
       setLogoPreview(null);
-      setNuevoLogoGestione(null);
-      setLogoGestionePreview(null);
+      if (esSuperAdmin) {
+        setNuevoLogoGestione(null);
+        setLogoGestionePreview(null);
+        setTiendaPublica((prev) => ({ ...prev, gestioneLogoUrl: finalGestioneLogoUrl }));
+      }
       setLogoUrl(finalLogoUrl);
-      setTiendaPublica((prev) => ({ ...prev, gestioneLogoUrl: finalGestioneLogoUrl }));
     } catch (error: any) {
       console.error("❌ Error al guardar configuración:", error);
       alert("Hubo un error al guardar: " + error.message);
@@ -408,7 +412,8 @@ export default function Configuraciones() {
                     </div>
                   </div>
 
-                  {/* TIENDA WEB PÚBLICA */}
+                  {/* TIENDA WEB PÚBLICA — solo superadmin (iphonetec / plataforma) */}
+                  {esSuperAdmin && (
                   <div>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-8 h-8 bg-[#1a2433] rounded-lg flex items-center justify-center">
@@ -473,9 +478,17 @@ export default function Configuraciones() {
                     <p className="text-xs text-[#7f8c8d] mt-3">
                       El WhatsApp de pedidos se configura en Stock repuestos. El logo de arriba se usa en el encabezado y el pie.
                     </p>
+                    <Link
+                      href="/configuraciones/tienda-web"
+                      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#1a2433] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2c3e50]"
+                    >
+                      🛒 Configurar checkout (transportistas, CBU, pagos)
+                    </Link>
                   </div>
+                  )}
 
-                  {/* BANNERS CONSULTA-STOCK */}
+                  {/* BANNERS CONSULTA-STOCK — solo superadmin */}
+                  {esSuperAdmin && (
                   <div className="border-t border-[#ecf0f1] pt-6">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-8 h-8 bg-gradient-to-br from-[#3498db] to-[#9b59b6] rounded-lg flex items-center justify-center">
@@ -589,6 +602,7 @@ export default function Configuraciones() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   <IntegracionGoogleSheet />
                 </div>

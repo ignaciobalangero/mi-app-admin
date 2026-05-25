@@ -7,6 +7,12 @@ import {
 } from "@/lib/catalogoChipCategoria";
 import type { CatalogoPublicoOpciones, ItemStockPublico } from "@/lib/stockPublicoTypes";
 import { parseTiendaPublica, type TiendaPublicaInfo } from "@/lib/tiendaPublicaTypes";
+import { cargarCheckoutConfigTienda } from "@/lib/tiendaWebConfigServer";
+import {
+  metodosPagoActivos,
+  transportistasActivos,
+  type DatosTransferenciaConfig,
+} from "@/lib/tiendaWebConfigTypes";
 import { extraerLogoUrl, rutasConfigLogo } from "@/lib/logoNegocio";
 
 export const runtime = "nodejs";
@@ -204,6 +210,17 @@ async function fetchStockPublicoInterno(
   logoUrl: string | null;
   tiendaPublica: TiendaPublicaInfo;
   whatsappPedidos: string | null;
+  checkoutConfig: {
+    transportistas: { id: string; label: string }[];
+    valoresDeclarados: number[];
+    metodosPago: {
+      id: string;
+      label: string;
+      recargoPct: number;
+      hint?: string;
+    }[];
+    transferencia: DatosTransferenciaConfig;
+  };
   catalogoPublico: CatalogoPublicoOpciones;
   cotizacionUSD: number;
   actualizadoISO: string;
@@ -276,6 +293,19 @@ async function fetchStockPublicoInterno(
   );
   const nombreTienda = tiendaPublica.nombre;
 
+  const checkoutRaw = await cargarCheckoutConfigTienda(negocioId);
+  const checkoutConfig = {
+    transportistas: transportistasActivos(checkoutRaw).map(({ id, label }) => ({ id, label })),
+    valoresDeclarados: checkoutRaw.valoresDeclarados,
+    metodosPago: metodosPagoActivos(checkoutRaw).map(({ id, label, recargoPct, hint }) => ({
+      id,
+      label,
+      recargoPct,
+      hint,
+    })),
+    transferencia: checkoutRaw.transferencia,
+  };
+
   const catalogoPublico = mergeCatalogo(datos?.catalogoPublico);
 
   let cotizacionUSD = 1000;
@@ -332,6 +362,7 @@ async function fetchStockPublicoInterno(
     logoUrl,
     tiendaPublica,
     whatsappPedidos,
+    checkoutConfig,
     catalogoPublico,
     cotizacionUSD,
     actualizadoISO: new Date().toISOString(),

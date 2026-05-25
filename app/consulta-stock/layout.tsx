@@ -10,15 +10,19 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0a0a0a",
+  themeColor: "#f5f5f5",
+  colorScheme: "light",
 };
 
 export default function ConsultaStockLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <div
+      data-tienda-publica
+      className="min-h-screen bg-neutral-100 text-neutral-900 antialiased [color-scheme:light]"
+    >
       <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
       <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
       {children}
-    </>
+    </div>
   );
 }

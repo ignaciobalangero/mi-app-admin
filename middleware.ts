@@ -7,6 +7,7 @@ import {
 
 const RUTAS_PERMITIDAS_TIENDA = [
   /^\/api\/stock-publico(?:\/|$)/,
+  /^\/api\/tienda(?:\/|$)/,
   /^\/_next\//,
   /^\/favicon\.ico$/,
   /^\/consulta-stock\//,

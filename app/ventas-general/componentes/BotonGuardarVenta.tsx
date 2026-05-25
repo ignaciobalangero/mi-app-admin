@@ -14,8 +14,13 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { auth } from "@/lib/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRol } from "@/lib/useRol";
+import {
+  STORAGE_PEDIDO_TIENDA,
+  STORAGE_PEDIDO_TIENDA_ACTIVO,
+} from "@/lib/usePedidosTiendaPendientesVenta";
 import { descontarAccesorioDelStock } from "@/app/ventas-general/componentes/descontarAccesorioDelStock";
 import { descontarRepuestoDelStock } from "@/app/ventas-general/componentes/descontarRepuestoDelStock";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
@@ -46,6 +51,44 @@ export default function BotonGuardarVenta({
   const { rol } = useRol();
   const [guardando, setGuardando] = useState(false);
   const guardandoRef = useRef(false);
+
+  const leerMetaPedidoTienda = () => {
+    const raw = localStorage.getItem(STORAGE_PEDIDO_TIENDA_ACTIVO);
+    if (!raw) return null;
+    try {
+      const data = JSON.parse(raw);
+      if (!data?.negocioId || !data?.pedidoId) return null;
+      return data as { negocioId: string; pedidoId: string; pedidoNumero?: string };
+    } catch {
+      return null;
+    }
+  };
+
+  const vincularPedidoTienda = async (ventaGeneralId: string) => {
+    const meta = leerMetaPedidoTienda();
+    if (!meta) return;
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await user.getIdToken();
+      await fetch("/api/tienda/pedidos/admin", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          negocioId: meta.negocioId,
+          pedidoId: meta.pedidoId,
+          ventaGeneralId,
+        }),
+      });
+      localStorage.removeItem(STORAGE_PEDIDO_TIENDA_ACTIVO);
+      localStorage.removeItem(STORAGE_PEDIDO_TIENDA);
+    } catch (error) {
+      console.error("Error vinculando pedido tienda:", error);
+    }
+  };
 
   // ⭐ NUEVO: Función para actualizar saldo del cliente
 const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
@@ -657,6 +700,7 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
           };
 
     // Crear la venta
+    const pedidoMeta = leerMetaPedidoTienda();
     const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
       productos: productosConCodigo.map(p => ({
         categoria: p.categoria,
@@ -702,6 +746,13 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
       estado: "pendiente",
       nroVenta,
       timestamp: serverTimestamp(),
+      ...(pedidoMeta
+        ? {
+            origenVenta: "tienda_web",
+            pedidoTiendaId: pedidoMeta.pedidoId,
+            pedidoTiendaNumero: pedidoMeta.pedidoNumero ?? "",
+          }
+        : {}),
     });
 // ⭐ NUEVO: Actualizar saldo del cliente por la venta
 await actualizarSaldoCliente(cliente, totalARS, totalUSD);
@@ -913,8 +964,8 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
         localStorage.removeItem("pagoTelefonoPendiente");
         localStorage.removeItem("clienteDesdeTelefono");
       } else {
-        // Venta normal
-        await guardarVentaNormal();
+        const ventaId = await guardarVentaNormal();
+        await vincularPedidoTienda(ventaId);
       }
       
       if (onGuardar) onGuardar();

@@ -1,5 +1,5 @@
-// lib/useRol.ts
 import { useEffect, useState } from "react";
+import { esSuperAdminUsuario } from "./superAdminConstants";
 import { auth } from "./auth";
 import { db } from "./firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -20,6 +20,7 @@ interface SuscripcionInfo {
 export function useRol() {
   const [user, loading] = useAuthState(auth);
   const [rol, setRol] = useState<RolInfo | null>(null);
+  const [puedeVerPedidosTienda, setPuedeVerPedidosTienda] = useState(false);
   const [suscripcion, setSuscripcion] = useState<SuscripcionInfo>({
     diasRestantes: null,
     planActual: null,
@@ -30,6 +31,11 @@ export function useRol() {
   useEffect(() => {
     const obtenerRolYSuscripcion = async () => {
       if (loading || !user) return;
+
+      if (esSuperAdminUsuario(user)) {
+        setPuedeVerPedidosTienda(true);
+      }
+
       console.log("🔍 Buscando usuario con UID:", user.uid);
 
       try {
@@ -39,11 +45,16 @@ export function useRol() {
 
         if (!userSnap.exists()) {
           console.warn("⛔ No se encontró el usuario en /usuarios/");
+          if (!esSuperAdminUsuario(user)) setPuedeVerPedidosTienda(false);
           return;
         }
 
         const userData = userSnap.data();
         const { negocioID, rol: tipoRol } = userData;
+
+        if (!esSuperAdminUsuario(user)) {
+          setPuedeVerPedidosTienda(userData.pedidosTienda === true && tipoRol === "empleado");
+        }
 
         if (!negocioID) {
           console.warn("⛔ El usuario no tiene negocioID");
@@ -199,6 +210,7 @@ export function useRol() {
   return { 
     rol, 
     suscripcion,
+    puedeVerPedidosTienda,
     loading: loading || rol === null 
   };
 }

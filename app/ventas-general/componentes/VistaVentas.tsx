@@ -1,25 +1,59 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Header from "../../Header";
 import TablaVentas from "./TablaVentas";
 import ModalVenta from "./ModalVenta";
 import { useSearchParams, useRouter } from "next/navigation";
+import {
+  guardarPedidoParaVenta,
+  leerPedidoParaVenta,
+  usePedidosTiendaPendientesVenta,
+} from "@/lib/usePedidosTiendaPendientesVenta";
 
 export default function VistaVentas() {
   const [refrescar, setRefrescar] = useState(false);
   const [mostrarModalVenta, setMostrarModalVenta] = useState(false);
+  const [desdePedidoTienda, setDesdePedidoTienda] = useState(false);
+  const [desdeTelefono, setDesdeTelefono] = useState(false);
 
   const searchParams = useSearchParams();
   const router = useRouter();
+  const {
+    count: pedidosPendientes,
+    pedidos,
+    negocioId,
+    tieneAcceso: tieneAccesoPedidos,
+    recargar: recargarPedidos,
+  } = usePedidosTiendaPendientesVenta();
+  const autoPedidoAbierto = useRef(false);
 
   useEffect(() => {
     const desdeTelefono = searchParams.get("desdeTelefono");
+    const desdePedido = searchParams.get("desdePedido");
 
     if (desdeTelefono === "1" || localStorage.getItem("ventaTelefonoPendiente")) {
       setMostrarModalVenta(true);
+      setDesdeTelefono(true);
+    }
+    if (desdePedido === "1" || leerPedidoParaVenta()) {
+      setMostrarModalVenta(true);
+      setDesdePedidoTienda(true);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (autoPedidoAbierto.current) return;
+    if (!tieneAccesoPedidos || pedidos.length === 0) return;
+    if (leerPedidoParaVenta()) return;
+    if (searchParams.get("desdePedido") === "1") return;
+    if (searchParams.get("desdeTelefono") === "1" || localStorage.getItem("ventaTelefonoPendiente")) return;
+
+    autoPedidoAbierto.current = true;
+    guardarPedidoParaVenta(negocioId, pedidos[0]);
+    setMostrarModalVenta(true);
+    setDesdePedidoTienda(true);
+  }, [pedidos, tieneAccesoPedidos, negocioId, searchParams]);
 
   return (
     <>
@@ -46,6 +80,26 @@ export default function VistaVentas() {
 
           {/* Sección de acciones principales - Más compacta */}
           <div className="bg-white rounded-lg sm:rounded-2xl shadow-lg border border-[#ecf0f1] overflow-hidden w-full">
+
+            {tieneAccesoPedidos && pedidosPendientes > 0 && (
+              <div className="bg-amber-50 border-b border-amber-200 px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-amber-900">
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 mr-2 rounded-full bg-[#e74c3c] text-white text-xs font-bold">
+                    {pedidosPendientes}
+                  </span>
+                  {pedidosPendientes === 1
+                    ? "Hay un pedido de iPhoneTEC sin registrar como venta."
+                    : `Hay ${pedidosPendientes} pedidos de iPhoneTEC sin registrar como venta.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push("/iphonetec")}
+                  className="text-xs font-semibold text-[#3498db] hover:underline"
+                >
+                  Ver en iPhoneTEC →
+                </button>
+              </div>
+            )}
             
             {/* Header de la sección - Más compacto */}
             <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-3 sm:p-6">
@@ -71,6 +125,11 @@ export default function VistaVentas() {
                   onClick={() => setMostrarModalVenta(true)}
                   className="group bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#1f4e79] text-white p-3 sm:p-6 rounded-lg sm:rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-transparent hover:border-[#3498db] relative overflow-hidden w-full"
                 >
+                  {tieneAccesoPedidos && pedidosPendientes > 0 && (
+                    <span className="absolute top-2 left-2 sm:top-3 sm:left-3 min-w-[18px] h-[18px] px-1 rounded-full bg-[#e74c3c] text-white text-[10px] font-bold flex items-center justify-center z-10">
+                      {pedidosPendientes}
+                    </span>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 group-hover:translate-x-full transition-transform duration-700"></div>
                   
                   <div className="relative flex items-center justify-center gap-2 sm:gap-4">
@@ -157,8 +216,13 @@ export default function VistaVentas() {
         <ModalVenta
           refrescar={refrescar}
           setRefrescar={setRefrescar}
-          onClose={() => setMostrarModalVenta(false)}
-          desdeTelefono={true}
+          onClose={() => {
+            setMostrarModalVenta(false);
+            setDesdePedidoTienda(false);
+          }}
+          desdeTelefono={desdeTelefono}
+          desdePedidoTienda={desdePedidoTienda}
+          onVentaGuardada={() => void recargarPedidos()}
         />
       )}
     </>

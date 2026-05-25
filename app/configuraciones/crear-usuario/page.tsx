@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
+import { esSuperAdminUsuario } from "@/lib/superAdminConstants";
 import PanelCuentasNegocio from "../components/PanelCuentasNegocio";
 
 type ClienteRow = { id: string; nombre: string };
@@ -34,6 +35,7 @@ export default function CrearUsuarioPage() {
     nombre?: string;
   } | null>(null);
   const [refreshCuentas, setRefreshCuentas] = useState(0);
+  const esSuperAdmin = esSuperAdminUsuario(user);
 
   useEffect(() => {
     const obtenerNegocio = async () => {
@@ -165,6 +167,20 @@ export default function CrearUsuarioPage() {
       <h1 className="text-2xl font-bold mb-6 text-center">Crear usuario</h1>
 
       <div className="max-w-md mx-auto bg-white p-6 rounded shadow space-y-4">
+        {esSuperAdmin && rol === "empleado" && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+            <label className="block font-semibold text-amber-900 mb-1">Negocio (superadmin)</label>
+            <input
+              value={negocioID}
+              onChange={(e) => setNegocioID(e.target.value.trim())}
+              placeholder="iphonetec"
+              className="w-full border border-amber-300 p-2 rounded bg-white"
+            />
+            <p className="mt-1 text-xs text-amber-800">
+              Empleados creados por vos tendrán acceso a <strong>Pedidos tienda web</strong> de este negocio.
+            </p>
+          </div>
+        )}
         {mensajeOk && resumenCreado && (
           <div
             role="status"

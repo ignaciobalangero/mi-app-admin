@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef, Suspense } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   ShoppingBag,
@@ -15,6 +17,7 @@ import {
   Layers,
   X,
   ZoomIn,
+  User,
 } from "lucide-react";
 import type { CatalogoPublicoOpciones, ItemStockPublico } from "@/lib/stockPublicoTypes";
 import {
@@ -26,6 +29,8 @@ import {
 import { coincideBusqueda, tokensBusqueda } from "@/lib/stockPublicoBusqueda";
 import FooterTienda from "../components/FooterTienda";
 import BannersTienda from "../components/BannersTienda";
+import CheckoutCarritoTienda from "../components/CheckoutCarritoTienda";
+import { useTiendaCliente } from "../hooks/useTiendaCliente";
 import { resolverUrlFotoProducto } from "@/lib/fotoProductoUrl";
 import {
   type ChipCategoria,
@@ -53,6 +58,7 @@ type Payload = {
   logoUrl?: string | null;
   tiendaPublica?: TiendaPublicaInfo;
   whatsappPedidos: string | null;
+  checkoutConfig?: import("../components/CheckoutCarritoTienda").CheckoutConfigPublico;
   catalogoPublico?: CatalogoPublicoOpciones;
   cotizacionUSD: number;
   actualizadoISO: string;
@@ -182,7 +188,17 @@ function construirUrlWhatsApp(telefonoDigitos: string, mensaje: string): string 
 }
 
 export default function ConsultaStockCliente({ negocioID }: { negocioID: string }) {
+  return (
+    <Suspense fallback={<div className="py-20 text-center text-sm text-neutral-500">Cargando tienda…</div>}>
+      <ConsultaStockClienteInner negocioID={negocioID} />
+    </Suspense>
+  );
+}
+
+function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
+  const searchParams = useSearchParams();
   const { logoUrl: logoNegocio, cargandoLogo } = useLogo();
+  const { perfil, esClienteTienda, getToken } = useTiendaCliente(negocioID);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -192,6 +208,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
   const [marcaPantalla, setMarcaPantalla] = useState("");
   const [carrito, setCarrito] = useState<Record<string, LineaCarrito>>({});
   const [drawerAbierto, setDrawerAbierto] = useState(false);
+  const [pasoCarrito, setPasoCarrito] = useState<"carrito" | "checkout">("carrito");
   const [fotoAmpliada, setFotoAmpliada] = useState<{
     url: string;
     alt: string;
@@ -294,6 +311,17 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
     const n = payload?.cotizacionUSD;
     return typeof n === "number" && n > 0 ? n : 1200;
   }, [payload?.cotizacionUSD]);
+
+  useEffect(() => {
+    if (searchParams.get("checkout") === "1") {
+      setDrawerAbierto(true);
+      setPasoCarrito("checkout");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!drawerAbierto) setPasoCarrito("carrito");
+  }, [drawerAbierto]);
 
   useEffect(() => {
     if (!payload?.items?.length) return;
@@ -424,37 +452,6 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
   }, []);
 
   const vaciarCarrito = useCallback(() => setCarrito({}), []);
-
-  const finalizarWhatsApp = useCallback(() => {
-    if (!telefonoPedidos) {
-      window.alert(
-        "Falta configurar el WhatsApp para pedidos.\n\n" +
-          "Opción A: agregá en Firebase el campo «whatsappPedidos» (solo números, con código país) en el documento:\n" +
-          `negocios/${negocioID}/configuracion/datos\n\n` +
-          "Opción B: variable de entorno NEXT_PUBLIC_WHATSAPP_PEDIDOS en el servidor (ej. 54911…)."
-      );
-      return;
-    }
-    const lineas = Object.values(carrito);
-    if (lineas.length === 0) {
-      window.alert("Tu carrito está vacío. Agregá productos antes de finalizar.");
-      return;
-    }
-
-    const nombreTienda = payload?.nombreTienda ?? "Tienda";
-    let body = `*Pedido desde la tienda*\n_${nombreTienda}_\n\n`;
-    lineas.forEach((l, i) => {
-      const sub = subtotalLineaARS(l.item, l.cantidad, cotizacionSistema);
-      body += `${i + 1}. ${l.item.producto}\n`;
-      body += `   Cód: ${l.item.codigo} · Cant: ${l.cantidad} · ${textoPrecioTienda(l.item, cotizacionSistema)} c/u\n`;
-      body += `   *Subtotal ref.: $${sub.toLocaleString("es-AR")}*\n\n`;
-    });
-    body += `*Total referencia (lista 1): $${totalCarritoARS.toLocaleString("es-AR")}*\n\n`;
-    body += "_Precios y stock sujetos a confirmación._";
-
-    const url = construirUrlWhatsApp(telefonoPedidos, body);
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, [carrito, negocioID, payload?.nombreTienda, telefonoPedidos, totalCarritoARS, cotizacionSistema]);
 
   function renderTarjeta(it: ItemStockPublico, indice = 0) {
     const enCarrito = carrito[it.id];
@@ -637,13 +634,24 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
             aria-label="Abrir carrito"
           >
             <ShoppingBag className="h-5 w-5 sm:h-5 sm:w-5" />
-            <span>Carrito</span>
+            <span className="hidden sm:inline">Carrito</span>
             {cantItemsCarrito > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#2563eb] px-1 text-[10px] font-bold text-white">
                 {cantItemsCarrito > 99 ? "99+" : cantItemsCarrito}
               </span>
             )}
           </button>
+          <Link
+            href={
+              esClienteTienda
+                ? `/consulta-stock/${negocioID}/cuenta`
+                : `/consulta-stock/${negocioID}/login`
+            }
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 px-3 py-2.5 text-xs font-semibold text-white hover:bg-white/10 sm:text-sm"
+          >
+            <User className="h-4 w-4" />
+            <span className="hidden sm:inline">{esClienteTienda ? "Mi cuenta" : "Entrar"}</span>
+          </Link>
         </div>
         <label className="relative mx-4 mb-3.5 block sm:hidden">
           <Search className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
@@ -864,7 +872,9 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
             />
             <div className="absolute inset-y-0 right-0 z-10 flex h-full w-full max-w-md flex-col border-l border-neutral-200 bg-white shadow-2xl sm:inset-y-3 sm:right-3 sm:max-h-[calc(100vh-1.5rem)] sm:rounded-2xl sm:border sm:border-neutral-200 antialiased">
             <div className="flex items-center justify-between border-b border-neutral-100 bg-white px-4 py-4">
-              <h2 className="text-lg font-bold text-neutral-900">Tu carrito</h2>
+              <h2 className="text-lg font-bold text-neutral-900">
+                {pasoCarrito === "checkout" ? "Finalizar pedido" : "Tu carrito"}
+              </h2>
               <button
                 type="button"
                 onClick={() => setDrawerAbierto(false)}
@@ -876,7 +886,25 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
             </div>
 
             <div className="flex-1 overflow-y-auto bg-[#fafafa] px-3 py-3">
-              {Object.keys(carrito).length === 0 ? (
+              {pasoCarrito === "checkout" ? (
+                <CheckoutCarritoTienda
+                  negocioId={negocioID}
+                  nombreTienda={payload?.nombreTienda ?? "Tienda"}
+                  telefonoPedidos={telefonoPedidos}
+                  checkoutConfig={payload?.checkoutConfig}
+                  carrito={carrito}
+                  cotizacionUSD={cotizacionSistema}
+                  perfil={perfil}
+                  esClienteTienda={esClienteTienda}
+                  getToken={getToken}
+                  onPedidoOk={() => {
+                    vaciarCarrito();
+                    setDrawerAbierto(false);
+                    setPasoCarrito("carrito");
+                  }}
+                  onVolver={() => setPasoCarrito("carrito")}
+                />
+              ) : Object.keys(carrito).length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-xl bg-white py-16 text-center text-neutral-500 shadow-sm">
                   <ShoppingBag className="mb-3 h-12 w-12 opacity-25" />
                   <p className="text-sm">Todavía no agregaste productos.</p>
@@ -945,6 +973,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
               )}
             </div>
 
+            {pasoCarrito === "carrito" && (
             <div className="border-t border-neutral-100 bg-white p-4">
               {ops.mostrarPrecio !== false && (
                 <div className="mb-3 flex items-baseline justify-between">
@@ -955,17 +984,16 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
                 </div>
               )}
               <p className="mb-3 text-[11px] leading-relaxed text-neutral-500">
-                Lista 1 en pesos de referencia. Confirmamos precio y stock al recibir el mensaje.
+                Confirmamos precio, envío y stock al recibir tu pedido.
               </p>
               <div className="flex flex-col gap-2">
                 <button
                   type="button"
-                  onClick={finalizarWhatsApp}
-                  disabled={Object.keys(carrito).length === 0}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-neutral-300"
+                  onClick={() => setPasoCarrito("checkout")}
+                  disabled={Object.keys(carrito).length === 0 || !telefonoPedidos}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2563eb] py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-neutral-300"
                 >
-                  <MessageCircle className="h-5 w-5" />
-                  Finalizar y enviar por WhatsApp
+                  Continuar al checkout
                 </button>
                 {Object.keys(carrito).length > 0 && (
                   <button
@@ -978,6 +1006,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
       )}

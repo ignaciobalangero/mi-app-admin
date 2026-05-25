@@ -18,6 +18,25 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Tienda pública (/consulta-stock): siempre tema claro, sin dark mode del sistema */
+[data-tienda-publica] {
+  background-color: #f5f5f5 !important;
+  color: #171717 !important;
+  color-scheme: light !important;
+}
+
+[data-tienda-publica] input,
+[data-tienda-publica] textarea,
+[data-tienda-publica] select {
+  background-color: #ffffff !important;
+  color: #171717 !important;
+}
+
+[data-tienda-publica] input::placeholder,
+[data-tienda-publica] textarea::placeholder {
+  color: #737373 !important;
+}
+
 /* Forzar z-index alto para dropdowns */
 [data-headlessui-state="open"] {
   z-index: 50000 !important;

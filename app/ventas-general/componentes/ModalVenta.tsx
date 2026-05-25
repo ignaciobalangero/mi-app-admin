@@ -11,6 +11,14 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs } from "firebase/firestore";
 import { Combobox } from "@headlessui/react";
 import useCotizacion from "@/lib/hooks/useCotizacion";
+import { useCargarPedidoTiendaEnVenta } from "@/lib/useCargarPedidoTiendaEnVenta";
+import {
+  leerPedidoParaVenta,
+  limpiarPedidoParaVenta,
+  STORAGE_PEDIDO_TIENDA,
+  STORAGE_PEDIDO_TIENDA_ACTIVO,
+} from "@/lib/usePedidosTiendaPendientesVenta";
+import type { PedidoTienda } from "@/lib/tiendaClienteTypes";
 
 export default function ModalVenta({
   clienteInicial = "",
@@ -21,6 +29,8 @@ export default function ModalVenta({
   refrescar,
   setRefrescar,
   desdeTelefono = false,
+  desdePedidoTienda = false,
+  onVentaGuardada,
 }: {
   clienteInicial?: string;
   productosIniciales?: any[];
@@ -30,10 +40,16 @@ export default function ModalVenta({
   refrescar: boolean;
   setRefrescar: React.Dispatch<React.SetStateAction<boolean>>;
   desdeTelefono?: boolean;
+  desdePedidoTienda?: boolean;
+  onVentaGuardada?: () => void;
 }) {
 
   const { rol } = useRol();
+  const { prepararDesdePedido, cargando: cargandoPedido } = useCargarPedidoTiendaEnVenta(
+    rol?.negocioID || undefined
+  );
   const [cliente, setCliente] = useState(clienteInicial);
+  const [observaciones, setObservaciones] = useState("");
   const [numeroVenta, setNumeroVenta] = useState("");
   const [productos, setProductos] = useState<any[]>(productosIniciales);
   const [marca, setMarca] = useState("");
@@ -129,6 +145,8 @@ export default function ModalVenta({
     localStorage.removeItem("pagoDesdeTelefono");
     localStorage.removeItem("ventaModalTemporal");
     localStorage.removeItem("clienteNuevo");
+    localStorage.removeItem(STORAGE_PEDIDO_TIENDA);
+    localStorage.removeItem(STORAGE_PEDIDO_TIENDA_ACTIVO);
     
     console.log('✅ Datos temporales limpiados');
   };
@@ -189,6 +207,41 @@ export default function ModalVenta({
       setPago(pagoData);
     }
   }, [desdeTelefono]);
+
+  useEffect(() => {
+    if (!desdePedidoTienda) return;
+    const datos = leerPedidoParaVenta();
+    if (!datos?.pedido) return;
+
+    const cargar = async () => {
+      const raw = datos.pedido as PedidoTienda & { id?: string };
+      const pedido: PedidoTienda = {
+        ...raw,
+        id: raw.id || String(raw.numero),
+        negocioId: raw.negocioId || datos.negocioId,
+      };
+
+      try {
+        const prep = await prepararDesdePedido(pedido);
+        setCliente(prep.cliente);
+        setProductos(prep.productos);
+        setObservaciones(prep.observaciones);
+        setPago(prep.pago);
+        localStorage.setItem(
+          STORAGE_PEDIDO_TIENDA_ACTIVO,
+          JSON.stringify({
+            negocioId: prep.negocioTiendaId,
+            pedidoId: prep.pedidoId,
+            pedidoNumero: prep.pedidoNumero,
+          })
+        );
+      } catch (error) {
+        console.error("Error cargando pedido tienda:", error);
+      }
+    };
+
+    void cargar();
+  }, [desdePedidoTienda, prepararDesdePedido]);
 
   useEffect(() => {
     const productoLS = localStorage.getItem("productoDesdeTelefono");
@@ -1001,7 +1054,7 @@ export default function ModalVenta({
                 cliente={cliente}
                 productos={productos}
                 fecha={new Date().toLocaleDateString("es-AR")}
-                observaciones=""
+                observaciones={observaciones}
                 pago={{
                   ...pago,
                   telefonoComoPago: telefonoComoPago
@@ -1010,7 +1063,9 @@ export default function ModalVenta({
                 cotizacion={cotizacionManual}
                 onGuardar={() => {
                   limpiarDatosTemporales();
+                  limpiarPedidoParaVenta();
                   setRefrescar(prev => !prev);
+                  onVentaGuardada?.();
                   onClose?.();
                 }}
               />

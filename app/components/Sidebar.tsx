@@ -4,22 +4,72 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRol } from "../../lib/useRol";
 import { useLogo } from "@/app/components/LogoProvider";
+import { usePedidosTiendaPendientesVenta } from "@/lib/usePedidosTiendaPendientesVenta";
 
 interface SidebarProps {
   abierto: boolean;
   setAbierto: (abierto: boolean) => void;
 }
 
+type BotonMenu = {
+  label: string;
+  icono: string;
+  href: string;
+  badge?: number;
+};
+
+function NavLink({
+  boton,
+  abierto,
+}: {
+  boton: BotonMenu;
+  abierto: boolean;
+}) {
+  return (
+    <Link
+      href={boton.href}
+      className="flex items-center p-3 rounded-lg hover:bg-[#3498db] hover:text-white hover:shadow-md text-xs transition-all duration-200 group"
+    >
+      <span className="relative text-lg group-hover:scale-110 transition-transform">
+        {boton.icono}
+        {boton.badge != null && boton.badge > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center leading-none">
+            {boton.badge > 9 ? "9+" : boton.badge}
+          </span>
+        )}
+      </span>
+      {abierto && (
+        <span className="ml-3 whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white flex items-center gap-2">
+          {boton.label}
+          {boton.badge != null && boton.badge > 0 && (
+            <span className="min-w-[16px] h-4 px-1 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center">
+              {boton.badge > 9 ? "9+" : boton.badge}
+            </span>
+          )}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
-  const { rol } = useRol();
+  const { rol, puedeVerPedidosTienda } = useRol();
   const { logoUrl, cargandoLogo } = useLogo();
   const [administracionAbierta, setAdministracionAbierta] = useState(false);
+  const { count: pedidosPendientesVenta, tieneAcceso: badgePedidosTienda } =
+    usePedidosTiendaPendientesVenta();
 
   if (rol?.tipo === "cliente") return null;
 
-  const botonesAdmin = [
+  const itemIphonetec = puedeVerPedidosTienda
+    ? [{ label: "iPhoneTEC", icono: "🛒", href: "/iphonetec" }]
+    : [];
+
+  const badgeVentas = badgePedidosTienda && pedidosPendientesVenta > 0 ? pedidosPendientesVenta : undefined;
+
+  const botonesAdmin: BotonMenu[] = [
     { label: "Inicio", icono: "🏠", href: "/" },
-    { label: "Ventas General", icono: "💰", href: "/ventas-general" },
+    { label: "Ventas General", icono: "💰", href: "/ventas-general", badge: badgeVentas },
     { label: "Orden de trabajo", icono: "📝", href: "/ingreso" },
     { label: "Gestion de Ordenes", icono: "🔧", href: "/gestion-trabajos" },
     { label: "Administrar $ ordenes", icono: "💵", href: "/resumen" },
@@ -29,6 +79,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Venta de teléfonos", icono: "📱", href: "/ventas/telefonos" },
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },
     { label: "Stock Gral", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
+    ...itemIphonetec,
     { label: "Stock Repuestos (Sheet)", icono: "📋", href: "/integracion-sheet/stock-sheet" },
     { label: "Clientes", icono: "👥", href: "/clientes" },
     { label: "Configuraciones", icono: "⚙️", href: "/configuraciones" },
@@ -41,16 +92,17 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Proveedores", icono: "🏭", href: "/proveedores", soloAdmin: true },
   ];
  
-  const botonesEmpleado = [
+  const botonesEmpleado: BotonMenu[] = [
     { label: "Inicio", icono: "🏠", href: "/" },
     { label: "Ingreso de trabajo", icono: "📝", href: "/ingreso" },
-    { label: "Ventas General", icono: "💰", href: "/ventas-general" },
+    { label: "Ventas General", icono: "💰", href: "/ventas-general", badge: badgeVentas },
     { label: "Gestión de Trabajos", icono: "🔧", href: "/gestion-trabajos" },
     { label: "Stock Repuestos (Sheet)", icono: "📋", href: "/integracion-sheet/stock-sheet" },
     { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
     { label: "Venta de teléfonos", icono: "📱", href: "/ventas/telefonos" },
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },
     { label: "Stock Grl", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
+    ...itemIphonetec,
     { label: "Clientes", icono: "👥", href: "/clientes" },
     { label: "Gestion de Pagos", icono: "💳", href: "/pagos" },
     
@@ -108,18 +160,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
 
         <nav className="flex-1 flex flex-col space-y-1 px-3 overflow-y-auto scrollbar-thin scrollbar-thumb-[#3498db] scrollbar-track-[#e8eaed]">
           {botones.slice(0, 7).map((boton, i) => (
-            <Link
-              key={i}
-              href={boton.href}
-              className="flex items-center p-3 rounded-lg hover:bg-[#3498db] hover:text-white hover:shadow-md text-xs transition-all duration-200 group"
-            >
-              <span className="text-lg group-hover:scale-110 transition-transform">{boton.icono}</span>
-              {abierto && (
-                <span className="ml-3 whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white">
-                  {boton.label}
-                </span>
-              )}
-            </Link>
+            <NavLink key={i} boton={boton} abierto={abierto} />
           ))}
 
           {/* Menú desplegable de Administración */}
@@ -162,18 +203,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
 
           {/* Resto de botones después de Administración */}
           {botones.slice(7).map((boton, i) => (
-            <Link
-              key={i + 7}
-              href={boton.href}
-              className="flex items-center p-3 rounded-lg hover:bg-[#3498db] hover:text-white hover:shadow-md text-xs transition-all duration-200 group"
-            >
-              <span className="text-lg group-hover:scale-110 transition-transform">{boton.icono}</span>
-              {abierto && (
-                <span className="ml-3 whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white">
-                  {boton.label}
-                </span>
-              )}
-            </Link>
+            <NavLink key={i + 7} boton={boton} abierto={abierto} />
           ))}
         </nav>
 

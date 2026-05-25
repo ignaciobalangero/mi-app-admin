@@ -5,7 +5,22 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { mapaDominiosTienda } from "@/lib/dominiosTienda";
 import PrecioOfertaGestione from "../components/PrecioOfertaGestione";
+
+function mensajeErrorAuth(code: string | undefined): string {
+  switch (code) {
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+    case "auth/invalid-login-credentials":
+      return "Credenciales inválidas. Verifica tu email y contraseña.";
+    case "auth/too-many-requests":
+      return "Demasiados intentos. Esperá unos minutos e intentá de nuevo.";
+    default:
+      return "No se pudo iniciar sesión. Intentá de nuevo.";
+  }
+}
 
 export default function Login() {
   const router = useRouter();
@@ -22,18 +37,42 @@ export default function Login() {
 
     setLoading(true);
     setError("");
-    
+
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
       const userSnap = await getDoc(doc(db, "usuarios", cred.user.uid));
-      const tipo = userSnap.exists() ? (userSnap.data()?.rol as string | undefined) : undefined;
-      if (tipo === "cliente") {
-        router.push("/cliente");
-      } else {
-        router.push("/");
+
+      if (userSnap.exists()) {
+        const tipo = userSnap.data()?.rol as string | undefined;
+        if (tipo === "cliente") {
+          router.push("/cliente");
+        } else {
+          router.push("/");
+        }
+        return;
       }
-    } catch (err) {
-      setError("Credenciales inválidas. Verifica tu email y contraseña.");
+
+      const token = await cred.user.getIdToken();
+      const negociosTienda = Array.from(new Set(Object.values(mapaDominiosTienda())));
+      for (const negocioId of negociosTienda) {
+        const res = await fetch(
+          `/api/tienda/perfil-estado?negocioId=${encodeURIComponent(negocioId)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.tienePerfil) {
+          router.push(`/consulta-stock/${negocioId}/cuenta`);
+          return;
+        }
+      }
+
+      setError(
+        "Tu cuenta existe pero no tiene acceso al panel Gestione. Si solo usás la tienda web, entrá desde iphonetec.com.ar."
+      );
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      setError(mensajeErrorAuth(code));
     } finally {
       setLoading(false);
     }
@@ -125,7 +164,7 @@ export default function Login() {
 
             {/* Botón de login */}
             <button
-              onClick={handleLogin}
+              onClick={() => void handleLogin()}
               disabled={loading}
               className={`w-full py-4 rounded-xl font-semibold text-white transition-all duration-200 transform shadow-lg flex items-center justify-center gap-3 ${
                 loading

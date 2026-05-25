@@ -2,10 +2,12 @@
 "use client";
 import { useEffect } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { useRouter, usePathname } from "next/navigation";
 import { useVerificarEstadoCuenta } from "@/lib/verificarEstadoCuenta";
 import { esConsultaStockPublico, esInicioDominioTienda, esRutaPublica } from "@/lib/rutasPublicas";
+import { mapaDominiosTienda } from "@/lib/dominiosTienda";
 import CuentaVencida from "@/app/components/CuentaVencida";
 
 interface AppWrapperProps {
@@ -29,6 +31,31 @@ export default function AppWrapper({ children }: AppWrapperProps) {
     if (!userLoading && !user) {
       router.push("/login");
     }
+  }, [user, userLoading, esPublica, router]);
+
+  useEffect(() => {
+    if (esPublica || userLoading || !user) return;
+    void getDoc(doc(db, `usuarios/${user.uid}`)).then(async (snap) => {
+      if (snap.exists()) return;
+      try {
+        const token = await user.getIdToken();
+        const negociosTienda = Array.from(new Set(Object.values(mapaDominiosTienda())));
+        for (const negocioId of negociosTienda) {
+          const res = await fetch(
+            `/api/tienda/perfil-estado?negocioId=${encodeURIComponent(negocioId)}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data.tienePerfil) {
+            router.replace(`/consulta-stock/${negocioId}/cuenta`);
+            return;
+          }
+        }
+      } catch {
+        /* sin redirección tienda */
+      }
+    });
   }, [user, userLoading, esPublica, router]);
 
   // Tienda /consulta-stock/[negocioID]: acceso libre, sin login ni bloqueo de cuenta

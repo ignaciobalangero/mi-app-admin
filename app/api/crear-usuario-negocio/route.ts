@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import "@/lib/firebaseAdmin";
 import { auth as adminAuth, db } from "@/lib/firebaseAdmin";
+import { esSuperAdminEmail, esSuperAdminUid } from "@/lib/superAdminConstants";
 
 export const runtime = "nodejs";
 
@@ -24,18 +25,27 @@ export async function POST(req: Request) {
     }
 
     const callerSnap = await db.doc(`usuarios/${decoded.uid}`).get();
-    if (!callerSnap.exists) {
+    const esSuperAdminCaller =
+      esSuperAdminUid(decoded.uid) || esSuperAdminEmail(String(decoded.email ?? ""));
+
+    let callerNegocio = "";
+    let callerRol = "";
+
+    if (callerSnap.exists) {
+      const caller = callerSnap.data()!;
+      callerRol = String(caller.rol || "");
+      callerNegocio = String(caller.negocioID || "").trim();
+    } else if (!esSuperAdminCaller) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 403 });
     }
 
-    const caller = callerSnap.data()!;
-    const callerRol = String(caller.rol || "");
-    const callerNegocio = String(caller.negocioID || "").trim();
-    if (callerRol !== "admin" && callerRol !== "empleado") {
-      return NextResponse.json({ error: "Solo administradores o empleados pueden crear usuarios" }, { status: 403 });
-    }
-    if (!callerNegocio) {
-      return NextResponse.json({ error: "Tu cuenta no tiene negocio asignado" }, { status: 403 });
+    if (!esSuperAdminCaller) {
+      if (callerRol !== "admin" && callerRol !== "empleado") {
+        return NextResponse.json({ error: "Solo administradores o empleados pueden crear usuarios" }, { status: 403 });
+      }
+      if (!callerNegocio) {
+        return NextResponse.json({ error: "Tu cuenta no tiene negocio asignado" }, { status: 403 });
+      }
     }
 
     const body = await req.json();
@@ -61,7 +71,10 @@ export async function POST(req: Request) {
     if (!nombreRaw) {
       return NextResponse.json({ error: "Falta el nombre" }, { status: 400 });
     }
-    if (!negocioID || negocioID !== callerNegocio) {
+    if (!negocioID) {
+      return NextResponse.json({ error: "Falta el negocio" }, { status: 400 });
+    }
+    if (!esSuperAdminCaller && negocioID !== callerNegocio) {
       return NextResponse.json({ error: "No podés crear usuarios para otro negocio" }, { status: 403 });
     }
 
@@ -101,14 +114,19 @@ export async function POST(req: Request) {
     });
     const nuevoUID = userRecord.uid;
 
-    const datosUsuario = {
+    const datosUsuario: Record<string, unknown> = {
       email,
       negocioID,
       rol,
       nombre: nombreGuardado,
     };
 
-    const creadoPor = decoded.email || String(caller.email || "").trim() || "admin";
+    if (esSuperAdminCaller && rol === "empleado") {
+      datosUsuario.pedidosTienda = true;
+      datosUsuario.creadoPorSuperadmin = true;
+    }
+
+    const creadoPor = decoded.email || String(callerSnap.data()?.email || "").trim() || "admin";
 
     await db.doc(`usuarios/${nuevoUID}`).set(datosUsuario);
     await db.doc(`negocios/${negocioID}/usuarios/${nuevoUID}`).set({
