@@ -199,7 +199,7 @@ export default function Configuraciones() {
     return (
       <>
         <Header />
-        <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black">
+        <main className="pt-16 bg-[#f8f9fa] min-h-screen text-black">
           <div className="w-full px-4 max-w-[1200px] mx-auto space-y-6">
             <div className="flex items-center gap-4">
               <button
@@ -218,7 +218,7 @@ export default function Configuraciones() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black">
+      <main className="pt-16 bg-[#f8f9fa] min-h-screen text-black">
         <div className="w-full px-4 max-w-[1200px] mx-auto space-y-6">
           {user?.uid === SUPER_ADMIN_UID && (
             <>

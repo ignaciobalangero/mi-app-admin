@@ -193,7 +193,7 @@ export default function ResumenPage() {
   return (
     <RequireAdmin>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+      <main className="pt-16 bg-[#f8f9fa] overflow-x-hidden min-h-screen text-black w-full">
         <div className="w-full px-2 sm:px-4 md:px-6 max-w-[1800px] mx-auto">
           
           {/* HEADER */}

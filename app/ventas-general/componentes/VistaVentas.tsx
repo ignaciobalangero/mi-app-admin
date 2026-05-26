@@ -76,7 +76,7 @@ export default function VistaVentas() {
   return (
     <>
       <Header />
-      <main className="pt-16 sm:pt-20 pb-4 sm:pb-10 bg-gradient-to-br from-[#ecf0f1] via-[#f8f9fa] to-[#e8f4fd] min-h-screen text-[#2c3e50] w-full overflow-x-hidden">
+      <main className="pt-16 sm:pt-16 pb-4 sm:pb-10 bg-gradient-to-br from-[#ecf0f1] via-[#f8f9fa] to-[#e8f4fd] min-h-screen text-[#2c3e50] w-full overflow-x-hidden">
         <div className="w-full px-2 sm:px-4 md:px-6 max-w-[1600px] mx-auto space-y-3 sm:space-y-6">
 
           {/* Header principal - Compacto en mobile */}

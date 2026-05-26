@@ -138,9 +138,8 @@ function Home() {
   return (
     <>
       <Header />
-      <div className="flex min-h-screen">
-        <main className="flex-1 pt-20 bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] text-black">
-          <div className="w-full px-4 sm:px-6 max-w-[1400px] mx-auto space-y-6 py-6">
+      <main className="flex-1 overflow-x-hidden bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] pt-16 text-black">
+          <div className="mx-auto w-full max-w-[1400px] space-y-6 px-2 py-4 sm:px-6 sm:py-6">
             
             {/* HEADER */}
             <div className="bg-gradient-to-r from-[#2c3e50] via-[#34495e] to-[#3498db] rounded-2xl p-6 sm:p-8 shadow-2xl border border-[#ecf0f1] transform hover:scale-[1.01] transition-all duration-300">
@@ -294,7 +293,6 @@ function Home() {
             </div>
           </div>
         </main>
-      </div>
     </>
   );
 }

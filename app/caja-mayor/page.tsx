@@ -223,7 +223,7 @@ export default function CajaMayorPage() {
     return (
       <>
         <Header />
-        <main className="pt-20 min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+        <main className="pt-16 min-h-screen bg-[#f8f9fa] flex items-center justify-center">
           <div className="text-center">
             <div className="w-16 h-16 border-4 border-[#9b59b6] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-[#7f8c8d]">Cargando Caja Mayor...</p>
@@ -236,7 +236,7 @@ export default function CajaMayorPage() {
   return (
     <>
       <Header />
-      <main className="pt-20 min-h-screen bg-[#f8f9fa] p-4">
+      <main className="pt-16 min-h-screen bg-[#f8f9fa] p-4">
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Header */}

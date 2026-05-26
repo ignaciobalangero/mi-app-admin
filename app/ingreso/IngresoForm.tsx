@@ -923,8 +923,8 @@ export default function IngresoForm() {
   return (
     <RequireAuth>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
-        <div className="w-full px-6 max-w-[1200px] mx-auto">
+      <main className="pt-16 bg-[#f8f9fa] overflow-x-hidden min-h-screen text-black w-full">
+        <div className="w-full px-2 sm:px-4 md:px-6 max-w-[1200px] mx-auto">
           
           {/* Header de la página */}
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-3 mb-2 shadow-lg border border-[#ecf0f1]">

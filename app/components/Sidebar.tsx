@@ -3,13 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRol } from "../../lib/useRol";
-import { useLogo } from "@/app/components/LogoProvider";
 import { usePedidosTiendaPendientesVenta } from "@/lib/usePedidosTiendaPendientesVenta";
-
-interface SidebarProps {
-  abierto: boolean;
-  setAbierto: (abierto: boolean) => void;
-}
+import { useAdminLayout } from "./AdminLayoutContext";
 
 type BotonMenu = {
   label: string;
@@ -21,28 +16,31 @@ type BotonMenu = {
 function NavLink({
   boton,
   abierto,
+  onNavigate,
 }: {
   boton: BotonMenu;
   abierto: boolean;
+  onNavigate?: () => void;
 }) {
   return (
     <Link
       href={boton.href}
-      className="flex items-center p-3 rounded-lg hover:bg-[#3498db] hover:text-white hover:shadow-md text-xs transition-all duration-200 group"
+      onClick={onNavigate}
+      className="group flex min-h-[44px] items-center rounded-lg p-3 text-xs text-[#2c3e50] transition-all duration-200 hover:bg-[#3498db] hover:text-white hover:shadow-md"
     >
-      <span className="relative text-lg group-hover:scale-110 transition-transform">
+      <span className="relative text-lg transition-transform group-hover:scale-110">
         {boton.icono}
         {boton.badge != null && boton.badge > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center leading-none">
+          <span className="absolute -right-1.5 -top-1.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-[#e74c3c] px-0.5 text-[9px] font-bold leading-none text-white">
             {boton.badge > 9 ? "9+" : boton.badge}
           </span>
         )}
       </span>
       {abierto && (
-        <span className="ml-3 whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white flex items-center gap-2">
+        <span className="ml-3 flex items-center gap-2 whitespace-nowrap font-medium group-hover:text-white">
           {boton.label}
           {boton.badge != null && boton.badge > 0 && (
-            <span className="min-w-[16px] h-4 px-1 rounded-full bg-[#e74c3c] text-white text-[9px] font-bold flex items-center justify-center">
+            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#e74c3c] px-1 text-[9px] font-bold text-white">
               {boton.badge > 9 ? "9+" : boton.badge}
             </span>
           )}
@@ -52,20 +50,27 @@ function NavLink({
   );
 }
 
-export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
+export default function Sidebar() {
   const { rol, puedeVerPedidosTienda } = useRol();
-  const { logoUrl, cargandoLogo } = useLogo();
   const [administracionAbierta, setAdministracionAbierta] = useState(false);
   const { count: pedidosPendientesVenta, tieneAcceso: badgePedidosTienda } =
     usePedidosTiendaPendientesVenta();
+  const {
+    mobileNavOpen,
+    closeMobileNav,
+    desktopExpanded,
+    toggleDesktopExpanded,
+  } = useAdminLayout();
 
   if (rol?.tipo === "cliente") return null;
+  if (!rol) return null;
 
   const itemIphonetec = puedeVerPedidosTienda
     ? [{ label: "iPhoneTEC", icono: "🛒", href: "/iphonetec" }]
     : [];
 
-  const badgeVentas = badgePedidosTienda && pedidosPendientesVenta > 0 ? pedidosPendientesVenta : undefined;
+  const badgeVentas =
+    badgePedidosTienda && pedidosPendientesVenta > 0 ? pedidosPendientesVenta : undefined;
 
   const botonesAdmin: BotonMenu[] = [
     { label: "Inicio", icono: "🏠", href: "/" },
@@ -75,7 +80,6 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Administrar $ ordenes", icono: "💵", href: "/resumen" },
     { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
     { label: "Gestion de Pagos", icono: "💳", href: "/pagos" },
-    // Aquí va el menú desplegable de Administración
     { label: "Venta de teléfonos", icono: "📱", href: "/ventas/telefonos" },
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },
     { label: "Stock Gral", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },
@@ -91,7 +95,7 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     { label: "Resumen de Cuenta", icono: "📈", href: "/resumen-cuenta", soloAdmin: true },
     { label: "Proveedores", icono: "🏭", href: "/proveedores", soloAdmin: true },
   ];
- 
+
   const botonesEmpleado: BotonMenu[] = [
     { label: "Inicio", icono: "🏠", href: "/" },
     { label: "Ingreso de trabajo", icono: "📝", href: "/ingreso" },
@@ -105,74 +109,69 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
     ...itemIphonetec,
     { label: "Clientes", icono: "👥", href: "/clientes" },
     { label: "Gestion de Pagos", icono: "💳", href: "/pagos" },
-    
   ];
 
   const botones = rol?.tipo === "admin" ? botonesAdmin : botonesEmpleado;
-
-  // Filtrar submenú según rol
   const subMenuFiltrado = subMenuAdministracion.filter(
-    item => !item.soloAdmin || rol?.tipo === "admin"
+    (item) => !item.soloAdmin || rol?.tipo === "admin"
   );
 
-  if (!rol) return null;
+  const navAbierto = mobileNavOpen || desktopExpanded;
+  const cerrarSiMobile = () => closeMobileNav();
 
   return (
-    <>
-      {/* Header superior separado que respeta la zona segura */}
-      <header className="fixed top-[env(safe-area-inset-top,0)] left-0 right-0 h-16 bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] text-[#2c3e50] shadow-lg z-30 flex items-center justify-center border-b-2 border-[#3498db]">
-        <div className="flex items-center gap-3">
-          {cargandoLogo ? (
-            <div className="h-10 w-32 bg-white/20 rounded-lg animate-pulse" />
-          ) : logoUrl ? (
-            <img
-              src={logoUrl}
-              alt="Logo"
-              className="h-10 object-contain max-w-[200px]"
-            />
-          ) : (
-            <>
-              <div className="w-10 h-10 bg-[#3498db] rounded-lg flex items-center justify-center">
-                <span className="text-xl">📋</span>
-              </div>
-              <span className="text-xl font-bold text-[#2c3e50]">GestiOne</span>
-            </>
-          )}
-        </div>
-      </header>
-
-      {/* Sidebar reposicionado */}
-      <aside
-        className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-gradient-to-b from-[#f0f2f5] to-[#e8eaed] text-[#2c3e50] shadow-xl transition-all duration-300 z-40 ${
-          abierto ? "w-64" : "w-16"
-        } flex flex-col overflow-hidden border-r-2 border-[#3498db]`}
+    <aside
+      className={`fixed left-0 top-16 z-50 flex h-[calc(100dvh-4rem)] flex-col overflow-hidden border-r-2 border-[#3498db] bg-gradient-to-b from-[#f0f2f5] to-[#e8eaed] text-[#2c3e50] shadow-xl transition-transform duration-300 ease-out ${
+        mobileNavOpen ? "translate-x-0" : "-translate-x-full"
+      } w-[min(100vw-3rem,17rem)] lg:translate-x-0 ${
+        desktopExpanded ? "lg:w-64" : "lg:w-16"
+      }`}
+      aria-hidden={!mobileNavOpen ? undefined : false}
+    >
+      <button
+        type="button"
+        onClick={toggleDesktopExpanded}
+        className="absolute right-3 top-3 z-50 hidden h-8 w-8 items-center justify-center rounded-lg bg-[#3498db] text-white shadow-md transition-all hover:scale-110 hover:bg-[#2980b9] lg:flex"
+        title={desktopExpanded ? "Cerrar menú" : "Abrir menú"}
       >
+        {desktopExpanded ? "⬅️" : "☰"}
+      </button>
+
+      <div className="flex items-center justify-between px-3 pt-3 lg:hidden">
+        <span className="text-sm font-bold text-[#2c3e50]">Menú</span>
         <button
-          onClick={() => setAbierto(!abierto)}
-          className="absolute top-3 right-4 bg-[#3498db] hover:bg-[#2980b9] text-white w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 transform hover:scale-110 shadow-md z-50"
-          title={abierto ? "Cerrar menú" : "Abrir menú"}
+          type="button"
+          onClick={closeMobileNav}
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#ecf0f1] text-lg"
+          aria-label="Cerrar menú"
         >
-          {abierto ? "⬅️" : "☰"}
+          ✕
         </button>
+      </div>
 
-        {/* Espacio para el botón de colapsar */}
-        <div className="h-12"></div>
+      <div className="hidden h-12 lg:block" />
 
-        <nav className="flex-1 flex flex-col space-y-1 px-3 overflow-y-auto scrollbar-thin scrollbar-thumb-[#3498db] scrollbar-track-[#e8eaed]">
-          {botones.slice(0, 7).map((boton, i) => (
-            <NavLink key={i} boton={boton} abierto={abierto} />
-          ))}
+      <nav className="scrollbar-thin scrollbar-thumb-[#3498db] scrollbar-track-[#e8eaed] flex flex-1 flex-col space-y-1 overflow-y-auto px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {botones.slice(0, 7).map((boton, i) => (
+          <NavLink
+            key={i}
+            boton={boton}
+            abierto={navAbierto}
+            onNavigate={cerrarSiMobile}
+          />
+        ))}
 
-          {/* Menú desplegable de Administración */}
+        {rol?.tipo === "admin" && (
           <div>
             <button
+              type="button"
               onClick={() => setAdministracionAbierta(!administracionAbierta)}
-              className="w-full flex items-center p-3 rounded-lg hover:bg-[#9b59b6] hover:text-white hover:shadow-md text-xs transition-all duration-200 group"
+              className="group flex min-h-[44px] w-full items-center rounded-lg p-3 text-xs transition-all duration-200 hover:bg-[#9b59b6] hover:text-white hover:shadow-md"
             >
-              <span className="text-lg group-hover:scale-110 transition-transform">📊</span>
-              {abierto && (
+              <span className="text-lg transition-transform group-hover:scale-110">📊</span>
+              {navAbierto && (
                 <>
-                  <span className="ml-3 flex-1 text-left whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white">
+                  <span className="ml-3 flex-1 whitespace-nowrap text-left font-medium text-[#2c3e50] group-hover:text-white">
                     Administración
                   </span>
                   <span className="text-xs group-hover:text-white">
@@ -182,14 +181,14 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
               )}
             </button>
 
-            {/* Submenú desplegable */}
-            {abierto && administracionAbierta && (
+            {navAbierto && administracionAbierta && (
               <div className="ml-4 mt-1 space-y-1 border-l-2 border-[#9b59b6] pl-2">
                 {subMenuFiltrado.map((item, i) => (
                   <Link
                     key={i}
                     href={item.href}
-                    className="flex items-center p-2 rounded-lg hover:bg-[#8e44ad] hover:text-white text-xs transition-all duration-200 group"
+                    onClick={cerrarSiMobile}
+                    className="group flex min-h-[40px] items-center rounded-lg p-2 text-xs transition-all duration-200 hover:bg-[#8e44ad] hover:text-white"
                   >
                     <span className="text-base">{item.icono}</span>
                     <span className="ml-2 whitespace-nowrap font-medium text-[#2c3e50] group-hover:text-white">
@@ -200,23 +199,27 @@ export default function Sidebar({ abierto, setAbierto }: SidebarProps) {
               </div>
             )}
           </div>
-
-          {/* Resto de botones después de Administración */}
-          {botones.slice(7).map((boton, i) => (
-            <NavLink key={i + 7} boton={boton} abierto={abierto} />
-          ))}
-        </nav>
-
-        {abierto && (
-          <div className="p-3 border-t border-[#d5dbdb]">
-            <div className="bg-[#e8eaed] rounded-lg p-2">
-              <p className="text-xs text-[#7f8c8d] text-center">
-                <span className="font-semibold text-[#2c3e50]">Rol:</span> {rol?.tipo}
-              </p>
-            </div>
-          </div>
         )}
-      </aside>
-    </>
+
+        {botones.slice(7).map((boton, i) => (
+          <NavLink
+            key={i + 7}
+            boton={boton}
+            abierto={navAbierto}
+            onNavigate={cerrarSiMobile}
+          />
+        ))}
+      </nav>
+
+      {navAbierto && (
+        <div className="border-t border-[#d5dbdb] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="rounded-lg bg-[#e8eaed] p-2">
+            <p className="text-center text-xs text-[#7f8c8d]">
+              <span className="font-semibold text-[#2c3e50]">Rol:</span> {rol?.tipo}
+            </p>
+          </div>
+        </div>
+      )}
+    </aside>
   );
 }

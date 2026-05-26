@@ -64,7 +64,7 @@ export default function StockAccesoriosRepuestos() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full"> {/* pt-24 → pt-20, bg-gray-100 → bg-[#f8f9fa] */}
+      <main className="pt-16 bg-[#f8f9fa] min-h-screen text-black w-full"> {/* pt-24 → pt-16, bg-gray-100 → bg-[#f8f9fa] */}
         <div className="w-full px-1 max-w-[1200px] mx-auto"> {/* Contenedor centrado y padding reducido */}
           
           {/* Header de la página - Estilo GestiOne */}

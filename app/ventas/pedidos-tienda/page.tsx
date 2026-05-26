@@ -155,7 +155,7 @@ export default function PedidosTiendaPage() {
     return (
       <>
         <Header />
-        <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black [color-scheme:light]">
+        <main className="pt-16 bg-[#f8f9fa] min-h-screen text-black [color-scheme:light]">
           <div className="p-8 text-center text-sm text-[#7f8c8d]">
             No tenés permiso para ver pedidos de la tienda web.
           </div>
@@ -167,7 +167,7 @@ export default function PedidosTiendaPage() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black [color-scheme:light]">
+      <main className="pt-16 bg-[#f8f9fa] min-h-screen text-black [color-scheme:light]">
       <div className="mx-auto max-w-5xl px-4 py-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

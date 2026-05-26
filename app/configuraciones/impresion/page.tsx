@@ -352,7 +352,7 @@ if (configDatosSnap.exists()) {
       <Toast {...toast} />
 
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen">
+      <main className="pt-16 bg-[#f8f9fa] min-h-screen">
         <div className="max-w-6xl mx-auto px-4 space-y-6">
           
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 text-white">

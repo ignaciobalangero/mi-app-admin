@@ -178,7 +178,7 @@ export default function CuentaCorrientePage() {
   return (
     <>
       <Header />
-      <main className="pt-20 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-4 sm:p-6">
+      <main className="pt-16 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Header */}

@@ -10,7 +10,7 @@ export default function VentasHome() {
   return (
     <RequireAdmin>
       <Header />
-      <main className="pt-20 min-h-screen bg-gray-100 text-black p-6 flex flex-col items-center">
+      <main className="pt-16 min-h-screen bg-gray-100 text-black p-6 flex flex-col items-center">
         <h1 className="text-3xl font-bold mb-8">Panel de Ventas</h1>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-4xl">
           <Link

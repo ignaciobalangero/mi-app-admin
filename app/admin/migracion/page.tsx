@@ -35,7 +35,7 @@ export default function RecalcularSaldosPage() {
     return (
       <>
         <Header />
-        <main className="pt-20 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-6">
+        <main className="pt-16 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-6">
           <div className="max-w-4xl mx-auto">
             <div className="bg-red-100 border-2 border-red-500 rounded-xl p-6 text-center">
               <h1 className="text-2xl font-bold text-red-800 mb-2">⛔ Acceso Denegado</h1>
@@ -217,7 +217,7 @@ export default function RecalcularSaldosPage() {
   return (
     <>
       <Header />
-      <main className="pt-20 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-4 sm:p-6">
+      <main className="pt-16 min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#e9ecef] p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           
           {/* Header */}

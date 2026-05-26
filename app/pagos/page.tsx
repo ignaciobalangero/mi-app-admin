@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Header from "../Header";
+import AdminPageMain from "@/app/components/AdminPageMain";
 import FormularioPago from "./componentes/FormularioPago";
 import TablaPagos from "./componentes/TablaPagos";
 import { useRol } from "@/lib/useRol";
@@ -32,20 +33,18 @@ export default function PagosPage() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
-        <div className="w-full px-6 max-w-[1600px] mx-auto">
-          
+      <AdminPageMain>
           {/* Header de la página - Estilo GestiOne */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-4 mb-2 shadow-lg border border-[#ecf0f1]">
-            <div className="flex items-center gap-6">
-              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
-                <span className="text-4xl">💰</span>
+          <div className="mb-2 rounded-2xl border border-[#ecf0f1] bg-gradient-to-r from-[#2c3e50] to-[#3498db] p-3 shadow-lg sm:p-4">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 sm:h-14 sm:w-14">
+                <span className="text-3xl sm:text-4xl">💰</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white mb-2">
+                <h1 className="mb-1 text-xl font-bold text-white sm:text-2xl">
                   Gestión de Pagos
                 </h1>
-                <p className="text-blue-100 text-">
+                <p className="text-sm text-blue-100">
                   Administra todos los pagos y cobros de tu negocio
                 </p>
               </div>
@@ -74,8 +73,7 @@ export default function PagosPage() {
               </p>
             </div>
           )}
-        </div>
-      </main>
+      </AdminPageMain>
     </>
   );
 }

@@ -1,20 +1,39 @@
 "use client";
 
-import { useState } from "react";
 import Sidebar from "./Sidebar";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { AdminLayoutProvider, useAdminLayout } from "./AdminLayoutContext";
 
-export default function SidebarWrapper({ children }: { children: React.ReactNode }) {
-  const [abierto, setAbierto] = useState(true);
+function SidebarLayoutInner({ children }: { children: React.ReactNode }) {
+  const { mobileNavOpen, closeMobileNav, desktopExpanded } = useAdminLayout();
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar abierto={abierto} setAbierto={setAbierto} />
+    <div className="flex min-h-screen min-w-0">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label="Cerrar menú"
+          className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px] lg:hidden"
+          onClick={closeMobileNav}
+        />
+      )}
 
-      {/* Contenido principal que se ajusta al sidebar */}
-      <main className={`flex-1 transition-all duration-300 ${abierto ? "ml-64" : "ml-16"} mt-16`}>
+      <Sidebar />
+
+      <div
+        className={`flex min-w-0 flex-1 flex-col transition-[margin] duration-300 ml-0 ${
+          desktopExpanded ? "lg:ml-64" : "lg:ml-16"
+        }`}
+      >
         {children}
-      </main>
+      </div>
     </div>
+  );
+}
+
+export default function SidebarWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <AdminLayoutProvider>
+      <SidebarLayoutInner>{children}</SidebarLayoutInner>
+    </AdminLayoutProvider>
   );
 }

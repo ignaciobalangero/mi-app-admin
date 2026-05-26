@@ -184,7 +184,7 @@ const calcularTotales = () => {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+      <main className="pt-16 bg-[#f8f9fa] min-h-screen text-black w-full">
         <div className="w-full px-6 max-w-[1600px] mx-auto">
           
           {/* Header de la página */}

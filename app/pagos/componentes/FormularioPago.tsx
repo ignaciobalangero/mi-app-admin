@@ -511,7 +511,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
      )}
 
      {/* Grid con todos los campos de 2 columnas */}
-     <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-6">
        
        {/* Cliente - 2 columnas */}
        <div className="col-span-2">

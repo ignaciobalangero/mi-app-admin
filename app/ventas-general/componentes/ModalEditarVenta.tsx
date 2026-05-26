@@ -194,8 +194,8 @@ export default function ModalEditarVenta({
   if (!mostrar || !venta) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden border-2 border-[#ecf0f1]">
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/40 p-0 backdrop-blur-sm sm:p-4">
+      <div className="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-none border-2 border-[#ecf0f1] bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-2xl">
         
         {/* Header */}
         <div className="bg-gradient-to-r from-[#f39c12] to-[#e67e22] text-white p-6">

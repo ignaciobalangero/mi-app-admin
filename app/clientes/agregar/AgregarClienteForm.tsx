@@ -176,7 +176,7 @@ export default function AgregarClienteForm() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+      <main className="pt-16 bg-[#f8f9fa] min-h-screen text-black w-full">
         <div className="w-full px-6 max-w-[800px] mx-auto">
           
           {/* Header compacto */}

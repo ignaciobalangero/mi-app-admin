@@ -406,7 +406,7 @@ export default function RepuestosPage() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
+      <main className="pt-16 bg-[#f8f9fa] min-h-screen text-black w-full">
         <div className="w-full px-4 max-w-[1200px] mx-auto space-y-4">
           
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">

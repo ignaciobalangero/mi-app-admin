@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import Header from "../Header";
+import AdminPageMain from "@/app/components/AdminPageMain";
 import { useRol } from "@/lib/useRol";
 import {
   collection,
@@ -335,14 +336,12 @@ export default function GestionTrabajosPage() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
-        <div className="w-full px-6 max-w-[1800px] mx-auto">
-          
+      <AdminPageMain maxWidthClass="max-w-[1800px]">
           {/* Header de la página - Estilo GestiOne */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 mb-4 shadow-lg border border-[#ecf0f1]">
-            <div className="flex items-center gap-6">
-              <div className="w-16 h-6 bg-white/20 rounded-2xl flex items-center justify-center">
-                <span className="text-4xl">🔧</span>
+          <div className="mb-4 rounded-2xl border border-[#ecf0f1] bg-gradient-to-r from-[#2c3e50] to-[#3498db] p-3 shadow-lg sm:p-6">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 sm:h-16 sm:w-16">
+                <span className="text-3xl sm:text-4xl">🔧</span>
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white mb-1/2">
@@ -356,17 +355,17 @@ export default function GestionTrabajosPage() {
           </div>
 
           {/* Filtros y controles - Estilo GestiOne */}
-          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border border-[#ecf0f1]">
-            <div className="flex items-center gap-4 mb-4">
+          <div className="mb-4 rounded-2xl border border-[#ecf0f1] bg-white p-3 shadow-lg sm:p-6">
+            <div className="mb-4 flex items-center gap-4">
               <div className="w-10 h-8 bg-[#f39c12] rounded-xl flex items-center justify-center">
                 <span className="text-white text-lg">🔍</span>
               </div>
               <h2 className="text-2xl font-bold text-[#2c3e50]">Filtros de Búsqueda</h2>
             </div>
             
-            <div className="flex flex-wrap justify-between items-center gap-4">
+            <div className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-center">
               {/* Filtros a la izquierda */}
-              <div className="flex gap-3 items-center flex-wrap">
+              <div className="flex flex-wrap items-center gap-3">
                 <FiltroTrabajos
                   filtroTexto={filtroTexto}
                   setFiltroTexto={setFiltroTexto}
@@ -429,7 +428,7 @@ export default function GestionTrabajosPage() {
               </div>
 
               {/* Botones de estado a la derecha */}
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex flex-wrap gap-2">
                 {["TODOS", "PENDIENTE ACEPTACION", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADO"].map((estado) => (
                   <button
                     key={estado}
@@ -514,8 +513,7 @@ export default function GestionTrabajosPage() {
             onClose={cerrarModalPago}
             onPagoGuardado={onPagoGuardado}
           />
-        </div>
-      </main>
+      </AdminPageMain>
     </>
   );
 }

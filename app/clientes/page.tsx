@@ -181,20 +181,20 @@ export default function ListaClientes() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen text-black w-full">
-        <div className="w-full px-6 max-w-[1600px] mx-auto">
+      <main className="pt-16 bg-[#f8f9fa] overflow-x-hidden min-h-screen text-black w-full">
+        <div className="w-full px-2 sm:px-4 md:px-6 max-w-[1600px] mx-auto">
           
           {/* Header de la página */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-8 mb-8 shadow-lg border border-[#ecf0f1]">
-            <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                <span className="text-4xl">👥</span>
+          <div className="mb-6 rounded-2xl border border-[#ecf0f1] bg-gradient-to-r from-[#2c3e50] to-[#3498db] p-4 shadow-lg sm:mb-8 sm:p-6 md:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 sm:h-16 sm:w-16">
+                <span className="text-3xl sm:text-4xl">👥</span>
               </div>
-              <div className="flex-1">
-                <h1 className="text-4xl font-bold text-white mb-2">
+              <div className="min-w-0 flex-1">
+                <h1 className="mb-1 text-2xl font-bold text-white sm:mb-2 sm:text-3xl md:text-4xl">
                   Gestión de Clientes
                 </h1>
-                <p className="text-blue-100 text-lg">
+                <p className="text-sm text-blue-100 sm:text-base md:text-lg">
                   Administra toda la información de tus clientes
                 </p>
               </div>
@@ -220,7 +220,7 @@ export default function ListaClientes() {
             </div>
             
             <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex-1 min-w-[300px]">
+              <div className="min-w-0 flex-1 w-full sm:max-w-md">
                 <input
                   type="text"
                   placeholder="🔍 Buscar cliente por nombre..."

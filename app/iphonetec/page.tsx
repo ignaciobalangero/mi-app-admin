@@ -128,7 +128,7 @@ export default function IphonetecPanelPage() {
   return (
     <>
       <Header />
-      <main className="pt-16 sm:pt-20 pb-10 min-h-screen bg-[#f8f9fa] text-[#2c3e50] [color-scheme:light]">
+      <main className="pt-16 sm:pt-16 pb-10 min-h-screen bg-[#f8f9fa] text-[#2c3e50] [color-scheme:light]">
         <div className="max-w-5xl mx-auto px-4 space-y-6">
           <div className="rounded-2xl bg-white border border-[#ecf0f1] shadow-lg p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">

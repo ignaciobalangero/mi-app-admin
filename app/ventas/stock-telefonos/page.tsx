@@ -88,7 +88,7 @@ export default function StockTelefonosPage() {
   return (
     <>
       <Header />
-      <main className="pt-20 pb-10 bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 min-h-screen text-black w-full">
+      <main className="pt-16 pb-10 bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 min-h-screen text-black w-full">
       <div className="w-full px-2 sm:px-4 md:px-6 max-w-[1800px] mx-auto space-y-4 sm:space-y-6 md:space-y-8">
           
           {/* Header principal */}

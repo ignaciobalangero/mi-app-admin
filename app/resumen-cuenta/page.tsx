@@ -259,7 +259,7 @@ export default function ResumenSimplificado() {
     return (
       <>
         <Header />
-        <main className="pt-20 bg-[#f8f9fa] min-h-screen">
+        <main className="pt-16 bg-[#f8f9fa] overflow-x-hidden min-h-screen">
           <div className="max-w-4xl mx-auto p-6">
             <div className="bg-white rounded-2xl p-8 shadow-lg text-center">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -277,7 +277,7 @@ export default function ResumenSimplificado() {
   return (
     <>
       <Header />
-      <main className="pt-20 bg-[#f8f9fa] min-h-screen">
+      <main className="pt-16 bg-[#f8f9fa] overflow-x-hidden min-h-screen">
         <div className="max-w-6xl mx-auto p-6 space-y-6">
           
           {/* Header */}
