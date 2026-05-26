@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import "@/lib/firebaseAdmin";
 import { auth as adminAuth, db } from "@/lib/firebaseAdmin";
 import { esSuperAdminEmail, esSuperAdminUid } from "@/lib/superAdminConstants";
 

@@ -3,8 +3,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
-import { getAuth } from "firebase-admin/auth";
-import "@/lib/firebaseAdmin";
+import { getAdminAuth } from "@/lib/firebaseAdmin";
 import { headers } from "next/headers";
 
 export async function POST(req: Request) {
@@ -23,7 +22,7 @@ export async function POST(req: Request) {
     }
 
     const token = authorization.replace("Bearer ", "");
-    const decoded = await getAuth().verifyIdToken(token);
+    const decoded = await getAdminAuth().verifyIdToken(token);
     const uid = decoded.uid;
 
     // Log para depurar
