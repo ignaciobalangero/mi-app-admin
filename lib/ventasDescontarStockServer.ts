@@ -149,7 +149,7 @@ export async function descontarStockVentaServer(
         else merged.set(key, { ref: hit.ref, cantidad });
       }
 
-      const entries = [...merged.values()];
+      const entries = Array.from(merged.values());
       const snaps = await Promise.all(entries.map(({ ref }) => tx.get(ref)));
 
       for (let i = 0; i < entries.length; i++) {
@@ -216,7 +216,7 @@ export async function reponerStockVentaServer(
         else merged.set(key, { ref: hit.ref, cantidad });
       }
 
-      const entries = [...merged.values()];
+      const entries = Array.from(merged.values());
       const snaps = await Promise.all(entries.map(({ ref }) => tx.get(ref)));
 
       for (let i = 0; i < entries.length; i++) {
