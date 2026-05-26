@@ -35,6 +35,7 @@ export default function BotonGuardarVenta({
   moneda,
   cotizacion,
   onGuardar,
+  desdePedidoTienda = false,
 }: {
   cliente: string;
   productos: any[];
@@ -44,6 +45,7 @@ export default function BotonGuardarVenta({
   moneda: "ARS" | "USD";
   cotizacion: number;
   onGuardar?: () => void;
+  desdePedidoTienda?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -601,7 +603,7 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
 
     console.log('✅ Productos procesados respetando monedas:', productosConCodigo);
 
-    const pedidoMetaStock = leerMetaPedidoTienda();
+    const pedidoMetaStock = desdePedidoTienda ? leerMetaPedidoTienda() : null;
     const negocioStock = pedidoMetaStock?.negocioId || rol.negocioID;
 
     await actualizarStockVentaViaApi(negocioStock, productosConCodigo, "descontar");
@@ -700,6 +702,7 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
     // Crear la venta
     const pedidoMeta = leerMetaPedidoTienda();
     const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
+      negocioStockId: negocioStock,
       productos: productosConCodigo.map(p => ({
         categoria: p.categoria,
         descripcion: p.producto || p.descripcion,
@@ -714,6 +717,7 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
         ganancia: p.ganancia,                 // ✅ En moneda original
         moneda: p.moneda,                     // ✅ USD o ARS según lo elegido
         codigo: p.codigo || p.id || "",
+        stockDocId: p.id || "",
         tipo: p.tipo,
         origenStock:
         p.tipo === "repuesto"
@@ -914,7 +918,8 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
                 precioVenta: p.precioVenta,
                 ganancia: p.ganancia,
                 moneda: p.moneda,
-                codigo: p.codigo,
+                codigo: p.codigo || p.id || "",
+                stockDocId: p.id || "",
                 tipo: p.tipo,
                 origenStock:
   p.tipo === "repuesto"

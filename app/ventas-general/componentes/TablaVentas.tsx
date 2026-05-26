@@ -20,8 +20,8 @@ import {
   DocumentData,
 } from "firebase/firestore";
 import {
-  actualizarStockVentaViaApi,
-  productosConStockDeVenta,
+  negocioIdStockDeVenta,
+  reponerStockAlEliminarVenta,
 } from "@/lib/actualizarStockVentaApi";
 import React from "react";
 import useCotizacion from "@/lib/hooks/useCotizacion";
@@ -204,11 +204,15 @@ export default function TablaVentas({ refrescar }: Props) {
     setMostrarConfirmarEliminar(true);
   };
 
-  const confirmarEliminarProducto = () => {
-    if (productoAEliminar) {
-      eliminarProducto(productoAEliminar.venta.id, productoAEliminar.index);
+  const confirmarEliminarProducto = async () => {
+    if (!productoAEliminar) return;
+    try {
+      await eliminarProducto(productoAEliminar.venta.id, productoAEliminar.index);
       setMostrarConfirmarEliminarProducto(false);
       setProductoAEliminar(null);
+    } catch (error) {
+      console.error("Error al eliminar producto:", error);
+      alert(error instanceof Error ? error.message : "No se pudo eliminar el producto.");
     }
   };
 
@@ -225,22 +229,19 @@ export default function TablaVentas({ refrescar }: Props) {
 
     const productoEliminado = venta.productos[productoIndex];
     const nuevosProductos = venta.productos.filter((_: any, idx: number) => idx !== productoIndex);
-// 🔥 CAMBIO CLAVE: Si no quedan productos, mandamos a eliminar la venta completa
-  // y salimos de esta función con "return" para no duplicar la reposición.
-  if (nuevosProductos.length === 0) {
-    await eliminarVentaCompleta(venta);
-    return; 
-  }
-    if (productoEliminado.codigo || productoEliminado.id) {
-      const items = productosConStockDeVenta([productoEliminado]);
-      if (items.length > 0) {
-        await actualizarStockVentaViaApi(rol.negocioID, items, "reponer");
-      }
-    }
-
     if (nuevosProductos.length === 0) {
       await eliminarVentaCompleta(venta);
       return;
+    }
+    if (productoEliminado.codigo || productoEliminado.id || productoEliminado.stockDocId) {
+      const ventaSnap = await getDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaId}`));
+      const ventaData = ventaSnap.exists() ? ventaSnap.data() : venta;
+      const productoEnFirestore = ventaData?.productos?.[productoIndex] ?? productoEliminado;
+      const negocioStock = negocioIdStockDeVenta(
+        { negocioStockId: ventaData?.negocioStockId },
+        rol.negocioID
+      );
+      await reponerStockAlEliminarVenta(negocioStock, [productoEnFirestore]);
     }
 
     const nuevoTotal = nuevosProductos.reduce(
@@ -259,6 +260,12 @@ export default function TablaVentas({ refrescar }: Props) {
   const eliminarVentaCompleta = async (venta: any) => {
     if (!rol?.negocioID) return;
 
+    const ventaRef = doc(db, `negocios/${rol.negocioID}/ventasGeneral/${venta.id}`);
+    const ventaSnap = await getDoc(ventaRef);
+    const ventaData = ventaSnap.exists()
+      ? { id: venta.id, ...ventaSnap.data() }
+      : venta;
+
     // Nunca se hace deleteDoc sobre stockTelefonos: el teléfono recibido como parte de pago queda en stock (solo se libera con ventaId: null).
 
     // 🔥 PASO 0: Si hay equipos recibidos como parte de pago vinculados a esta venta, liberarlos (ventaId = null) para que sigan en stock
@@ -274,7 +281,7 @@ export default function TablaVentas({ refrescar }: Props) {
     }
 
     // 🔥 PASO 1: PRIMERO ELIMINAR DE ventaTelefonos Y REPONER TELÉFONO
-    const telefono = venta.productos.find((p: any) => p.categoria === "Teléfono");
+    const telefono = ventaData.productos?.find((p: any) => p.categoria === "Teléfono");
 
     if (telefono) {
       console.log('📱 Eliminando teléfono de ventaTelefonos:', venta.id);
@@ -324,15 +331,17 @@ export default function TablaVentas({ refrescar }: Props) {
       }
     }
 
-    const productosStock = productosConStockDeVenta(venta.productos);
-    if (productosStock.length > 0) {
-      console.log("🔧 Reponiendo stock de la venta:", productosStock.length);
-      await actualizarStockVentaViaApi(rol.negocioID, productosStock, "reponer");
-      console.log("✅ Stock repuesto");
-    }
+    const negocioStock = negocioIdStockDeVenta(ventaData, rol.negocioID);
+    console.log("🔧 Reponiendo stock antes de eliminar venta:", {
+      ventaId: venta.id,
+      negocioStock,
+      productos: (ventaData.productos ?? []).length,
+    });
+    await reponerStockAlEliminarVenta(negocioStock, ventaData.productos ?? []);
+    console.log("✅ Stock repuesto");
 
     // 🔥 PASO 3: FINALMENTE ELIMINAR DE ventasGeneral
-    await deleteDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${venta.id}`));
+    await deleteDoc(ventaRef);
     console.log('✅ Venta eliminada de ventasGeneral');
 
     // Refrescar estado

@@ -1055,6 +1055,7 @@ export default function ModalVenta({
                 productos={productos}
                 fecha={new Date().toLocaleDateString("es-AR")}
                 observaciones={observaciones}
+                desdePedidoTienda={desdePedidoTienda}
                 pago={{
                   ...pago,
                   telefonoComoPago: telefonoComoPago

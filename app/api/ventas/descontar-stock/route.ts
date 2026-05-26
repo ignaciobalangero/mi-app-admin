@@ -29,6 +29,7 @@ export async function POST(req: Request) {
     }
 
     if (accion === "reponer") {
+      console.log("[ventas/descontar-stock] reponer", negocioId, productos.length);
       const result = await reponerStockVentaServer(negocioId, productos);
       if (result.ok === false) {
         return NextResponse.json({ error: result.error }, { status: 409 });

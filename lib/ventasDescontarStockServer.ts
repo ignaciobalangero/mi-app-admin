@@ -1,12 +1,13 @@
 import { db } from "@/lib/firebaseAdmin";
 import {
-  esProductoAccesorio,
-  esProductoRepuestoOGeneral,
+  clasificarProductoStock,
+  codigoProductoStock,
 } from "@/lib/ventasStockProducto";
 
 type LineaStock = {
   codigo?: string;
   id?: string;
+  stockDocId?: string;
   cantidad?: number;
   tipo?: string;
   categoria?: string;
@@ -62,10 +63,20 @@ async function buscarRepuesto(
 
 async function buscarAccesorio(
   negocioId: string,
-  codigo: string
+  codigo: string,
+  docId?: string
 ): Promise<StockHit | null> {
   const cod = codigo.trim();
+  const ids = Array.from(new Set([String(docId ?? "").trim(), cod].filter(Boolean)));
   const codigos = [cod, cod.toUpperCase(), cod.toLowerCase()].filter(Boolean);
+
+  for (const id of ids) {
+    const ref = db.doc(`negocios/${negocioId}/stockAccesorios/${id}`);
+    const snap = await ref.get();
+    if (snap.exists) {
+      return { ref, cantidadActual: Number(snap.data()?.cantidad ?? 0) };
+    }
+  }
 
   for (const c of codigos) {
     const q = await db
@@ -89,11 +100,13 @@ export async function descontarStockVentaServer(
 
   for (const p of productos) {
     const cantidad = Math.max(1, Number(p.cantidad) || 1);
-    const codigo = String(p.codigo ?? p.id ?? "").trim();
+    const codigo = codigoProductoStock(p);
     if (!codigo) continue;
+    const docId = String(p.stockDocId ?? p.id ?? "").trim() || undefined;
+    const tipo = clasificarProductoStock(p);
 
-    if (esProductoAccesorio(p)) {
-      const hit = await buscarAccesorio(negocioId, codigo);
+    if (tipo === "accesorio") {
+      const hit = await buscarAccesorio(negocioId, codigo, docId);
       if (!hit) {
         return { ok: false, error: `Accesorio no encontrado en stock: ${codigo}` };
       }
@@ -107,8 +120,8 @@ export async function descontarStockVentaServer(
       continue;
     }
 
-    if (esProductoRepuestoOGeneral(p)) {
-      const hit = await buscarRepuesto(negocioId, codigo, p.id);
+    if (tipo === "repuesto") {
+      const hit = await buscarRepuesto(negocioId, codigo, docId);
       if (!hit) {
         return { ok: false, error: `Repuesto no encontrado en stock: ${codigo}` };
       }
@@ -154,11 +167,13 @@ export async function reponerStockVentaServer(
 
   for (const p of productos) {
     const cantidad = Math.max(1, Number(p.cantidad) || 1);
-    const codigo = String(p.codigo ?? p.id ?? "").trim();
+    const codigo = codigoProductoStock(p);
     if (!codigo) continue;
+    const docId = String(p.stockDocId ?? p.id ?? "").trim() || undefined;
+    const tipo = clasificarProductoStock(p);
 
-    if (esProductoAccesorio(p)) {
-      const hit = await buscarAccesorio(negocioId, codigo);
+    if (tipo === "accesorio") {
+      const hit = await buscarAccesorio(negocioId, codigo, docId);
       if (!hit) {
         return { ok: false, error: `Accesorio no encontrado para reponer: ${codigo}` };
       }
@@ -166,8 +181,8 @@ export async function reponerStockVentaServer(
       continue;
     }
 
-    if (esProductoRepuestoOGeneral(p)) {
-      const hit = await buscarRepuesto(negocioId, codigo, p.id);
+    if (tipo === "repuesto") {
+      const hit = await buscarRepuesto(negocioId, codigo, docId);
       if (!hit) {
         return { ok: false, error: `Repuesto no encontrado para reponer: ${codigo}` };
       }

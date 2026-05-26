@@ -9,8 +9,8 @@ import Header from "../../Header";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import {
-  actualizarStockVentaViaApi,
-  productosConStockDeVenta,
+  negocioIdStockDeVenta,
+  reponerStockAlEliminarVenta,
 } from "@/lib/actualizarStockVentaApi";
 
 interface ProductoVenta {
@@ -115,11 +115,11 @@ export default function FormularioEdicionVenta() {
     if (!snap.exists()) return;
   
     const venta = snap.data();
-  
-    const productosStock = productosConStockDeVenta(venta.productos ?? []);
-    if (productosStock.length > 0) {
-      await actualizarStockVentaViaApi(rol.negocioID, productosStock, "reponer");
-    }
+    if (!venta) return;
+
+    const ventaCompleta = { ...venta, id: snap.id };
+    const negocioStock = negocioIdStockDeVenta(ventaCompleta, rol.negocioID);
+    await reponerStockAlEliminarVenta(negocioStock, ventaCompleta.productos ?? []);
   
     // Reponer teléfonos y eliminar ventaTelefonos si corresponde
     if (venta.tipo === "telefono") {

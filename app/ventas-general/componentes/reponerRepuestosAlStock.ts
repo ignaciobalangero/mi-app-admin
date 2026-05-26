@@ -7,14 +7,17 @@ export const reponerRepuestosAlStock = async ({
 }: {
   productos: any[];
   negocioID: string;
-}) => {
+}): Promise<void> => {
+  const errores: string[] = [];
+
   for (const producto of productos) {
     const cantidadAReponer = Number(producto.cantidad) || 0;
     const codigo = String(producto.codigo ?? "").trim();
-    const docId = String(producto.id ?? "").trim();
+    const docId = String(producto.stockDocId ?? producto.id ?? "").trim();
     if (cantidadAReponer <= 0) continue;
 
     const ids = Array.from(new Set([docId, codigo].filter(Boolean)));
+    let repuesto = false;
 
     for (const id of ids) {
       const refRep = doc(db, `negocios/${negocioID}/stockRepuestos/${id}`);
@@ -23,16 +26,14 @@ export const reponerRepuestosAlStock = async ({
         const stockActual = Number(snapRep.data().cantidad) || 0;
         await updateDoc(refRep, { cantidad: stockActual + cantidadAReponer });
         console.log(`✅ Stock devuelto: ${id} (+${cantidadAReponer}) en stockRepuestos`);
+        repuesto = true;
         break;
       }
     }
 
-    if (!codigo) continue;
+    if (repuesto || !codigo) continue;
 
-    const colecciones = ["stockRepuestos", "stockExtra"];
-    let repuesto = false;
-
-    for (const colName of colecciones) {
+    for (const colName of ["stockRepuestos", "stockExtra"] as const) {
       const colRef = collection(db, `negocios/${negocioID}/${colName}`);
       const q = query(colRef, where("codigo", "==", codigo));
       const querySnapshot = await getDocs(q);
@@ -40,7 +41,6 @@ export const reponerRepuestosAlStock = async ({
       if (!querySnapshot.empty) {
         const docRef = querySnapshot.docs[0];
         const stockActual = Number(docRef.data().cantidad) || 0;
-
         await updateDoc(docRef.ref, {
           cantidad: stockActual + cantidadAReponer,
         });
@@ -51,7 +51,11 @@ export const reponerRepuestosAlStock = async ({
     }
 
     if (!repuesto) {
-      console.warn(`⚠️ No se encontró stock para reponer: ${codigo || ids.join(",")}`);
+      errores.push(codigo || ids.join(",") || "sin código");
     }
+  }
+
+  if (errores.length > 0) {
+    throw new Error(`No se pudo reponer en stock: ${errores.join(", ")}`);
   }
 };
