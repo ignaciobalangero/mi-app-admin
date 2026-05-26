@@ -141,14 +141,26 @@ export async function descontarStockVentaServer(
 
   try {
     await db.runTransaction(async (tx) => {
+      const merged = new Map<string, { ref: StockHit["ref"]; cantidad: number }>();
       for (const { hit, cantidad } of ops) {
-        const snap = await tx.get(hit.ref);
+        const key = hit.ref.path;
+        const prev = merged.get(key);
+        if (prev) prev.cantidad += cantidad;
+        else merged.set(key, { ref: hit.ref, cantidad });
+      }
+
+      const entries = [...merged.values()];
+      const snaps = await Promise.all(entries.map(({ ref }) => tx.get(ref)));
+
+      for (let i = 0; i < entries.length; i++) {
+        const { ref, cantidad } = entries[i];
+        const snap = snaps[i];
         if (!snap.exists) throw new Error("Producto no encontrado al descontar.");
         const actual = Number(snap.data()?.cantidad ?? 0);
         if (actual < cantidad) {
           throw new Error(`Stock insuficiente (actualizado): hay ${actual}, vendiste ${cantidad}`);
         }
-        tx.update(hit.ref, { cantidad: Math.max(0, actual - cantidad) });
+        tx.update(ref, { cantidad: Math.max(0, actual - cantidad) });
       }
     });
   } catch (e: unknown) {
@@ -196,11 +208,23 @@ export async function reponerStockVentaServer(
 
   try {
     await db.runTransaction(async (tx) => {
+      const merged = new Map<string, { ref: StockHit["ref"]; cantidad: number }>();
       for (const { hit, cantidad } of ops) {
-        const snap = await tx.get(hit.ref);
+        const key = hit.ref.path;
+        const prev = merged.get(key);
+        if (prev) prev.cantidad += cantidad;
+        else merged.set(key, { ref: hit.ref, cantidad });
+      }
+
+      const entries = [...merged.values()];
+      const snaps = await Promise.all(entries.map(({ ref }) => tx.get(ref)));
+
+      for (let i = 0; i < entries.length; i++) {
+        const { ref, cantidad } = entries[i];
+        const snap = snaps[i];
         if (!snap.exists) throw new Error("Producto no encontrado al reponer.");
         const actual = Number(snap.data()?.cantidad ?? 0);
-        tx.update(hit.ref, { cantidad: actual + cantidad });
+        tx.update(ref, { cantidad: actual + cantidad });
       }
     });
   } catch (e: unknown) {
