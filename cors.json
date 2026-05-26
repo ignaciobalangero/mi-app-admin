@@ -1,8 +1,11 @@
 [
     {
       "origin": [
+        "https://gestione.com.ar",
+        "https://www.gestione.com.ar",
         "https://iphonetec.vercel.app",
-        "https://iphonetec.com.ar"
+        "https://iphonetec.com.ar",
+        "https://www.iphonetec.com.ar"
       ],
       "method": ["GET", "POST", "PUT"],
       "maxAgeSeconds": 3600,
