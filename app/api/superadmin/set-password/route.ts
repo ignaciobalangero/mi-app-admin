@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import "@/lib/firebaseAdmin";
 import { auth as adminAuth } from "@/lib/firebaseAdmin";
 import { getSuperAdminUidServer } from "@/lib/superAdminConstants";
 

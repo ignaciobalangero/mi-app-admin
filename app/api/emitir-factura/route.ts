@@ -2,7 +2,6 @@
 // Emite factura electrónica AFIP usando Afip SDK. Requiere CUIT y punto de venta en config del negocio.
 
 import { NextResponse } from "next/server";
-import "@/lib/firebaseAdmin";
 import { db } from "@/lib/firebaseAdmin";
 
 // AFIP / Afip SDK puede tardar bastante; elevamos el timeout permitido por Vercel.
