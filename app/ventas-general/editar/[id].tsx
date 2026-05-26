@@ -117,9 +117,9 @@ export default function FormularioEdicionVenta() {
     const venta = snap.data();
     if (!venta) return;
 
-    const ventaCompleta = { ...venta, id: snap.id };
-    const negocioStock = negocioIdStockDeVenta(ventaCompleta, rol.negocioID);
-    await reponerStockAlEliminarVenta(negocioStock, ventaCompleta.productos ?? []);
+    const negocioStock = negocioIdStockDeVenta(venta as Record<string, unknown>, rol.negocioID);
+    const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
+    await reponerStockAlEliminarVenta(negocioStock, productosVenta);
   
     // Reponer teléfonos y eliminar ventaTelefonos si corresponde
     if (venta.tipo === "telefono") {
