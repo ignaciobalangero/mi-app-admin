@@ -3,23 +3,32 @@ import {
   clasificarProductoStock,
   codigoProductoStock,
   productoAfectaStock,
+  type ProductoStockLike,
 } from "@/lib/ventasStockProducto";
 
-function normalizarLineaStock(p: Record<string, unknown>) {
-  const codigo = codigoProductoStock(p);
-  return {
-    codigo,
-    id: p.stockDocId ?? p.id,
-    stockDocId: p.stockDocId ?? p.id,
-    cantidad: p.cantidad,
-    tipo: p.tipo,
-    categoria: p.categoria,
-    origenStock: p.origenStock,
-    hoja: p.hoja,
-  };
+type LineaStockNormalizada = ProductoStockLike & { cantidad?: unknown };
+
+function strField(v: unknown): string | undefined {
+  if (v == null) return undefined;
+  const s = String(v).trim();
+  return s || undefined;
 }
 
-type LineaStockNormalizada = ReturnType<typeof normalizarLineaStock>;
+function normalizarLineaStock(p: Record<string, unknown>): LineaStockNormalizada {
+  const base: ProductoStockLike = {
+    id: strField(p.stockDocId ?? p.id),
+    stockDocId: strField(p.stockDocId ?? p.id),
+    tipo: strField(p.tipo),
+    categoria: strField(p.categoria),
+    origenStock: strField(p.origenStock),
+    hoja: strField(p.hoja),
+  };
+  return {
+    ...base,
+    codigo: codigoProductoStock(base),
+    cantidad: p.cantidad,
+  };
+}
 
 async function descontarStockViaCliente(
   negocioId: string,

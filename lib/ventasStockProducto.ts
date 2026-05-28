@@ -1,4 +1,4 @@
-type ProductoStockLike = {
+export type ProductoStockLike = {
   tipo?: string;
   categoria?: string;
   origenStock?: string;
