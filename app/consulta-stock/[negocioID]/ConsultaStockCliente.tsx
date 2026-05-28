@@ -18,6 +18,10 @@ import {
   X,
   ZoomIn,
   User,
+  ChevronLeft,
+  ChevronRight,
+  Wrench,
+  PlugZap,
 } from "lucide-react";
 import type { CatalogoPublicoOpciones, ItemStockPublico } from "@/lib/stockPublicoTypes";
 import {
@@ -29,6 +33,8 @@ import {
 import { coincideBusqueda, tokensBusqueda } from "@/lib/stockPublicoBusqueda";
 import FooterTienda from "../components/FooterTienda";
 import BannersTienda from "../components/BannersTienda";
+import BannerBusquedaTienda from "../components/BannerBusquedaTienda";
+import TarjetasCategoriasTienda from "../components/TarjetasCategoriasTienda";
 import CheckoutCarritoTienda from "../components/CheckoutCarritoTienda";
 import { useTiendaCliente } from "../hooks/useTiendaCliente";
 import { resolverUrlFotoProducto } from "@/lib/fotoProductoUrl";
@@ -96,6 +102,9 @@ const CHIPS: {
   { id: "todas", label: "Todos", hint: "Ver catálogo completo", Icon: LayoutGrid },
   { id: "pantallas", label: "Pantallas", hint: "Módulos, LCD, OLED…", Icon: Monitor },
   { id: "baterias", label: "Baterías", hint: "Baterías y pilas", Icon: Battery },
+  { id: "placas_carga", label: "Placa carga", hint: "Flex, dock, puerto…", Icon: PlugZap },
+  { id: "herramientas", label: "Herramientas", hint: "Soldadores, pinzas…", Icon: Wrench },
+  { id: "insumos", label: "Insumos", hint: "Cintas, pastas, adhesivos…", Icon: Package },
   { id: "otros", label: "Otros", hint: "Flex, tapas, conectores y más", Icon: Layers },
 ];
 
@@ -210,7 +219,8 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
   const [drawerAbierto, setDrawerAbierto] = useState(false);
   const [pasoCarrito, setPasoCarrito] = useState<"carrito" | "checkout">("carrito");
   const [fotoAmpliada, setFotoAmpliada] = useState<{
-    url: string;
+    urls: string[];
+    indice: number;
     alt: string;
     titulo: string;
   } | null>(null);
@@ -227,18 +237,20 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
 
     const qTrim = query.trim();
     const esBusqueda = qTrim.length >= MIN_BUSQUEDA_CHARS;
-    const limite = esBusqueda || chip !== "todas" ? 80 : BROWSE_LIMIT;
+    const esLanding = !esBusqueda && chip === "todas";
 
     const params = new URLSearchParams({
       negocioId: negocioID,
-      limit: String(limite),
       _: String(Date.now()),
     });
-    if (esBusqueda) {
-      params.set("q", qTrim);
-    }
-    if (chip !== "todas") {
-      params.set("chip", chip);
+
+    if (esLanding) {
+      params.set("soloConfig", "1");
+    } else {
+      const limite = esBusqueda || chip !== "todas" ? 80 : BROWSE_LIMIT;
+      params.set("limit", String(limite));
+      if (esBusqueda) params.set("q", qTrim);
+      if (chip !== "todas") params.set("chip", chip);
     }
 
     try {
@@ -463,7 +475,7 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
         key={it.id}
         className="group flex flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm transition active:scale-[0.99] sm:hover:shadow-md"
       >
-        <div className="relative aspect-square w-full overflow-hidden bg-white p-2 sm:p-3 [color-scheme:light]">
+        <div className="relative aspect-square w-full overflow-hidden bg-white p-1.5 sm:p-2 lg:p-2 [color-scheme:light]">
           {ops.mostrarFoto !== false ? (
             <MiniFoto
               url={it.fotoURL}
@@ -472,12 +484,17 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
               priority={indice < 6}
               onClick={
                 it.fotoURL
-                  ? () =>
+                  ? () => {
+                      const urls = (it.fotosURLs?.length ? it.fotosURLs : [it.fotoURL!]).map(
+                        (u) => resolverUrlFotoProducto(u)
+                      );
                       setFotoAmpliada({
-                        url: resolverUrlFotoProducto(it.fotoURL),
+                        urls,
+                        indice: 0,
                         alt: it.producto,
                         titulo: it.producto,
-                      })
+                      });
+                    }
                   : undefined
               }
             />
@@ -487,8 +504,8 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
             </div>
           )}
         </div>
-        <div className="flex flex-1 flex-col p-3 sm:p-4">
-          <h2 className="line-clamp-2 min-h-[2.75rem] text-sm font-semibold leading-snug text-neutral-900 sm:min-h-[2.75rem] sm:text-[15px]">
+        <div className="flex flex-1 flex-col p-2.5 sm:p-3 lg:p-2">
+          <h2 className="line-clamp-2 min-h-[2.5rem] text-xs font-semibold leading-snug text-neutral-900 sm:min-h-[2.75rem] sm:text-sm lg:min-h-[2.25rem] lg:text-xs">
             {it.producto}
           </h2>
           {ops.mostrarMarca !== false && it.marca && (
@@ -515,7 +532,7 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
           )}
           {ops.mostrarPrecio !== false && (
             <p
-              className={`mt-2 text-lg font-bold tracking-tight sm:text-xl ${
+              className={`mt-1.5 text-base font-bold tracking-tight sm:text-lg lg:text-sm ${
                 faltaPrecio ? "text-neutral-500" : "text-neutral-900"
               }`}
             >
@@ -534,7 +551,7 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
             </p>
           )}
 
-          <div className="mt-4 flex flex-1 items-end gap-2">
+          <div className="mt-3 flex flex-1 items-end gap-2 lg:mt-2">
             {enCarrito ? (
               <div className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50/80 px-1 py-1">
                 <button
@@ -561,7 +578,7 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
                 type="button"
                 onClick={() => agregar(it)}
                 disabled={sinStock}
-                className="flex w-full min-h-[44px] items-center justify-center rounded-md bg-[#2563eb] py-3 text-xs font-bold uppercase tracking-wide text-white transition active:bg-[#1d4ed8] sm:py-2.5 sm:hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-neutral-300"
+                className="flex w-full min-h-[40px] items-center justify-center rounded-md bg-[#2563eb] py-2.5 text-[11px] font-bold uppercase tracking-wide text-white transition active:bg-[#1d4ed8] sm:py-2 sm:text-xs lg:min-h-[36px] lg:py-2 lg:text-[10px] sm:hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-neutral-300"
               >
                 Comprar
               </button>
@@ -586,6 +603,17 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
     setDrawerAbierto(false);
     setFotoAmpliada(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const elegirCategoriaInicio = useCallback((chip: ChipCategoria) => {
+    setChipCategoria(chip);
+    if (chip !== "pantallas") setMarcaPantalla("");
+    window.setTimeout(() => {
+      document.getElementById("catalogo-productos")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 150);
   }, []);
 
   return (
@@ -720,7 +748,7 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
         </nav>
       </header>
 
-      {payload && !loading && (
+      {payload && !loading && !esInicioTienda && (
         <div className="border-b border-neutral-200 bg-white">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs text-neutral-600">
             <span>
@@ -762,13 +790,21 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
 
       <main className="mx-auto max-w-7xl px-3 pb-28 pt-4 sm:px-4 sm:pb-10 sm:pt-6">
         {payload?.tiendaPublica && !loading && !error && esInicioTienda && (
-          <BannersTienda tienda={payload.tiendaPublica} logoNegocio={logoTienda} />
+          <>
+            <BannerBusquedaTienda minChars={MIN_BUSQUEDA_CHARS} />
+            <BannersTienda tienda={payload.tiendaPublica} logoNegocio={logoTienda} />
+            <TarjetasCategoriasTienda onElegir={elegirCategoriaInicio} />
+          </>
         )}
 
         {loading && (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#00a650] border-t-transparent" />
-            <p className="mt-4 text-sm text-neutral-500">Cargando productos…</p>
+            <p className="mt-4 text-sm text-neutral-500">
+              {chipCategoria === "todas" && q.trim().length === 0
+                ? "Cargando tienda…"
+                : "Cargando productos…"}
+            </p>
           </div>
         )}
 
@@ -778,8 +814,8 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
           </div>
         )}
 
-        {!loading && !error && payload && (
-          <>
+        {!loading && !error && payload && !esInicioTienda && (
+          <div id="catalogo-productos">
             {searching && (
               <div className="mb-4 flex items-center justify-center gap-2 py-2 text-sm text-neutral-500">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#00a650] border-t-transparent" />
@@ -793,14 +829,14 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
                     <h2 className="mb-4 border-b border-neutral-200 pb-2 text-lg font-bold text-neutral-800">
                       {marca}
                     </h2>
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-5 lg:gap-3">
                       {lista.map((it, i) => renderTarjeta(it, i))}
                     </div>
                   </section>
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-5 lg:gap-3">
                 {visibles.map((it, i) => renderTarjeta(it, i))}
               </div>
             )}
@@ -809,16 +845,10 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
               <p className="py-16 text-center text-sm text-neutral-500">
                 {payload.modo === "search" || q.trim().length >= MIN_BUSQUEDA_CHARS
                   ? "No encontramos productos con esa búsqueda."
-                  : "No hay productos para mostrar."}
+                  : "No hay productos en esta categoría."}
               </p>
             )}
-            {payload.modo === "browse" && esInicioTienda && filtrados.length > 0 && (
-              <p className="mt-6 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center text-xs text-neutral-600">
-                Mostramos algunos productos para empezar. Usá el buscador (mín. {MIN_BUSQUEDA_CHARS}{" "}
-                letras) para encontrar el resto del catálogo.
-              </p>
-            )}
-          </>
+          </div>
         )}
       </main>
 
@@ -1030,7 +1060,14 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="relative z-20 flex items-center justify-between gap-3 border-b border-neutral-100 bg-white px-4 py-3">
-                  <p className="truncate text-sm font-semibold text-neutral-900">{fotoAmpliada.titulo}</p>
+                  <p className="truncate text-sm font-semibold text-neutral-900">
+                    {fotoAmpliada.titulo}
+                    {fotoAmpliada.urls.length > 1 && (
+                      <span className="ml-2 text-xs font-normal text-neutral-500">
+                        {fotoAmpliada.indice + 1} / {fotoAmpliada.urls.length}
+                      </span>
+                    )}
+                  </p>
                   <button
                     type="button"
                     onClick={() => setFotoAmpliada(null)}
@@ -1041,13 +1078,52 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
                   </button>
                 </div>
                 <div className="relative z-20 flex min-h-[240px] flex-1 items-center justify-center bg-white p-4 [color-scheme:light] sm:p-6">
+                  {fotoAmpliada.urls.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFotoAmpliada((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                indice:
+                                  (prev.indice - 1 + prev.urls.length) % prev.urls.length,
+                              }
+                            : null
+                        )
+                      }
+                      className="absolute left-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow-md hover:bg-white"
+                      aria-label="Foto anterior"
+                    >
+                      <ChevronLeft className="h-6 w-6 text-neutral-700" />
+                    </button>
+                  )}
                   <img
-                    src={resolverUrlFotoProducto(fotoAmpliada.url)}
+                    src={fotoAmpliada.urls[fotoAmpliada.indice]}
                     alt={fotoAmpliada.alt}
                     className="max-h-[75vh] max-w-full bg-white object-contain"
                     style={{ backgroundColor: "#ffffff" }}
                     referrerPolicy="no-referrer"
                   />
+                  {fotoAmpliada.urls.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFotoAmpliada((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                indice: (prev.indice + 1) % prev.urls.length,
+                              }
+                            : null
+                        )
+                      }
+                      className="absolute right-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow-md hover:bg-white"
+                      aria-label="Foto siguiente"
+                    >
+                      <ChevronRight className="h-6 w-6 text-neutral-700" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

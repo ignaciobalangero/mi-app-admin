@@ -19,6 +19,64 @@ function normalizarLineaStock(p: Record<string, unknown>) {
   };
 }
 
+type LineaStockNormalizada = ReturnType<typeof normalizarLineaStock>;
+
+async function descontarStockViaCliente(
+  negocioId: string,
+  productos: LineaStockNormalizada[]
+) {
+  const { descontarRepuestoDelStock } = await import(
+    "@/app/ventas-general/componentes/descontarRepuestoDelStock"
+  );
+  const { descontarAccesorioDelStock } = await import(
+    "@/app/ventas-general/componentes/descontarAccesorioDelStock"
+  );
+
+  for (const p of productos) {
+    const tipo = clasificarProductoStock(p);
+    const codigo = codigoProductoStock(p);
+    const cantidad = Math.max(1, Number(p.cantidad) || 1);
+    const docId = String(p.stockDocId ?? p.id ?? "").trim() || undefined;
+
+    if (tipo === "repuesto") {
+      await descontarRepuestoDelStock(negocioId, codigo, cantidad, docId);
+    } else if (tipo === "accesorio") {
+      await descontarAccesorioDelStock(negocioId, codigo, cantidad);
+    }
+  }
+}
+
+async function reponerStockViaCliente(
+  negocioId: string,
+  productos: LineaStockNormalizada[]
+) {
+  const repuestos = productos.filter((p) => clasificarProductoStock(p) === "repuesto");
+  const accesorios = productos.filter((p) => clasificarProductoStock(p) === "accesorio");
+
+  if (repuestos.length > 0) {
+    const { reponerRepuestosAlStock } = await import(
+      "@/app/ventas-general/componentes/reponerRepuestosAlStock"
+    );
+    await reponerRepuestosAlStock({ productos: repuestos, negocioID: negocioId });
+  }
+
+  if (accesorios.length > 0) {
+    const { reponerAccesoriosAlStock } = await import(
+      "@/app/ventas-general/componentes/reponerAccesorioEnStock"
+    );
+    await reponerAccesoriosAlStock({ productos: accesorios, negocioID: negocioId });
+  }
+}
+
+/** Si la API admin no autoriza (p. ej. local sin Firebase Admin), usa Firestore cliente. */
+function debeUsarFallbackCliente(status: number, errorMsg: string): boolean {
+  if (status === 401 || status === 403) return true;
+  return (
+    status === 500 &&
+    /firebase admin no configurado|project_id|credential/i.test(errorMsg)
+  );
+}
+
 export async function actualizarStockVentaViaApi(
   negocioId: string,
   items: Array<Record<string, unknown>>,
@@ -46,10 +104,25 @@ export async function actualizarStockVentaViaApi(
     body: JSON.stringify({ negocioId, productos, accion }),
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(String(data.error || "No se pudo actualizar el stock."));
+  if (res.ok) return;
+
+  const data = await res.json().catch(() => ({}));
+  const errorMsg = String(data.error || "No se pudo actualizar el stock.");
+
+  if (debeUsarFallbackCliente(res.status, errorMsg)) {
+    console.warn(
+      `[actualizarStockVentaViaApi] API admin no disponible (${res.status}), usando Firestore cliente:`,
+      errorMsg
+    );
+    if (accion === "reponer") {
+      await reponerStockViaCliente(negocioId, productos);
+    } else {
+      await descontarStockViaCliente(negocioId, productos);
+    }
+    return;
   }
+
+  throw new Error(errorMsg);
 }
 
 export function productosConStockDeVenta(productos: Array<Record<string, unknown>>) {
@@ -102,20 +175,10 @@ export async function reponerStockAlEliminarVenta(
   if (repuestos.length > 0) {
     try {
       await actualizarStockVentaViaApi(negocioId, repuestos, "reponer");
-    } catch (apiError) {
-      console.warn("[reponerStockAlEliminarVenta] API repuestos falló, intentando cliente:", apiError);
-      try {
-        const { reponerRepuestosAlStock } = await import(
-          "@/app/ventas-general/componentes/reponerRepuestosAlStock"
-        );
-        await reponerRepuestosAlStock({ productos: repuestos, negocioID: negocioId });
-      } catch (clientError) {
-        errores.push(
-          clientError instanceof Error
-            ? clientError.message
-            : "No se pudo reponer repuestos al stock."
-        );
-      }
+    } catch (error) {
+      errores.push(
+        error instanceof Error ? error.message : "No se pudo reponer repuestos al stock."
+      );
     }
   }
 

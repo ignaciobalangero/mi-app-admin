@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { db, storage } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import {
   collection,
@@ -20,17 +20,14 @@ import {
   setDoc,
   writeBatch,
 } from "firebase/firestore";
-import { ref as refStorage, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Store, Package } from "lucide-react";
+import CampoFotoRepuesto from "./CampoFotoRepuesto";
+import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
 
 // 📦 Tabla de productos – Sección REPUESTOS OPTIMIZADA CON PAGINACIÓN
 
 import { normalizarMoneda, pesosDesdeMoneda } from "@/lib/monedaRepuesto";
 import { margenDesdePrecio, precioDesdeMargen } from "@/lib/margenRepuesto";
-import {
-  comprimirImagenParaCatalogo,
-  formatearPesoImagen,
-} from "@/lib/comprimirImagenCliente";
 import CalculadoraCostoUsd from "./CalculadoraCostoUsd";
 import {
   type AlcanceAjustePrecio,
@@ -70,8 +67,10 @@ interface Producto {
   precio1Pesos?: number;
   precio2Pesos?: number;
   precio3Pesos?: number;
-  /** URL pública de imagen (tienda / consulta-stock, campo fotoURL). */
+  /** URL portada (legacy; = fotosURLs[0]). */
   fotoURL?: string;
+  /** Galería ordenada; la primera es la portada del catálogo. */
+  fotosURLs?: string[];
   /** Texto bajo el título en la tienda web. */
   observacion?: string;
   /** Tienda web /consulta-stock: solo entra si marcás publicar y tenés activado “solo marcados”. */
@@ -140,8 +139,6 @@ export default function TablaProductos({
   const [guardandoWhatsapp, setGuardandoWhatsapp] = useState(false);
   const [guardandoOpcionCatalogo, setGuardandoOpcionCatalogo] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [subiendoFoto, setSubiendoFoto] = useState(false);
-  const inputFotoRef = useRef<HTMLInputElement>(null);
   /** Evita hidratar portal en SSR y asegura que modales vivan bajo document.body (menos errores removeChild con React 19). */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -383,6 +380,7 @@ export default function TablaProductos({
     precio2Pesos: 0,
     precio3Pesos: 0,
     fotoURL: "",
+    fotosURLs: [],
     observacion: "",
   });
   const [porcentaje, setPorcentaje] = useState<number | "">("");
@@ -404,7 +402,10 @@ export default function TablaProductos({
       precio2Pesos: producto.precio2Pesos ?? 0,
       precio3Pesos: producto.precio3Pesos ?? 0,
       stockBajo: producto.stockBajo ?? 3,
-      fotoURL: producto.fotoURL ?? "",
+      ...(() => {
+        const fotos = normalizarFotosURLs(producto);
+        return { fotosURLs: fotos, fotoURL: fotos[0] ?? "" };
+      })(),
       observacion: producto.observacion ?? "",
     });
     if (costo > 0 && p1 > 0) {
@@ -441,6 +442,7 @@ export default function TablaProductos({
       precio2Pesos: 0,
       precio3Pesos: 0,
       fotoURL: "",
+      fotosURLs: [],
       observacion: "",
     });
     setPorcentaje("");
@@ -587,7 +589,7 @@ export default function TablaProductos({
         precio1Pesos,
         precio2Pesos,
         precio3Pesos,
-        fotoURL: String(formulario.fotoURL ?? "").trim(),
+        ...fotosParaFirestore(formulario.fotosURLs ?? normalizarFotosURLs(formulario)),
         observacion: String(formulario.observacion ?? "").trim(),
       });
   
@@ -940,42 +942,6 @@ export default function TablaProductos({
       alert("No se pudo guardar el WhatsApp.");
     } finally {
       setGuardandoWhatsapp(false);
-    }
-  };
-
-  const handleSeleccionarFotoRepuesto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !rol?.negocioID || !formulario.id) return;
-    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    if (!["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) {
-      alert("Usá JPG, PNG, WEBP o GIF.");
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      alert("La imagen es demasiado grande (máx. 15 MB).");
-      return;
-    }
-    setSubiendoFoto(true);
-    try {
-      const optimizada = await comprimirImagenParaCatalogo(file);
-      const path = `negocios/${rol.negocioID}/repuestos/${formulario.id}/${Date.now()}.${optimizada.extension}`;
-      const r = refStorage(storage, path);
-      await uploadBytes(r, optimizada.blob, { contentType: optimizada.mimeType });
-      const url = await getDownloadURL(r);
-      setFormulario((prev) => ({ ...prev, fotoURL: url }));
-      if (optimizada.bytesComprimidos < optimizada.bytesOriginales) {
-        alert(
-          `Imagen optimizada: ${formatearPesoImagen(optimizada.bytesOriginales)} → ${formatearPesoImagen(optimizada.bytesComprimidos)}`
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      alert(
-        "No se pudo subir la imagen. Revisá que estés logueado y las reglas de Firebase Storage permitan escritura."
-      );
-    } finally {
-      setSubiendoFoto(false);
     }
   };
 
@@ -1448,11 +1414,13 @@ export default function TablaProductos({
                         </span>
                       </td>
 
-                      {/* Foto (misma URL que usa la tienda web) */}
+                      {/* Foto (portada = primera de la galería) */}
                       <td className="p-1 text-center align-middle border border-[#bdc3c7]">
-                        {typeof p.fotoURL === "string" && p.fotoURL.trim().startsWith("http") ? (
+                        {(() => {
+                          const urlPortada = normalizarFotosURLs(p)[0];
+                          return urlPortada ? (
                           <img
-                            src={p.fotoURL.trim()}
+                            src={urlPortada}
                             alt=""
                             loading="lazy"
                             decoding="async"
@@ -1466,7 +1434,8 @@ export default function TablaProductos({
                           >
                             <Package className="h-4 w-4 text-[#bdc3c7]" aria-hidden />
                           </div>
-                        )}
+                        );
+                        })()}
                       </td>
                       
                     {/* Producto */}
@@ -2084,46 +2053,26 @@ export default function TablaProductos({
                   />
                 </div>
 
-                {/* Foto catálogo (URL en Firestore; archivo en Storage) */}
-                <div className="space-y-2 md:col-span-2 rounded-xl border-2 border-[#9b59b6]/30 bg-white p-3 sm:p-4">
-                  <label className="block text-xs font-semibold text-[#2c3e50]">
-                    🖼️ Foto del producto (tienda web)
-                  </label>
-                  <input
-                    type="text"
-                    name="fotoURL"
-                    value={formulario.fotoURL ?? ""}
-                    onChange={manejarCambio}
-                    placeholder="https://… o subí una imagen abajo"
-                    className="w-full rounded-xl border-2 border-[#bdc3c7] p-2 sm:p-3 text-sm text-[#2c3e50] shadow-sm focus:border-[#9b59b6] focus:ring-4 focus:ring-[#9b59b6]/15"
-                  />
-                  <input
-                    ref={inputFotoRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    className="hidden"
-                    onChange={(e) => void handleSeleccionarFotoRepuesto(e)}
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={subiendoFoto || guardando || !formulario.id}
-                      onClick={() => inputFotoRef.current?.click()}
-                      className="rounded-lg bg-[#9b59b6] px-3 py-2 text-xs font-semibold text-white shadow hover:bg-[#8e44ad] disabled:opacity-50"
-                    >
-                      {subiendoFoto ? "Optimizando y subiendo…" : "Subir imagen"}
-                    </button>
-                    <span className="text-[11px] text-[#7f8c8d]">
-                      Se optimiza sola al subir (máx. 1200 px, ~400 KB).
-                    </span>
-                  </div>
-                  {formulario.fotoURL?.startsWith("http") ? (
-                    <img
-                      src={formulario.fotoURL}
-                      alt=""
-                      className="mt-2 h-24 w-24 rounded-lg border border-[#ecf0f1] bg-white object-contain"
+                {/* Fotos catálogo */}
+                <div className="md:col-span-2">
+                  {rol?.negocioID && formulario.id ? (
+                    <CampoFotoRepuesto
+                      negocioID={rol.negocioID}
+                      productoId={formulario.id}
+                      fotosURLs={formulario.fotosURLs ?? normalizarFotosURLs(formulario)}
+                      onChange={(urls) =>
+                        setFormulario((prev) => ({
+                          ...prev,
+                          fotosURLs: urls,
+                          fotoURL: urls[0] ?? "",
+                        }))
+                      }
                     />
-                  ) : null}
+                  ) : (
+                    <p className="rounded-xl border-2 border-[#9b59b6]/30 bg-white p-3 text-xs text-[#7f8c8d]">
+                      Guardá el producto primero para poder subir fotos desde la tabla.
+                    </p>
+                  )}
                 </div>
 
               </div>

@@ -46,8 +46,8 @@ interface Props {
   editandoId: string | null;
   stockBajo?: number;
   setStockBajo?: (val: number) => void;
-  fotoURL?: string;
-  setFotoURL?: (val: string) => void;
+  fotosURLs?: string[];
+  setFotosURLs?: (val: string[]) => void;
   observacion?: string;
   setObservacion?: (val: string) => void;
   publicarEnCatalogoWeb?: boolean;
@@ -96,8 +96,8 @@ export default function FormularioProducto({
   editandoId,
   stockBajo = 3,
   setStockBajo = () => {},
-  fotoURL = "",
-  setFotoURL = () => {},
+  fotosURLs = [],
+  setFotosURLs = () => {},
   observacion = "",
   setObservacion = () => {},
   publicarEnCatalogoWeb = false,
@@ -271,8 +271,8 @@ export default function FormularioProducto({
             <CampoFotoRepuesto
               negocioID={negocioID}
               productoId={editandoId || undefined}
-              fotoURL={fotoURL}
-              onChange={setFotoURL}
+              fotosURLs={fotosURLs}
+              onChange={setFotosURLs}
             />
           ) : (
             <p className="text-xs text-[#95a5a6]">Iniciá sesión para cargar fotos.</p>

@@ -15,6 +15,7 @@ import useCotizacion from "@/lib/hooks/useCotizacion";
 import { useRol } from "@/lib/useRol";
 import { normalizarMoneda } from "@/lib/monedaRepuesto";
 import { normalizarCategoriaKey } from "@/lib/categoriaRepuesto";
+import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
 
 // Componentes
 import ResumenCapital from "./components/ResumenCapital";
@@ -76,7 +77,7 @@ export default function RepuestosPage() {
   const [precio1Pesos, setPrecio1Pesos] = useState(0);
   const [precio2Pesos, setPrecio2Pesos] = useState(0);
   const [precio3Pesos, setPrecio3Pesos] = useState(0);
-  const [fotoURL, setFotoURL] = useState("");
+  const [fotosURLs, setFotosURLs] = useState<string[]>([]);
   const [observacion, setObservacion] = useState("");
   const [publicarEnCatalogoWeb, setPublicarEnCatalogoWeb] = useState(false);
   
@@ -217,7 +218,7 @@ export default function RepuestosPage() {
       precio2Pesos: precio2Pesos || 0,
       precio3Pesos: precio3Pesos || 0,
       tipo: "repuesto",
-      fotoURL: fotoURL.trim(),
+      ...fotosParaFirestore(fotosURLs),
       observacion: observacion.trim(),
       publicarEnCatalogoWeb,
     };
@@ -272,7 +273,7 @@ export default function RepuestosPage() {
     setPrecio2Pesos(0);
     setPrecio3Pesos(0);
     setPrecioCostoPesos(0);
-    setFotoURL("");
+    setFotosURLs([]);
     setObservacion("");
     setPublicarEnCatalogoWeb(false);
     setMostrarFormulario(false);
@@ -312,7 +313,7 @@ export default function RepuestosPage() {
     setPrecio2Pesos(prod.precio2Pesos || 0);
     setPrecio3Pesos(prod.precio3Pesos || 0);
     setPrecioCostoPesos(prod.precioCostoPesos || prod.precioCosto || 0);
-    setFotoURL(typeof prod.fotoURL === "string" ? prod.fotoURL : "");
+    setFotosURLs(normalizarFotosURLs(prod));
     setObservacion(typeof prod.observacion === "string" ? prod.observacion : "");
     setPublicarEnCatalogoWeb(prod.publicarEnCatalogoWeb === true);
     
@@ -347,7 +348,7 @@ export default function RepuestosPage() {
         precioCostoPesos: producto.precioCostoPesos || 0,
         cotizacion: cotizacionSegura,
         ultimaActualizacion: new Date(),
-        fotoURL: typeof producto.fotoURL === "string" ? producto.fotoURL.trim() : "",
+        ...fotosParaFirestore(normalizarFotosURLs(producto)),
         observacion: typeof producto.observacion === "string" ? producto.observacion.trim() : "",
       });
 
@@ -479,8 +480,8 @@ export default function RepuestosPage() {
               setPrecio2Pesos={setPrecio2Pesos}
               precio3Pesos={precio3Pesos}
               setPrecio3Pesos={setPrecio3Pesos}
-              fotoURL={fotoURL}
-              setFotoURL={setFotoURL}
+              fotosURLs={fotosURLs}
+              setFotosURLs={setFotosURLs}
               observacion={observacion}
               setObservacion={setObservacion}
               publicarEnCatalogoWeb={publicarEnCatalogoWeb}

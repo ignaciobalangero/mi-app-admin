@@ -1,7 +1,35 @@
 import type { ItemStockPublico } from "@/lib/stockPublicoTypes";
 import { normalizarCategoriaKey } from "@/lib/categoriaRepuesto";
 
-export type ChipCategoria = "todas" | "pantallas" | "baterias" | "otros";
+/**
+ * Categorías del catálogo web (chips + filtros).
+ *
+ * Para agregar una categoría nueva:
+ * 1. Sumá el id al type ChipCategoria y a CHIPS_VALIDOS en app/api/stock-publico/route.ts
+ * 2. Definí CLAVES_* y esItem…() acá; actualizá coincideChipCategoria y el chip "otros"
+ * 3. Sumá entrada en CATEGORIAS_TIENDA_INICIO y en CHIPS de ConsultaStockCliente.tsx
+ */
+export type ChipCategoria =
+  | "todas"
+  | "pantallas"
+  | "baterias"
+  | "placas_carga"
+  | "herramientas"
+  | "insumos"
+  | "otros";
+
+/** Tarjetas grandes del inicio (sin "todas" ni "otros"). */
+export const CATEGORIAS_TIENDA_INICIO: {
+  id: Exclude<ChipCategoria, "todas" | "otros">;
+  label: string;
+  hint: string;
+}[] = [
+  { id: "pantallas", label: "Pantallas", hint: "Módulos, LCD, OLED…" },
+  { id: "baterias", label: "Baterías", hint: "Baterías y pilas" },
+  { id: "placas_carga", label: "Placa de carga", hint: "Flex, dock, puerto de carga…" },
+  { id: "herramientas", label: "Herramientas", hint: "Soldadores, pinzas, extractores…" },
+  { id: "insumos", label: "Insumos", hint: "Cintas, pastas, adhesivos…" },
+];
 
 const CLAVES_PANTALLA = [
   "pantalla",
@@ -18,13 +46,69 @@ const CLAVES_PANTALLA = [
 
 const CLAVES_BATERIA = ["bateria", "baterias", "bater", "pila", "pilas", "battery"];
 
-/** Repuestos que suelen ir en "Otros" aunque el nombre tenga "módulo" u otra palabra ambigua. */
+const CLAVES_PLACA_CARGA = [
+  "placa de carga",
+  "placas de carga",
+  "placa carga",
+  "placas carga",
+  "flex de carga",
+  "flex carga",
+  "dock",
+  "charging board",
+  "charging port",
+  "puerto de carga",
+  "puerto carga",
+  "ic de carga",
+  "modulo de carga",
+  "modulos de carga",
+  "sub placa",
+  "subplaca",
+];
+
+const CLAVES_HERRAMIENTAS = [
+  "herramienta",
+  "herramientas",
+  "destornill",
+  "soldador",
+  "soldadura",
+  "pistola",
+  "calor",
+  "pinza",
+  "pinzas",
+  "extractor",
+  "tweezer",
+  "esd",
+  "bancada",
+  "mat",
+];
+
+const CLAVES_INSUMOS = [
+  "insumo",
+  "insumos",
+  "cinta",
+  "mica",
+  "alcohol",
+  "isopropil",
+  "flux",
+  "pasta termica",
+  "termica",
+  "film",
+  "adhesivo",
+  "pegamento",
+  "b7000",
+  "t7000",
+  "wick",
+  "desoldante",
+  "hilo",
+  "cobre",
+  "gasa",
+  "broche",
+  "broches",
+  "t676",
+];
+
+/** Evita que flex/placa/conector se clasifiquen como pantalla por el nombre. */
 const CLAVES_OTROS_PRIORITARIO = [
-  "placa",
-  "placas",
-  "carga",
-  "cargador",
-  "cargadores",
   "flex",
   "conector",
   "conectores",
@@ -36,6 +120,8 @@ const CLAVES_OTROS_PRIORITARIO = [
   "antena",
   "buzzer",
   "parlante",
+  "cargador",
+  "cargadores",
 ];
 
 function normalizarTexto(s: string): string {
@@ -58,7 +144,27 @@ function coincideClaves(texto: string, claves: string[]): boolean {
   return claves.some((k) => texto.includes(k.replace(/\s+/g, " ")));
 }
 
+export function esItemPlacaCarga(it: ItemStockPublico): boolean {
+  const cat = categoriaNorm(it);
+  const blob = blobItem(it);
+  if (coincideClaves(cat, CLAVES_PLACA_CARGA) || coincideClaves(blob, CLAVES_PLACA_CARGA)) {
+    return true;
+  }
+  const tienePlaca = blob.includes("placa") || cat.includes("placa");
+  const tieneCarga =
+    blob.includes("carga") ||
+    cat.includes("carga") ||
+    blob.includes("dock") ||
+    cat.includes("dock");
+  const esCargadorPared =
+    blob.includes("cargador") ||
+    cat.includes("cargador") ||
+    blob.includes("wall charger");
+  return tienePlaca && tieneCarga && !esCargadorPared;
+}
+
 export function esItemPantalla(it: ItemStockPublico): boolean {
+  if (esItemPlacaCarga(it)) return false;
   const cat = categoriaNorm(it);
   const blob = blobItem(it);
   const catEsPantalla = coincideClaves(cat, CLAVES_PANTALLA);
@@ -74,11 +180,34 @@ export function esItemBateria(it: ItemStockPublico): boolean {
   return coincideClaves(cat, CLAVES_BATERIA) || coincideClaves(blob, CLAVES_BATERIA);
 }
 
+export function esItemHerramienta(it: ItemStockPublico): boolean {
+  const cat = categoriaNorm(it);
+  const blob = blobItem(it);
+  return coincideClaves(cat, CLAVES_HERRAMIENTAS) || coincideClaves(blob, CLAVES_HERRAMIENTAS);
+}
+
+export function esItemInsumo(it: ItemStockPublico): boolean {
+  const cat = categoriaNorm(it);
+  const blob = blobItem(it);
+  return coincideClaves(cat, CLAVES_INSUMOS) || coincideClaves(blob, CLAVES_INSUMOS);
+}
+
 export function coincideChipCategoria(it: ItemStockPublico, chip: ChipCategoria): boolean {
   if (chip === "todas") return true;
   if (chip === "pantallas") return esItemPantalla(it);
   if (chip === "baterias") return esItemBateria(it);
-  if (chip === "otros") return !esItemPantalla(it) && !esItemBateria(it);
+  if (chip === "placas_carga") return esItemPlacaCarga(it);
+  if (chip === "herramientas") return esItemHerramienta(it);
+  if (chip === "insumos") return esItemInsumo(it);
+  if (chip === "otros") {
+    return (
+      !esItemPantalla(it) &&
+      !esItemBateria(it) &&
+      !esItemPlacaCarga(it) &&
+      !esItemHerramienta(it) &&
+      !esItemInsumo(it)
+    );
+  }
   return true;
 }
 

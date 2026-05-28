@@ -22,7 +22,15 @@ export const revalidate = 0;
 const DEFAULT_BROWSE_LIMIT = 24;
 const MAX_LIMIT = 80;
 const MIN_SEARCH_CHARS = 2;
-const CHIPS_VALIDOS: ChipCategoria[] = ["todas", "pantallas", "baterias", "otros"];
+const CHIPS_VALIDOS: ChipCategoria[] = [
+  "todas",
+  "pantallas",
+  "baterias",
+  "placas_carga",
+  "herramientas",
+  "insumos",
+  "otros",
+];
 
 function parseChip(raw: string | null | undefined): ChipCategoria {
   const v = String(raw ?? "todas")
@@ -70,6 +78,21 @@ function monedaEsUSD(d: Record<string, unknown>): boolean {
     .trim()
     .toUpperCase();
   return m === "USD" || m === "US$" || m === "DOLAR" || m === "DÓLAR";
+}
+
+function extraerFotosURLs(
+  d: Record<string, unknown>,
+  campoFoto?: string
+): string[] {
+  if (Array.isArray(d.fotosURLs)) {
+    const urls = d.fotosURLs
+      .filter((u): u is string => typeof u === "string")
+      .map((u) => u.trim())
+      .filter((u) => u.startsWith("https://") || u.startsWith("http://"));
+    if (urls.length > 0) return urls;
+  }
+  const single = extraerFotoURL(d, campoFoto);
+  return single ? [single] : [];
 }
 
 function extraerFotoURL(
@@ -179,6 +202,8 @@ function docAItemStockPublico(
   const producto = String(d.producto || d.modelo || "").trim();
   const modelo = String(d.modelo || "").trim();
 
+  const fotosURLs = extraerFotosURLs(d, campoFoto);
+
   return {
     id: docId,
     codigo: String(d.codigo ?? docId),
@@ -190,7 +215,8 @@ function docAItemStockPublico(
     moneda,
     precio1,
     precioVentaARS,
-    fotoURL: extraerFotoURL(d, campoFoto),
+    fotoURL: fotosURLs[0] ?? null,
+    fotosURLs: fotosURLs.length > 0 ? fotosURLs : undefined,
     observacion: String(d.observacion ?? "").trim() || null,
   };
 }
@@ -203,7 +229,7 @@ function ordenarItems(items: ItemStockPublico[]): ItemStockPublico[] {
 
 async function fetchStockPublicoInterno(
   negocioId: string,
-  opts?: { q?: string; limit?: number; chip?: ChipCategoria }
+  opts?: { q?: string; limit?: number; chip?: ChipCategoria; soloConfig?: boolean }
 ): Promise<{
   negocioId: string;
   nombreTienda: string;
@@ -317,6 +343,26 @@ async function fetchStockPublicoInterno(
   const campoFoto = catalogoPublico.campoFoto;
   const soloMarcados = catalogoPublico.catalogoSoloRepuestosMarcados === true;
 
+  if (opts?.soloConfig) {
+    return {
+      negocioId,
+      nombreTienda,
+      logoUrl,
+      tiendaPublica,
+      whatsappPedidos,
+      checkoutConfig,
+      catalogoPublico,
+      cotizacionUSD,
+      actualizadoISO: new Date().toISOString(),
+      modo: "browse" as const,
+      chip,
+      limite: 0,
+      total: 0,
+      hayMas: false,
+      items: [],
+    };
+  }
+
   let stockSnap;
   if (needsFullCatalog) {
     stockSnap = soloMarcados
@@ -389,7 +435,8 @@ export async function GET(req: Request) {
     const limit = limitRaw ? Number(limitRaw) : undefined;
     const chip = parseChip(searchParams.get("chip"));
 
-    const payload = await fetchStockPublicoInterno(negocioId, { q, limit, chip });
+    const soloConfig = searchParams.get("soloConfig") === "1";
+    const payload = await fetchStockPublicoInterno(negocioId, { q, limit, chip, soloConfig });
     return NextResponse.json(payload, {
       headers: {
         "Cache-Control": "private, no-store, max-age=0",

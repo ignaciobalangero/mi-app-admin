@@ -117,16 +117,40 @@ export default function ModalVenta({
     }
   }, [rol?.negocioID]);
 
-  const pagoInicialCompleto = pagoInicial || {
+  const pagoVacio = {
     monto: "",
     montoUSD: "",
-    moneda: "ARS",
+    moneda: "ARS" as const,
     formaPago: "",
     destino: "",
     observaciones: "",
   };
 
+  const pagoInicialCompleto = pagoInicial || pagoVacio;
+
   const [pago, setPago] = useState(pagoInicialCompleto);
+
+  const quitarPagoARS = () => {
+    setPago((prev) => ({ ...prev, monto: "" }));
+  };
+
+  const quitarPagoUSD = () => {
+    setPago((prev) => ({ ...prev, montoUSD: "" }));
+  };
+
+  const quitarTelefonoPago = () => {
+    setTelefonoComoPago(null);
+    localStorage.removeItem("telefonoComoPago");
+  };
+
+  const quitarTodosLosPagos = () => {
+    const confirmar = window.confirm(
+      "¿Quitar todos los pagos? La venta quedará en cuenta corriente (sin cobro registrado)."
+    );
+    if (!confirmar) return;
+    setPago(pagoVacio);
+    quitarTelefonoPago();
+  };
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
   const [listaClientes, setListaClientes] = useState<string[]>([]);
@@ -356,7 +380,7 @@ export default function ModalVenta({
 
   return (
     <>
-      <div className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center p-2 sm:p-4">
         <div className="w-full h-full sm:w-[95%] md:w-[85%] lg:w-[75%] xl:w-[65%] 2xl:w-[55%] sm:h-[95vh] bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col" style={{ isolation: 'isolate' }}>
           
           {/* Header del Remito - Con cotización editable */}
@@ -820,63 +844,102 @@ export default function ModalVenta({
             {/* Sección de Pagos y Descuentos - Sistema dual */}
             {((pago.monto && pago.monto > 0) || (pago.montoUSD && pago.montoUSD > 0) || telefonoComoPago) && (
               <div className="bg-gradient-to-r from-[#ecf0f1] to-white rounded-lg border border-[#3498db] p-3 sm:p-4">
-                <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] mb-2 sm:mb-3 flex items-center gap-2">
-                  <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-md flex items-center justify-center text-white text-xs">💳</span>
-                  <span className="text-sm sm:text-base">Pagos Registrados</span>
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 sm:mb-3">
+                  <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] flex items-center gap-2">
+                    <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-md flex items-center justify-center text-white text-xs">💳</span>
+                    <span className="text-sm sm:text-base">Pagos Registrados</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={quitarTodosLosPagos}
+                    className="text-xs sm:text-sm text-[#e74c3c] hover:text-[#c0392b] font-medium underline-offset-2 hover:underline self-start sm:self-auto"
+                  >
+                    Quitar pagos (cuenta corriente)
+                  </button>
+                </div>
                 <div className="space-y-2">
                   {pago.monto && pago.monto > 0 && (
                     <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs">💰</span>
-                          <div>
+                      <div className="flex justify-between items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs shrink-0">💰</span>
+                          <div className="min-w-0">
                             <p className="font-medium text-[#2c3e50] text-sm">Pago ARS en {pago.formaPago}</p>
-                            <p className="text-xs text-[#7f8c8d]">{pago.observaciones}</p>
+                            <p className="text-xs text-[#7f8c8d] truncate">{pago.observaciones}</p>
                           </div>
                         </div>
-                        <span className="text-sm sm:text-base font-bold text-[#27ae60]">
-                          ${Number(pago.monto).toLocaleString("es-AR")} ARS
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-sm sm:text-base font-bold text-[#27ae60]">
+                            ${Number(pago.monto).toLocaleString("es-AR")} ARS
+                          </span>
+                          <button
+                            type="button"
+                            onClick={quitarPagoARS}
+                            title="Quitar pago ARS"
+                            className="w-7 h-7 rounded-md bg-[#fdecea] hover:bg-[#fadbd8] text-[#e74c3c] flex items-center justify-center text-sm transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
                   
                   {pago.montoUSD && pago.montoUSD > 0 && (
                     <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs">💵</span>
-                          <div>
+                      <div className="flex justify-between items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs shrink-0">💵</span>
+                          <div className="min-w-0">
                             <p className="font-medium text-[#2c3e50] text-sm">Pago USD en {pago.formaPago}</p>
-                            <p className="text-xs text-[#7f8c8d]">{pago.observaciones} (≈ ${(pagoUSD * cotizacionManual).toLocaleString("es-AR")} ARS)</p>
+                            <p className="text-xs text-[#7f8c8d] truncate">{pago.observaciones} (≈ ${(pagoUSD * cotizacionManual).toLocaleString("es-AR")} ARS)</p>
                           </div>
                         </div>
-                        <span className="text-sm sm:text-base font-bold text-[#3498db]">
-                          USD ${Number(pago.montoUSD).toLocaleString("es-AR")}
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-sm sm:text-base font-bold text-[#3498db]">
+                            USD ${Number(pago.montoUSD).toLocaleString("es-AR")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={quitarPagoUSD}
+                            title="Quitar pago USD"
+                            className="w-7 h-7 rounded-md bg-[#fdecea] hover:bg-[#fadbd8] text-[#e74c3c] flex items-center justify-center text-sm transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
                   
                   {telefonoComoPago && (
                     <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#9b59b6] rounded-full flex items-center justify-center text-white text-xs">📱</span>
-                          <div>
+                      <div className="flex justify-between items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#9b59b6] rounded-full flex items-center justify-center text-white text-xs shrink-0">📱</span>
+                          <div className="min-w-0">
                             <p className="font-medium text-[#2c3e50] text-sm">Teléfono como parte de pago</p>
-                            <p className="text-xs text-[#7f8c8d]">
+                            <p className="text-xs text-[#7f8c8d] truncate">
                               {telefonoComoPago.marca} {telefonoComoPago.modelo}
                               {monedaTelefonoPago === "USD" && ` (≈ ${(descuentoTelefonoPago * cotizacionManual).toLocaleString("es-AR")} ARS)`}
                             </p>
                           </div>
                         </div>
-                        <span className="text-sm sm:text-base font-bold text-[#9b59b6]">
-                          {telefonoComoPago.moneda === "USD" ? "USD $" : "$"}
-                          {Number(telefonoComoPago.valorPago).toLocaleString("es-AR")}
-                          {telefonoComoPago.moneda === "ARS" ? " ARS" : ""}
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-sm sm:text-base font-bold text-[#9b59b6]">
+                            {telefonoComoPago.moneda === "USD" ? "USD $" : "$"}
+                            {Number(telefonoComoPago.valorPago).toLocaleString("es-AR")}
+                            {telefonoComoPago.moneda === "ARS" ? " ARS" : ""}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={quitarTelefonoPago}
+                            title="Quitar teléfono como pago"
+                            className="w-7 h-7 rounded-md bg-[#fdecea] hover:bg-[#fadbd8] text-[#e74c3c] flex items-center justify-center text-sm transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1077,7 +1140,6 @@ export default function ModalVenta({
 
       {/* Modal de pago - Con z-index superior */}
       {modalPagoAbierto && (
-        <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
          <ModalPago
   mostrar={modalPagoAbierto}
   pago={pago}
@@ -1127,7 +1189,6 @@ export default function ModalVenta({
   }}
   guardadoConExito={guardadoConExito}
 />
-        </div>
       )}
     </>
   );

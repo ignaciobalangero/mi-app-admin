@@ -10,8 +10,10 @@ export type ItemStockPublico = {
   moneda: "ARS" | "USD";
   precio1: number;
   precioVentaARS: number;
-  /** URL pública de imagen si existe en el ítem (fotoURL, imagen, urlFoto, etc.). */
+  /** URL portada (= fotosURLs[0] o legacy fotoURL). */
   fotoURL: string | null;
+  /** Galería completa ordenada; la primera es la portada. */
+  fotosURLs?: string[];
   /** Texto corto bajo el título en la tienda web (ej. calidad, variante). */
   observacion: string | null;
 };

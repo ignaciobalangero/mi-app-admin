@@ -193,8 +193,11 @@ export default function ModalPago({
     handleDualChange({ target: { name: "montoUSD", value: usd.toFixed(2) } } as any);
   };
 
+  const puedeGuardar =
+    (pagoARS > 0 || pagoUSD > 0) && !guardadoConExito;
+
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+    <div className="fixed inset-0 z-[10001] bg-black/30 flex items-center justify-center p-2 sm:p-4">
       <div className="w-full h-full sm:h-auto sm:max-w-4xl lg:max-w-5xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
         
         {/* Header del Modal - Responsive */}
@@ -538,7 +541,7 @@ export default function ModalPago({
               {/* Selector de tipo de destino */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#2c3e50]">
-                  Tipo de destino: *
+                  Tipo de destino: <span className="text-[#7f8c8d] font-normal">(opcional)</span>
                 </label>
                 <select
                   name="tipoDestino"
@@ -563,7 +566,7 @@ export default function ModalPago({
               {pagoSeguro.tipoDestino === "proveedor" ? (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-[#2c3e50]">
-                    🏢 Seleccionar Proveedor: *
+                    🏢 Seleccionar Proveedor: <span className="text-[#7f8c8d] font-normal">(opcional)</span>
                   </label>
                   <select
                     name="proveedorSeleccionado"
@@ -587,7 +590,7 @@ export default function ModalPago({
               ) : (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-[#2c3e50]">
-                    ✏️ Concepto del Pago: *
+                    ✏️ Concepto del Pago: <span className="text-[#7f8c8d] font-normal">(opcional)</span>
                   </label>
                   <input
                     type="text"
@@ -663,19 +666,9 @@ export default function ModalPago({
             </button>
             <button
               onClick={handleGuardarPago}
-              disabled={
-                ((!pagoSeguro.monto || parseFloat(pagoSeguro.monto) === 0) && 
-                 (!pagoSeguro.montoUSD || parseFloat(pagoSeguro.montoUSD) === 0)) || 
-                guardadoConExito ||
-                (pagoSeguro.tipoDestino === "proveedor" && !pagoSeguro.proveedorSeleccionado) ||
-                (pagoSeguro.tipoDestino === "libre" && !pagoSeguro.destinoLibre)
-              }
+              disabled={!puedeGuardar}
               className={`w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium text-white transition-all duration-200 transform shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base ${
-                ((!pagoSeguro.monto || parseFloat(pagoSeguro.monto) === 0) && 
-                 (!pagoSeguro.montoUSD || parseFloat(pagoSeguro.montoUSD) === 0)) || 
-                guardadoConExito ||
-                (pagoSeguro.tipoDestino === "proveedor" && !pagoSeguro.proveedorSeleccionado) ||
-                (pagoSeguro.tipoDestino === "libre" && !pagoSeguro.destinoLibre)
+                !puedeGuardar
                   ? "bg-[#bdc3c7] cursor-not-allowed"
                   : "bg-[#27ae60] hover:bg-[#229954] hover:scale-105"
               }`}

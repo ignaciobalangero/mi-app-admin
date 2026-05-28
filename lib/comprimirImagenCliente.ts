@@ -102,7 +102,7 @@ export async function comprimirImagenParaCatalogo(
   const calidadInicial = opts.calidadInicial ?? 0.85;
   const bytesOriginales = file.size;
 
-  if (!file.type.startsWith("image/")) {
+  if (!file.type.startsWith("image/") && !file.name.match(/\.(jpe?g|png|webp|gif|heic|heif)$/i)) {
     throw new Error("El archivo no es una imagen");
   }
 
