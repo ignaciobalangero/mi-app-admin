@@ -16,6 +16,7 @@ function strField(v: unknown): string | undefined {
 
 function normalizarLineaStock(p: Record<string, unknown>): LineaStockNormalizada {
   const base: ProductoStockLike = {
+    codigo: strField(p.codigo),
     id: strField(p.stockDocId ?? p.id),
     stockDocId: strField(p.stockDocId ?? p.id),
     tipo: strField(p.tipo),
@@ -185,9 +186,12 @@ export async function reponerStockAlEliminarVenta(
     try {
       await actualizarStockVentaViaApi(negocioId, repuestos, "reponer");
     } catch (error) {
-      errores.push(
-        error instanceof Error ? error.message : "No se pudo reponer repuestos al stock."
-      );
+      const msg = error instanceof Error ? error.message : "No se pudo reponer repuestos al stock.";
+      if (/coincide con stock/i.test(msg)) {
+        await reponerStockViaCliente(negocioId, repuestos.map(normalizarLineaStock));
+      } else {
+        errores.push(msg);
+      }
     }
   }
 

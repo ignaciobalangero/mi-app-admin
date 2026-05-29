@@ -20,15 +20,18 @@ export const reponerRepuestosAlStock = async ({
     let repuesto = false;
 
     for (const id of ids) {
-      const refRep = doc(db, `negocios/${negocioID}/stockRepuestos/${id}`);
-      const snapRep = await getDoc(refRep);
-      if (snapRep.exists()) {
-        const stockActual = Number(snapRep.data().cantidad) || 0;
-        await updateDoc(refRep, { cantidad: stockActual + cantidadAReponer });
-        console.log(`✅ Stock devuelto: ${id} (+${cantidadAReponer}) en stockRepuestos`);
-        repuesto = true;
-        break;
+      for (const colName of ["stockRepuestos", "stockExtra"] as const) {
+        const refRep = doc(db, `negocios/${negocioID}/${colName}/${id}`);
+        const snapRep = await getDoc(refRep);
+        if (snapRep.exists()) {
+          const stockActual = Number(snapRep.data().cantidad) || 0;
+          await updateDoc(refRep, { cantidad: stockActual + cantidadAReponer });
+          console.log(`✅ Stock devuelto: ${id} (+${cantidadAReponer}) en ${colName}`);
+          repuesto = true;
+          break;
+        }
       }
+      if (repuesto) break;
     }
 
     if (repuesto || !codigo) continue;

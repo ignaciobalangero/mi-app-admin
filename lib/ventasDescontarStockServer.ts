@@ -31,11 +31,13 @@ async function buscarRepuesto(
     new Set([cod, cod.toUpperCase(), cod.toLowerCase()].filter(Boolean))
   );
 
-  for (const id of ids) {
-    const ref = db.doc(`negocios/${negocioId}/stockRepuestos/${id}`);
-    const snap = await ref.get();
-    if (snap.exists) {
-      return { ref, cantidadActual: Number(snap.data()?.cantidad ?? 0) };
+  for (const col of ["stockRepuestos", "stockExtra"] as const) {
+    for (const id of ids) {
+      const ref = db.doc(`negocios/${negocioId}/${col}/${id}`);
+      const snap = await ref.get();
+      if (snap.exists) {
+        return { ref, cantidadActual: Number(snap.data()?.cantidad ?? 0) };
+      }
     }
   }
 
@@ -50,11 +52,6 @@ async function buscarRepuesto(
         const d = q.docs[0];
         return { ref: d.ref, cantidadActual: Number(d.data()?.cantidad ?? 0) };
       }
-    }
-
-    const byId = await db.doc(`negocios/${negocioId}/${col}/${cod}`).get();
-    if (byId.exists) {
-      return { ref: byId.ref, cantidadActual: Number(byId.data()?.cantidad ?? 0) };
     }
   }
 

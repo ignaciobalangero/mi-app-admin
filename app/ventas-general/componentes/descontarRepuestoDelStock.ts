@@ -34,8 +34,10 @@ export async function descontarRepuestoDelStock(
   const ids = Array.from(new Set([String(docId ?? "").trim(), cod].filter(Boolean)));
 
   for (const id of ids) {
-    const ref = doc(db, `negocios/${negocioID}/stockRepuestos/${id}`);
-    if (await restarCantidad(ref, cantidadVendida)) return;
+    for (const colName of ["stockRepuestos", "stockExtra"] as const) {
+      const ref = doc(db, `negocios/${negocioID}/${colName}/${id}`);
+      if (await restarCantidad(ref, cantidadVendida)) return;
+    }
   }
 
   if (cod) {

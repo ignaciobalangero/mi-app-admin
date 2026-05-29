@@ -12,6 +12,14 @@ export function codigoProductoStock(producto: ProductoStockLike): string {
   return String(producto.codigo ?? producto.stockDocId ?? producto.id ?? "").trim();
 }
 
+export function esLineaStockExtra(producto: ProductoStockLike): boolean {
+  const origen = String(producto.origenStock ?? "");
+  const tipo = String(producto.tipo ?? "").toLowerCase();
+  if (origen === "stockExtra" || tipo === "stockextra") return true;
+  if (tipo === "general" && (origen === "stockExtra" || origen === "")) return true;
+  return !!producto.hoja;
+}
+
 /** Repuesto/stockExtra tiene prioridad sobre accesorio si hay señales contradictorias. */
 export function clasificarProductoStock(
   producto: ProductoStockLike
@@ -23,11 +31,12 @@ export function clasificarProductoStock(
   const esRepuesto =
     t === "repuesto" ||
     t === "general" ||
+    t === "stockextra" ||
     c === "repuesto" ||
     c === "repuestos" ||
     origen === "stockRepuestos" ||
     origen === "stockExtra" ||
-    !!producto.hoja;
+    esLineaStockExtra(producto);
 
   const esAccesorio =
     t === "accesorio" || c === "accesorio" || origen === "stockAccesorios";
