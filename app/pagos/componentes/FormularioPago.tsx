@@ -248,7 +248,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
    }
 
    const clienteID = clienteDoc.id;
-   const destino = obtenerDestino();
+   const destino = obtenerDestino() || "";
 
    const nuevoPago = {
      fecha: new Date().toLocaleDateString("es-AR"),
@@ -628,7 +628,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
        {/* Tipo de destino - 2 columnas */}
        <div className="col-span-2">
          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
-           🎯 Tipo de Destino
+           🎯 Tipo de Destino <span className="text-[#7f8c8d] font-normal">(opcional)</span>
          </label>
          <select
            value={tipoDestino}
@@ -649,7 +649,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
          {tipoDestino === "proveedor" ? (
            <div>
              <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
-               🏢 Seleccionar Proveedor
+               🏢 Seleccionar Proveedor <span className="text-[#7f8c8d] font-normal">(opcional)</span>
              </label>
              <select
                value={proveedorSeleccionado}
@@ -672,7 +672,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
          ) : (
            <div>
              <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
-               ✏️ Concepto del Pago
+               ✏️ Concepto del Pago <span className="text-[#7f8c8d] font-normal">(opcional)</span>
              </label>
              <input
                value={destinoLibre}
@@ -699,9 +699,9 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
      <div className="flex justify-center mt-4">
        <button
          onClick={guardarPago}
-         disabled={!cliente || monto <= 0 || !forma || (tipoDestino === "proveedor" && !proveedorSeleccionado) || (tipoDestino === "libre" && !destinoLibre)}
+         disabled={!cliente || monto <= 0 || !forma}
          className={`px-6 py-2 rounded-lg font-semibold text-white transition-all duration-200 transform shadow-md flex items-center justify-center gap-2 text-sm ${
-           (!cliente || monto <= 0 || !forma || (tipoDestino === "proveedor" && !proveedorSeleccionado) || (tipoDestino === "libre" && !destinoLibre))
+           !cliente || monto <= 0 || !forma
              ? "bg-[#bdc3c7] cursor-not-allowed"
              : "bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] hover:scale-105"
          }`}

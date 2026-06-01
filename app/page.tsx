@@ -11,6 +11,7 @@ import { doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebas
 import { db } from "../lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import RecordatoriosInicio from "./components/RecordatoriosInicio";
+import BuscadorStockInicio from "./components/BuscadorStockInicio";
 
 function Home() {
   const { rol } = useRol();
@@ -169,6 +170,8 @@ function Home() {
                 </div>
               </div>
             </div>
+
+            <BuscadorStockInicio />
 
             {/* TARJETAS DE ESTADÍSTICAS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">

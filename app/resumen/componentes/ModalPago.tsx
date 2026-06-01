@@ -138,15 +138,12 @@ export default function ModalPago({
 
   const handleGuardarPago = async () => {
     if (!pago.monto || !pago.formaPago || guardando) return;
-    
-    if (pago.tipoDestino === "proveedor" && !pago.proveedorSeleccionado) return;
-    if (pago.tipoDestino === "libre" && !pago.destinoLibre) return;
 
     setGuardando(true);
     
     try {
       const montoNumerico = parseFloat(pago.monto);
-      const destino = obtenerDestino();
+      const destino = obtenerDestino() || "";
       
       // 1. Crear el pago en la colección pagos
       const pagoData = {
@@ -424,7 +421,7 @@ export default function ModalPago({
             <div className="space-y-3 sm:space-y-4">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#2c3e50]">
-                  Tipo de destino: *
+                  Tipo de destino: <span className="text-[#7f8c8d] font-normal">(opcional)</span>
                 </label>
                 <select
                   name="tipoDestino"
@@ -447,7 +444,7 @@ export default function ModalPago({
               {pago.tipoDestino === "proveedor" ? (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-[#2c3e50]">
-                    🏢 Seleccionar Proveedor: *
+                    🏢 Seleccionar Proveedor: <span className="text-[#7f8c8d] font-normal">(opcional)</span>
                   </label>
                   <select
                     name="proveedorSeleccionado"
@@ -471,7 +468,7 @@ export default function ModalPago({
               ) : (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-[#2c3e50]">
-                    ✏️ Concepto del Pago: *
+                    ✏️ Concepto del Pago: <span className="text-[#7f8c8d] font-normal">(opcional)</span>
                   </label>
                   <input
                     type="text"
@@ -548,20 +545,16 @@ export default function ModalPago({
             <button
               onClick={handleGuardarPago}
               disabled={
-                !pago.monto || 
-                !pago.formaPago || 
-                guardando || 
-                guardadoConExito ||
-                (pago.tipoDestino === "proveedor" && !pago.proveedorSeleccionado) ||
-                (pago.tipoDestino === "libre" && !pago.destinoLibre)
+                !pago.monto ||
+                !pago.formaPago ||
+                guardando ||
+                guardadoConExito
               }
               className={`w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium text-white transition-all duration-200 transform shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base ${
-                !pago.monto || 
-                !pago.formaPago || 
-                guardando || 
-                guardadoConExito ||
-                (pago.tipoDestino === "proveedor" && !pago.proveedorSeleccionado) ||
-                (pago.tipoDestino === "libre" && !pago.destinoLibre)
+                !pago.monto ||
+                !pago.formaPago ||
+                guardando ||
+                guardadoConExito
                   ? "bg-[#bdc3c7] cursor-not-allowed"
                   : "bg-[#27ae60] hover:bg-[#229954] hover:scale-105"
               }`}

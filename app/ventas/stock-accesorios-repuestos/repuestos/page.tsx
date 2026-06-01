@@ -23,6 +23,7 @@ import Acciones from "./components/Acciones";
 import PedidosSugeridos from "./components/PedidosSugeridos";
 import FormularioProducto from "./components/FormularioProducto";
 import TablaProductos from "./components/TablaProductos";
+import ControlStockRepuestos from "./components/ControlStockRepuestos";
 
 // 📦 PÁGINA PRINCIPAL DE REPUESTOS CON ESTRUCTURA COMPLETA
 
@@ -88,6 +89,7 @@ export default function RepuestosPage() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [controlStockAbierto, setControlStockAbierto] = useState(false);
 
   // 🔄 FUNCIÓN PARA REFRESCAR LA TABLA
   const triggerRefresh = () => {
@@ -441,7 +443,17 @@ export default function RepuestosPage() {
             setMostrarSugerencias={setMostrarSugerencias}
             mostrarFormulario={mostrarFormulario}
             setMostrarFormulario={setMostrarFormulario}
+            onControlStock={() => setControlStockAbierto(true)}
           />
+
+          {(rol?.negocioID || negocioID) && (
+            <ControlStockRepuestos
+              negocioID={rol?.negocioID || negocioID}
+              abierto={controlStockAbierto}
+              onCerrar={() => setControlStockAbierto(false)}
+              onStockActualizado={() => triggerRefresh()}
+            />
+          )}
 
           {mostrarSugerencias && <PedidosSugeridos productosAPedir={productosAPedir} />}
 
