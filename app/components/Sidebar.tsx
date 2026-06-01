@@ -103,6 +103,7 @@ export default function Sidebar() {
     { label: "Gestión de Trabajos", icono: "🔧", href: "/gestion-trabajos" },
     { label: "Stock Repuestos (Sheet)", icono: "📋", href: "/integracion-sheet/stock-sheet" },
     { label: "Cuenta Corriente", icono: "📊", href: "/cuenta" },
+    { label: "Caja Diaria", icono: "💰", href: "/caja-diaria" },
     { label: "Venta de teléfonos", icono: "📱", href: "/ventas/telefonos" },
     { label: "Stock de teléfonos", icono: "📦", href: "/ventas/stock-telefonos" },
     { label: "Stock Grl", icono: "🏪", href: "/ventas/stock-accesorios-repuestos" },

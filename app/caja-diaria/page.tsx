@@ -1,249 +1,90 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, addDoc, doc, getDoc } from "firebase/firestore";
+import { useCallback, useEffect, useState } from "react";
 import { useRol } from "@/lib/useRol";
 import Header from "@/app/Header";
+import ModalAbrirCaja from "./components/ModalAbrirCaja";
 import ModalAgregarGasto from "./components/ModalAgregarGasto";
-import ModalCerrarCaja from "./components/ModalCerrarCaja";
+import ModalArqueoCierre from "./components/ModalArqueoCierre";
+import ModalMovimientoManual from "./components/ModalMovimientoManual";
 import HistorialCierres from "./components/HistorialCierres";
-
-interface Trabajo {
-  id: string;
-  cliente: string;
-  precio: number;
-  estado: string;
-  fecha: string;
-  fechaModificacion?: string;
-}
-
-interface Venta {
-  id: string;
-  cliente: string;
-  productos: any[];
-  formaPago: string;
-  fecha: string;
-  totalARS: number;
-  totalUSD: number;
-}
-
-interface Gasto {
-  id: string;
-  concepto: string;
-  monto: number;
-  moneda: string;
-  categoria: string;
-  fecha: string;
-  usuario: string;
-}
+import type { ResumenCajaDia, SesionCaja } from "@/lib/caja/cajaTypes";
+import { calcularResumenCajaDia, formatearPrecioCaja } from "@/lib/caja/calcularResumenDia";
+import { fechaCajaHoy } from "@/lib/caja/fechaCaja";
+import { labelMedioPago, MEDIOS_PAGO_CAJA } from "@/lib/caja/mediosPago";
+import { obtenerSesionAbierta, obtenerSesionDelDia } from "@/lib/caja/sesionCaja";
+import { puedeOperarCajaDiaria, puedeOperarCajaMayor } from "@/lib/caja/permisosCaja";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useRouter } from "next/navigation";
 
 export default function CajaDiariaPage() {
   const { rol } = useRol();
-  const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
-  const [ventas, setVentas] = useState<Venta[]>([]);
-  const [gastos, setGastos] = useState<Gasto[]>([]);
-  const [pagos, setPagos] = useState<any[]>([]);
-  const [mostrarModalGasto, setMostrarModalGasto] = useState(false);
-  const [mostrarModalCierre, setMostrarModalCierre] = useState(false);
-  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const router = useRouter();
+  const [sesion, setSesion] = useState<SesionCaja | null>(null);
+  const [resumen, setResumen] = useState<ResumenCajaDia | null>(null);
+  const [cotizacionUSD, setCotizacionUSD] = useState(1000);
   const [cargando, setCargando] = useState(true);
+  const [mostrarAbrir, setMostrarAbrir] = useState(false);
+  const [mostrarGasto, setMostrarGasto] = useState(false);
+  const [mostrarIngreso, setMostrarIngreso] = useState(false);
+  const [mostrarEgreso, setMostrarEgreso] = useState(false);
+  const [mostrarCierre, setMostrarCierre] = useState(false);
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
 
-  const hoy = new Date().toLocaleDateString("es-AR");
+  const hoy = fechaCajaHoy();
 
-  useEffect(() => {
-    if (rol?.negocioID) {
-      cargarDatos();
-    }
-  }, [rol]);
-
-  const cargarDatos = async () => {
+  const cargar = useCallback(async () => {
     if (!rol?.negocioID) return;
-    
     setCargando(true);
-    
     try {
-      // Cargar trabajos del día
-      const trabajosSnap = await getDocs(
-        query(
-          collection(db, `negocios/${rol.negocioID}/trabajos`),
-          where("fechaModificacion", "==", hoy)
-        )
-      );
-      
-      const trabajosData = trabajosSnap.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Trabajo))
-        .filter(t => ["ENTREGADO", "PAGADO"].includes(t.estado));
+      const cfg = await getDoc(doc(db, `negocios/${rol.negocioID}/configuracion/datos`));
+      if (cfg.exists()) {
+        const cot = Number(cfg.data().cotizacion ?? cfg.data().cotizacionDolar ?? 0);
+        if (cot > 0) setCotizacionUSD(cot);
+      }
 
-      setTrabajos(trabajosData);
+      let s = await obtenerSesionAbierta(rol.negocioID);
+      if (!s) s = await obtenerSesionDelDia(rol.negocioID, hoy);
+      setSesion(s);
 
-      // Cargar ventas del día
-      const ventasSnap = await getDocs(
-        query(
-          collection(db, `negocios/${rol.negocioID}/ventasGeneral`),
-          where("fecha", "==", hoy)
-        )
-      );
-
-      const ventasData = ventasSnap.docs.map(doc => {
-        const data = doc.data();
-        const productos = data.productos || [];
-        
-        let totalARS = 0;
-        let totalUSD = 0;
-
-        productos.forEach((p: any) => {
-          const subtotal = p.precioUnitario * p.cantidad;
-          if (p.moneda?.toUpperCase() === "USD") {
-            totalUSD += subtotal;
-          } else {
-            totalARS += subtotal;
-          }
+      if (s?.estado === "abierta" && s.id) {
+        const r = await calcularResumenCajaDia({
+          negocioId: rol.negocioID,
+          fecha: hoy,
+          sesionId: s.id,
+          saldoInicialARS: s.saldoInicialARS,
+          saldoInicialUSD: s.saldoInicialUSD,
         });
-
-        return {
-          id: doc.id,
-          cliente: data.cliente,
-          productos: data.productos,
-          formaPago: data.formaPago,
-          fecha: data.fecha,
-          totalARS,
-          totalUSD,
-        } as Venta;
-      });
-
-      setVentas(ventasData);
-
-      // Cargar gastos del día
-      const gastosSnap = await getDocs(
-        query(
-          collection(db, `negocios/${rol.negocioID}/gastos`),
-          where("fecha", "==", hoy)
-        )
-      );
-
-      const gastosData = gastosSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Gasto));
-
-      setGastos(gastosData);
-
-// Cargar pagos del día
-const pagosSnap = await getDocs(
-  query(
-    collection(db, `negocios/${rol.negocioID}/pagos`),
-    where("fecha", "==", hoy)
-  )
-);
-
-const pagosData = pagosSnap.docs.map(doc => ({
-  id: doc.id,
-  ...doc.data()
-}));
-
-setPagos(pagosData);
-    } catch (error) {
-      console.error("Error cargando datos:", error);
+        setResumen(r);
+      } else {
+        setResumen(null);
+      }
+    } catch (e) {
+      console.error(e);
     } finally {
       setCargando(false);
     }
-  };
+  }, [rol?.negocioID, hoy]);
 
-  // Calcular totales
-  const calcularTotales = () => {
-    let efectivoARS = 0;
-    let efectivoUSD = 0;
-    let transferenciasARS = 0;
-    let transferenciasUSD = 0;
-    let tarjetasARS = 0;
-    let cuentaCorrienteARS = 0;
-    let cuentaCorrienteUSD = 0;
-
-    // Sumar trabajos
-    trabajos.forEach(t => {
-      // Por ahora asumimos ARS, si tenés moneda en trabajos agregalo
-      efectivoARS += t.precio || 0;
-    });
-
-    // Sumar ventas según forma de pago
-    ventas.forEach(v => {
-      const formaPago = v.formaPago?.toLowerCase() || "";
-      
-      if (formaPago.includes("efectivo")) {
-        efectivoARS += v.totalARS;
-        efectivoUSD += v.totalUSD;
-      } else if (formaPago.includes("transferencia")) {
-        transferenciasARS += v.totalARS;
-        transferenciasUSD += v.totalUSD;
-      } else if (formaPago.includes("tarjeta")) {
-        tarjetasARS += v.totalARS;
-      } else if (formaPago.includes("cuenta corriente")) {
-        cuentaCorrienteARS += v.totalARS;
-        cuentaCorrienteUSD += v.totalUSD;
-      }
-    });
-// Sumar pagos según forma de pago
-pagos.forEach(p => {
-  const forma = (p.forma || "").toLowerCase();
-  const moneda = p.moneda || "ARS";
-  const monto = moneda === "USD" ? (p.montoUSD || 0) : (p.monto || 0);
-  
-  if (forma.includes("efectivo")) {
-    if (moneda === "USD") {
-      efectivoUSD += monto;
-    } else {
-      efectivoARS += monto;
+  useEffect(() => {
+    if (!rol) return;
+    if (!puedeOperarCajaDiaria(rol.tipo)) {
+      router.push("/");
+      return;
     }
-  } else if (forma.includes("transferencia")) {
-    if (moneda === "USD") {
-      transferenciasUSD += monto;
-    } else {
-      transferenciasARS += monto;
-    }
-  } else if (forma.includes("tarjeta")) {
-    tarjetasARS += monto;
-  }
-});
-    // Restar gastos
-    const gastosARS = gastos
-      .filter(g => g.moneda === "ARS")
-      .reduce((sum, g) => sum + g.monto, 0);
+    cargar();
+  }, [rol, router, cargar]);
 
-    const gastosUSD = gastos
-      .filter(g => g.moneda === "USD")
-      .reduce((sum, g) => sum + g.monto, 0);
-
-    return {
-      efectivoARS: efectivoARS - gastosARS,
-      efectivoUSD: efectivoUSD - gastosUSD,
-      transferenciasARS,
-      transferenciasUSD,
-      tarjetasARS,
-      cuentaCorrienteARS,
-      cuentaCorrienteUSD,
-      gastosARS,
-      gastosUSD,
-      totalTrabajos: trabajos.length,
-      totalVentas: ventas.length,
-    };
-  };
-
-  const totales = calcularTotales();
-
-  const formatearPrecio = (valor: number) => {
-    return `$${valor.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  };
+  const cajaAbierta = sesion?.estado === "abierta";
+  const cajaCerradaHoy = sesion?.estado === "cerrada";
 
   if (cargando) {
     return (
       <>
         <Header />
         <main className="pt-16 min-h-screen bg-[#f8f9fa] flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-[#3498db] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-[#7f8c8d]">Cargando caja del día...</p>
-          </div>
+          <div className="w-16 h-16 border-4 border-[#3498db] border-t-transparent rounded-full animate-spin" />
         </main>
       </>
     );
@@ -254,148 +95,233 @@ pagos.forEach(p => {
       <Header />
       <main className="pt-16 min-h-screen bg-[#f8f9fa] p-4">
         <div className="max-w-7xl mx-auto space-y-6">
-          
-          {/* Header */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                  <span className="text-3xl">💰</span>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-white">Caja Diaria</h1>
-                  <p className="text-blue-100 text-sm">{hoy}</p>
-                </div>
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg text-white">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold">Caja Diaria</h1>
+                <p className="text-blue-100 text-sm">{hoy}</p>
+                <p className="text-xs mt-2 opacity-90">
+                  {cajaAbierta
+                    ? `Abierta · fondo ${formatearPrecioCaja(sesion?.saldoInicialARS ?? 0)} ARS`
+                    : cajaCerradaHoy
+                      ? "Caja del día cerrada"
+                      : "Sin apertura — abrí la caja para operar"}
+                </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-2">
+                {!cajaAbierta && !cajaCerradaHoy && (
+                  <button
+                    onClick={() => setMostrarAbrir(true)}
+                    className="bg-white text-[#2c3e50] px-4 py-2 rounded-lg font-bold"
+                  >
+                    Abrir caja
+                  </button>
+                )}
                 <button
                   onClick={() => setMostrarHistorial(true)}
-                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-all"
+                  className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg"
                 >
-                  📋 Historial
+                  Historial
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Resumen de movimientos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl p-4 shadow-lg border border-[#ecf0f1]">
-              <h3 className="font-bold text-[#2c3e50] mb-3 flex items-center gap-2">
-                <span>🔧</span> Trabajos del Día
-              </h3>
-              <p className="text-3xl font-bold text-[#3498db]">{totales.totalTrabajos}</p>
+          {!cajaAbierta && !cajaCerradaHoy && (
+            <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-6 text-center">
+              <p className="text-[#2c3e50] font-medium mb-3">
+                Abrí la caja del día para registrar movimientos y ver el resumen en tiempo real.
+              </p>
+              <button
+                onClick={() => setMostrarAbrir(true)}
+                className="bg-[#3498db] text-white px-6 py-3 rounded-xl font-bold"
+              >
+                Abrir caja del día
+              </button>
             </div>
+          )}
 
-            <div className="bg-white rounded-xl p-4 shadow-lg border border-[#ecf0f1]">
-              <h3 className="font-bold text-[#2c3e50] mb-3 flex items-center gap-2">
-                <span>🛒</span> Ventas del Día
-              </h3>
-              <p className="text-3xl font-bold text-[#27ae60]">{totales.totalVentas}</p>
+          {resumen && cajaAbierta && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl p-4 shadow border border-[#ecf0f1]">
+                  <p className="text-sm text-[#7f8c8d]">Saldo inicial</p>
+                  <p className="text-2xl font-bold text-[#3498db]">
+                    {formatearPrecioCaja(resumen.saldoInicialARS)}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl p-4 shadow border border-[#ecf0f1]">
+                  <p className="text-sm text-[#7f8c8d]">Ingresos del día</p>
+                  <p className="text-2xl font-bold text-[#27ae60]">
+                    {formatearPrecioCaja(resumen.ingresos.total)}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl p-4 shadow border border-[#ecf0f1]">
+                  <p className="text-sm text-[#7f8c8d]">Egresos del día</p>
+                  <p className="text-2xl font-bold text-[#e74c3c]">
+                    {formatearPrecioCaja(resumen.egresos.total)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow border border-[#ecf0f1]">
+                <h2 className="text-lg font-bold text-[#2c3e50] mb-4">Ingresos del día</h2>
+                <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                  <Row label="Cobros trabajos" value={resumen.ingresos.cobrosTrabajos} />
+                  <Row label="Ventas al contado" value={resumen.ingresos.ventasContado} />
+                  <Row label="  Teléfonos ARS" value={resumen.ingresos.ventasTelefonoARS} indent />
+                  <Row label="  Teléfonos USD (equiv.)" value={resumen.ingresos.ventasTelefonoUSDEquivARS} indent />
+                  <Row label="  Accesorios" value={resumen.ingresos.ventasAccesorios} indent />
+                  <Row label="  Repuestos stock" value={resumen.ingresos.ventasRepuestoStock} indent />
+                  <Row label="  Repuestos stockExtra" value={resumen.ingresos.ventasRepuestoExtra} indent />
+                  <Row label="Cobros cuenta corriente" value={resumen.ingresos.cobrosCuentaCorriente} highlight />
+                  <Row label="Ingresos manuales" value={resumen.ingresos.ingresosManuales} />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow border border-[#ecf0f1]">
+                <h2 className="text-lg font-bold text-[#2c3e50] mb-4">Por medio de pago</h2>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {MEDIOS_PAGO_CAJA.map(({ id }) => {
+                    const v = resumen.medios[id];
+                    if (Math.abs(v) < 1) return null;
+                    return (
+                      <div key={id} className="bg-[#f8f9fa] rounded-lg p-3 border">
+                        <p className="text-xs text-[#7f8c8d]">{labelMedioPago(id)}</p>
+                        <p className="font-bold text-[#2c3e50]">{formatearPrecioCaja(v)}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => setMostrarIngreso(true)}
+                  className="flex-1 min-w-[140px] bg-green-600 text-white py-3 rounded-xl font-bold"
+                >
+                  + Ingreso manual
+                </button>
+                <button
+                  onClick={() => setMostrarGasto(true)}
+                  className="flex-1 min-w-[140px] bg-red-600 text-white py-3 rounded-xl font-bold"
+                >
+                  + Gasto
+                </button>
+                <button
+                  onClick={() => setMostrarEgreso(true)}
+                  className="flex-1 min-w-[140px] bg-orange-600 text-white py-3 rounded-xl font-bold"
+                >
+                  − Egreso manual
+                </button>
+                <button
+                  onClick={() => setMostrarCierre(true)}
+                  className="flex-1 min-w-[140px] bg-[#27ae60] text-white py-3 rounded-xl font-bold"
+                >
+                  Arqueo y cierre
+                </button>
+              </div>
+            </>
+          )}
+
+          {cajaCerradaHoy && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+              <p className="font-bold text-[#27ae60]">La caja de hoy ya fue cerrada.</p>
+              <p className="text-sm text-[#7f8c8d] mt-1">
+                Revisá el historial o volvé mañana para abrir una nueva sesión.
+              </p>
             </div>
-          </div>
-
-          {/* Desglose por forma de pago */}
-          <div className="bg-white rounded-xl p-6 shadow-lg border border-[#ecf0f1]">
-            <h2 className="text-xl font-bold text-[#2c3e50] mb-4">💵 Desglose por Forma de Pago</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Efectivo */}
-              <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
-                <p className="text-sm text-[#7f8c8d] mb-1">💵 Efectivo</p>
-                <p className="text-xl font-bold text-green-700">{formatearPrecio(totales.efectivoARS)} ARS</p>
-                {totales.efectivoUSD > 0 && (
-                  <p className="text-lg font-bold text-green-600">${totales.efectivoUSD} USD</p>
-                )}
-              </div>
-
-              {/* Transferencias */}
-              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                <p className="text-sm text-[#7f8c8d] mb-1">🏦 Transferencias</p>
-                <p className="text-xl font-bold text-blue-700">{formatearPrecio(totales.transferenciasARS)} ARS</p>
-                {totales.transferenciasUSD > 0 && (
-                  <p className="text-lg font-bold text-blue-600">${totales.transferenciasUSD} USD</p>
-                )}
-              </div>
-
-              {/* Tarjetas */}
-              <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
-                <p className="text-sm text-[#7f8c8d] mb-1">💳 Tarjetas</p>
-                <p className="text-xl font-bold text-purple-700">{formatearPrecio(totales.tarjetasARS)} ARS</p>
-              </div>
-
-              {/* Cuenta Corriente */}
-              <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
-                <p className="text-sm text-[#7f8c8d] mb-1">📒 Cuenta Corriente</p>
-                <p className="text-xl font-bold text-orange-700">{formatearPrecio(totales.cuentaCorrienteARS)} ARS</p>
-                {totales.cuentaCorrienteUSD > 0 && (
-                  <p className="text-lg font-bold text-orange-600">${totales.cuentaCorrienteUSD} USD</p>
-                )}
-              </div>
-            </div>
-
-            {/* Gastos */}
-            {(totales.gastosARS > 0 || totales.gastosUSD > 0) && (
-              <div className="mt-4 bg-red-50 rounded-lg p-4 border-2 border-red-200">
-                <p className="text-sm text-[#7f8c8d] mb-1">❌ Gastos del Día</p>
-                <p className="text-xl font-bold text-red-700">{formatearPrecio(totales.gastosARS)} ARS</p>
-                {totales.gastosUSD > 0 && (
-                  <p className="text-lg font-bold text-red-600">${totales.gastosUSD} USD</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Botones de acción */}
-          <div className="flex gap-4">
-            <button
-              onClick={() => setMostrarModalGasto(true)}
-              className="flex-1 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white px-6 py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-lg"
-            >
-              ➕ Agregar Gasto
-            </button>
-
-            <button
-              onClick={() => setMostrarModalCierre(true)}
-              className="flex-1 bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-lg"
-            >
-              🔒 Cerrar Caja
-            </button>
-          </div>
-
+          )}
         </div>
       </main>
 
-      {/* Modales */}
-      {mostrarModalGasto && (
+      {mostrarAbrir && rol?.negocioID && (
+        <ModalAbrirCaja
+          negocioID={rol.negocioID}
+          onClose={() => setMostrarAbrir(false)}
+          onAbierta={() => {
+            setMostrarAbrir(false);
+            cargar();
+          }}
+        />
+      )}
+
+      {mostrarGasto && rol?.negocioID && (
         <ModalAgregarGasto
-          negocioID={rol?.negocioID || ""}
-          onClose={() => setMostrarModalGasto(false)}
+          negocioID={rol.negocioID}
+          onClose={() => setMostrarGasto(false)}
           onGuardado={() => {
-            cargarDatos();
-            setMostrarModalGasto(false);
+            setMostrarGasto(false);
+            cargar();
           }}
         />
       )}
 
-      {mostrarModalCierre && (
-        <ModalCerrarCaja
-          negocioID={rol?.negocioID || ""}
-          totales={totales}
-          onClose={() => setMostrarModalCierre(false)}
+      {mostrarIngreso && sesion?.id && rol && (
+        <ModalMovimientoManual
+          negocioID={rol.negocioID}
+          sesionId={sesion.id}
+          rolTipo={rol.tipo}
+          tipo="ingreso"
+          onClose={() => setMostrarIngreso(false)}
+          onGuardado={() => {
+            setMostrarIngreso(false);
+            cargar();
+          }}
+        />
+      )}
+
+      {mostrarEgreso && sesion?.id && rol && (
+        <ModalMovimientoManual
+          negocioID={rol.negocioID}
+          sesionId={sesion.id}
+          rolTipo={rol.tipo}
+          tipo="egreso"
+          onClose={() => setMostrarEgreso(false)}
+          onGuardado={() => {
+            setMostrarEgreso(false);
+            cargar();
+          }}
+        />
+      )}
+
+      {mostrarCierre && sesion?.id && resumen && rol?.negocioID && (
+        <ModalArqueoCierre
+          negocioID={rol.negocioID}
+          sesionId={sesion.id}
+          resumen={resumen}
+          cotizacionUSD={cotizacionUSD}
+          onClose={() => setMostrarCierre(false)}
           onCerrado={() => {
-            cargarDatos();
-            setMostrarModalCierre(false);
+            setMostrarCierre(false);
+            cargar();
           }}
         />
       )}
 
-      {mostrarHistorial && (
-        <HistorialCierres
-          negocioID={rol?.negocioID || ""}
-          onClose={() => setMostrarHistorial(false)}
-        />
+      {mostrarHistorial && rol?.negocioID && (
+        <HistorialCierres negocioID={rol.negocioID} onClose={() => setMostrarHistorial(false)} />
       )}
     </>
+  );
+}
+
+function Row({
+  label,
+  value,
+  indent,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  indent?: boolean;
+  highlight?: boolean;
+}) {
+  if (Math.abs(value) < 0.01) return null;
+  return (
+    <div className={`flex justify-between ${indent ? "pl-4 text-[#7f8c8d]" : ""}`}>
+      <span className={highlight ? "font-semibold text-[#8e44ad]" : ""}>{label}</span>
+      <span className="font-bold">{formatearPrecioCaja(value)}</span>
+    </div>
   );
 }
