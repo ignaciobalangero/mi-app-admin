@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import type { CatalogoPublicoOpciones, ItemStockPublico } from "@/lib/stockPublicoTypes";
 import {
-  itemConPrecioARS,
   subtotalLineaARS,
   textoPrecioTienda,
   sinPrecioLista,
@@ -37,6 +36,7 @@ import BannerBusquedaTienda from "../components/BannerBusquedaTienda";
 import TarjetasCategoriasTienda from "../components/TarjetasCategoriasTienda";
 import CheckoutCarritoTienda from "../components/CheckoutCarritoTienda";
 import { useTiendaCliente } from "../hooks/useTiendaCliente";
+import { useCarritoTienda } from "../hooks/useCarritoTienda";
 import { resolverUrlFotoProducto } from "@/lib/fotoProductoUrl";
 import {
   type ChipCategoria,
@@ -78,11 +78,6 @@ type Payload = {
 
 const MIN_BUSQUEDA_CHARS = 2;
 const BROWSE_LIMIT = 24;
-
-type LineaCarrito = {
-  item: ItemStockPublico;
-  cantidad: number;
-};
 
 function normalizarBusqueda(s: string): string {
   return s
@@ -207,7 +202,7 @@ export default function ConsultaStockCliente({ negocioID }: { negocioID: string 
 function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
   const searchParams = useSearchParams();
   const { logoUrl: logoNegocio, cargandoLogo } = useLogo();
-  const { perfil, esClienteTienda, getToken } = useTiendaCliente(negocioID);
+  const { user, perfil, esClienteTienda, getToken } = useTiendaCliente(negocioID);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -215,7 +210,6 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
   const [q, setQ] = useState("");
   const [chipCategoria, setChipCategoria] = useState<ChipCategoria>("todas");
   const [marcaPantalla, setMarcaPantalla] = useState("");
-  const [carrito, setCarrito] = useState<Record<string, LineaCarrito>>({});
   const [drawerAbierto, setDrawerAbierto] = useState(false);
   const [pasoCarrito, setPasoCarrito] = useState<"carrito" | "checkout">("carrito");
   const [fotoAmpliada, setFotoAmpliada] = useState<{
@@ -324,6 +318,24 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
     return typeof n === "number" && n > 0 ? n : 1200;
   }, [payload?.cotizacionUSD]);
 
+  const {
+    carrito,
+    agregar,
+    menos,
+    mas,
+    quitarLinea,
+    vaciarCarrito,
+    cantItemsCarrito,
+    totalCarritoARS,
+  } = useCarritoTienda({
+    negocioID,
+    uid: user?.uid,
+    esClienteTienda,
+    getToken,
+    cotizacionSistema,
+    payloadItems: payload?.items,
+  });
+
   useEffect(() => {
     if (searchParams.get("checkout") === "1") {
       setDrawerAbierto(true);
@@ -334,26 +346,6 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
   useEffect(() => {
     if (!drawerAbierto) setPasoCarrito("carrito");
   }, [drawerAbierto]);
-
-  useEffect(() => {
-    if (!payload?.items?.length) return;
-    const byId = new Map(payload.items.map((i) => [i.id, i]));
-    setCarrito((prev) => {
-      let changed = false;
-      const next: Record<string, LineaCarrito> = {};
-      for (const id of Object.keys(prev)) {
-        const fresh = byId.get(id);
-        if (!fresh) {
-          changed = true;
-          continue;
-        }
-        const item = itemConPrecioARS(fresh, cotizacionSistema);
-        next[id] = { ...prev[id], item };
-        if (item.precioVentaARS !== prev[id].item.precioVentaARS) changed = true;
-      }
-      return changed ? next : prev;
-    });
-  }, [payload?.items, cotizacionSistema]);
 
   const telefonoPedidos = useMemo(() => {
     const env = typeof process !== "undefined" ? process.env.NEXT_PUBLIC_WHATSAPP_PEDIDOS : undefined;
@@ -405,65 +397,6 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
       a[0].localeCompare(b[0], "es", { sensitivity: "base" })
     );
   }, [visibles, ops.agruparPorMarca]);
-
-  const cantItemsCarrito = useMemo(
-    () => Object.values(carrito).reduce((a, l) => a + l.cantidad, 0),
-    [carrito]
-  );
-
-  const totalCarritoARS = useMemo(
-    () =>
-      Object.values(carrito).reduce(
-        (a, l) => a + subtotalLineaARS(l.item, l.cantidad, cotizacionSistema),
-        0
-      ),
-    [carrito, cotizacionSistema]
-  );
-
-  const agregar = useCallback(
-    (it: ItemStockPublico) => {
-      const item = itemConPrecioARS(it, cotizacionSistema);
-      setCarrito((prev) => {
-        const cur = prev[it.id];
-        const max = Math.max(0, item.stock);
-        const nextQty = (cur?.cantidad ?? 0) + 1;
-        if (max > 0 && nextQty > max) return prev;
-        return { ...prev, [it.id]: { item, cantidad: nextQty } };
-      });
-    },
-    [cotizacionSistema]
-  );
-
-  const menos = useCallback((id: string) => {
-    setCarrito((prev) => {
-      const cur = prev[id];
-      if (!cur) return prev;
-      if (cur.cantidad <= 1) {
-        const { [id]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [id]: { ...cur, cantidad: cur.cantidad - 1 } };
-    });
-  }, []);
-
-  const mas = useCallback((id: string) => {
-    setCarrito((prev) => {
-      const cur = prev[id];
-      if (!cur) return prev;
-      const max = Math.max(0, cur.item.stock);
-      if (max > 0 && cur.cantidad >= max) return prev;
-      return { ...prev, [id]: { ...cur, cantidad: cur.cantidad + 1 } };
-    });
-  }, []);
-
-  const quitarLinea = useCallback((id: string) => {
-    setCarrito((prev) => {
-      const { [id]: _, ...rest } = prev;
-      return rest;
-    });
-  }, []);
-
-  const vaciarCarrito = useCallback(() => setCarrito({}), []);
 
   function renderTarjeta(it: ItemStockPublico, indice = 0) {
     const enCarrito = carrito[it.id];

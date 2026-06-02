@@ -4,16 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { collection, getDocs, writeBatch, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { fusionarCategoriasUnicas } from "@/lib/categoriaRepuesto";
+import {
+  fusionarCategoriasUnicas,
+  fusionarValoresUnicos,
+} from "@/lib/categoriaRepuesto";
 import {
   calcularDiferenciasConteo,
   crearLineasConteo,
   docAProductoControlStock,
-  etiquetaFiltroTienda,
   filtrarProductosControl,
   generarHtmlImpresionControlStock,
   imprimirControlStock,
   parseStockReal,
+  subtituloFiltrosControl,
   type DiferenciaConteoStock,
   type FiltroTiendaControl,
   type LineaConteoStock,
@@ -43,7 +46,11 @@ export default function ControlStockRepuestos({
 
   const [todosProductos, setTodosProductos] = useState<ProductoControlStock[]>([]);
   const [categorias, setCategorias] = useState<string[]>([]);
+  const [marcas, setMarcas] = useState<string[]>([]);
+  const [proveedores, setProveedores] = useState<string[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const [marcaFiltro, setMarcaFiltro] = useState("");
+  const [proveedorFiltro, setProveedorFiltro] = useState("");
   const [filtroTienda, setFiltroTienda] = useState<FiltroTiendaControl>("todos");
 
   const [lineas, setLineas] = useState<LineaConteoStock[]>([]);
@@ -52,9 +59,19 @@ export default function ControlStockRepuestos({
 
   useEffect(() => setMounted(true), []);
 
+  const filtrosActivos = useMemo(
+    () => ({
+      categoria: categoriaFiltro || undefined,
+      marca: marcaFiltro || undefined,
+      proveedor: proveedorFiltro || undefined,
+      filtroTienda,
+    }),
+    [categoriaFiltro, marcaFiltro, proveedorFiltro, filtroTienda]
+  );
+
   const productosFiltrados = useMemo(
-    () => filtrarProductosControl(todosProductos, categoriaFiltro, filtroTienda),
-    [todosProductos, categoriaFiltro, filtroTienda]
+    () => filtrarProductosControl(todosProductos, filtrosActivos),
+    [todosProductos, filtrosActivos]
   );
 
   const cargarProductos = useCallback(async () => {
@@ -69,9 +86,9 @@ export default function ControlStockRepuestos({
         docAProductoControlStock(d.id, d.data() as Record<string, unknown>)
       );
       setTodosProductos(lista);
-      setCategorias(
-        fusionarCategoriasUnicas(lista.map((p) => p.categoria))
-      );
+      setCategorias(fusionarCategoriasUnicas(lista.map((p) => p.categoria)));
+      setMarcas(fusionarValoresUnicos(lista.map((p) => p.marca)));
+      setProveedores(fusionarValoresUnicos(lista.map((p) => p.proveedor)));
     } catch (e) {
       console.error(e);
       setError("No se pudo cargar el stock.");
@@ -86,15 +103,18 @@ export default function ControlStockRepuestos({
       setBusquedaConteo("");
       setDiferencias([]);
       setLineas([]);
+      setCategoriaFiltro("");
+      setMarcaFiltro("");
+      setProveedorFiltro("");
+      setFiltroTienda("todos");
       void cargarProductos();
     }
   }, [abierto, negocioID, cargarProductos]);
 
-  const subtituloFiltros = useMemo(() => {
-    const partes = [etiquetaFiltroTienda(filtroTienda)];
-    if (categoriaFiltro) partes.unshift(`Categoría: ${categoriaFiltro}`);
-    return partes.join(" · ");
-  }, [categoriaFiltro, filtroTienda]);
+  const subtituloFiltros = useMemo(
+    () => subtituloFiltrosControl(filtrosActivos),
+    [filtrosActivos]
+  );
 
   const lineasVisibles = useMemo(() => {
     const q = busquedaConteo.trim().toLowerCase();
@@ -104,6 +124,7 @@ export default function ControlStockRepuestos({
         l.producto.codigo,
         l.producto.producto,
         l.producto.marca,
+        l.producto.proveedor,
         l.producto.categoria,
       ]
         .join(" ")
@@ -283,6 +304,42 @@ export default function ControlStockRepuestos({
                       {categorias.map((c) => (
                         <option key={c} value={c}>
                           {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold">
+                      Marca
+                    </label>
+                    <select
+                      value={marcaFiltro}
+                      onChange={(e) => setMarcaFiltro(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#ecf0f1] bg-[#f8f9fa] px-3 py-3 text-base focus:border-[#3498db] focus:outline-none"
+                    >
+                      <option value="">Todas las marcas</option>
+                      {marcas.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-semibold">
+                      Proveedor
+                    </label>
+                    <select
+                      value={proveedorFiltro}
+                      onChange={(e) => setProveedorFiltro(e.target.value)}
+                      className="w-full rounded-xl border-2 border-[#ecf0f1] bg-[#f8f9fa] px-3 py-3 text-base focus:border-[#3498db] focus:outline-none"
+                    >
+                      <option value="">Todos los proveedores</option>
+                      {proveedores.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
                         </option>
                       ))}
                     </select>

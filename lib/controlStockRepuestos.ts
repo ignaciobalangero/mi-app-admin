@@ -8,8 +8,16 @@ export interface ProductoControlStock {
   categoria: string;
   producto: string;
   marca: string;
+  proveedor: string;
   cantidad: number;
   publicarEnCatalogoWeb: boolean;
+}
+
+export interface FiltrosControlStock {
+  categoria?: string;
+  marca?: string;
+  proveedor?: string;
+  filtroTienda: FiltroTiendaControl;
 }
 
 export interface LineaConteoStock {
@@ -38,31 +46,54 @@ export function docAProductoControlStock(
     categoria: String(data.categoria ?? "").trim() || "Sin categoría",
     producto: String(data.producto ?? "").trim() || "Sin nombre",
     marca: String(data.marca ?? "").trim(),
+    proveedor: String(data.proveedor ?? "").trim(),
     cantidad: Number(data.cantidad) || 0,
     publicarEnCatalogoWeb: Boolean(data.publicarEnCatalogoWeb),
   };
 }
 
+function coincideTextoExacto(valor: string, filtro: string): boolean {
+  return valor.trim().toLowerCase() === filtro.trim().toLowerCase();
+}
+
 export function filtrarProductosControl(
   productos: ProductoControlStock[],
-  categoria: string,
-  filtroTienda: FiltroTiendaControl
+  filtros: FiltrosControlStock
 ): ProductoControlStock[] {
   let lista = [...productos];
 
-  if (categoria) {
-    lista = lista.filter((p) => mismoCategoria(p.categoria, categoria));
+  if (filtros.categoria) {
+    lista = lista.filter((p) => mismoCategoria(p.categoria, filtros.categoria!));
   }
 
-  if (filtroTienda === "tienda") {
+  if (filtros.marca) {
+    lista = lista.filter((p) => coincideTextoExacto(p.marca, filtros.marca!));
+  }
+
+  if (filtros.proveedor) {
+    lista = lista.filter((p) =>
+      coincideTextoExacto(p.proveedor, filtros.proveedor!)
+    );
+  }
+
+  if (filtros.filtroTienda === "tienda") {
     lista = lista.filter((p) => p.publicarEnCatalogoWeb);
-  } else if (filtroTienda === "no_tienda") {
+  } else if (filtros.filtroTienda === "no_tienda") {
     lista = lista.filter((p) => !p.publicarEnCatalogoWeb);
   }
 
   return lista.sort((a, b) =>
     String(a.codigo).localeCompare(String(b.codigo), "es", { numeric: true })
   );
+}
+
+export function subtituloFiltrosControl(filtros: FiltrosControlStock): string {
+  const partes: string[] = [];
+  if (filtros.categoria) partes.push(`Categoría: ${filtros.categoria}`);
+  if (filtros.marca) partes.push(`Marca: ${filtros.marca}`);
+  if (filtros.proveedor) partes.push(`Proveedor: ${filtros.proveedor}`);
+  partes.push(etiquetaFiltroTienda(filtros.filtroTienda));
+  return partes.join(" · ");
 }
 
 export function crearLineasConteo(
