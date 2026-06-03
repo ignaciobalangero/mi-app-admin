@@ -133,6 +133,12 @@ export default function TablaProductos({
   const [edicionProductoTexto, setEdicionProductoTexto] = useState("");
   const [edicionProductoModo, setEdicionProductoModo] = useState<ModoEdicionProducto>("prepend");
   const [aplicandoEdicionProducto, setAplicandoEdicionProducto] = useState(false);
+  const [modalEdicionCategoria, setModalEdicionCategoria] = useState(false);
+  const [edicionCategoriaTexto, setEdicionCategoriaTexto] = useState("");
+  const [aplicandoEdicionCategoria, setAplicandoEdicionCategoria] = useState(false);
+  const [modalEdicionProveedor, setModalEdicionProveedor] = useState(false);
+  const [edicionProveedorTexto, setEdicionProveedorTexto] = useState("");
+  const [aplicandoEdicionProveedor, setAplicandoEdicionProveedor] = useState(false);
   const [productoEditando, setProductoEditando] = useState<Producto | null>(null);
   const [catalogoSoloMarcados, setCatalogoSoloMarcados] = useState(false);
   const [whatsappPedidosInput, setWhatsappPedidosInput] = useState("");
@@ -843,6 +849,26 @@ export default function TablaProductos({
     return ejemploEdicionProducto(ejemplo.producto, edicionProductoTexto, edicionProductoModo);
   }, [productosSeleccionados, edicionProductoTexto, edicionProductoModo]);
 
+  const previewEdicionCategoria = useMemo(() => {
+    const ejemplo = productosSeleccionados[0] ?? null;
+    const nueva = edicionCategoriaTexto.trim();
+    if (!ejemplo || !nueva) return null;
+    return {
+      antes: ejemplo.categoria?.trim() || "—",
+      despues: nueva,
+    };
+  }, [productosSeleccionados, edicionCategoriaTexto]);
+
+  const previewEdicionProveedor = useMemo(() => {
+    const ejemplo = productosSeleccionados[0] ?? null;
+    const nuevo = edicionProveedorTexto.trim();
+    if (!ejemplo || !nuevo) return null;
+    return {
+      antes: ejemplo.proveedor?.trim() || "—",
+      despues: nuevo,
+    };
+  }, [productosSeleccionados, edicionProveedorTexto]);
+
   const listarSeleccionadosParaEdicionProducto = async (): Promise<
     { id: string; producto: string }[]
   > => {
@@ -908,6 +934,94 @@ export default function TablaProductos({
       alert("No se pudieron actualizar los nombres. Revisá la consola e intentá de nuevo.");
     } finally {
       setAplicandoEdicionProducto(false);
+    }
+  };
+
+  const confirmarEdicionCategoriaMasiva = async () => {
+    const categoria = edicionCategoriaTexto.trim();
+    if (!categoria) {
+      alert("Escribí la categoría.");
+      return;
+    }
+    if (!rol?.negocioID || seleccionados.size === 0) return;
+
+    setAplicandoEdicionCategoria(true);
+    try {
+      const ids = Array.from(seleccionados);
+      const categoriaKey = normalizarCategoriaKey(categoria);
+      const CHUNK = 450;
+      let actualizados = 0;
+
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch = writeBatch(db);
+        let ops = 0;
+        for (const id of ids.slice(i, i + CHUNK)) {
+          batch.update(doc(db, `negocios/${rol.negocioID}/stockRepuestos`, id), {
+            categoria,
+            categoriaKey,
+          });
+          ops++;
+        }
+        if (ops > 0) {
+          await batch.commit();
+          actualizados += ops;
+        }
+      }
+
+      setModalEdicionCategoria(false);
+      setEdicionCategoriaTexto("");
+      await refrescarProductos();
+      void cargarOpcionesFiltro();
+      onProductoActualizado?.();
+      alert(`✅ Categoría actualizada en ${actualizados} repuesto(s).`);
+    } catch (error) {
+      console.error("Error al editar categorías en lote:", error);
+      alert("No se pudieron actualizar las categorías. Revisá la consola e intentá de nuevo.");
+    } finally {
+      setAplicandoEdicionCategoria(false);
+    }
+  };
+
+  const confirmarEdicionProveedorMasiva = async () => {
+    const proveedor = edicionProveedorTexto.trim();
+    if (!proveedor) {
+      alert("Escribí el proveedor.");
+      return;
+    }
+    if (!rol?.negocioID || seleccionados.size === 0) return;
+
+    setAplicandoEdicionProveedor(true);
+    try {
+      const ids = Array.from(seleccionados);
+      const CHUNK = 450;
+      let actualizados = 0;
+
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch = writeBatch(db);
+        let ops = 0;
+        for (const id of ids.slice(i, i + CHUNK)) {
+          batch.update(doc(db, `negocios/${rol.negocioID}/stockRepuestos`, id), {
+            proveedor,
+          });
+          ops++;
+        }
+        if (ops > 0) {
+          await batch.commit();
+          actualizados += ops;
+        }
+      }
+
+      setModalEdicionProveedor(false);
+      setEdicionProveedorTexto("");
+      await refrescarProductos();
+      void cargarOpcionesFiltro();
+      onProductoActualizado?.();
+      alert(`✅ Proveedor actualizado en ${actualizados} repuesto(s).`);
+    } catch (error) {
+      console.error("Error al editar proveedores en lote:", error);
+      alert("No se pudieron actualizar los proveedores. Revisá la consola e intentá de nuevo.");
+    } finally {
+      setAplicandoEdicionProveedor(false);
     }
   };
 
@@ -1279,6 +1393,28 @@ export default function TablaProductos({
               className="rounded-lg border border-[#3498db] bg-[#ebf5fb] px-2.5 py-1.5 text-xs font-semibold text-[#2980b9] hover:bg-[#d6eaf8] disabled:opacity-40"
             >
               ✏️ Editar producto
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEdicionCategoriaTexto("");
+                setModalEdicionCategoria(true);
+              }}
+              disabled={seleccionados.size === 0}
+              className="rounded-lg border border-[#27ae60] bg-[#d5f4e6] px-2.5 py-1.5 text-xs font-semibold text-[#229954] hover:bg-[#c3f0ca] disabled:opacity-40"
+            >
+              📂 Editar categoría
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEdicionProveedorTexto("");
+                setModalEdicionProveedor(true);
+              }}
+              disabled={seleccionados.size === 0}
+              className="rounded-lg border border-[#9b59b6] bg-[#f4ecf7] px-2.5 py-1.5 text-xs font-semibold text-[#7d3c98] hover:bg-[#ebdef0] disabled:opacity-40"
+            >
+              🏢 Editar proveedor
             </button>
             <button
               type="button"
@@ -1811,7 +1947,7 @@ export default function TablaProductos({
                           onChange={manejarCambio}
                           step="0.1"
                           placeholder="50"
-                          className="w-full p-2 pr-7 border-2 border-[#bdc3c7] rounded-lg text-sm focus:border-[#3498db] focus:ring-2 focus:ring-[#3498db]/20"
+                          className="w-full p-2 pr-7 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm text-[#2c3e50] placeholder:text-[#7f8c8d] [color-scheme:light] focus:border-[#3498db] focus:ring-2 focus:ring-[#3498db]/20"
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#7f8c8d] font-semibold">
                           %
@@ -2398,6 +2534,208 @@ export default function TablaProductos({
                       className="rounded-lg bg-[#3498db] px-4 py-2 text-sm font-bold text-white shadow-lg hover:bg-[#2980b9] disabled:opacity-50"
                     >
                       {aplicandoEdicionProducto ? "Aplicando…" : `Aplicar a ${seleccionados.size}`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {mounted &&
+        modalEdicionCategoria &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-edicion-categoria-titulo"
+          >
+            <button
+              type="button"
+              className="absolute inset-0 z-0 bg-black/40"
+              onClick={() => !aplicandoEdicionCategoria && setModalEdicionCategoria(false)}
+              aria-label="Cerrar"
+            />
+            <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
+              <div className="pointer-events-auto w-full max-w-lg rounded-2xl border-2 border-[#ecf0f1] bg-white shadow-2xl">
+                <div className="rounded-t-2xl bg-gradient-to-r from-[#27ae60] to-[#229954] p-4 text-white sm:p-6">
+                  <h2 id="modal-edicion-categoria-titulo" className="text-lg font-bold sm:text-xl">
+                    Edición masiva — Categoría
+                  </h2>
+                  <p className="text-sm text-green-100">
+                    {seleccionados.size} repuesto{seleccionados.size === 1 ? "" : "s"} seleccionado
+                    {seleccionados.size === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="space-y-4 p-4 sm:p-6">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-[#2c3e50]">
+                      Nueva categoría
+                    </label>
+                    <input
+                      type="text"
+                      list="categorias-masiva-repuestos"
+                      value={edicionCategoriaTexto}
+                      onChange={(e) => setEdicionCategoriaTexto(e.target.value)}
+                      placeholder="Ej: Pantallas, Baterías, Flex…"
+                      autoFocus
+                      className="w-full rounded-lg border-2 border-[#bdc3c7] p-2.5 text-sm focus:border-[#27ae60] focus:ring-2 focus:ring-[#27ae60]/20"
+                    />
+                    <datalist id="categorias-masiva-repuestos">
+                      {categoriasUnicas.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
+                    <p className="mt-2 text-[11px] text-[#7f8c8d]">
+                      Reemplaza la categoría de todos los seleccionados. Podés elegir una existente o escribir una nueva.
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#27ae60]/40 bg-[#d5f4e6] p-3 text-sm text-[#2c3e50]">
+                    {previewEdicionCategoria ? (
+                      <>
+                        <p className="text-xs font-semibold text-[#229954]">
+                          Vista previa (1er seleccionado visible)
+                        </p>
+                        <p className="mt-1 text-xs text-[#7f8c8d] line-through">
+                          {previewEdicionCategoria.antes}
+                        </p>
+                        <p className="mt-0.5 font-medium">{previewEdicionCategoria.despues}</p>
+                      </>
+                    ) : (
+                      <span className="text-[#7f8c8d]">
+                        {edicionCategoriaTexto.trim()
+                          ? "Seleccioná al menos un repuesto visible para ver la vista previa."
+                          : "Escribí la categoría para ver cómo quedaría."}
+                      </span>
+                    )}
+                    {seleccionados.size > productosSeleccionados.length && (
+                      <p className="mt-2 text-[11px] text-[#7f8c8d]">
+                        Incluye {seleccionados.size - productosSeleccionados.length} seleccionado
+                        {seleccionados.size - productosSeleccionados.length === 1 ? "" : "s"} que no están en pantalla.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      disabled={aplicandoEdicionCategoria}
+                      onClick={() => setModalEdicionCategoria(false)}
+                      className="rounded-lg bg-[#7f8c8d] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={aplicandoEdicionCategoria || !edicionCategoriaTexto.trim()}
+                      onClick={() => void confirmarEdicionCategoriaMasiva()}
+                      className="rounded-lg bg-[#27ae60] px-4 py-2 text-sm font-bold text-white shadow-lg hover:bg-[#229954] disabled:opacity-50"
+                    >
+                      {aplicandoEdicionCategoria ? "Aplicando…" : `Aplicar a ${seleccionados.size}`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {mounted &&
+        modalEdicionProveedor &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-edicion-proveedor-titulo"
+          >
+            <button
+              type="button"
+              className="absolute inset-0 z-0 bg-black/40"
+              onClick={() => !aplicandoEdicionProveedor && setModalEdicionProveedor(false)}
+              aria-label="Cerrar"
+            />
+            <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
+              <div className="pointer-events-auto w-full max-w-lg rounded-2xl border-2 border-[#ecf0f1] bg-white shadow-2xl">
+                <div className="rounded-t-2xl bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] p-4 text-white sm:p-6">
+                  <h2 id="modal-edicion-proveedor-titulo" className="text-lg font-bold sm:text-xl">
+                    Edición masiva — Proveedor
+                  </h2>
+                  <p className="text-sm text-purple-100">
+                    {seleccionados.size} repuesto{seleccionados.size === 1 ? "" : "s"} seleccionado
+                    {seleccionados.size === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="space-y-4 p-4 sm:p-6">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-[#2c3e50]">
+                      Nuevo proveedor
+                    </label>
+                    <input
+                      type="text"
+                      list="proveedores-masiva-repuestos"
+                      value={edicionProveedorTexto}
+                      onChange={(e) => setEdicionProveedorTexto(e.target.value)}
+                      placeholder="Ej: Gremio, iPhoneTec, Importador…"
+                      autoFocus
+                      className="w-full rounded-lg border-2 border-[#bdc3c7] p-2.5 text-sm focus:border-[#9b59b6] focus:ring-2 focus:ring-[#9b59b6]/20"
+                    />
+                    <datalist id="proveedores-masiva-repuestos">
+                      {proveedoresUnicos.map((p) => (
+                        <option key={p} value={p} />
+                      ))}
+                    </datalist>
+                    <p className="mt-2 text-[11px] text-[#7f8c8d]">
+                      Reemplaza el proveedor de todos los seleccionados. Podés elegir uno existente o escribir uno nuevo.
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#9b59b6]/40 bg-[#f4ecf7] p-3 text-sm text-[#2c3e50]">
+                    {previewEdicionProveedor ? (
+                      <>
+                        <p className="text-xs font-semibold text-[#7d3c98]">
+                          Vista previa (1er seleccionado visible)
+                        </p>
+                        <p className="mt-1 text-xs text-[#7f8c8d] line-through">
+                          {previewEdicionProveedor.antes}
+                        </p>
+                        <p className="mt-0.5 font-medium">{previewEdicionProveedor.despues}</p>
+                      </>
+                    ) : (
+                      <span className="text-[#7f8c8d]">
+                        {edicionProveedorTexto.trim()
+                          ? "Seleccioná al menos un repuesto visible para ver la vista previa."
+                          : "Escribí el proveedor para ver cómo quedaría."}
+                      </span>
+                    )}
+                    {seleccionados.size > productosSeleccionados.length && (
+                      <p className="mt-2 text-[11px] text-[#7f8c8d]">
+                        Incluye {seleccionados.size - productosSeleccionados.length} seleccionado
+                        {seleccionados.size - productosSeleccionados.length === 1 ? "" : "s"} que no están en pantalla.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      disabled={aplicandoEdicionProveedor}
+                      onClick={() => setModalEdicionProveedor(false)}
+                      className="rounded-lg bg-[#7f8c8d] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={aplicandoEdicionProveedor || !edicionProveedorTexto.trim()}
+                      onClick={() => void confirmarEdicionProveedorMasiva()}
+                      className="rounded-lg bg-[#9b59b6] px-4 py-2 text-sm font-bold text-white shadow-lg hover:bg-[#8e44ad] disabled:opacity-50"
+                    >
+                      {aplicandoEdicionProveedor ? "Aplicando…" : `Aplicar a ${seleccionados.size}`}
                     </button>
                   </div>
                 </div>

@@ -357,7 +357,7 @@ export default function FormularioProducto({
                   onChange={(e) => handlePorcentajeChange(e.target.value)}
                   step="0.1"
                   placeholder="50"
-                  className="p-2 pr-6 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+                  className="p-2 pr-6 border-2 border-[#bdc3c7] rounded-lg w-full bg-white text-[#2c3e50] text-xs placeholder:text-[#7f8c8d] [color-scheme:light] focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all"
                 />
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[#7f8c8d] font-semibold">
                   %
