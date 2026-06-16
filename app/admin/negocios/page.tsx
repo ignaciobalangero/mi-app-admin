@@ -3,20 +3,45 @@
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, where } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  addDoc,
+  query,
+  orderBy,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 import { useRouter } from "next/navigation";
-
-const SUPER_ADMIN_UID = "8LgkhB1ZDIOjGkTGhe6hHDtKhgt1";
+import { esSuperAdminUsuario } from "@/lib/superAdminConstants";
+import {
+  calcularNuevaFechaVencimiento,
+  debePagoSuscripcion,
+  etiquetaPlan,
+  fechaFirestoreADate,
+  formatearFechaSuscripcion,
+  formatearMontoPago,
+  pagoSuscripcionDesdeFirestore,
+  planDesdeMeses,
+  type PagoSuscripcionRegistro,
+} from "@/lib/pagosSuscripcionAdmin";
 
 interface AdminSuscripcion {
   id: string;
   email: string;
   negocioID: string;
   planActivo?: string;
-  fechaVencimiento?: any;
+  fechaVencimiento?: unknown;
   esExento?: boolean;
-  fechaRegistro?: any;
+  fechaRegistro?: unknown;
   nombre?: string;
+  ultimoPagoSuscripcion?: unknown;
+  ultimoPagoMonto?: number | null;
 }
 
 interface DetailModal {
@@ -37,7 +62,9 @@ export default function GestionSuscripciones() {
   const [currentUID, setCurrentUID] = useState<string | null>(null);
   const [adminsSuscripcion, setAdminsSuscripcion] = useState<AdminSuscripcion[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtro, setFiltro] = useState<'todos' | 'vencidos' | 'por_vencer' | 'activos' | 'exentos'>('todos');
+  const [filtro, setFiltro] = useState<
+    "todos" | "vencidos" | "por_vencer" | "activos" | "exentos" | "deben_pagar"
+  >("todos");
   const [actualizando, setActualizando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("");
   
@@ -69,6 +96,29 @@ export default function GestionSuscripciones() {
   }>({ isOpen: false, negocioID: "", nombre: "", cuit: "", puntoVenta: "1" });
   const [guardandoDatosFacturacion, setGuardandoDatosFacturacion] = useState(false);
 
+  const [modalPago, setModalPago] = useState<{
+    isOpen: boolean;
+    admin: AdminSuscripcion | null;
+    fechaPago: string;
+    monto: string;
+    meses: number;
+    notas: string;
+  }>({
+    isOpen: false,
+    admin: null,
+    fechaPago: new Date().toISOString().slice(0, 10),
+    monto: "",
+    meses: 1,
+    notas: "",
+  });
+  const [guardandoPago, setGuardandoPago] = useState(false);
+  const [historialPagos, setHistorialPagos] = useState<PagoSuscripcionRegistro[]>([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+
+  const esSuperAdmin = esSuperAdminUsuario(
+    currentUID ? { uid: currentUID } : null
+  );
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUID(user?.uid || null);
@@ -77,12 +127,12 @@ export default function GestionSuscripciones() {
   }, [auth]);
 
   useEffect(() => {
-    if (currentUID && currentUID !== SUPER_ADMIN_UID) {
+    if (currentUID && !esSuperAdminUsuario({ uid: currentUID })) {
       router.push("/");
       return;
     }
-    
-    if (currentUID === SUPER_ADMIN_UID) {
+
+    if (currentUID && esSuperAdminUsuario({ uid: currentUID })) {
       cargarAdminsSuscripcion();
     }
   }, [currentUID, router]);
@@ -111,7 +161,9 @@ export default function GestionSuscripciones() {
           fechaVencimiento: data.fechaVencimiento,
           esExento: data.esExento,
           fechaRegistro: data.fechaRegistro,
-          nombre: data.nombre
+          nombre: data.nombre,
+          ultimoPagoSuscripcion: data.ultimoPagoSuscripcion,
+          ultimoPagoMonto: data.ultimoPagoMonto ?? null,
         });
       });
 
@@ -217,29 +269,147 @@ export default function GestionSuscripciones() {
     }
   };
 
-  // Funciones para gestionar suscripciones
-  const extenderSuscripcion = async (adminId: string, meses: number) => {
-    setActualizando(adminId);
-    try {
-      const adminRef = doc(db, "usuarios", adminId);
-      const ahora = new Date();
-      const nuevaFecha = new Date();
-      nuevaFecha.setMonth(nuevaFecha.getMonth() + meses);
+  const registrarPagoSuscripcion = async (
+    admin: AdminSuscripcion,
+    opts: { fechaPago: Date; monto: number | null; meses: number; notas: string }
+  ) => {
+    const { fechaPago, monto, meses, notas } = opts;
+    const vencimientoAnterior = fechaFirestoreADate(admin.fechaVencimiento);
+    const nuevaFecha = calcularNuevaFechaVencimiento(
+      vencimientoAnterior,
+      fechaPago,
+      meses
+    );
+    const plan = planDesdeMeses(meses);
+    const ahora = new Date();
 
-      await updateDoc(adminRef, {
-        fechaVencimiento: nuevaFecha,
-        planActivo: meses >= 12 ? 'anual' : 'mensual',
-        ultimaActualizacion: ahora
+    const adminRef = doc(db, "usuarios", admin.id);
+    await addDoc(collection(db, "usuarios", admin.id, "pagosSuscripcion"), {
+      fechaPago: Timestamp.fromDate(fechaPago),
+      monto,
+      meses,
+      plan,
+      notas: notas.trim(),
+      fechaVencimientoAnterior: vencimientoAnterior
+        ? Timestamp.fromDate(vencimientoAnterior)
+        : null,
+      fechaVencimientoNueva: Timestamp.fromDate(nuevaFecha),
+      negocioID: admin.negocioID,
+      registradoEn: Timestamp.fromDate(ahora),
+    });
+
+    await updateDoc(adminRef, {
+      fechaVencimiento: Timestamp.fromDate(nuevaFecha),
+      planActivo: plan === "anual" ? "anual" : plan === "trimestral" ? "trimestral" : "mensual",
+      ultimoPagoSuscripcion: Timestamp.fromDate(fechaPago),
+      ultimoPagoMonto: monto,
+      ultimaActualizacion: Timestamp.fromDate(ahora),
+    });
+  };
+
+  const extenderSuscripcion = async (admin: AdminSuscripcion, meses: number) => {
+    setActualizando(admin.id);
+    try {
+      await registrarPagoSuscripcion(admin, {
+        fechaPago: new Date(),
+        monto: null,
+        meses,
+        notas: "Extensión rápida desde panel superadmin",
       });
 
       await cargarAdminsSuscripcion();
-      setMensaje(`✅ Suscripción extendida por ${meses} meses`);
+      setMensaje(`✅ Pago registrado y suscripción extendida ${meses} mes${meses !== 1 ? "es" : ""}`);
       setTimeout(() => setMensaje(""), 3000);
     } catch (error) {
       console.error("Error:", error);
-      setMensaje("❌ Error al actualizar suscripción");
+      setMensaje("❌ Error al registrar pago / extender suscripción");
     }
     setActualizando(null);
+  };
+
+  const abrirModalPago = (admin: AdminSuscripcion, meses = 1) => {
+    setModalPago({
+      isOpen: true,
+      admin,
+      fechaPago: new Date().toISOString().slice(0, 10),
+      monto: "",
+      meses,
+      notas: "",
+    });
+  };
+
+  const cerrarModalPago = () => {
+    setModalPago({
+      isOpen: false,
+      admin: null,
+      fechaPago: new Date().toISOString().slice(0, 10),
+      monto: "",
+      meses: 1,
+      notas: "",
+    });
+  };
+
+  const guardarPagoSuscripcion = async () => {
+    if (!modalPago.admin) return;
+
+    const fechaPago = new Date(`${modalPago.fechaPago}T12:00:00`);
+    if (Number.isNaN(fechaPago.getTime())) {
+      setMensaje("❌ Fecha de pago inválida");
+      setTimeout(() => setMensaje(""), 3000);
+      return;
+    }
+
+    const montoRaw = modalPago.monto.trim().replace(",", ".");
+    const monto = montoRaw ? parseFloat(montoRaw) : null;
+    if (montoRaw && (monto == null || Number.isNaN(monto) || monto < 0)) {
+      setMensaje("❌ Monto inválido");
+      setTimeout(() => setMensaje(""), 3000);
+      return;
+    }
+
+    setGuardandoPago(true);
+    try {
+      await registrarPagoSuscripcion(modalPago.admin, {
+        fechaPago,
+        monto,
+        meses: modalPago.meses,
+        notas: modalPago.notas,
+      });
+      await cargarAdminsSuscripcion();
+      setMensaje("✅ Pago registrado correctamente");
+      setTimeout(() => setMensaje(""), 3000);
+      cerrarModalPago();
+    } catch (error) {
+      console.error("Error al registrar pago:", error);
+      setMensaje("❌ Error al registrar el pago");
+      setTimeout(() => setMensaje(""), 3000);
+    } finally {
+      setGuardandoPago(false);
+    }
+  };
+
+  const cargarHistorialPagos = async (adminId: string) => {
+    setCargandoHistorial(true);
+    try {
+      const col = collection(db, "usuarios", adminId, "pagosSuscripcion");
+      let pagos: PagoSuscripcionRegistro[] = [];
+      try {
+        const q = query(col, orderBy("fechaPago", "desc"));
+        const snap = await getDocs(q);
+        pagos = snap.docs.map((d) => pagoSuscripcionDesdeFirestore(d.id, d.data()));
+      } catch {
+        const snap = await getDocs(col);
+        pagos = snap.docs
+          .map((d) => pagoSuscripcionDesdeFirestore(d.id, d.data()))
+          .sort((a, b) => b.fechaPago.getTime() - a.fechaPago.getTime());
+      }
+      setHistorialPagos(pagos);
+    } catch (error) {
+      console.error("Error cargando historial de pagos:", error);
+      setHistorialPagos([]);
+    } finally {
+      setCargandoHistorial(false);
+    }
   };
 
   const marcarExento = async (adminId: string, exento: boolean) => {
@@ -287,8 +457,9 @@ export default function GestionSuscripciones() {
   const abrirModalDetalle = (admin: AdminSuscripcion) => {
     setDetailModal({
       isOpen: true,
-      admin
+      admin,
     });
+    void cargarHistorialPagos(admin.id);
   };
 
   const abrirModalEdicion = (admin: AdminSuscripcion) => {
@@ -303,6 +474,7 @@ export default function GestionSuscripciones() {
   const cerrarModales = () => {
     setDetailModal({ isOpen: false, admin: null });
     setEditModal({ isOpen: false, admin: null, newEmail: "", newPassword: "" });
+    setHistorialPagos([]);
     setMensaje("");
   };
 
@@ -350,7 +522,10 @@ export default function GestionSuscripciones() {
     }
 
     const ahora = new Date();
-    const fechaVencimiento = admin.fechaVencimiento.toDate();
+    const fechaVencimiento = fechaFirestoreADate(admin.fechaVencimiento);
+    if (!fechaVencimiento) {
+      return { estado: "sin_plan", dias: null, color: "text-gray-600" };
+    }
     const diferencia = fechaVencimiento.getTime() - ahora.getTime();
     const diasRestantes = Math.ceil(diferencia / (1000 * 60 * 60 * 24));
 
@@ -397,9 +572,17 @@ export default function GestionSuscripciones() {
     return a.negocioID.localeCompare(b.negocioID, "es", { sensitivity: "base" });
   };
 
-  const formatearFecha = (fecha: any) => {
-    if (!fecha) return 'N/A';
-    return fecha.toDate().toLocaleDateString('es-AR');
+  const formatearFecha = (fecha: unknown) => formatearFechaSuscripcion(fecha) || "N/A";
+
+  const previewNuevaFechaVencimiento = () => {
+    if (!modalPago.admin) return null;
+    const fechaPago = new Date(`${modalPago.fechaPago}T12:00:00`);
+    if (Number.isNaN(fechaPago.getTime())) return null;
+    return calcularNuevaFechaVencimiento(
+      fechaFirestoreADate(modalPago.admin.fechaVencimiento),
+      fechaPago,
+      modalPago.meses
+    );
   };
 
   // Filtrar y ordenar admins
@@ -418,6 +601,12 @@ export default function GestionSuscripciones() {
         return estado === 'activo';
       case 'exentos':
         return estado === 'exento';
+      case "deben_pagar":
+        return debePagoSuscripcion(
+          admin.fechaVencimiento,
+          admin.ultimoPagoSuscripcion,
+          admin.esExento
+        );
       default:
         return true;
     }
@@ -430,10 +619,13 @@ export default function GestionSuscripciones() {
     activos: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'activo').length,
     vencidos: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'vencido').length,
     porVencer: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'por_vencer').length,
-    exentos: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'exento').length
+    exentos: adminsSuscripcion.filter(a => obtenerEstadoSuscripcion(a).estado === 'exento').length,
+    debenPagar: adminsSuscripcion.filter((a) =>
+      debePagoSuscripcion(a.fechaVencimiento, a.ultimoPagoSuscripcion, a.esExento)
+    ).length,
   };
 
-  if (currentUID && currentUID !== SUPER_ADMIN_UID) {
+  if (currentUID && !esSuperAdmin) {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
         <div className="bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-2xl p-6 shadow-lg">
@@ -475,7 +667,7 @@ export default function GestionSuscripciones() {
                   Gestión de Suscripciones
                 </h1>
                 <p className="text-blue-100">
-                  Administra las suscripciones de todos los negocios en GestiOne
+                  Suscripciones, pagos recibidos y vencimientos de cada negocio
                 </p>
               </div>
             </div>
@@ -490,7 +682,7 @@ export default function GestionSuscripciones() {
         </div>
 
         {/* Estadísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="bg-gradient-to-r from-[#34495e] to-[#2c3e50] rounded-2xl p-4 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -550,6 +742,18 @@ export default function GestionSuscripciones() {
               </div>
             </div>
           </div>
+
+          <div className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] rounded-2xl p-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <span className="text-2xl">💸</span>
+              </div>
+              <div>
+                <p className="text-purple-100 text-sm">Deben pagar</p>
+                <p className="text-2xl font-bold text-white">{estadisticas.debenPagar}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -563,7 +767,8 @@ export default function GestionSuscripciones() {
                   { key: 'activos', label: 'Activos', color: 'bg-green-100 text-green-800' },
                   { key: 'por_vencer', label: 'Por Vencer', color: 'bg-orange-100 text-orange-800' },
                   { key: 'vencidos', label: 'Vencidos', color: 'bg-red-100 text-red-800' },
-                  { key: 'exentos', label: 'Exentos', color: 'bg-blue-100 text-blue-800' }
+                  { key: 'exentos', label: 'Exentos', color: 'bg-blue-100 text-blue-800' },
+                  { key: 'deben_pagar', label: 'Deben pagar', color: 'bg-purple-100 text-purple-800' },
                 ].map(f => (
                   <button
                     key={f.key}
@@ -612,6 +817,9 @@ export default function GestionSuscripciones() {
                     Vencimiento
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Último pago
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Fact. electrónica
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -625,9 +833,17 @@ export default function GestionSuscripciones() {
                   const cfg = configFacturacion[admin.negocioID];
                   const facturaHabilitada = cfg?.facturacionElectronicaHabilitada ?? false;
                   const facturaSolicitada = cfg?.facturacionElectronicaSolicitada ?? false;
+                  const debePagar = debePagoSuscripcion(
+                    admin.fechaVencimiento,
+                    admin.ultimoPagoSuscripcion,
+                    admin.esExento
+                  );
                   
                   return (
-                    <tr key={admin.id} className="hover:bg-gray-50">
+                    <tr
+                      key={admin.id}
+                      className={`hover:bg-gray-50 ${debePagar ? "bg-purple-50/60" : ""}`}
+                    >
                       <td className="px-6 py-4">
                         <div>
                           <p className="font-medium text-gray-900">
@@ -650,6 +866,27 @@ export default function GestionSuscripciones() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {formatearFecha(admin.fechaVencimiento)}
+                      </td>
+                      <td className="px-6 py-4">
+                        {admin.ultimoPagoSuscripcion ? (
+                          <div>
+                            <p className="text-sm font-medium text-[#27ae60]">
+                              {formatearFecha(admin.ultimoPagoSuscripcion)}
+                            </p>
+                            {admin.ultimoPagoMonto != null && (
+                              <p className="text-xs text-gray-500">
+                                {formatearMontoPago(admin.ultimoPagoMonto)}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm font-medium text-[#c0392b]">Sin pagos</span>
+                        )}
+                        {debePagar && (
+                          <p className="text-[10px] text-purple-700 font-semibold mt-1">
+                            Pendiente de cobro
+                          </p>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1.5">
@@ -690,23 +927,33 @@ export default function GestionSuscripciones() {
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-2">
                           <button
-                            onClick={() => extenderSuscripcion(admin.id, 1)}
+                            onClick={() => abrirModalPago(admin, 1)}
+                            disabled={actualizando === admin.id}
+                            className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs rounded hover:bg-emerald-200 disabled:opacity-50 font-semibold"
+                          >
+                            💰 Pago
+                          </button>
+                          <button
+                            onClick={() => extenderSuscripcion(admin, 1)}
                             disabled={actualizando === admin.id}
                             className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded hover:bg-green-200 disabled:opacity-50"
+                            title="Registra pago de hoy y extiende 1 mes"
                           >
                             +1M
                           </button>
                           <button
-                            onClick={() => extenderSuscripcion(admin.id, 3)}
+                            onClick={() => extenderSuscripcion(admin, 3)}
                             disabled={actualizando === admin.id}
                             className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded hover:bg-blue-200 disabled:opacity-50"
+                            title="Registra pago de hoy y extiende 3 meses"
                           >
                             +3M
                           </button>
                           <button
-                            onClick={() => extenderSuscripcion(admin.id, 12)}
+                            onClick={() => extenderSuscripcion(admin, 12)}
                             disabled={actualizando === admin.id}
                             className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded hover:bg-purple-200 disabled:opacity-50"
+                            title="Registra pago de hoy y extiende 1 año"
                           >
                             +1A
                           </button>
@@ -803,8 +1050,61 @@ export default function GestionSuscripciones() {
                     </span>
                   </p>
                   <p><strong>Vencimiento:</strong> {formatearFecha(detailModal.admin.fechaVencimiento)}</p>
+                  <p><strong>Último pago:</strong>{" "}
+                    {detailModal.admin.ultimoPagoSuscripcion
+                      ? `${formatearFecha(detailModal.admin.ultimoPagoSuscripcion)} (${formatearMontoPago(detailModal.admin.ultimoPagoMonto)})`
+                      : "Sin pagos registrados"}
+                  </p>
                   <p><strong>Es Exento:</strong> {detailModal.admin.esExento ? '✅ Sí' : '❌ No'}</p>
                 </div>
+              </div>
+
+              <div className="bg-[#f8f9fa] rounded-xl p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h4 className="font-bold text-[#2c3e50]">💰 Historial de pagos</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      cerrarModales();
+                      abrirModalPago(detailModal.admin!, 1);
+                    }}
+                    className="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-medium hover:bg-emerald-200"
+                  >
+                    + Registrar pago
+                  </button>
+                </div>
+                {cargandoHistorial ? (
+                  <p className="text-sm text-[#7f8c8d]">Cargando pagos…</p>
+                ) : historialPagos.length === 0 ? (
+                  <p className="text-sm text-[#7f8c8d]">Todavía no hay pagos cargados para este negocio.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-56 overflow-y-auto">
+                    {historialPagos.map((pago) => (
+                      <li
+                        key={pago.id}
+                        className="bg-white rounded-lg border border-[#ecf0f1] px-3 py-2 text-sm"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-[#2c3e50]">
+                              {formatearFechaSuscripcion(pago.fechaPago)} · {etiquetaPlan(pago.plan)}
+                            </p>
+                            <p className="text-xs text-[#7f8c8d]">
+                              Vencimiento: {formatearFechaSuscripcion(pago.fechaVencimientoAnterior)} →{" "}
+                              {formatearFechaSuscripcion(pago.fechaVencimientoNueva)}
+                            </p>
+                            {pago.notas && (
+                              <p className="text-xs text-[#566573] mt-1">{pago.notas}</p>
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-[#27ae60] shrink-0">
+                            {formatearMontoPago(pago.monto)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <button
@@ -893,6 +1193,152 @@ export default function GestionSuscripciones() {
                   className="flex-1 bg-gradient-to-r from-[#7f8c8d] to-[#95a5a6] hover:from-[#6c7b7d] hover:to-[#839192] text-white py-3 px-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
                 >
                   ❌ Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Registrar Pago */}
+      {modalPago.isOpen && modalPago.admin && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] p-4 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <span className="text-white text-lg">💰</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Registrar pago</h3>
+                    <p className="text-green-100 text-sm">
+                      {modalPago.admin.negocioID} · {modalPago.admin.email}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={cerrarModalPago}
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-[#f8f9fa] rounded-lg p-3 text-sm text-[#566573]">
+                <p>
+                  <strong>Vencimiento actual:</strong>{" "}
+                  {formatearFecha(modalPago.admin.fechaVencimiento)}
+                </p>
+                <p className="mt-1">
+                  <strong>Último pago:</strong>{" "}
+                  {modalPago.admin.ultimoPagoSuscripcion
+                    ? formatearFecha(modalPago.admin.ultimoPagoSuscripcion)
+                    : "Sin pagos"}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#2c3e50] mb-1">
+                  Fecha del pago
+                </label>
+                <input
+                  type="date"
+                  value={modalPago.fechaPago}
+                  onChange={(e) =>
+                    setModalPago((prev) => ({ ...prev, fechaPago: e.target.value }))
+                  }
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] text-[#2c3e50]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#2c3e50] mb-1">
+                  Monto (opcional)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={modalPago.monto}
+                  onChange={(e) =>
+                    setModalPago((prev) => ({ ...prev, monto: e.target.value }))
+                  }
+                  placeholder="Ej: 25000"
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] text-[#2c3e50]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#2c3e50] mb-2">
+                  Período cubierto
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { meses: 1, label: "1 mes" },
+                    { meses: 3, label: "3 meses" },
+                    { meses: 12, label: "1 año" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.meses}
+                      type="button"
+                      onClick={() =>
+                        setModalPago((prev) => ({ ...prev, meses: opt.meses }))
+                      }
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        modalPago.meses === opt.meses
+                          ? "bg-[#27ae60] text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#2c3e50] mb-1">
+                  Notas (opcional)
+                </label>
+                <textarea
+                  value={modalPago.notas}
+                  onChange={(e) =>
+                    setModalPago((prev) => ({ ...prev, notas: e.target.value }))
+                  }
+                  rows={2}
+                  placeholder="Transferencia, efectivo, factura…"
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] text-[#2c3e50] resize-none"
+                />
+              </div>
+
+              {previewNuevaFechaVencimiento() && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-900">
+                  Nuevo vencimiento:{" "}
+                  <strong>
+                    {previewNuevaFechaVencimiento()!.toLocaleDateString("es-AR")}
+                  </strong>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => void guardarPagoSuscripcion()}
+                  disabled={guardandoPago}
+                  className="flex-1 bg-[#27ae60] hover:bg-[#229954] disabled:opacity-50 text-white py-3 px-4 rounded-lg font-bold"
+                >
+                  {guardandoPago ? "Guardando…" : "Guardar pago"}
+                </button>
+                <button
+                  type="button"
+                  onClick={cerrarModalPago}
+                  disabled={guardandoPago}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-4 rounded-lg font-bold"
+                >
+                  Cancelar
                 </button>
               </div>
             </div>
