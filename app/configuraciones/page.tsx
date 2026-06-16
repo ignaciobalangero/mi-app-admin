@@ -18,7 +18,8 @@ import {
 } from "firebase/storage";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import ConfiguracionWhatsappPanel from "./components/ConfiguracionWhatsappPanel";
 import PanelRecalculoGlobal from "./components/PanelRecalculoGlobal";
 import PanelCuentasNegocio from "./components/PanelCuentasNegocio";
 import { getSuperAdminUidClient, esSuperAdminUsuario } from "@/lib/superAdminConstants";
@@ -60,6 +61,7 @@ export default function Configuraciones() {
   const SUPER_ADMIN_UID = getSuperAdminUidClient();
   const esSuperAdmin = esSuperAdminUsuario(user);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (user) {
@@ -190,10 +192,20 @@ export default function Configuraciones() {
 
   const pestanas = [
     { id: "general", label: "General", icono: "⚙️" },
+    ...(rol?.tipo === "admin"
+      ? [{ id: "whatsapp", label: "WhatsApp", icono: "💬" }]
+      : []),
     { id: "facturacion", label: "Facturación electrónica", icono: "🧾" },
     { id: "garantias", label: "Garantías", icono: "🛡️" },
     { id: "suscripcion", label: "Suscripción", icono: "💳" },
   ];
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "whatsapp" && rol?.tipo === "admin") {
+      setPestanaActiva("whatsapp");
+    }
+  }, [searchParams, rol?.tipo]);
 
   if (mostrarPanelExentos) {
     return (
@@ -294,6 +306,12 @@ export default function Configuraciones() {
                   >
                     🖨️ Configurar Impresoras
                   </button>
+                  <button
+                    onClick={() => setPestanaActiva("whatsapp")}
+                    className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#1da851] hover:to-[#0d6e62] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
+                  >
+                    💬 WhatsApp reparaciones
+                  </button>
                 </div>
               )}
 
@@ -327,6 +345,10 @@ export default function Configuraciones() {
             </div>
 
             <div className="p-6">
+              {pestanaActiva === "whatsapp" && rol?.tipo === "admin" && rol?.negocioID && (
+                <ConfiguracionWhatsappPanel negocioID={rol.negocioID} />
+              )}
+
               {pestanaActiva === "general" && (
                 <div className="space-y-8">
 
@@ -769,7 +791,9 @@ export default function Configuraciones() {
             </div>
           </div>
 
-          {pestanaActiva !== "suscripcion" && pestanaActiva !== "facturacion" && (
+          {pestanaActiva !== "suscripcion" &&
+            pestanaActiva !== "facturacion" &&
+            pestanaActiva !== "whatsapp" && (
             <div className="flex justify-center">
               <button
                 onClick={guardarConfiguracion}

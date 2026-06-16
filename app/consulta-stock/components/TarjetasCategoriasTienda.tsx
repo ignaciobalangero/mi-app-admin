@@ -8,6 +8,7 @@ import {
   Monitor,
   Package,
   PlugZap,
+  Smartphone,
   Wrench,
 } from "lucide-react";
 import {
@@ -21,6 +22,7 @@ const ICONOS: Record<
 > = {
   pantallas: Monitor,
   placas_carga: PlugZap,
+  tapas: Smartphone,
   baterias: Battery,
   herramientas: Wrench,
   insumos: Package,
@@ -29,6 +31,7 @@ const ICONOS: Record<
 const GRADIENTES: Record<(typeof CATEGORIAS_TIENDA_INICIO)[number]["id"], string> = {
   pantallas: "from-neutral-700 via-neutral-600 to-neutral-800",
   placas_carga: "from-slate-700 via-slate-600 to-slate-900",
+  tapas: "from-rose-800 via-rose-700 to-neutral-900",
   baterias: "from-neutral-600 via-neutral-700 to-neutral-800",
   herramientas: "from-neutral-600 via-neutral-700 to-neutral-900",
   insumos: "from-neutral-700 via-neutral-600 to-neutral-800",
@@ -76,7 +79,7 @@ export default function TarjetasCategoriasTienda({ onElegir }: Props) {
 
       <div
         ref={scrollRef}
-        className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:snap-none lg:grid-cols-3 xl:grid-cols-5"
+        className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:snap-none lg:grid-cols-3 xl:grid-cols-6"
       >
         {CATEGORIAS_TIENDA_INICIO.map(({ id, label, hint }) => {
           const Icon = ICONOS[id];

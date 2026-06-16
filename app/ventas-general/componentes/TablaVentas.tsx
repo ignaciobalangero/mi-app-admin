@@ -29,7 +29,16 @@ import ModalRemitoImpresion from "./ModalRemitoImpresion";
 import ModalEditarVenta from "./ModalEditarVenta";
 import ModalEmitirFactura from "./ModalEmitirFactura";
 import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
-import { gananciaLineaProductoVenta } from "@/app/clientes/[nombreCliente]/ventasMonedaHelpers";
+import {
+  gananciaLineaProductoVenta,
+  totalesVentasPorMoneda,
+} from "@/app/clientes/[nombreCliente]/ventasMonedaHelpers";
+import {
+  ajustarSaldoPorEdicionVenta,
+  eliminarPagosAsociadosAVenta,
+  revertirSaldoPorEliminarVenta,
+} from "@/lib/actualizarSaldoCliente";
+import { modeloDistintoDeProducto } from "@/lib/impresionVentaGeneral";
 
 interface Props {
   refrescar: boolean;
@@ -244,15 +253,30 @@ export default function TablaVentas({ refrescar }: Props) {
       await reponerStockAlEliminarVenta(negocioStock, [productoEnFirestore]);
     }
 
-    const nuevoTotal = nuevosProductos.reduce(
-      (acc: number, p: any) => acc + (p.precioUnitario * p.cantidad),
-      0
-    );
+    const { totalARS, totalUSD } = totalesVentasPorMoneda(nuevosProductos);
+    const cotVenta = Number(venta.cotizacionUsada || venta.pago?.cotizacion || cotizacion || 0);
+    const nuevoTotal = totalARS + totalUSD * (cotVenta > 0 ? cotVenta : 1);
 
     await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaId}`), {
       productos: nuevosProductos,
       total: nuevoTotal,
+      totalARS,
+      totalUSD,
     });
+
+    await ajustarSaldoPorEdicionVenta(
+      rol.negocioID,
+      venta.cliente || "",
+      venta.cliente || "",
+      {
+        productos: venta.productos,
+        total: venta.total,
+        totalARS: venta.totalARS,
+        totalUSD: venta.totalUSD,
+        moneda: venta.moneda,
+      },
+      nuevosProductos
+    );
 
     await refrescarVentas();
   };
@@ -339,6 +363,25 @@ export default function TablaVentas({ refrescar }: Props) {
     });
     await reponerStockAlEliminarVenta(negocioStock, ventaData.productos ?? []);
     console.log("✅ Stock repuesto");
+
+    await revertirSaldoPorEliminarVenta(rol.negocioID, {
+      cliente: ventaData.cliente,
+      nroVenta: ventaData.nroVenta,
+      pago: ventaData.pago,
+      productos: ventaData.productos,
+      total: ventaData.total,
+      totalARS: ventaData.totalARS,
+      totalUSD: ventaData.totalUSD,
+      moneda: ventaData.moneda,
+    });
+    if (ventaData.nroVenta) {
+      await eliminarPagosAsociadosAVenta(
+        rol.negocioID,
+        String(ventaData.nroVenta),
+        ventaData.cliente
+      );
+    }
+    console.log("✅ Cuenta corriente ajustada por eliminación de venta");
 
     // 🔥 PASO 3: FINALMENTE ELIMINAR DE ventasGeneral
     await deleteDoc(ventaRef);
@@ -784,7 +827,13 @@ export default function TablaVentas({ refrescar }: Props) {
                                 {p.producto || p.descripcion || "—"}
                               </div>
                               <div className="text-xs text-[#7f8c8d] lg:hidden">
-                                <div>{p.marca} {p.modelo}</div>
+                                <div>
+                                  {p.marca}
+                                  {(() => {
+                                    const mod = modeloDistintoDeProducto(p);
+                                    return mod ? ` ${mod}` : "";
+                                  })()}
+                                </div>
                                 <div>{p.color}</div>
                               </div>
                             </div>
@@ -800,7 +849,7 @@ export default function TablaVentas({ refrescar }: Props) {
                           {/* Modelo */}
                           <td className="p-1 text-center border border-[#bdc3c7] hidden lg:table-cell">
                             <span className="text-xs text-[#7f8c8d]">
-                              {p.modelo || "—"}
+                              {modeloDistintoDeProducto(p) || "—"}
                             </span>
                           </td>
                           

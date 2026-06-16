@@ -6,6 +6,8 @@ export type ItemStockPublico = {
   modelo: string;
   marca: string;
   categoria: string;
+  /** Color / variante (ej. tapas agrupadas por título). */
+  color?: string;
   stock: number;
   moneda: "ARS" | "USD";
   precio1: number;

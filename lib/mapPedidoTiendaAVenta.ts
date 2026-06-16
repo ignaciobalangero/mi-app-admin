@@ -17,6 +17,7 @@ export type ProductoVentaDesdePedido = {
   tipo: "accesorio" | "repuesto" | "general";
   /** Firestore doc id en stockRepuestos / stockAccesorios / stockExtra */
   id?: string;
+  stockDocId?: string;
   origenStock?: string;
 };
 
@@ -53,8 +54,10 @@ export function lineaPedidoAProductoVenta(
   linea: LineaPedidoTienda,
   stock?: {
     id?: string;
+    codigo?: string;
     categoria?: string;
     tipo?: "accesorio" | "repuesto" | "general";
+    coleccion?: "stockRepuestos" | "stockAccesorios" | "stockExtra";
     producto?: string;
     marca?: string;
     modelo?: string;
@@ -64,11 +67,14 @@ export function lineaPedidoAProductoVenta(
   const precioUnitario =
     linea.cantidad > 0 ? Math.round(linea.subtotalRefARS / linea.cantidad) : linea.precioRefARS;
 
+  // Nombre y precio del pedido tienda; stock solo aporta tipo/categoría para descontar.
+  // ID único = itemId del pedido (doc Firestore), no el código que puede repetirse.
+  const docId = String(linea.itemId ?? stock?.id ?? "").trim();
   return {
     categoria: stock?.categoria || "Repuesto",
-    producto: stock?.producto || linea.producto,
+    producto: linea.producto,
     descripcion: linea.producto,
-    marca: stock?.marca || linea.marca || "—",
+    marca: linea.marca || stock?.marca || "—",
     modelo: stock?.modelo || "—",
     color: stock?.color || "—",
     cantidad: linea.cantidad,
@@ -76,15 +82,17 @@ export function lineaPedidoAProductoVenta(
     precioARS: precioUnitario,
     precioUSD: null,
     moneda: "ARS",
-    codigo: linea.codigo,
+    codigo: linea.codigo || stock?.codigo || docId,
     tipo: stock?.tipo || "repuesto",
-    id: stock?.id,
+    id: docId,
+    stockDocId: docId,
     origenStock:
-      stock?.tipo === "accesorio"
+      stock?.coleccion ||
+      (stock?.tipo === "accesorio"
         ? "stockAccesorios"
         : stock?.tipo === "general"
           ? "stockExtra"
-          : "stockRepuestos",
+          : "stockRepuestos"),
   };
 }
 

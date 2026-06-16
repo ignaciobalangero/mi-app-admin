@@ -14,6 +14,7 @@ export type ChipCategoria =
   | "pantallas"
   | "baterias"
   | "placas_carga"
+  | "tapas"
   | "herramientas"
   | "insumos"
   | "otros";
@@ -27,6 +28,7 @@ export const CATEGORIAS_TIENDA_INICIO: {
   { id: "pantallas", label: "Pantallas", hint: "Módulos, LCD, OLED…" },
   { id: "baterias", label: "Baterías", hint: "Baterías y pilas" },
   { id: "placas_carga", label: "Placa de carga", hint: "Flex, dock, puerto de carga…" },
+  { id: "tapas", label: "Tapas", hint: "Tapas traseras por modelo y color" },
   { id: "herramientas", label: "Herramientas", hint: "Soldadores, pinzas, extractores…" },
   { id: "insumos", label: "Insumos", hint: "Cintas, pastas, adhesivos…" },
 ];
@@ -80,6 +82,16 @@ const CLAVES_HERRAMIENTAS = [
   "esd",
   "bancada",
   "mat",
+];
+
+const CLAVES_TAPAS = [
+  "tapa",
+  "tapas",
+  "tapa trasera",
+  "tapas traseras",
+  "back cover",
+  "back glass",
+  "glass back",
 ];
 
 const CLAVES_INSUMOS = [
@@ -192,11 +204,20 @@ export function esItemInsumo(it: ItemStockPublico): boolean {
   return coincideClaves(cat, CLAVES_INSUMOS) || coincideClaves(blob, CLAVES_INSUMOS);
 }
 
+export function esItemTapa(it: ItemStockPublico): boolean {
+  if (esItemPantalla(it) || esItemPlacaCarga(it)) return false;
+  const cat = categoriaNorm(it);
+  if (cat === "tapas" || cat === "tapa") return true;
+  const blob = blobItem(it);
+  return coincideClaves(cat, CLAVES_TAPAS) || coincideClaves(blob, CLAVES_TAPAS);
+}
+
 export function coincideChipCategoria(it: ItemStockPublico, chip: ChipCategoria): boolean {
   if (chip === "todas") return true;
   if (chip === "pantallas") return esItemPantalla(it);
   if (chip === "baterias") return esItemBateria(it);
   if (chip === "placas_carga") return esItemPlacaCarga(it);
+  if (chip === "tapas") return esItemTapa(it);
   if (chip === "herramientas") return esItemHerramienta(it);
   if (chip === "insumos") return esItemInsumo(it);
   if (chip === "otros") {
@@ -204,6 +225,7 @@ export function coincideChipCategoria(it: ItemStockPublico, chip: ChipCategoria)
       !esItemPantalla(it) &&
       !esItemBateria(it) &&
       !esItemPlacaCarga(it) &&
+      !esItemTapa(it) &&
       !esItemHerramienta(it) &&
       !esItemInsumo(it)
     );

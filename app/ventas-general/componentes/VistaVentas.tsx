@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Header from "../../Header";
 import TablaVentas from "./TablaVentas";
 import ModalVenta from "./ModalVenta";
+import RankingVentasGeneral from "./RankingVentasGeneral";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   guardarPedidoParaVenta,
@@ -95,6 +96,8 @@ export default function VistaVentas() {
               </div>
             </div>
           </div>
+
+          <RankingVentasGeneral />
 
           {/* Sección de acciones principales - Más compacta */}
           <div className="bg-white rounded-lg sm:rounded-2xl shadow-lg border border-[#ecf0f1] overflow-hidden w-full">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
+import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarEstadoTrabajoCliente";
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 
 interface Trabajo {
@@ -222,6 +223,13 @@ export default function ModalPago({
         estadoCuentaCorriente: "PAGADO",
         fechaModificacion: new Date().toLocaleDateString('es-AR')
       });
+
+      await notificarWhatsappTrabajoSiConfigurado(
+        negocioID,
+        trabajo,
+        estadoAnterior,
+        "PAGADO"
+      );
 
       // 5. Mostrar éxito
       setGuardadoConExito(true);

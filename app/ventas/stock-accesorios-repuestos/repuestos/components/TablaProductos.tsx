@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
@@ -20,7 +20,7 @@ import {
   setDoc,
   writeBatch,
 } from "firebase/firestore";
-import { Store, Package } from "lucide-react";
+import { Store, Package, Tag } from "lucide-react";
 import CampoFotoRepuesto from "./CampoFotoRepuesto";
 import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
 
@@ -47,6 +47,15 @@ import {
   mismoCategoria,
   normalizarCategoriaKey,
 } from "@/lib/categoriaRepuesto";
+import {
+  codigoRepuestoOcupado,
+  mensajeCodigoDuplicado,
+  normalizarCodigoRepuesto,
+} from "@/lib/codigoRepuestoUnico";
+import {
+  imprimirEtiquetaRepuesto,
+  imprimirEtiquetasRepuestos,
+} from "@/lib/imprimirEtiquetaRepuesto";
 
 interface Producto {
   id: string;
@@ -154,6 +163,8 @@ export default function TablaProductos({
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
   const [filtroStock, setFiltroStock] = useState<"todos" | "disponible" | "bajo" | "agotado">("todos");
+  const [filtroTiendaWeb, setFiltroTiendaWeb] = useState<"todos" | "en_web" | "no_web">("todos");
+  const [filtroStockMax, setFiltroStockMax] = useState<"" | "0" | "1" | "2" | "3" | "5">("");
   const [categoriasUnicas, setCategoriasUnicas] = useState<string[]>([]);
   const [proveedoresUnicos, setProveedoresUnicos] = useState<string[]>([]);
   const listaFiltradaCategoriaRef = useRef<Producto[]>([]);
@@ -188,10 +199,17 @@ export default function TablaProductos({
   };
 
   // 🚀 FUNCIÓN OPTIMIZADA PARA CARGAR PRODUCTOS CON PAGINACIÓN
+  const esPublicadoEnWeb = (p: Producto) => {
+    const v = p.publicarEnCatalogoWeb;
+    return v === true || (v as unknown) === 1 || String(v).toLowerCase() === "true";
+  };
+
   const cargarProductosPaginados = async (esNuevaCarga = false, filtros?: {
     proveedor?: string,
     categoria?: string,
-    stock?: string
+    stock?: string,
+    tiendaWeb?: "todos" | "en_web" | "no_web",
+    stockMax?: string,
   }) => {
     if (!rol?.negocioID || cargando) return;
     
@@ -209,12 +227,21 @@ export default function TablaProductos({
         limit(ITEMS_POR_PAGINA)
       );
 
-      if (filtros?.categoria && filtros.categoria !== "") {
+      const cargaCompleta =
+        (filtros?.categoria && filtros.categoria !== "") ||
+        (filtros?.tiendaWeb && filtros.tiendaWeb !== "todos") ||
+        (filtros?.stockMax !== undefined && filtros.stockMax !== "");
+
+      if (cargaCompleta) {
         const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockRepuestos`));
-        const filtrados = snap.docs
-          .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }) as Producto)
-          .filter((p) => mismoCategoria(p.categoria, filtros.categoria))
-          .sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), "es"));
+        let filtrados = snap.docs
+          .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }) as Producto);
+
+        if (filtros?.categoria && filtros.categoria !== "") {
+          filtrados = filtrados.filter((p) => mismoCategoria(p.categoria, filtros.categoria));
+        }
+
+        filtrados.sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), "es"));
 
         listaFiltradaCategoriaRef.current = filtrados;
         const pagina = esNuevaCarga ? 1 : paginaActual + 1;
@@ -289,13 +316,32 @@ export default function TablaProductos({
     await cargarProductosPaginados(true, {
       proveedor: filtroProveedor,
       categoria: filtroCategoria,
-      stock: filtroStock
+      stock: filtroStock,
+      tiendaWeb: filtroTiendaWeb,
+      stockMax: filtroStockMax,
     });
   };
 
+  const aplicarPresetReposicion = (preset: "web0" | "web1" | "web_modulo") => {
+    setFiltroTiendaWeb("en_web");
+    setFiltroStockMax(preset === "web0" ? "0" : "1");
+    if (preset === "web_modulo") {
+      setFiltroBusqueda("modulo");
+    }
+  };
+
+  const limpiarFiltrosReposicion = () => {
+    setFiltroTiendaWeb("todos");
+    setFiltroStockMax("");
+    setFiltroBusqueda("");
+  };
+
+  const cargaCompletaActiva =
+    !!filtroCategoria || filtroTiendaWeb !== "todos" || filtroStockMax !== "";
+
   const cargarMasProductos = () => {
     if (!hayMasPaginas || cargando) return;
-    if (listaFiltradaCategoriaRef.current.length > 0 && filtroCategoria) {
+    if (listaFiltradaCategoriaRef.current.length > 0 && cargaCompletaActiva) {
       const pagina = paginaActual + 1;
       const fin = pagina * ITEMS_POR_PAGINA;
       setProductos(listaFiltradaCategoriaRef.current.slice(0, fin));
@@ -337,10 +383,19 @@ export default function TablaProductos({
         (filtroStock === "disponible" && p.cantidad > (p.stockBajo ?? 3)) ||
         (filtroStock === "bajo" && p.cantidad > 0 && p.cantidad <= (p.stockBajo ?? 3)) ||
         (filtroStock === "agotado" && p.cantidad === 0);
+
+      const matchWeb =
+        filtroTiendaWeb === "todos" ||
+        (filtroTiendaWeb === "en_web" && esPublicadoEnWeb(p)) ||
+        (filtroTiendaWeb === "no_web" && !esPublicadoEnWeb(p));
+
+      const stockMaxNum = filtroStockMax !== "" ? parseInt(filtroStockMax, 10) : null;
+      const matchStockMax =
+        stockMaxNum === null || (typeof p.cantidad === "number" && p.cantidad <= stockMaxNum);
       
-      return matchBusqueda && matchProveedor && matchCategoria && matchStock;
+      return matchBusqueda && matchProveedor && matchCategoria && matchStock && matchWeb && matchStockMax;
     });
-  }, [productos, filtroBusqueda, filtroProveedor, filtroCategoria, filtroStock]);
+  }, [productos, filtroBusqueda, filtroProveedor, filtroCategoria, filtroStock, filtroTiendaWeb, filtroStockMax]);
 
   // 🆕 FUNCIÓN PARA CALCULAR PRECIO DINÁMICO
   const calcularPrecioDinamico = (producto: Producto) => {
@@ -391,6 +446,34 @@ export default function TablaProductos({
   });
   const [porcentaje, setPorcentaje] = useState<number | "">("");
   const autoDesdePorcentaje = useRef(false);
+  const [errorCodigo, setErrorCodigo] = useState<string | null>(null);
+  const [validandoCodigo, setValidandoCodigo] = useState(false);
+
+  const validarCodigoEnStock = useCallback(async () => {
+    const cod = normalizarCodigoRepuesto(formulario.codigo);
+    if (!cod || !rol?.negocioID || !formulario.id) {
+      setErrorCodigo(null);
+      return;
+    }
+
+    setValidandoCodigo(true);
+    try {
+      const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockRepuestos`));
+      const items = snap.docs.map((d) => ({
+        id: d.id,
+        codigo: String(d.data().codigo ?? d.id).trim(),
+      }));
+      if (codigoRepuestoOcupado(items, cod, formulario.id)) {
+        setErrorCodigo(mensajeCodigoDuplicado(cod));
+      } else {
+        setErrorCodigo(null);
+      }
+    } catch {
+      setErrorCodigo(null);
+    } finally {
+      setValidandoCodigo(false);
+    }
+  }, [formulario.codigo, formulario.id, rol?.negocioID]);
 
   // FUNCIONES DEL MODAL
   const abrirModal = (producto: Producto) => {
@@ -420,6 +503,7 @@ export default function TablaProductos({
       setPorcentaje("");
     }
     autoDesdePorcentaje.current = false;
+    setErrorCodigo(null);
     setModalAbierto(true);
   };
   
@@ -453,10 +537,15 @@ export default function TablaProductos({
     });
     setPorcentaje("");
     autoDesdePorcentaje.current = false;
+    setErrorCodigo(null);
   };
 
   const manejarCambio = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+
+    if (name === "codigo") {
+      setErrorCodigo(null);
+    }
 
     if (name === "porcentaje") {
       if (value === "") {
@@ -557,6 +646,24 @@ export default function TablaProductos({
         throw new Error("Falta negocioID o id del producto");
       }
   
+      const cod = normalizarCodigoRepuesto(formulario.codigo);
+      if (!cod) {
+        alert("Ingresá un código para el producto.");
+        setGuardando(false);
+        return;
+      }
+
+      const snapCodigos = await getDocs(collection(db, `negocios/${rol.negocioID}/stockRepuestos`));
+      const itemsCodigo = snapCodigos.docs.map((d) => ({
+        id: d.id,
+        codigo: String(d.data().codigo ?? d.id).trim(),
+      }));
+      if (codigoRepuestoOcupado(itemsCodigo, cod, formulario.id)) {
+        alert(mensajeCodigoDuplicado(cod));
+        setGuardando(false);
+        return;
+      }
+
       const ref = doc(
         db,
         `negocios/${rol.negocioID}/stockRepuestos/${formulario.id}`
@@ -574,7 +681,7 @@ export default function TablaProductos({
       const precio3Pesos = pesosDesdeMoneda(p3, moneda, cot);
   
       await updateDoc(ref, {
-        codigo: formulario.codigo,
+        codigo: cod,
         categoria: formulario.categoria,
         categoriaKey: normalizarCategoriaKey(formulario.categoria),
         producto: formulario.producto,
@@ -626,6 +733,27 @@ export default function TablaProductos({
       onProductoActualizado?.();
     } catch (error) {
       console.error("Error al eliminar:", error);
+    }
+  };
+
+  const imprimirEtiquetaProducto = async (p: Producto) => {
+    if (!rol?.negocioID) return;
+    try {
+      await imprimirEtiquetaRepuesto(rol.negocioID, p.producto || p.codigo || "Repuesto");
+    } catch (e) {
+      console.error("[etiqueta repuesto]", e);
+      alert(e instanceof Error ? e.message : "No se pudo imprimir la etiqueta.");
+    }
+  };
+
+  const imprimirEtiquetasSeleccionadas = async () => {
+    if (!rol?.negocioID || seleccionados.size === 0) return;
+    const items = productosFiltrados.filter((p) => seleccionados.has(p.id));
+    try {
+      await imprimirEtiquetasRepuestos(rol.negocioID, items);
+    } catch (e) {
+      console.error("[etiquetas repuesto]", e);
+      alert(e instanceof Error ? e.message : "No se pudieron imprimir las etiquetas.");
     }
   };
 
@@ -1131,13 +1259,15 @@ export default function TablaProductos({
         cargarProductosPaginados(true, {
           proveedor: filtroProveedor,
           categoria: filtroCategoria,
-          stock: filtroStock
+          stock: filtroStock,
+          tiendaWeb: filtroTiendaWeb,
+          stockMax: filtroStockMax,
         });
       }, 300);
 
       return () => clearTimeout(timer);
     }
-  }, [filtroProveedor, filtroCategoria]);
+  }, [filtroProveedor, filtroCategoria, filtroTiendaWeb, filtroStockMax]);
 
   return (
     <div className="space-y-6">
@@ -1147,7 +1277,7 @@ export default function TablaProductos({
           
           {/* Filtros principales */}
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
               
               {/* Filtro Proveedor */}
               <div>
@@ -1217,6 +1347,83 @@ export default function TablaProductos({
                   className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm"
                 />
               </div>
+
+              {/* Filtro Tienda Web */}
+              <div>
+                <label className="text-sm font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
+                  <span className="w-4 h-4 bg-[#8e44ad] rounded-full flex items-center justify-center text-white text-xs">🌐</span>
+                  Tienda web:
+                </label>
+                <select
+                  value={filtroTiendaWeb}
+                  onChange={(e) => setFiltroTiendaWeb(e.target.value as "todos" | "en_web" | "no_web")}
+                  className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#8e44ad] focus:border-[#8e44ad] transition-all text-[#2c3e50] text-sm"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="en_web">Publicados en web</option>
+                  <option value="no_web">No publicados</option>
+                </select>
+              </div>
+
+              {/* Filtro stock máximo (para saber qué pedir) */}
+              <div>
+                <label className="text-sm font-semibold text-[#2c3e50] block mb-2 flex items-center gap-2">
+                  <span className="w-4 h-4 bg-[#e74c3c] rounded-full flex items-center justify-center text-white text-xs">📦</span>
+                  Stock hasta:
+                </label>
+                <select
+                  value={filtroStockMax}
+                  onChange={(e) => setFiltroStockMax(e.target.value as "" | "0" | "1" | "2" | "3" | "5")}
+                  className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e74c3c] focus:border-[#e74c3c] transition-all text-[#2c3e50] text-sm"
+                >
+                  <option value="">Sin límite</option>
+                  <option value="0">0 (agotado)</option>
+                  <option value="1">1 o menos</option>
+                  <option value="2">2 o menos</option>
+                  <option value="3">3 o menos</option>
+                  <option value="5">5 o menos</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Atajos para reposición */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-[#7f8c8d]">Qué pedir:</span>
+              <button
+                type="button"
+                onClick={() => aplicarPresetReposicion("web0")}
+                className="text-xs px-3 py-1.5 rounded-full bg-[#fdebd0] text-[#d68910] border border-[#f5cba7] hover:bg-[#fad7a0] font-medium"
+              >
+                🌐 Web + stock 0
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPresetReposicion("web1")}
+                className="text-xs px-3 py-1.5 rounded-full bg-[#fdebd0] text-[#d68910] border border-[#f5cba7] hover:bg-[#fad7a0] font-medium"
+              >
+                🌐 Web + stock ≤1
+              </button>
+              <button
+                type="button"
+                onClick={() => aplicarPresetReposicion("web_modulo")}
+                className="text-xs px-3 py-1.5 rounded-full bg-[#e8f8f5] text-[#1e8449] border border-[#a9dfbf] hover:bg-[#d5f5e3] font-medium"
+              >
+                📱 Módulos web bajo stock
+              </button>
+              {(filtroTiendaWeb !== "todos" || filtroStockMax !== "" || filtroBusqueda) && (
+                <button
+                  type="button"
+                  onClick={limpiarFiltrosReposicion}
+                  className="text-xs px-3 py-1.5 rounded-full bg-[#ecf0f1] text-[#7f8c8d] hover:bg-[#d5dbdb] font-medium"
+                >
+                  Limpiar atajos
+                </button>
+              )}
+              {(filtroTiendaWeb === "en_web" && filtroStockMax !== "") && (
+                <span className="text-xs text-[#e74c3c] font-semibold ml-1">
+                  {productosFiltrados.length} ítem{productosFiltrados.length !== 1 ? "s" : ""} a revisar
+                </span>
+              )}
             </div>
           </div>
 
@@ -1381,6 +1588,14 @@ export default function TablaProductos({
               className="rounded-lg border border-[#bdc3c7] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#7f8c8d] hover:bg-neutral-50 disabled:opacity-40"
             >
               Ninguno
+            </button>
+            <button
+              type="button"
+              onClick={() => void imprimirEtiquetasSeleccionadas()}
+              disabled={seleccionados.size === 0}
+              className="rounded-lg border border-[#e67e22] bg-[#fdebd0] px-2.5 py-1.5 text-xs font-semibold text-[#d35400] hover:bg-[#fad7a0] disabled:opacity-40"
+            >
+              🏷️ Imprimir etiquetas
             </button>
             <button
               type="button"
@@ -1671,6 +1886,14 @@ export default function TablaProductos({
                             <Store className="h-4 w-4" aria-hidden />
                           </button>
                           <button
+                            type="button"
+                            onClick={() => void imprimirEtiquetaProducto(p)}
+                            className="inline-flex items-center justify-center rounded bg-[#e67e22] hover:bg-[#d35400] text-white p-1.5 transition-all duration-200"
+                            title="Imprimir etiqueta"
+                          >
+                            <Tag className="h-4 w-4" aria-hidden />
+                          </button>
+                          <button
                             onClick={() => abrirModal(p)}
                             className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs transition-all duration-200"
                             title="Editar"
@@ -1821,8 +2044,19 @@ export default function TablaProductos({
                     name="codigo"
                     value={formulario.codigo}
                     onChange={manejarCambio}
-                    className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm"
+                    onBlur={() => void validarCodigoEnStock()}
+                    className={`w-full p-2 sm:p-3 border-2 rounded-xl focus:ring-4 transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm ${
+                      errorCodigo
+                        ? "border-[#e74c3c] focus:ring-[#e74c3c]/20 focus:border-[#e74c3c]"
+                        : "border-[#bdc3c7] focus:ring-[#3498db]/20 focus:border-[#3498db]"
+                    }`}
                   />
+                  {validandoCodigo && (
+                    <p className="text-xs text-[#7f8c8d]">Verificando código…</p>
+                  )}
+                  {errorCodigo && (
+                    <p className="text-xs text-[#c0392b] font-medium">{errorCodigo}</p>
+                  )}
                 </div>
 
                 {/* Categoría */}
@@ -2237,7 +2471,23 @@ export default function TablaProductos({
               )}
               
               {/* Botones */}
-              <div className="flex gap-3 justify-end pt-4 border-t border-[#ecf0f1]">
+              <div className="flex flex-wrap gap-3 justify-end pt-4 border-t border-[#ecf0f1]">
+                {formulario.producto?.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void imprimirEtiquetaProducto({
+                        ...formulario,
+                        id: formulario.id || "",
+                      } as Producto)
+                    }
+                    disabled={guardando}
+                    className="px-4 sm:px-6 py-2 sm:py-3 bg-[#e67e22] hover:bg-[#d35400] text-white rounded-lg font-medium transition-all duration-200 shadow-md disabled:opacity-50 text-sm flex items-center gap-2"
+                  >
+                    <Tag className="h-4 w-4" aria-hidden />
+                    Imprimir etiqueta
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={cerrarModal}
@@ -2249,7 +2499,7 @@ export default function TablaProductos({
                 <button
                   type="button"
                   onClick={guardarCambios}
-                  disabled={guardando || !formulario.producto || formulario.precioCosto <= 0}
+                  disabled={guardando || !formulario.producto || formulario.precioCosto <= 0 || Boolean(errorCodigo) || validandoCodigo}
                   className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-[#27ae60] to-[#229954] hover:from-[#229954] hover:to-[#1e8449] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
                 >
                   {guardando ? (

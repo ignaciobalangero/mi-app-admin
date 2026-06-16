@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Wrench,
   PlugZap,
+  Smartphone,
 } from "lucide-react";
 import type { CatalogoPublicoOpciones, ItemStockPublico } from "@/lib/stockPublicoTypes";
 import {
@@ -31,6 +32,8 @@ import {
 } from "@/lib/stockPublicoPrecios";
 import { coincideBusqueda, tokensBusqueda } from "@/lib/stockPublicoBusqueda";
 import FooterTienda from "../components/FooterTienda";
+import TarjetaGrupoVariantes from "../components/TarjetaGrupoVariantes";
+import { prepararFilasCatalogoTapas, type FilaCatalogoTienda } from "@/lib/agruparVariantesTienda";
 import BannersTienda from "../components/BannersTienda";
 import BannerBusquedaTienda from "../components/BannerBusquedaTienda";
 import TarjetasCategoriasTienda from "../components/TarjetasCategoriasTienda";
@@ -98,9 +101,10 @@ const CHIPS: {
   { id: "pantallas", label: "Pantallas", hint: "Módulos, LCD, OLED…", Icon: Monitor },
   { id: "baterias", label: "Baterías", hint: "Baterías y pilas", Icon: Battery },
   { id: "placas_carga", label: "Placa carga", hint: "Flex, dock, puerto…", Icon: PlugZap },
+  { id: "tapas", label: "Tapas", hint: "Tapas traseras por color", Icon: Smartphone },
   { id: "herramientas", label: "Herramientas", hint: "Soldadores, pinzas…", Icon: Wrench },
   { id: "insumos", label: "Insumos", hint: "Cintas, pastas, adhesivos…", Icon: Package },
-  { id: "otros", label: "Otros", hint: "Flex, tapas, conectores y más", Icon: Layers },
+  { id: "otros", label: "Otros", hint: "Flex, conectores y más", Icon: Layers },
 ];
 
 function mergeOps(raw?: CatalogoPublicoOpciones): CatalogoPublicoOpciones {
@@ -385,6 +389,11 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
 
   const visibles = filtrados;
 
+  const filasCatalogo = useMemo(
+    () => prepararFilasCatalogoTapas(visibles),
+    [visibles]
+  );
+
   const gruposPorMarca = useMemo(() => {
     if (!ops.agruparPorMarca) return null;
     const map = new Map<string, ItemStockPublico[]>();
@@ -397,6 +406,42 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
       a[0].localeCompare(b[0], "es", { sensitivity: "base" })
     );
   }, [visibles, ops.agruparPorMarca]);
+
+  const abrirFotoAmpliada = useCallback((it: ItemStockPublico) => {
+    if (!it.fotoURL) return;
+    const urls = (it.fotosURLs?.length ? it.fotosURLs : [it.fotoURL]).map((u) =>
+      resolverUrlFotoProducto(u)
+    );
+    setFotoAmpliada({
+      urls,
+      indice: 0,
+      alt: it.producto,
+      titulo: it.producto,
+    });
+  }, []);
+
+  function renderFila(fila: FilaCatalogoTienda, indice = 0) {
+    if (fila.tipo === "grupo") {
+      return (
+        <TarjetaGrupoVariantes
+          key={`grupo-${fila.grupo.clave}`}
+          grupo={fila.grupo}
+          ops={ops}
+          cotizacionUSD={cotizacionSistema}
+          indice={indice}
+          MiniFoto={MiniFoto}
+          carrito={carrito}
+          agregar={agregar}
+          mas={mas}
+          menos={menos}
+          onAmpliarFoto={(urls, alt, titulo) =>
+            setFotoAmpliada({ urls, indice: 0, alt, titulo })
+          }
+        />
+      );
+    }
+    return renderTarjeta(fila.item, indice);
+  }
 
   function renderTarjeta(it: ItemStockPublico, indice = 0) {
     const enCarrito = carrito[it.id];
@@ -415,21 +460,7 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
               alt={it.producto}
               className="h-full w-full"
               priority={indice < 6}
-              onClick={
-                it.fotoURL
-                  ? () => {
-                      const urls = (it.fotosURLs?.length ? it.fotosURLs : [it.fotoURL!]).map(
-                        (u) => resolverUrlFotoProducto(u)
-                      );
-                      setFotoAmpliada({
-                        urls,
-                        indice: 0,
-                        alt: it.producto,
-                        titulo: it.producto,
-                      });
-                    }
-                  : undefined
-              }
+              onClick={it.fotoURL ? () => abrirFotoAmpliada(it) : undefined}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100">
@@ -763,14 +794,14 @@ function ConsultaStockClienteInner({ negocioID }: { negocioID: string }) {
                       {marca}
                     </h2>
                     <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-5 lg:gap-3">
-                      {lista.map((it, i) => renderTarjeta(it, i))}
+                      {prepararFilasCatalogoTapas(lista).map((fila, i) => renderFila(fila, i))}
                     </div>
                   </section>
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-5 lg:gap-3">
-                {visibles.map((it, i) => renderTarjeta(it, i))}
+                {filasCatalogo.map((fila, i) => renderFila(fila, i))}
               </div>
             )}
 

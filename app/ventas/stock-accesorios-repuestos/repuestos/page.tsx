@@ -15,6 +15,12 @@ import useCotizacion from "@/lib/hooks/useCotizacion";
 import { useRol } from "@/lib/useRol";
 import { normalizarMoneda } from "@/lib/monedaRepuesto";
 import { normalizarCategoriaKey } from "@/lib/categoriaRepuesto";
+import {
+  codigoRepuestoOcupado,
+  mensajeCodigoDuplicado,
+  normalizarCodigoRepuesto,
+  resolverCodigoAltaRepuesto,
+} from "@/lib/codigoRepuestoUnico";
 import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
 
 // Componentes
@@ -24,6 +30,7 @@ import PedidosSugeridos from "./components/PedidosSugeridos";
 import FormularioProducto from "./components/FormularioProducto";
 import TablaProductos from "./components/TablaProductos";
 import ControlStockRepuestos from "./components/ControlStockRepuestos";
+import AlertCodigosDuplicados from "./components/AlertCodigosDuplicados";
 
 // 📦 PÁGINA PRINCIPAL DE REPUESTOS CON ESTRUCTURA COMPLETA
 
@@ -226,16 +233,40 @@ export default function RepuestosPage() {
     };
     
     try {
+      const snapCodigos = await getDocs(collection(db, `negocios/${currentNegocioID}/stockRepuestos`));
+      const itemsCodigo = snapCodigos.docs.map((d) => ({
+        id: d.id,
+        codigo: String(d.data().codigo ?? d.id).trim(),
+      }));
       if (editandoId) {
-        await updateDoc(doc(db, `negocios/${currentNegocioID}/stockRepuestos`, editandoId), data);
+        const cod = normalizarCodigoRepuesto(codigo);
+        if (!cod) {
+          alert("Ingresá un código para el producto.");
+          return;
+        }
+        if (codigoRepuestoOcupado(itemsCodigo, cod, editandoId)) {
+          alert(mensajeCodigoDuplicado(cod));
+          return;
+        }
+        await updateDoc(doc(db, `negocios/${currentNegocioID}/stockRepuestos`, editandoId), {
+          ...data,
+          codigo: cod,
+        });
         setEditandoId(null);
       } else {
-        const snap = await getDocs(collection(db, `negocios/${currentNegocioID}/stockRepuestos`));
-        const nuevoCodigo = `REP${String(snap.size + 1).padStart(3, "0")}`;
+        const resultado = resolverCodigoAltaRepuesto(
+          codigo,
+          itemsCodigo,
+          snapCodigos.size
+        );
+        if (!resultado.ok) {
+          alert(resultado.error);
+          return;
+        }
 
         await addDoc(collection(db, `negocios/${currentNegocioID}/stockRepuestos`), {
           ...data,
-          codigo: nuevoCodigo,
+          codigo: resultado.codigo,
         });
       }
 
@@ -334,9 +365,23 @@ export default function RepuestosPage() {
       const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : cotizacionLocal;
       
       // Actualizar en Firebase
+      const cod = normalizarCodigoRepuesto(producto.codigo);
+      if (!cod) {
+        throw new Error("Ingresá un código para el producto.");
+      }
+
+      const snapCodigos = await getDocs(collection(db, `negocios/${currentNegocioID}/stockRepuestos`));
+      const itemsCodigo = snapCodigos.docs.map((d) => ({
+        id: d.id,
+        codigo: String(d.data().codigo ?? d.id).trim(),
+      }));
+      if (codigoRepuestoOcupado(itemsCodigo, cod, producto.id)) {
+        throw new Error(mensajeCodigoDuplicado(cod));
+      }
+
       const productRef = doc(db, `negocios/${currentNegocioID}/stockRepuestos`, producto.id);
       await updateDoc(productRef, {
-        codigo: producto.codigo,
+        codigo: cod,
         categoria: producto.categoria,
         producto: producto.producto,
         marca: producto.marca,
@@ -436,6 +481,8 @@ export default function RepuestosPage() {
           </div>
 
           <ResumenCapital totalUSD={totalUSD} totalPesos={totalPesos} />
+
+          <AlertCodigosDuplicados onActualizado={() => triggerRefresh()} />
 
           <Acciones
             exportarExcel={exportarExcel}

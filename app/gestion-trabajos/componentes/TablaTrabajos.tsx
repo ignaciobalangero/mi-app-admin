@@ -9,6 +9,7 @@ import ModalAgregarRepuesto from "@/app/resumen/componentes/ModalRepuestos";
 import ModalEditar from "@/app/gestion-trabajos/componentes/ModalEditar";
 import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
 import ModalEmitirFactura from "@/app/ventas-general/componentes/ModalEmitirFactura";
+import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarEstadoTrabajoCliente";
 import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 import { PatronViewer } from "@/app/components/PatronDesbloqueo";
 
@@ -206,6 +207,12 @@ export default function TablaTrabajos({
       );
     }
 
+    await notificarWhatsappTrabajoSiConfigurado(
+      negocioID,
+      trabajo,
+      estadoAnterior,
+      nuevoEstado
+    );
     await recargarTrabajos();
   };
 
@@ -270,8 +277,15 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
   const confirmarPago = async () => {
     if (!trabajoAConfirmarPago) return;
     try {
+      const estadoAnterior = trabajoAConfirmarPago.estado;
       const ref = doc(db, `negocios/${negocioID}/trabajos/${trabajoAConfirmarPago.firebaseId}`);
       await updateDoc(ref, { estado: "PAGADO" });
+      await notificarWhatsappTrabajoSiConfigurado(
+        negocioID,
+        trabajoAConfirmarPago,
+        estadoAnterior,
+        "PAGADO"
+      );
       setModalConfirmarPagoVisible(false);
       setTrabajoAConfirmarPago(null);
       await recargarTrabajos();

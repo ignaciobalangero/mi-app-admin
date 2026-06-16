@@ -10,6 +10,7 @@ import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/
 import ModalEmitirFactura from "@/app/ventas-general/componentes/ModalEmitirFactura";
 import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 import { PatronViewer } from "@/app/components/PatronDesbloqueo";
+import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarEstadoTrabajoCliente";
 
 interface Trabajo {
   firebaseId: string;
@@ -211,8 +212,17 @@ export default function TablaTrabajos({
     };
     if (imeiToSave) payloadTrabajo.imei = imeiToSave;
 
+    const avisarWhatsapp = () =>
+      notificarWhatsappTrabajoSiConfigurado(
+        negocioID,
+        trabajo,
+        estadoAnterior,
+        nuevoEstado
+      );
+
     if (!hayCambioSaldo) {
       await updateDoc(trabajoRef, payloadTrabajo);
+      await avisarWhatsapp();
       await onRecargar();
       return;
     }
@@ -237,6 +247,7 @@ export default function TablaTrabajos({
 
     if (!clienteDoc) {
       await updateDoc(trabajoRef, payloadTrabajo);
+      await avisarWhatsapp();
       await onRecargar();
       console.warn(`⚠️ Cliente no encontrado: "${nombreBuscado}". Solo se actualizó el estado.`);
       return;
@@ -266,10 +277,12 @@ export default function TablaTrabajos({
         });
       });
 
+      await avisarWhatsapp();
       await onRecargar();
     } catch (error) {
       console.error("[Cambio estado] Error:", error);
       await updateDoc(trabajoRef, payloadTrabajo);
+      await avisarWhatsapp();
       await onRecargar();
     }
   };

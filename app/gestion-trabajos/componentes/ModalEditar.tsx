@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { doc, updateDoc, getDocs, collection, getDoc, runTransaction, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, getDocs, collection, getDoc, runTransaction, query, where, limit, serverTimestamp, type QueryDocumentSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Combobox } from "@headlessui/react";
 
@@ -39,6 +39,38 @@ interface Props {
   onClose: () => void;
   onSave: () => Promise<void>;
   negocioID: string;
+}
+
+function roundSaldo(n: number): number {
+  return Number(Math.round(n * 100) / 100);
+}
+
+function montoPorMoneda(moneda: string, monto: number): { ars: number; usd: number } {
+  return moneda === "USD" ? { ars: 0, usd: monto } : { ars: monto, usd: 0 };
+}
+
+async function buscarClienteDoc(
+  negocioID: string,
+  nombre: string
+): Promise<QueryDocumentSnapshot | null> {
+  const nombreBuscado = nombre.trim();
+  if (!nombreBuscado) return null;
+
+  const clientesRef = collection(db, `negocios/${negocioID}/clientes`);
+  const exactSnap = await getDocs(
+    query(clientesRef, where("nombre", "==", nombreBuscado), limit(1))
+  );
+  if (!exactSnap.empty) return exactSnap.docs[0];
+
+  const todosSnap = await getDocs(query(clientesRef, limit(500)));
+  const nombreLower = nombreBuscado.toLowerCase();
+  return (
+    todosSnap.docs.find((d) => {
+      const data = d.data();
+      const n = (data.nombre ?? data.cliente ?? "").trim();
+      return n.toLowerCase() === nombreLower;
+    }) ?? null
+  );
 }
 
 export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioID }: Props) {
@@ -129,7 +161,7 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
     setFormulario(prev => ({ ...prev, [name]: value }));
   };
 
-  // Guardar cambios (con runTransaction si cambió el precio y el trabajo está ENTREGADO/PAGADO)
+  // Guardar cambios (ajusta cuenta corriente si el trabajo está ENTREGADO/PAGADO)
   const guardarCambios = async () => {
     if (!trabajo || !negocioID) return;
 
@@ -138,7 +170,10 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
     const estadoNormalizado = trabajo.estado?.toString().trim().toUpperCase();
     const estadoValido = estadoNormalizado === "ENTREGADO" || estadoNormalizado === "PAGADO";
     const moneda = (trabajo.moneda ?? "ARS").toString().trim().toUpperCase() || "ARS";
-    const nombreBuscado = String(formulario.cliente ?? "").trim();
+    const nombreAnterior = String(trabajo.cliente ?? "").trim();
+    const nombreNuevo = String(formulario.cliente ?? "").trim();
+    const clienteCambio = nombreAnterior.toLowerCase() !== nombreNuevo.toLowerCase();
+    const precioCambio = precioAnterior !== nuevoPrecio;
 
     const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
     const updatesTrabajo = {
@@ -149,7 +184,7 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
 
     setGuardando(true);
     try {
-      if (!estadoValido || precioAnterior === nuevoPrecio) {
+      if (!estadoValido || (!clienteCambio && !precioCambio)) {
         await updateDoc(trabajoRef, updatesTrabajo);
         await onSave();
         handleClose();
@@ -157,57 +192,105 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
         return;
       }
 
-      const clientesRef = collection(db, `negocios/${negocioID}/clientes`);
-      let clientesSnap = await getDocs(
-        query(clientesRef, where("nombre", "==", nombreBuscado), limit(1))
-      );
-      let clienteDoc = clientesSnap.empty ? null : clientesSnap.docs[0];
-      if (!clienteDoc && nombreBuscado) {
-        const todosSnap = await getDocs(query(clientesRef, limit(500)));
-        const nombreLower = nombreBuscado.toLowerCase();
-        clienteDoc = todosSnap.docs.find((d) => {
-          const data = d.data();
-          const n = (data.nombre ?? data.cliente ?? "").trim();
-          return n.toLowerCase() === nombreLower;
-        }) ?? null;
-      }
+      const clienteAnteriorDoc = clienteCambio
+        ? await buscarClienteDoc(negocioID, nombreAnterior)
+        : null;
+      const clienteNuevoDoc = await buscarClienteDoc(negocioID, nombreNuevo);
 
-      if (!clienteDoc) {
+      if (clienteCambio && !clienteNuevoDoc) {
         await updateDoc(trabajoRef, updatesTrabajo);
         await onSave();
         handleClose();
-        console.warn(`⚠️ Cliente no encontrado: "${nombreBuscado}". Solo se actualizó el trabajo.`);
+        alert(
+          `⚠️ Cliente "${nombreNuevo}" no encontrado en la agenda. Se actualizó el trabajo pero no se movió la deuda en cuenta corriente.`
+        );
         return;
       }
 
-      const clienteRef = clienteDoc.ref;
-      const delta = nuevoPrecio - precioAnterior;
+      const refSaldo =
+        clienteCambio && clienteAnteriorDoc?.id === clienteNuevoDoc?.id
+          ? clienteNuevoDoc
+          : clienteCambio
+            ? null
+            : clienteNuevoDoc;
 
       await runTransaction(db, async (transaction) => {
-        const clienteSnap = await transaction.get(clienteRef);
-        const datosCliente = (clienteSnap.data() || {}) as { saldoARS?: number; saldoUSD?: number };
-        const saldoActualARS = Number(datosCliente.saldoARS ?? 0);
-        const saldoActualUSD = Number(datosCliente.saldoUSD ?? 0);
-        const sumarARS = moneda === "ARS" ? delta : 0;
-        const sumarUSD = moneda === "USD" ? delta : 0;
-        const nuevoSaldoARS = Number(Math.round((saldoActualARS + sumarARS) * 100) / 100);
-        const nuevoSaldoUSD = Number(Math.round((saldoActualUSD + sumarUSD) * 100) / 100);
-
-        console.log("DATO CLIENTE EN DB:", datosCliente.saldoARS, datosCliente.saldoUSD);
-        console.log("ModalEditar: precioAnterior:", precioAnterior, "nuevoPrecio:", nuevoPrecio, "delta:", delta, "moneda:", moneda);
-        console.log("CALCULO FINAL ARS:", nuevoSaldoARS, "| USD:", nuevoSaldoUSD);
-
         transaction.update(trabajoRef, updatesTrabajo);
-        transaction.update(clienteRef, {
-          saldoARS: nuevoSaldoARS,
-          saldoUSD: nuevoSaldoUSD,
-          ultimaActualizacion: serverTimestamp(),
-        });
+
+        if (clienteCambio && clienteAnteriorDoc && clienteNuevoDoc) {
+          if (clienteAnteriorDoc.id !== clienteNuevoDoc.id) {
+            const snapAnterior = await transaction.get(clienteAnteriorDoc.ref);
+            const datosAnterior = (snapAnterior.data() || {}) as {
+              saldoARS?: number;
+              saldoUSD?: number;
+            };
+            const { ars: restarARS, usd: restarUSD } = montoPorMoneda(
+              moneda,
+              precioAnterior
+            );
+            transaction.update(clienteAnteriorDoc.ref, {
+              saldoARS: roundSaldo(Number(datosAnterior.saldoARS ?? 0) - restarARS),
+              saldoUSD: roundSaldo(Number(datosAnterior.saldoUSD ?? 0) - restarUSD),
+              ultimaActualizacion: serverTimestamp(),
+            });
+
+            const snapNuevo = await transaction.get(clienteNuevoDoc.ref);
+            const datosNuevo = (snapNuevo.data() || {}) as {
+              saldoARS?: number;
+              saldoUSD?: number;
+            };
+            const { ars: sumarARS, usd: sumarUSD } = montoPorMoneda(moneda, nuevoPrecio);
+            transaction.update(clienteNuevoDoc.ref, {
+              saldoARS: roundSaldo(Number(datosNuevo.saldoARS ?? 0) + sumarARS),
+              saldoUSD: roundSaldo(Number(datosNuevo.saldoUSD ?? 0) + sumarUSD),
+              ultimaActualizacion: serverTimestamp(),
+            });
+            return;
+          }
+        }
+
+        if (!refSaldo) {
+          if (clienteCambio && !clienteAnteriorDoc && clienteNuevoDoc) {
+            const snapNuevo = await transaction.get(clienteNuevoDoc.ref);
+            const datosNuevo = (snapNuevo.data() || {}) as {
+              saldoARS?: number;
+              saldoUSD?: number;
+            };
+            const { ars: sumarARS, usd: sumarUSD } = montoPorMoneda(moneda, nuevoPrecio);
+            transaction.update(clienteNuevoDoc.ref, {
+              saldoARS: roundSaldo(Number(datosNuevo.saldoARS ?? 0) + sumarARS),
+              saldoUSD: roundSaldo(Number(datosNuevo.saldoUSD ?? 0) + sumarUSD),
+              ultimaActualizacion: serverTimestamp(),
+            });
+          }
+          return;
+        }
+
+        if (precioCambio) {
+          const snap = await transaction.get(refSaldo.ref);
+          const datosCliente = (snap.data() || {}) as {
+            saldoARS?: number;
+            saldoUSD?: number;
+          };
+          const delta = nuevoPrecio - precioAnterior;
+          const { ars: sumarARS, usd: sumarUSD } = montoPorMoneda(moneda, delta);
+          transaction.update(refSaldo.ref, {
+            saldoARS: roundSaldo(Number(datosCliente.saldoARS ?? 0) + sumarARS),
+            saldoUSD: roundSaldo(Number(datosCliente.saldoUSD ?? 0) + sumarUSD),
+            ultimaActualizacion: serverTimestamp(),
+          });
+        }
       });
+
+      if (clienteCambio && !clienteAnteriorDoc) {
+        console.warn(
+          `⚠️ Cliente anterior "${nombreAnterior}" no encontrado. La deuda se cargó solo al cliente nuevo.`
+        );
+      }
 
       await onSave();
       handleClose();
-      console.log("✅ Trabajo y saldo actualizados correctamente");
+      console.log("✅ Trabajo y saldos de cuenta corriente actualizados");
     } catch (error) {
       console.error("%c[ModalEditar] FALLO AL GUARDAR", "color: red; font-weight: bold;");
       console.error("[ModalEditar] Error:", error);

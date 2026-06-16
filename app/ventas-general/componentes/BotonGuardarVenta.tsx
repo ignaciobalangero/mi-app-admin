@@ -229,36 +229,46 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       getDocs(collection(db, `negocios/${rol.negocioID}/stockExtra`))
     ]);
     
-    // Crear mapa unificado de stocks
-    const mapaStock: Record<string, any> = {};
-    
-    [stockAccesoriosSnap, stockRepuestosSnap, stockExtraSnap].forEach((snap, index) => {
-      const tipos = ["accesorio", "repuesto", "stockExtra"];
+    const mapaStockPorId: Record<string, any> = {};
+    const mapaStockPorCodigo: Record<string, any> = {};
+
+    const indexarSnap = (snap: typeof stockAccesoriosSnap, tipo: string) => {
       snap.forEach((doc) => {
         const data = doc.data();
-        if (data.codigo) {
-          mapaStock[data.codigo] = {
-            precioCosto: Number(data.precioCosto || 0),
-            precioCostoPesos: Number(data.precioCostoPesos || 0),
-            moneda: data.moneda || "USD",
-            precio1: Number(data.precio1 || 0),
-            precio2: Number(data.precio2 || 0),
-            precio3: Number(data.precio3 || 0),
-            precio1Pesos: Number(data.precio1Pesos || 0),
-            precio2Pesos: Number(data.precio2Pesos || 0),
-            precio3Pesos: Number(data.precio3Pesos || 0),
-            tipo: tipos[index]
-          };
+        const entry = {
+          precioCosto: Number(data.precioCosto || 0),
+          precioCostoPesos: Number(data.precioCostoPesos || 0),
+          moneda: data.moneda || "USD",
+          precio1: Number(data.precio1 || 0),
+          precio2: Number(data.precio2 || 0),
+          precio3: Number(data.precio3 || 0),
+          precio1Pesos: Number(data.precio1Pesos || 0),
+          precio2Pesos: Number(data.precio2Pesos || 0),
+          precio3Pesos: Number(data.precio3Pesos || 0),
+          tipo,
+        };
+        mapaStockPorId[doc.id] = entry;
+        const cod = String(data.codigo ?? "").trim();
+        if (cod && !mapaStockPorCodigo[cod]) {
+          mapaStockPorCodigo[cod] = entry;
         }
       });
-    });
+    };
 
-    console.log('🔍 Mapa de stock creado:', Object.keys(mapaStock).length, 'productos');
+    indexarSnap(stockAccesoriosSnap, "accesorio");
+    indexarSnap(stockRepuestosSnap, "repuesto");
+    indexarSnap(stockExtraSnap, "stockExtra");
+
+    console.log("🔍 Mapa de stock creado:", Object.keys(mapaStockPorId).length, "por id");
 
     return productos.map(producto => {
       const cantidad = producto.cantidad || 1;
       const precioUnitario = producto.precioUnitario || 0;
-      const stockData = mapaStock[producto.codigo];
+      const docId = String(producto.stockDocId ?? producto.id ?? "").trim();
+      const stockData =
+        (docId && mapaStockPorId[docId]) ||
+        (producto.codigo && mapaStockPorCodigo[producto.codigo]) ||
+        null;
 
       // ✅ CALCULAR COSTOS Y GANANCIA RESPETANDO MONEDAS ORIGINALES
       let precioCosto = 0;

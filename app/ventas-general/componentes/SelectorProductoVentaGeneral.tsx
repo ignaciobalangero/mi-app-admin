@@ -5,6 +5,14 @@ import { collection, getDocs, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import useCotizacion from "@/lib/hooks/useCotizacion";
+import { normalizarProductoModelo } from "@/lib/impresionVentaGeneral";
+
+function camposNombreStock(data: { producto?: string; modelo?: string }, fallback = "") {
+  return normalizarProductoModelo(
+    data.producto || data.modelo || fallback,
+    data.modelo
+  );
+}
 
 interface ProductoStock {
   id: string;
@@ -112,13 +120,14 @@ useEffect(() => {
     const accesorios: ProductoStock[] = accSnap.docs.map(doc => {
       const data = doc.data();
       const esUSD = data.moneda === "USD";
+      const nombre = camposNombreStock(data);
       
       if (esUSD) {
         return {
           id: doc.id,
           codigo: data.codigo || doc.id,
-          producto: data.producto || data.modelo || "",
-          modelo: data.modelo || data.producto || "",
+          producto: nombre.producto,
+          modelo: nombre.modelo,
           marca: data.marca || "",
           categoria: data.categoria || "",
           color: data.color || "",
@@ -136,8 +145,8 @@ useEffect(() => {
         return {
           id: doc.id,
           codigo: data.codigo || doc.id,
-          producto: data.producto || data.modelo || "",
-          modelo: data.modelo || data.producto || "",
+          producto: nombre.producto,
+          modelo: nombre.modelo,
           marca: data.marca || "",
           categoria: data.categoria || "",
           color: data.color || "",
@@ -158,12 +167,13 @@ useEffect(() => {
     const stockExtra: ProductoStock[] = repSnap.docs.map(doc => {
       const data = doc.data();
       const precio1USD = data.precio1 || data.precioUSD || 0;
+      const nombre = camposNombreStock(data);
       
       return {
         id: doc.id,
         codigo: doc.id,
-        producto: data.producto || data.modelo || "",
-        modelo: data.modelo || data.producto || "",
+        producto: nombre.producto,
+        modelo: nombre.modelo,
         marca: data.marca || "",
         categoria: data.categoria || "",
         color: data.color || "",
@@ -184,12 +194,13 @@ useEffect(() => {
     const stockRepuestos: ProductoStock[] = stockRepuestosSnap.docs.map(doc => {
       const data = doc.data();
       const esUSD = data.moneda === "USD";
+      const nombre = camposNombreStock(data, "Repuesto");
       
       const repuesto: ProductoStock = {
         id: doc.id,
         codigo: data.codigo || doc.id,
-        producto: data.producto || data.modelo || "Repuesto",
-        modelo: data.modelo || data.producto || doc.id,
+        producto: nombre.producto,
+        modelo: nombre.modelo,
         marca: data.marca || "",
         categoria: data.categoria || "Repuestos",
         color: data.color || "",

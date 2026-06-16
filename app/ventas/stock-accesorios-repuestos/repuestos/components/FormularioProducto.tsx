@@ -1,6 +1,13 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import {
+  codigoRepuestoOcupado,
+  mensajeCodigoDuplicado,
+  normalizarCodigoRepuesto,
+} from "@/lib/codigoRepuestoUnico";
 import CampoFotoRepuesto from "./CampoFotoRepuesto";
 import CalculadoraCostoUsd from "./CalculadoraCostoUsd";
 import { margenDesdePrecio, precioDesdeMargen } from "@/lib/margenRepuesto";
@@ -106,6 +113,38 @@ export default function FormularioProducto({
 }: Props) {
   const [porcentaje, setPorcentaje] = useState<number | "">("");
   const autoDesdePorcentaje = useRef(false);
+  const [errorCodigo, setErrorCodigo] = useState<string | null>(null);
+  const [validandoCodigo, setValidandoCodigo] = useState(false);
+
+  const validarCodigoEnStock = useCallback(async () => {
+    const cod = normalizarCodigoRepuesto(codigo);
+    if (!cod || !negocioID) {
+      setErrorCodigo(null);
+      return;
+    }
+
+    setValidandoCodigo(true);
+    try {
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockRepuestos`));
+      const items = snap.docs.map((d) => ({
+        id: d.id,
+        codigo: String(d.data().codigo ?? d.id).trim(),
+      }));
+      if (codigoRepuestoOcupado(items, cod, editandoId ?? undefined)) {
+        setErrorCodigo(mensajeCodigoDuplicado(cod));
+      } else {
+        setErrorCodigo(null);
+      }
+    } catch {
+      setErrorCodigo(null);
+    } finally {
+      setValidandoCodigo(false);
+    }
+  }, [codigo, negocioID, editandoId]);
+
+  useEffect(() => {
+    setErrorCodigo(null);
+  }, [editandoId]);
 
   useEffect(() => {
     if (precioCosto > 0 && precio1 > 0) {
@@ -197,9 +236,29 @@ export default function FormularioProducto({
           </label>
           <input 
             value={codigo} 
-            onChange={(e) => setCodigo(e.target.value)} 
-            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]" 
+            onChange={(e) => {
+              setCodigo(e.target.value);
+              setErrorCodigo(null);
+            }}
+            onBlur={() => void validarCodigoEnStock()}
+            className={`p-2 border-2 rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d] ${
+              errorCodigo
+                ? "border-[#e74c3c] focus:border-[#e74c3c] focus:ring-[#e74c3c]/30"
+                : "border-[#bdc3c7] focus:border-[#3498db]"
+            }`}
+            placeholder={editandoId ? "Código del producto" : "Opcional — se genera REP### si está vacío"}
           />
+          {validandoCodigo && (
+            <p className="text-[10px] text-[#7f8c8d] mt-1">Verificando código…</p>
+          )}
+          {errorCodigo && (
+            <p className="text-[10px] text-[#c0392b] mt-1 font-medium">{errorCodigo}</p>
+          )}
+          {!editandoId && !codigo.trim() && !errorCodigo && (
+            <p className="text-[10px] text-[#7f8c8d] mt-1">
+              Si no ingresás código, se asigna uno automático único (ej. REP042).
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
@@ -576,9 +635,17 @@ export default function FormularioProducto({
       <div className="flex justify-center">
         <button
           onClick={guardarProducto}
-          disabled={!producto || precioCosto <= 0 || cantidad <= 0 || stockIdeal <= 0 || (moneda === "USD" && cotizacion <= 0)}
+          disabled={
+            !producto ||
+            precioCosto <= 0 ||
+            cantidad <= 0 ||
+            stockIdeal <= 0 ||
+            (moneda === "USD" && cotizacion <= 0) ||
+            Boolean(errorCodigo) ||
+            validandoCodigo
+          }
           className={`px-8 py-3 rounded-xl text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 ${
-            !producto || precioCosto <= 0 || cantidad <= 0 || stockIdeal <= 0 || (moneda === "USD" && cotizacion <= 0)
+            !producto || precioCosto <= 0 || cantidad <= 0 || stockIdeal <= 0 || (moneda === "USD" && cotizacion <= 0) || errorCodigo || validandoCodigo
               ? "bg-[#bdc3c7] text-[#7f8c8d] cursor-not-allowed"
               : "bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white"
           }`}

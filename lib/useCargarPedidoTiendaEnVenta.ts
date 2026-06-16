@@ -10,46 +10,31 @@ import {
   pagoInicialDesdePedido,
   type ProductoVentaDesdePedido,
 } from "@/lib/mapPedidoTiendaAVenta";
-
-type StockIndex = Map<
-  string,
-  {
-    id?: string;
-    categoria?: string;
-    tipo?: "accesorio" | "repuesto" | "general";
-    producto?: string;
-    marca?: string;
-    modelo?: string;
-    color?: string;
-  }
->;
+import { buscarStockParaLineaPedido, crearStockIndex, type StockIndex } from "@/lib/stockLookup";
 
 async function indexarStock(negocioID: string): Promise<StockIndex> {
-  const map: StockIndex = new Map();
+  const docs: Parameters<typeof crearStockIndex>[0] = [];
   const cols = [
-    { path: `negocios/${negocioID}/stockRepuestos`, tipo: "repuesto" as const },
-    { path: `negocios/${negocioID}/stockAccesorios`, tipo: "accesorio" as const },
-    { path: `negocios/${negocioID}/stockExtra`, tipo: "general" as const },
+    { path: `negocios/${negocioID}/stockRepuestos`, tipo: "repuesto" as const, coleccion: "stockRepuestos" as const },
+    { path: `negocios/${negocioID}/stockAccesorios`, tipo: "accesorio" as const, coleccion: "stockAccesorios" as const },
+    { path: `negocios/${negocioID}/stockExtra`, tipo: "general" as const, coleccion: "stockExtra" as const },
   ];
 
-  for (const { path, tipo } of cols) {
+  for (const { path, tipo, coleccion } of cols) {
     const snap = await getDocs(collection(db, path));
     snap.docs.forEach((d) => {
-      const data = d.data();
-      const codigo = String(data.codigo ?? d.id).trim();
-      if (!codigo) return;
-      map.set(codigo.toLowerCase(), {
-        id: d.id,
-        categoria: String(data.categoria ?? (tipo === "repuesto" ? "Repuesto" : "Accesorio")),
-        tipo,
-        producto: String(data.producto ?? ""),
-        marca: String(data.marca ?? ""),
-        modelo: String(data.modelo ?? data.producto ?? ""),
-        color: String(data.color ?? ""),
-      });
+      docs.push({ id: d.id, data: d.data() as Record<string, unknown>, coleccion, tipo });
     });
   }
-  return map;
+
+  const index = crearStockIndex(docs);
+  if (index.codigosDuplicados.size > 0) {
+    console.warn(
+      `[pedido→venta] ${index.codigosDuplicados.size} códigos duplicados en stock. ` +
+        "Se usa itemId del pedido (doc id) como identificador principal."
+    );
+  }
+  return index;
 }
 
 export function useCargarPedidoTiendaEnVenta(negocioGestioneID: string | undefined) {
@@ -64,9 +49,10 @@ export function useCargarPedidoTiendaEnVenta(negocioGestioneID: string | undefin
       setCargando(true);
       try {
         const stock = await indexarStock(negocioStock);
-        const productos: ProductoVentaDesdePedido[] = pedido.lineas.map((l) =>
-          lineaPedidoAProductoVenta(l, stock.get(l.codigo.trim().toLowerCase()) ?? null)
-        );
+        const productos: ProductoVentaDesdePedido[] = pedido.lineas.map((l) => {
+          const match = buscarStockParaLineaPedido(stock, l.itemId, l.codigo);
+          return lineaPedidoAProductoVenta(l, match);
+        });
         return {
           cliente: pedido.cliente.nombre,
           productos,

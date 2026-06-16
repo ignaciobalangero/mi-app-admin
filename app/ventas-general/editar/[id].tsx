@@ -12,6 +12,10 @@ import {
   negocioIdStockDeVenta,
   reponerStockAlEliminarVenta,
 } from "@/lib/actualizarStockVentaApi";
+import {
+  eliminarPagosAsociadosAVenta,
+  revertirSaldoPorEliminarVenta,
+} from "@/lib/actualizarSaldoCliente";
 
 interface ProductoVenta {
   descripcion: string;
@@ -120,6 +124,24 @@ export default function FormularioEdicionVenta() {
     const negocioStock = negocioIdStockDeVenta(venta as Record<string, unknown>, rol.negocioID);
     const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
     await reponerStockAlEliminarVenta(negocioStock, productosVenta);
+
+    await revertirSaldoPorEliminarVenta(rol.negocioID, {
+      cliente: venta.cliente as string | undefined,
+      nroVenta: venta.nroVenta as string | undefined,
+      pago: venta.pago as { monto?: number | null; montoUSD?: number | null } | undefined,
+      productos: productosVenta,
+      total: venta.total as number | undefined,
+      totalARS: venta.totalARS as number | undefined,
+      totalUSD: venta.totalUSD as number | undefined,
+      moneda: venta.moneda as string | undefined,
+    });
+    if (venta.nroVenta) {
+      await eliminarPagosAsociadosAVenta(
+        rol.negocioID,
+        String(venta.nroVenta),
+        String(venta.cliente ?? "")
+      );
+    }
   
     // Reponer teléfonos y eliminar ventaTelefonos si corresponde
     if (venta.tipo === "telefono") {
