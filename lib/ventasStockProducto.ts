@@ -6,6 +6,7 @@ export type ProductoStockLike = {
   codigo?: string;
   id?: string;
   stockDocId?: string;
+  sinStock?: boolean;
 };
 
 export function codigoProductoStock(producto: ProductoStockLike): string {
@@ -56,7 +57,16 @@ export function esProductoAccesorio(producto: ProductoStockLike): boolean {
   return clasificarProductoStock(producto) === "accesorio";
 }
 
+/** Ítem cargado a mano en ventas general (usado, varios, sin ficha en stock). */
+export function esProductoLibre(producto: ProductoStockLike): boolean {
+  if (producto.sinStock === true) return true;
+  const tipo = String(producto.tipo ?? "").toLowerCase();
+  if (tipo === "libre" || tipo === "manual") return true;
+  return String(producto.origenStock ?? "").toLowerCase() === "manual";
+}
+
 export function productoAfectaStock(producto: ProductoStockLike): boolean {
+  if (esProductoLibre(producto)) return false;
   if (String(producto.categoria ?? "") === "Teléfono") return false;
   return codigoProductoStock(producto) !== "" && clasificarProductoStock(producto) !== null;
 }

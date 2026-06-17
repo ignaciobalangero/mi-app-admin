@@ -98,9 +98,6 @@ export async function actualizarStockVentaViaApi(
   const productos = items.filter(productoAfectaStock).map(normalizarLineaStock);
 
   if (productos.length === 0) {
-    if (items.length > 0) {
-      throw new Error("Ningún producto de la venta coincide con stock repuestos/accesorios.");
-    }
     return;
   }
 

@@ -599,7 +599,9 @@ export default function ModalVenta({
                           <tr key={i} className={`transition-colors duration-200 hover:bg-[#ecf0f1] ${isEven ? "bg-white" : "bg-[#f8f9fa]"}`}>
                             <td className="p-2 border border-[#bdc3c7]">
                               <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                                p.categoria === "Teléfono" 
+                                p.sinStock || p.tipo === "libre"
+                                  ? "bg-[#9b59b6] text-white"
+                                  : p.categoria === "Teléfono" 
                                   ? 'bg-[#27ae60] text-white'
                                   : p.tipo === "accesorio"
                                   ? 'bg-[#3498db] text-white'
@@ -607,7 +609,9 @@ export default function ModalVenta({
                                   ? 'bg-[#f39c12] text-white'
                                   : 'bg-[#7f8c8d] text-white'
                               }`}>
-                                {p.categoria || (p.tipo === "accesorio" ? "Accesorio" : p.tipo === "repuesto" ? "Repuesto" : "General")}
+                                {p.sinStock || p.tipo === "libre"
+                                  ? "Sin stock"
+                                  : p.categoria || (p.tipo === "accesorio" ? "Accesorio" : p.tipo === "repuesto" ? "Repuesto" : "General")}
                               </span>
                             </td>
                             <td className="p-2 border border-[#bdc3c7] font-medium text-[#2c3e50] text-xs">{p.producto}</td>
@@ -726,7 +730,9 @@ export default function ModalVenta({
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center gap-2">
                             <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                              p.categoria === "Teléfono" 
+                              p.sinStock || p.tipo === "libre"
+                                ? "bg-[#9b59b6] text-white"
+                                : p.categoria === "Teléfono" 
                                 ? 'bg-[#27ae60] text-white'
                                 : p.tipo === "accesorio"
                                 ? 'bg-[#3498db] text-white'
@@ -734,7 +740,9 @@ export default function ModalVenta({
                                 ? 'bg-[#f39c12] text-white'
                                 : 'bg-[#7f8c8d] text-white'
                             }`}>
-                              {p.categoria || (p.tipo === "accesorio" ? "Accesorio" : p.tipo === "repuesto" ? "Repuesto" : "General")}
+                              {p.sinStock || p.tipo === "libre"
+                                ? "Sin stock"
+                                : p.categoria || (p.tipo === "accesorio" ? "Accesorio" : p.tipo === "repuesto" ? "Repuesto" : "General")}
                             </span>
                           </div>
                           <button

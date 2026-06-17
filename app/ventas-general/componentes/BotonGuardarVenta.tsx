@@ -22,7 +22,11 @@ import {
   STORAGE_PEDIDO_TIENDA_ACTIVO,
   marcarPedidoTiendaProcesado,
 } from "@/lib/usePedidosTiendaPendientesVenta";
-import { esProductoAccesorio, esProductoRepuestoOGeneral } from "@/lib/ventasStockProducto";
+import {
+  esProductoAccesorio,
+  esProductoLibre,
+  esProductoRepuestoOGeneral,
+} from "@/lib/ventasStockProducto";
 import { actualizarStockVentaViaApi } from "@/lib/actualizarStockVentaApi";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 import { query, where, limit } from "firebase/firestore";
@@ -264,6 +268,28 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     return productos.map(producto => {
       const cantidad = producto.cantidad || 1;
       const precioUnitario = producto.precioUnitario || 0;
+
+      if (esProductoLibre(producto)) {
+        const precioVentaReal = Number(
+          producto.moneda === "USD"
+            ? producto.precioUSD ?? producto.precioUnitario ?? 0
+            : producto.precioARS ?? producto.precioUnitario ?? 0
+        );
+        return {
+          ...producto,
+          tipo: "libre",
+          sinStock: true,
+          origenStock: "manual",
+          codigo: "",
+          precioUnitario: precioVentaReal,
+          precioVenta: precioVentaReal * cantidad,
+          precioCosto: 0,
+          precioCostoPesos: 0,
+          ganancia: precioVentaReal * cantidad,
+          cotizacionUsada: cotizacionActual,
+        };
+      }
+
       const docId = String(producto.stockDocId ?? producto.id ?? "").trim();
       const stockData =
         (docId && mapaStockPorId[docId]) ||

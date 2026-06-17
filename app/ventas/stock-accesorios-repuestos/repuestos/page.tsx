@@ -259,7 +259,7 @@ export default function RepuestosPage() {
           itemsCodigo,
           snapCodigos.size
         );
-        if (!resultado.ok) {
+        if (resultado.ok === false) {
           alert(resultado.error);
           return;
         }

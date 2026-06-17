@@ -207,14 +207,18 @@ export default function ModalEditarVenta({
                     <div className="flex items-center gap-3">
                       <span
                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                          producto.categoria === "Teléfono"
-                            ? "bg-[#27ae60] text-white"
-                            : producto.categoria === "Accesorio"
-                              ? "bg-[#3498db] text-white"
-                              : "bg-[#f39c12] text-white"
+                          producto.sinStock || producto.tipo === "libre"
+                            ? "bg-[#9b59b6] text-white"
+                            : producto.categoria === "Teléfono"
+                              ? "bg-[#27ae60] text-white"
+                              : producto.categoria === "Accesorio"
+                                ? "bg-[#3498db] text-white"
+                                : "bg-[#f39c12] text-white"
                         }`}
                       >
-                        {producto.categoria}
+                        {producto.sinStock || producto.tipo === "libre"
+                          ? "Sin stock"
+                          : producto.categoria}
                       </span>
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${

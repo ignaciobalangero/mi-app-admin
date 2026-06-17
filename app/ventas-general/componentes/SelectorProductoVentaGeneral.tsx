@@ -30,7 +30,7 @@ interface ProductoStock {
   precio3Pesos?: number;
   moneda: "ARS" | "USD";
   cantidad?: number;
-  tipo: "accesorio" | "repuesto" | "general";
+  tipo: "accesorio" | "repuesto" | "general" | "libre";
   origenStock?: string;
   hoja?: string;
   precioUnitario?: number;
@@ -41,6 +41,8 @@ interface ProductoStock {
   proveedor?: string;
   precioManualUsado?: boolean;
   precioOriginal?: number;
+  sinStock?: boolean;
+  observacion?: string;
 }
 
 export type { ProductoStock };
@@ -74,6 +76,78 @@ export default function SelectorProductoVentaGeneral({
   const [precioManual, setPrecioManual] = useState(0);
   const [usandoPrecioManual, setUsandoPrecioManual] = useState(false);
   const [monedaSeleccionada, setMonedaSeleccionada] = useState<"ARS" | "USD">("ARS");
+  const [mostrarLibre, setMostrarLibre] = useState(false);
+  const [libreForm, setLibreForm] = useState({
+    producto: "",
+    modelo: "",
+    marca: "",
+    color: "",
+    categoria: "Sin stock",
+    cantidad: 1,
+    precio: 0,
+    moneda: "ARS" as "ARS" | "USD",
+    observacion: "",
+  });
+
+  const resetLibreForm = () => {
+    setLibreForm({
+      producto: "",
+      modelo: "",
+      marca: "",
+      color: "",
+      categoria: "Sin stock",
+      cantidad: 1,
+      precio: 0,
+      moneda: "ARS",
+      observacion: "",
+    });
+  };
+
+  const confirmarProductoLibre = () => {
+    const nombre = libreForm.producto.trim();
+    if (!nombre) {
+      alert("⚠️ Ingresá un nombre o descripción del producto");
+      return;
+    }
+    const precio = Number(libreForm.precio);
+    if (!Number.isFinite(precio) || precio <= 0) {
+      alert("⚠️ El precio debe ser mayor a 0");
+      return;
+    }
+    const cantidadLibre = Math.max(1, Number(libreForm.cantidad) || 1);
+    const moneda = libreForm.moneda;
+    const modelo = libreForm.modelo.trim() || nombre;
+
+    setProductos([
+      ...productos,
+      {
+        id: `libre-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        tipo: "libre",
+        sinStock: true,
+        origenStock: "manual",
+        categoria: libreForm.categoria.trim() || "Sin stock",
+        producto: nombre,
+        modelo,
+        marca: libreForm.marca.trim() || "—",
+        color: libreForm.color.trim() || "—",
+        codigo: "",
+        cantidad: cantidadLibre,
+        precioUnitario: precio,
+        precioARS: moneda === "ARS" ? precio : null,
+        precioUSD: moneda === "USD" ? precio : null,
+        moneda,
+        precio1: 0,
+        precio2: 0,
+        precio3: 0,
+        observacion: libreForm.observacion.trim(),
+      },
+    ]);
+
+    resetLibreForm();
+    setMostrarLibre(false);
+    setBusqueda("");
+    setMostrar(false);
+  };
 
   const obtenerUSDOriginalDesdePrecioElegido = () => {
     if (!productoSeleccionado) return 0;
@@ -338,7 +412,7 @@ useEffect(() => {
   };
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full space-y-2">
       <div className="relative">
         <input
           type="text"
@@ -356,6 +430,18 @@ useEffect(() => {
           <span className="text-[#3498db] text-xl">🔍</span>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          setMostrar(false);
+          setMostrarLibre(true);
+        }}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-[#9b59b6] bg-[#f5eef8] text-[#7d3c98] hover:bg-[#ebdef0] hover:border-[#8e44ad] transition-all text-sm font-semibold"
+      >
+        <span>✏️</span>
+        Agregar producto sin stock (usado, varios, etc.)
+      </button>
 
       {mostrar && busqueda.length > 0 && (
         <div className="mt-2 flex gap-2 text-xs">
@@ -867,6 +953,165 @@ useEffect(() => {
               >
                 <span>✅</span>
                 Agregar al remito
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mostrarLibre && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto border-2 border-[#ecf0f1] overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] text-white p-4 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <span className="text-xl">✏️</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Producto sin stock</h3>
+                  <p className="text-purple-100 text-sm">
+                    Para usados, varios o artículos que no están cargados en el sistema
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
+                  Nombre / descripción *
+                </label>
+                <input
+                  type="text"
+                  value={libreForm.producto}
+                  onChange={(e) => setLibreForm((f) => ({ ...f, producto: e.target.value }))}
+                  placeholder="Ej: iPhone 11 usado 64GB, cargador genérico…"
+                  className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Modelo</label>
+                  <input
+                    type="text"
+                    value={libreForm.modelo}
+                    onChange={(e) => setLibreForm((f) => ({ ...f, modelo: e.target.value }))}
+                    className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Marca</label>
+                  <input
+                    type="text"
+                    value={libreForm.marca}
+                    onChange={(e) => setLibreForm((f) => ({ ...f, marca: e.target.value }))}
+                    className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Color</label>
+                  <input
+                    type="text"
+                    value={libreForm.color}
+                    onChange={(e) => setLibreForm((f) => ({ ...f, color: e.target.value }))}
+                    className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Categoría</label>
+                  <input
+                    type="text"
+                    value={libreForm.categoria}
+                    onChange={(e) => setLibreForm((f) => ({ ...f, categoria: e.target.value }))}
+                    className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Cantidad</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={libreForm.cantidad}
+                    onChange={(e) =>
+                      setLibreForm((f) => ({ ...f, cantidad: Math.max(1, Number(e.target.value) || 1) }))
+                    }
+                    className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg text-sm text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Moneda</label>
+                  <div className="flex gap-2">
+                    {(["ARS", "USD"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setLibreForm((f) => ({ ...f, moneda: m }))}
+                        className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 ${
+                          libreForm.moneda === m
+                            ? "bg-[#9b59b6] text-white border-[#9b59b6]"
+                            : "bg-white text-[#2c3e50] border-[#bdc3c7]"
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
+                  Precio unitario ({libreForm.moneda}) *
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={libreForm.precio || ""}
+                  onChange={(e) => setLibreForm((f) => ({ ...f, precio: Number(e.target.value) }))}
+                  className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg text-lg font-medium text-center"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+                  Observación (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={libreForm.observacion}
+                  onChange={(e) => setLibreForm((f) => ({ ...f, observacion: e.target.value }))}
+                  placeholder="Ej: usado, sin caja, traído por cliente…"
+                  className="w-full p-2 border-2 border-[#bdc3c7] rounded-lg text-sm"
+                />
+              </div>
+
+              <p className="text-xs text-[#7f8c8d] bg-[#f8f9fa] rounded-lg p-2 border border-[#ecf0f1]">
+                No descuenta stock. Podés mezclarlo con productos del inventario en la misma venta.
+              </p>
+            </div>
+
+            <div className="bg-[#f8f9fa] px-4 py-3 flex justify-end gap-2 border-t border-[#ecf0f1]">
+              <button
+                type="button"
+                onClick={() => {
+                  resetLibreForm();
+                  setMostrarLibre(false);
+                }}
+                className="px-4 py-2 text-[#2c3e50] bg-white border-2 border-[#bdc3c7] rounded-lg text-sm font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarProductoLibre}
+                className="px-6 py-2 bg-[#9b59b6] hover:bg-[#8e44ad] text-white rounded-lg font-semibold text-sm"
+              >
+                Agregar a la venta
               </button>
             </div>
           </div>
