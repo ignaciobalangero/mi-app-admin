@@ -538,7 +538,9 @@ console.log('💳 Saldo actualizado por venta de teléfono');
         cliente: cliente,
         monto: null,
         montoUSD: pagoUSD_Tel,
-        forma: pagoTelefono.formaPago || "Efectivo",
+        forma: pagoTelefono.formaPago
+          ? `${pagoTelefono.formaPago} USD`.replace(/\s+USD USD/i, " USD")
+          : "Efectivo USD",
         destino: "ventaTelefonos", 
         moneda: "USD",
         cotizacion: cotizacion,
@@ -819,7 +821,9 @@ console.log('💳 Saldo actualizado por venta normal');
           monto: null,
           montoUSD: pagoUSD,
           moneda: "USD",
-          forma: pago?.formaPago || "Efectivo",
+          forma: pago?.formaPago
+            ? `${pago.formaPago} USD`.replace(/\s+USD USD/i, " USD")
+            : "Efectivo USD",
           destino: pago?.destino || "",
           observaciones: pago?.observaciones || "",
           cotizacion: cotizacion,

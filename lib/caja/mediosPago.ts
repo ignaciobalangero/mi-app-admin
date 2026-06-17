@@ -14,6 +14,47 @@ export function labelMedioPago(medio: MedioPagoCaja): string {
   return MEDIOS_PAGO_CAJA.find((m) => m.id === medio)?.label ?? medio;
 }
 
+/**
+ * Medio de pago para documentos de `pagos` / `gastos`, usando moneda + forma.
+ * Los cobros USD en efectivo van a `usd_billete`, no a `efectivo_ars`.
+ */
+export function medioPagoDesdeDocumento(
+  data: Record<string, unknown>,
+  opts?: { esGasto?: boolean }
+): MedioPagoCaja {
+  const moneda = String(data.moneda ?? "ARS").toUpperCase();
+  const ars = Number(data.monto ?? 0);
+  const usd = Number(data.montoUSD ?? 0);
+  const rawForma = String(
+    data.forma ?? data.metodoPago ?? data.formaPago ?? ""
+  );
+
+  const esUSD =
+    moneda === "USD" || (usd > 0 && ars <= 0 && moneda !== "ARS");
+
+  if (esUSD) {
+    const fromForm = normalizarMedioPago(rawForma);
+    if (
+      fromForm !== "efectivo_ars" &&
+      fromForm !== "otro" &&
+      fromForm !== "usd_billete"
+    ) {
+      return fromForm;
+    }
+    return "usd_billete";
+  }
+
+  if (moneda === "DUAL" && usd > 0 && ars > 0) {
+    return normalizarMedioPago(rawForma);
+  }
+
+  if (opts?.esGasto && moneda === "USD") {
+    return "usd_billete";
+  }
+
+  return normalizarMedioPago(rawForma);
+}
+
 /** Normaliza textos legacy del sistema (pagos.forma, gastos.metodoPago, etc.). */
 export function normalizarMedioPago(raw: string | undefined | null): MedioPagoCaja {
   const t = String(raw ?? "")

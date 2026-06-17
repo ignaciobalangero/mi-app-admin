@@ -141,6 +141,16 @@ export type ResumenEgresosCaja = {
 
 export type ResumenMediosPago = Record<MedioPagoCaja, number>;
 
+/** Montos cobrados en ventas/trabajos/cuenta corriente, desglosados por moneda del pago. */
+export type TotalesMonedaCaja = {
+  ingresosARS: number;
+  ingresosUSD: number;
+  ingresosUSDEquivARS: number;
+  egresosARS: number;
+  egresosUSD: number;
+  egresosUSDEquivARS: number;
+};
+
 export type ResumenCajaDia = {
   saldoInicialARS: number;
   saldoInicialUSD: number;
@@ -149,4 +159,5 @@ export type ResumenCajaDia = {
   netoDiaARS: number;
   medios: ResumenMediosPago;
   movimientos: MovimientoCaja[];
+  totalesPorMoneda: TotalesMonedaCaja;
 };

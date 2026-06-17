@@ -11,6 +11,7 @@ import type {
 import { esLineaStockExtra } from "@/lib/ventasStockProducto";
 import {
   crearResumenMediosVacio,
+  medioPagoDesdeDocumento,
   montoEnARS,
   normalizarMedioPago,
 } from "@/lib/caja/mediosPago";
@@ -151,15 +152,138 @@ function clasificarPago(p: Record<string, unknown>): CategoriaMovimientoCaja {
   return "cobro_cta_cte";
 }
 
-function montoPagoEnARS(p: Record<string, unknown>): number {
-  const moneda = String(p.moneda ?? "ARS");
-  const cot = Number(p.cotizacion ?? 0);
+function totalesMonedaVacios() {
+  return {
+    ingresosARS: 0,
+    ingresosUSD: 0,
+    ingresosUSDEquivARS: 0,
+    egresosARS: 0,
+    egresosUSD: 0,
+    egresosUSDEquivARS: 0,
+  };
+}
+
+function subcategoriaDesdePago(
+  p: Record<string, unknown>,
+  ventasPorNro: Map<number, Record<string, unknown>>
+): SubcategoriaVentaCaja | undefined {
+  const destino = String(p.destino ?? "").toLowerCase();
+  if (destino.includes("ventatelefono") || destino.includes("venta_telefono")) {
+    const monedaPago = String(p.moneda ?? "ARS").toUpperCase();
+    const usd = Number(p.montoUSD ?? 0);
+    return monedaPago === "USD" || usd > 0 ? "venta_telefono_usd" : "venta_telefono_ars";
+  }
+
+  const nro = Number(p.nroVenta ?? 0);
+  const venta = nro ? ventasPorNro.get(nro) : undefined;
+  if (venta) {
+    return subcategoriaVentaDesdeProductos(venta.productos as unknown[]);
+  }
+  return "venta_repuesto_stock";
+}
+
+function montosPagoSeparados(p: Record<string, unknown>): {
+  ars: number;
+  usd: number;
+  cot: number;
+} {
+  const cot = Number(p.cotizacion ?? p.cotizacionPago ?? 0);
   const ars = Number(p.monto ?? 0);
   const usd = Number(p.montoUSD ?? 0);
-  if (moneda === "USD" || (usd > 0 && ars === 0)) {
-    return montoEnARS(usd, "USD", cot);
+  const moneda = String(p.moneda ?? "ARS").toUpperCase();
+
+  if (moneda === "USD" && ars <= 0) {
+    return { ars: 0, usd, cot };
   }
-  return ars + (usd > 0 && cot > 0 ? usd * cot : 0);
+  if (moneda === "ARS" && usd <= 0) {
+    return { ars, usd: 0, cot };
+  }
+  if (moneda === "DUAL" || (ars > 0 && usd > 0)) {
+    return { ars, usd, cot };
+  }
+  if (usd > 0 && ars <= 0) {
+    return { ars: 0, usd, cot };
+  }
+  return { ars, usd: 0, cot };
+}
+
+function acumularIngresoPorMoneda(
+  totales: ReturnType<typeof totalesMonedaVacios>,
+  ars: number,
+  usd: number,
+  cot: number
+) {
+  if (ars > 0) totales.ingresosARS += ars;
+  if (usd > 0) {
+    totales.ingresosUSD += usd;
+    if (cot > 0) totales.ingresosUSDEquivARS += usd * cot;
+  }
+}
+
+function acumularEgresoPorMoneda(
+  totales: ReturnType<typeof totalesMonedaVacios>,
+  ars: number,
+  usd: number,
+  cot: number
+) {
+  if (ars > 0) totales.egresosARS += ars;
+  if (usd > 0) {
+    totales.egresosUSD += usd;
+    if (cot > 0) totales.egresosUSDEquivARS += usd * cot;
+  }
+}
+
+function acumularPagoEnCaja(params: {
+  p: Record<string, unknown>;
+  ingresos: ResumenIngresosCaja;
+  egresos: ResumenEgresosCaja;
+  medios: Record<import("@/lib/caja/cajaTypes").MedioPagoCaja, number>;
+  totalesPorMoneda: ReturnType<typeof totalesMonedaVacios>;
+  ventasPorNro: Map<number, Record<string, unknown>>;
+}) {
+  const { p, ingresos, egresos, medios, totalesPorMoneda, ventasPorNro } = params;
+  const cat = clasificarPago(p);
+  const { ars, usd, cot } = montosPagoSeparados(p);
+  if (ars <= 0 && usd <= 0) return;
+
+  const montoTotalARS = ars + (usd > 0 && cot > 0 ? usd * cot : 0);
+  if (montoTotalARS <= 0 && usd <= 0) return;
+
+  const forma = String(p.forma ?? p.formaPago ?? "");
+
+  if (cat === "pago_proveedor") {
+    acumularEgresoCategoria(egresos, "pago_proveedor", montoTotalARS);
+    acumularEgresoPorMoneda(totalesPorMoneda, ars, usd, cot);
+    if (ars > 0) {
+      medios[normalizarMedioPago(forma)] -= ars;
+    }
+    if (usd > 0) {
+      const medioUsd = medioPagoDesdeDocumento(p);
+      medios[medioUsd] -= montoEnARS(usd, "USD", cot);
+    }
+    return;
+  }
+
+  const sub =
+    cat === "cobro_venta"
+      ? subcategoriaDesdePago(p, ventasPorNro)
+      : undefined;
+
+  acumularIngresoCategoria(ingresos, cat, montoTotalARS, sub);
+  acumularIngresoPorMoneda(totalesPorMoneda, ars, usd, cot);
+
+  if (ars > 0) {
+    const medioArs =
+      usd > 0 && forma.toLowerCase().includes("usd")
+        ? normalizarMedioPago(forma.replace(/\+?\s*usd/gi, "").trim() || "Efectivo")
+        : normalizarMedioPago(forma);
+    medios[medioArs === "usd_billete" ? "efectivo_ars" : medioArs] += ars;
+  }
+
+  if (usd > 0) {
+    const medioUsd = medioPagoDesdeDocumento(p);
+    medios[medioUsd] += montoEnARS(usd, "USD", cot);
+  }
 }
 
 export async function calcularResumenCajaDia(params: {
@@ -173,6 +297,7 @@ export async function calcularResumenCajaDia(params: {
   const ingresos = ingresosVacios();
   const egresos = egresosVacios();
   const medios = crearResumenMediosVacio();
+  const totalesPorMoneda = totalesMonedaVacios();
   const movimientos: MovimientoCaja[] = [];
 
   const ventasPorNro = new Map<number, Record<string, unknown>>();
@@ -197,46 +322,39 @@ export async function calcularResumenCajaDia(params: {
     if (nro) ventasPorNro.set(nro, { id: d.id, ...data });
   });
 
-  const pagosProcesados = new Set<string>();
-
   pagosSnap.docs.forEach((d) => {
     const p = { id: d.id, ...d.data() } as Record<string, unknown>;
-    const cat = clasificarPago(p);
-    const monto = montoPagoEnARS(p);
-    if (monto <= 0) return;
-
-    const medio = normalizarMedioPago(String(p.forma ?? ""));
-
-    if (cat === "pago_proveedor") {
-      acumularEgresoCategoria(egresos, "pago_proveedor", monto);
-      medios[medio] -= monto;
-      pagosProcesados.add(d.id);
-      return;
-    }
-
-    let sub: SubcategoriaVentaCaja | undefined;
-    if (cat === "cobro_venta") {
-      const nro = Number(p.nroVenta ?? 0);
-      const venta = nro ? ventasPorNro.get(nro) : undefined;
-      sub = venta ? subcategoriaVentaDesdeProductos(venta.productos as unknown[]) : "venta_repuesto_stock";
-    }
-
-    acumularIngresoCategoria(ingresos, cat, monto, sub);
-    medios[medio] += monto;
-    pagosProcesados.add(d.id);
+    acumularPagoEnCaja({
+      p,
+      ingresos,
+      egresos,
+      medios,
+      totalesPorMoneda,
+      ventasPorNro,
+    });
   });
 
   gastosSnap.docs.forEach((d) => {
-    const g = d.data();
+    const g = d.data() as Record<string, unknown>;
     const moneda = String(g.moneda ?? "ARS");
+    const cot = Number(g.cotizacion ?? 0);
+    const arsNativo = moneda === "USD" ? 0 : Number(g.monto ?? 0);
+    const usdNativo = moneda === "USD" ? Number(g.monto ?? 0) : Number(g.montoUSD ?? 0);
     const monto =
-      moneda === "USD"
-        ? montoEnARS(Number(g.monto ?? 0), "USD", Number(g.cotizacion ?? 0))
-        : Number(g.monto ?? 0);
+      arsNativo + (usdNativo > 0 && cot > 0 ? usdNativo * cot : 0);
     if (monto <= 0) return;
     acumularEgresoCategoria(egresos, "gasto_operativo", monto);
-    const medio = normalizarMedioPago(String(g.metodoPago ?? g.forma ?? "efectivo"));
-    medios[medio] -= monto;
+    acumularEgresoPorMoneda(totalesPorMoneda, arsNativo, usdNativo, cot);
+    if (arsNativo > 0) {
+      medios[normalizarMedioPago(String(g.metodoPago ?? g.forma ?? "efectivo"))] -= arsNativo;
+    }
+    if (usdNativo > 0) {
+      medios[medioPagoDesdeDocumento(g, { esGasto: true })] -= montoEnARS(
+        usdNativo,
+        "USD",
+        cot
+      );
+    }
   });
 
   if (movsSnap) {
@@ -267,6 +385,7 @@ export async function calcularResumenCajaDia(params: {
     netoDiaARS,
     medios,
     movimientos,
+    totalesPorMoneda,
   };
 }
 

@@ -180,6 +180,29 @@ export default function CajaDiariaPage() {
               </div>
 
               <div className="bg-white rounded-xl p-6 shadow border border-[#ecf0f1]">
+                <h2 className="text-lg font-bold text-[#2c3e50] mb-4">Cobros por moneda</h2>
+                <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                  <div className="bg-[#f8f9fa] rounded-lg p-3 border">
+                    <p className="text-xs text-[#7f8c8d]">Cobrado en ARS</p>
+                    <p className="font-bold text-[#2c3e50]">
+                      {formatearPrecioCaja(resumen.totalesPorMoneda.ingresosARS)}
+                    </p>
+                  </div>
+                  <div className="bg-[#f8f9fa] rounded-lg p-3 border">
+                    <p className="text-xs text-[#7f8c8d]">Cobrado en USD</p>
+                    <p className="font-bold text-[#2c3e50]">
+                      USD {resumen.totalesPorMoneda.ingresosUSD.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                    </p>
+                    {resumen.totalesPorMoneda.ingresosUSDEquivARS > 0 && (
+                      <p className="text-xs text-[#7f8c8d] mt-1">
+                        ≈ {formatearPrecioCaja(resumen.totalesPorMoneda.ingresosUSDEquivARS)} ARS
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow border border-[#ecf0f1]">
                 <h2 className="text-lg font-bold text-[#2c3e50] mb-4">Por medio de pago</h2>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {MEDIOS_PAGO_CAJA.map(({ id }) => {
