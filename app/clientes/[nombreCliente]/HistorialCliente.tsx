@@ -9,6 +9,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRol } from "@/lib/useRol";
 import GeneradorPDF from "./GeneradorPDF";
+import { deudaVentaPorMoneda } from "@/lib/actualizarSaldoCliente";
 import { monedaLineaProducto, totalesVentasPorMoneda } from "./ventasMonedaHelpers";
 
 /** Una sola línea para la tabla (no afecta cálculos de saldo). */
@@ -143,9 +144,9 @@ const calcularTotales = () => {
     }
   });
 
-  // ✅ VENTAS: todas las ventas; cada línea según p.moneda → ARS o USD (teléfono en ARS cuenta en ARS)
+  // ✅ VENTAS: misma regla que cuenta corriente (líneas + fallback total/totalARS/totalUSD)
   ventas.forEach((v) => {
-    const { totalARS, totalUSD } = totalesVentasPorMoneda(v.productos);
+    const { totalARS, totalUSD } = deudaVentaPorMoneda(v);
     totalVentasARS += totalARS;
     totalVentasUSD += totalUSD;
   });

@@ -23,9 +23,12 @@ interface TablaPagosProps {
   setPagos: React.Dispatch<React.SetStateAction<PagoConOrigen[]>>;
 }
 
+const ITEMS_POR_PAGINA = 40;
+
 export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosProps) {
   const [mensaje, setMensaje] = useState("");
   const [filtroCliente, setFiltroCliente] = useState("");
+  const [pagina, setPagina] = useState(1);
   const [pagoAEliminar, setPagoAEliminar] = useState<{ id: string; origen: "pagos" | "pagos" } | null>(null);
   const [pagoEditando, setPagoEditando] = useState<PagoConOrigen | null>(null);
   const [form, setForm] = useState<any>({});
@@ -293,9 +296,25 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
     }
   };
 
-  const pagosFiltrados = pagos.filter(p => 
-    (p.cliente || "").toLowerCase().includes(filtroCliente.toLowerCase())
-  );
+  const filtroNormalizado = filtroCliente.trim().toLowerCase();
+  const pagosFiltrados = filtroNormalizado
+    ? pagos.filter((p) => (p.cliente || "").toLowerCase().includes(filtroNormalizado))
+    : pagos;
+
+  const totalPaginas = Math.max(1, Math.ceil(pagosFiltrados.length / ITEMS_POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const indiceInicio = (paginaActual - 1) * ITEMS_POR_PAGINA;
+  const pagosPaginados = pagosFiltrados.slice(indiceInicio, indiceInicio + ITEMS_POR_PAGINA);
+
+  useEffect(() => {
+    setPagina(1);
+  }, [filtroNormalizado]);
+
+  useEffect(() => {
+    if (pagina > totalPaginas) {
+      setPagina(totalPaginas);
+    }
+  }, [pagina, totalPaginas]);
 
   return (
     <div className="space-y-6">
@@ -464,6 +483,13 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
           onChange={(e) => setFiltroCliente(e.target.value)}
           className="w-full max-w-md px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
         />
+        {filtroNormalizado && (
+          <p className="mt-3 text-sm text-[#7f8c8d]">
+            {pagosFiltrados.length === 0
+              ? "Ningún pago coincide con ese cliente."
+              : `${pagosFiltrados.length} pago${pagosFiltrados.length === 1 ? "" : "s"} de ${pagos.length} total`}
+          </p>
+        )}
       </div>
 
       {/* Tabla principal - Estilo GestiOne */}
@@ -478,7 +504,16 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
             <div>
               <h3 className="text-2xl font-bold">Lista de Pagos</h3>
               <p className="text-blue-100 mt-1">
-                {pagosFiltrados.length} pagos registrados (ordenados por fecha - más reciente primero)
+                {pagosFiltrados.length === 0
+                  ? "Sin resultados"
+                  : pagosFiltrados.length === 1
+                    ? "1 pago"
+                    : `${pagosFiltrados.length} pagos`}
+                {filtroNormalizado ? ` (filtrado de ${pagos.length})` : " registrados"}
+                {pagosFiltrados.length > ITEMS_POR_PAGINA
+                  ? ` · mostrando ${indiceInicio + 1}–${Math.min(indiceInicio + ITEMS_POR_PAGINA, pagosFiltrados.length)}`
+                  : ""}
+                {" · más reciente primero"}
               </p>
             </div>
           </div>
@@ -534,7 +569,21 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
               </tr>
             </thead>
             <tbody>
-              {pagosFiltrados.map((pago, index) => {
+              {pagosPaginados.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center border border-black">
+                    <div className="flex flex-col items-center gap-3 text-[#7f8c8d]">
+                      <span className="text-3xl">💳</span>
+                      <p className="font-medium">
+                        {filtroNormalizado
+                          ? `No hay pagos para "${filtroCliente.trim()}"`
+                          : "No hay pagos registrados"}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+              pagosPaginados.map((pago, index) => {
                 const isEven = index % 2 === 0;
                 return (
                   <tr key={`${pago.id}-${pago.origen}`} className={`transition-all duration-200 hover:bg-[#ebf3fd] ${isEven ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
@@ -598,10 +647,42 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>
+
+        {pagosFiltrados.length > ITEMS_POR_PAGINA && (
+          <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 border-t-2 border-[#bdc3c7]">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4">
+              <div className="text-xs sm:text-sm text-[#2c3e50] font-medium order-2 sm:order-1">
+                Página {paginaActual} de {totalPaginas}
+                {filtroNormalizado
+                  ? ` · ${pagosFiltrados.length} de ${pagos.length} pagos`
+                  : ` · ${pagosFiltrados.length} pagos`}
+              </div>
+              <div className="flex gap-2 order-1 sm:order-2">
+                <button
+                  type="button"
+                  disabled={paginaActual === 1}
+                  onClick={() => setPagina((prev) => Math.max(prev - 1, 1))}
+                  className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xs sm:text-sm"
+                >
+                  ← <span className="hidden sm:inline">Anterior</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={paginaActual === totalPaginas}
+                  onClick={() => setPagina((prev) => Math.min(prev + 1, totalPaginas))}
+                  className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 bg-[#95a5a6] hover:bg-[#7f8c8d] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xs sm:text-sm"
+                >
+                  <span className="hidden sm:inline">Siguiente</span> →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal de confirmación de eliminación - Estilo GestiOne */}

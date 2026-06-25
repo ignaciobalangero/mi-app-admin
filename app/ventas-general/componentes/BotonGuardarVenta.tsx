@@ -993,6 +993,17 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
               saldoPendiente: saldoPendiente,
               estado: saldoPendiente > 0 ? "pendiente" : "pagado",
             });
+
+            // Ajustar cuenta corriente por accesorios/repuestos/stock extra agregados a la venta de teléfono
+            const deltaARS = nuevoTotalARS - Number(datosExistentes.totalARS ?? 0);
+            const deltaUSD = nuevoTotalUSD - Number(datosExistentes.totalUSD ?? 0);
+            if (deltaARS !== 0 || deltaUSD !== 0) {
+              await actualizarSaldoCliente(cliente, deltaARS, deltaUSD);
+              console.log("💳 Saldo actualizado por ítems adicionales en venta mixta:", {
+                deltaARS,
+                deltaUSD,
+              });
+            }
           }
         }
         

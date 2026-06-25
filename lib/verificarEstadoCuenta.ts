@@ -3,6 +3,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useEffect, useState } from 'react';
+import { cuentaAccesoSuspendido } from '@/lib/pagosSuscripcionAdmin';
 
 // ✅ USUARIOS SUPER ADMIN (siempre exentos)
 const SUPER_ADMINS = [
@@ -135,40 +136,60 @@ export const useVerificarEstadoCuenta = () => {
   return { estadoCuenta, loading };
 };
 
+function fechaUsuarioADate(valor: unknown): Date | null {
+  if (!valor) return null;
+  if (valor instanceof Date) return valor;
+  if (
+    typeof valor === "object" &&
+    valor !== null &&
+    "toDate" in valor &&
+    typeof (valor as { toDate: () => Date }).toDate === "function"
+  ) {
+    return (valor as { toDate: () => Date }).toDate();
+  }
+  return null;
+}
+
 // 🔧 FUNCIÓN: Verificar suscripción propia (para admins y usuarios independientes)
 const verificarSuscripcionPropia = async (userData: any): Promise<EstadoCuenta> => {
-  const fechaVencimiento = userData.fechaVencimiento?.toDate();
+  const fechaVencimiento = fechaUsuarioADate(userData.fechaVencimiento);
   const planActivo = userData.planActivo;
-  const estado = userData.estado;
-
-  // Verificar estado de la cuenta
   const ahora = new Date();
-  const diasRestantes = fechaVencimiento ? 
-    Math.ceil((fechaVencimiento.getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+  const diasRestantes = fechaVencimiento
+    ? Math.ceil((fechaVencimiento.getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
 
-  let activa = true;
-  let razonBloqueo = null;
-
-  // Verificar si la cuenta está vencida
-  if (estado === 'suspendida') {
-    activa = false;
-    razonBloqueo = 'cuenta_suspendida';
-  } else if (planActivo === 'trial' && diasRestantes <= 0) {
-    activa = false;
-    razonBloqueo = 'trial_vencido';
-  } else if (planActivo !== 'trial' && diasRestantes <= 0) {
-    activa = false;
-    razonBloqueo = 'pago_pendiente';
+  if (cuentaAccesoSuspendido(userData)) {
+    return {
+      activa: false,
+      diasRestantes: Math.max(0, diasRestantes),
+      fechaVencimiento,
+      planActivo: planActivo || "ninguno",
+      razonBloqueo: "cuenta_suspendida",
+    };
   }
 
-  console.log(`📊 Suscripción propia: activa=${activa}, días=${diasRestantes}, plan=${planActivo}`);
+  let activa = true;
+  let razonBloqueo: EstadoCuenta["razonBloqueo"] = null;
+
+  if (planActivo === "trial" && diasRestantes <= 0) {
+    activa = false;
+    razonBloqueo = "trial_vencido";
+  } else if (planActivo !== "trial" && diasRestantes <= 0) {
+    activa = false;
+    razonBloqueo = "pago_pendiente";
+  }
+
+  console.log(
+    `📊 Suscripción propia: activa=${activa}, días=${diasRestantes}, plan=${planActivo}`
+  );
 
   return {
     activa,
     diasRestantes: Math.max(0, diasRestantes),
     fechaVencimiento,
-    planActivo,
-    razonBloqueo
+    planActivo: planActivo || "ninguno",
+    razonBloqueo,
   };
 };
 
@@ -234,12 +255,13 @@ const verificarSuscripcionPorNegocio = async (negocioID: string, userData: any):
       adminDelNegocio: adminData.email || adminDoc.id
     };
 
-    // Si el admin está vencido, cambiar la razón de bloqueo
     if (!estadoAdmin.activa) {
-      resultado.razonBloqueo = 'negocio_vencido';
+      resultado.razonBloqueo = "negocio_vencido";
     }
 
-    console.log(`🏢 Estado del negocio aplicado: activa=${resultado.activa}, razón=${resultado.razonBloqueo}`);
+    console.log(
+      `🏢 Estado del negocio aplicado: activa=${resultado.activa}, razón=${resultado.razonBloqueo}`
+    );
 
     return resultado;
 

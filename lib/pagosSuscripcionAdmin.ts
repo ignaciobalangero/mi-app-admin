@@ -95,6 +95,14 @@ export function pagoSuscripcionDesdeFirestore(
   };
 }
 
+export function cuentaAccesoSuspendido(userData: {
+  estado?: string;
+  accesoHabilitado?: boolean;
+}): boolean {
+  if (userData.accesoHabilitado === false) return true;
+  return String(userData.estado ?? "").toLowerCase() === "suspendida";
+}
+
 /** Indica si el negocio debería haber pagado pero no hay registro reciente. */
 export function debePagoSuscripcion(
   fechaVencimiento: unknown,

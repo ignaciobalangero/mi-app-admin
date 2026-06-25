@@ -11,23 +11,21 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
-  addDoc,
   query,
   orderBy,
   where,
-  Timestamp,
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { esSuperAdminUsuario } from "@/lib/superAdminConstants";
 import {
   calcularNuevaFechaVencimiento,
+  cuentaAccesoSuspendido,
   debePagoSuscripcion,
   etiquetaPlan,
   fechaFirestoreADate,
   formatearFechaSuscripcion,
   formatearMontoPago,
   pagoSuscripcionDesdeFirestore,
-  planDesdeMeses,
   type PagoSuscripcionRegistro,
 } from "@/lib/pagosSuscripcionAdmin";
 
@@ -42,6 +40,8 @@ interface AdminSuscripcion {
   nombre?: string;
   ultimoPagoSuscripcion?: unknown;
   ultimoPagoMonto?: number | null;
+  estado?: string;
+  accesoHabilitado?: boolean;
 }
 
 interface DetailModal {
@@ -119,6 +119,26 @@ export default function GestionSuscripciones() {
     currentUID ? { uid: currentUID } : null
   );
 
+  const llamarApiSuscripcion = async (payload: Record<string, unknown>) => {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Sesión expirada. Volvé a iniciar sesión.");
+
+    const res = await fetch("/api/superadmin/suscripcion", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(String(data.error || "No se pudo actualizar la suscripción"));
+    }
+    return data;
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUID(user?.uid || null);
@@ -164,6 +184,8 @@ export default function GestionSuscripciones() {
           nombre: data.nombre,
           ultimoPagoSuscripcion: data.ultimoPagoSuscripcion,
           ultimoPagoMonto: data.ultimoPagoMonto ?? null,
+          estado: data.estado,
+          accesoHabilitado: data.accesoHabilitado,
         });
       });
 
@@ -269,60 +291,71 @@ export default function GestionSuscripciones() {
     }
   };
 
-  const registrarPagoSuscripcion = async (
-    admin: AdminSuscripcion,
-    opts: { fechaPago: Date; monto: number | null; meses: number; notas: string }
-  ) => {
-    const { fechaPago, monto, meses, notas } = opts;
-    const vencimientoAnterior = fechaFirestoreADate(admin.fechaVencimiento);
-    const nuevaFecha = calcularNuevaFechaVencimiento(
-      vencimientoAnterior,
-      fechaPago,
-      meses
-    );
-    const plan = planDesdeMeses(meses);
-    const ahora = new Date();
-
-    const adminRef = doc(db, "usuarios", admin.id);
-    await addDoc(collection(db, "usuarios", admin.id, "pagosSuscripcion"), {
-      fechaPago: Timestamp.fromDate(fechaPago),
-      monto,
-      meses,
-      plan,
-      notas: notas.trim(),
-      fechaVencimientoAnterior: vencimientoAnterior
-        ? Timestamp.fromDate(vencimientoAnterior)
-        : null,
-      fechaVencimientoNueva: Timestamp.fromDate(nuevaFecha),
-      negocioID: admin.negocioID,
-      registradoEn: Timestamp.fromDate(ahora),
-    });
-
-    await updateDoc(adminRef, {
-      fechaVencimiento: Timestamp.fromDate(nuevaFecha),
-      planActivo: plan === "anual" ? "anual" : plan === "trimestral" ? "trimestral" : "mensual",
-      ultimoPagoSuscripcion: Timestamp.fromDate(fechaPago),
-      ultimoPagoMonto: monto,
-      ultimaActualizacion: Timestamp.fromDate(ahora),
-    });
-  };
-
   const extenderSuscripcion = async (admin: AdminSuscripcion, meses: number) => {
     setActualizando(admin.id);
     try {
-      await registrarPagoSuscripcion(admin, {
-        fechaPago: new Date(),
-        monto: null,
+      await llamarApiSuscripcion({
+        action: "extender",
+        adminId: admin.id,
         meses,
-        notas: "Extensión rápida desde panel superadmin",
       });
 
       await cargarAdminsSuscripcion();
-      setMensaje(`✅ Pago registrado y suscripción extendida ${meses} mes${meses !== 1 ? "es" : ""}`);
+      setMensaje(`✅ Suscripción extendida ${meses} mes${meses !== 1 ? "es" : ""}`);
       setTimeout(() => setMensaje(""), 3000);
     } catch (error) {
       console.error("Error:", error);
-      setMensaje("❌ Error al registrar pago / extender suscripción");
+      setMensaje(
+        `❌ ${error instanceof Error ? error.message : "Error al extender suscripción"}`
+      );
+      setTimeout(() => setMensaje(""), 5000);
+    }
+    setActualizando(null);
+  };
+
+  const habilitarAccesoNegocio = async (admin: AdminSuscripcion) => {
+    setActualizando(admin.id);
+    try {
+      await llamarApiSuscripcion({
+        action: "habilitar",
+        adminId: admin.id,
+        meses: 1,
+      });
+
+      await cargarAdminsSuscripcion();
+      setMensaje("✅ Acceso habilitado por 1 mes (sin registrar pago)");
+      setTimeout(() => setMensaje(""), 3000);
+    } catch (error) {
+      console.error("Error al habilitar acceso:", error);
+      setMensaje(
+        `❌ ${error instanceof Error ? error.message : "Error al habilitar el acceso"}`
+      );
+      setTimeout(() => setMensaje(""), 5000);
+    }
+    setActualizando(null);
+  };
+
+  const suspenderAccesoNegocio = async (admin: AdminSuscripcion) => {
+    const ok = window.confirm(
+      `¿Suspender el acceso de "${admin.negocioID}"? No podrá entrar al sistema hasta que lo habilites de nuevo.`
+    );
+    if (!ok) return;
+
+    setActualizando(admin.id);
+    try {
+      await llamarApiSuscripcion({
+        action: "suspender",
+        adminId: admin.id,
+      });
+      await cargarAdminsSuscripcion();
+      setMensaje("⛔ Acceso suspendido");
+      setTimeout(() => setMensaje(""), 3000);
+    } catch (error) {
+      console.error("Error al suspender acceso:", error);
+      setMensaje(
+        `❌ ${error instanceof Error ? error.message : "Error al suspender el acceso"}`
+      );
+      setTimeout(() => setMensaje(""), 5000);
     }
     setActualizando(null);
   };
@@ -369,9 +402,11 @@ export default function GestionSuscripciones() {
 
     setGuardandoPago(true);
     try {
-      await registrarPagoSuscripcion(modalPago.admin, {
-        fechaPago,
-        monto,
+      await llamarApiSuscripcion({
+        action: "pago",
+        adminId: modalPago.admin.id,
+        fechaPago: modalPago.fechaPago,
+        monto: montoRaw ? monto : null,
         meses: modalPago.meses,
         notas: modalPago.notas,
       });
@@ -381,8 +416,10 @@ export default function GestionSuscripciones() {
       cerrarModalPago();
     } catch (error) {
       console.error("Error al registrar pago:", error);
-      setMensaje("❌ Error al registrar el pago");
-      setTimeout(() => setMensaje(""), 3000);
+      setMensaje(
+        `❌ ${error instanceof Error ? error.message : "Error al registrar el pago"}`
+      );
+      setTimeout(() => setMensaje(""), 5000);
     } finally {
       setGuardandoPago(false);
     }
@@ -838,11 +875,15 @@ export default function GestionSuscripciones() {
                     admin.ultimoPagoSuscripcion,
                     admin.esExento
                   );
+                  const accesoSuspendido = cuentaAccesoSuspendido({
+                    estado: admin.estado,
+                    accesoHabilitado: admin.accesoHabilitado,
+                  });
                   
                   return (
                     <tr
                       key={admin.id}
-                      className={`hover:bg-gray-50 ${debePagar ? "bg-purple-50/60" : ""}`}
+                      className={`hover:bg-gray-50 ${debePagar ? "bg-purple-50/60" : ""} ${accesoSuspendido ? "bg-red-50/50" : ""}`}
                     >
                       <td className="px-6 py-4">
                         <div>
@@ -860,6 +901,11 @@ export default function GestionSuscripciones() {
                           {estado === 'vencido' && `❌ Vencido (${dias}d)`}
                           {estado === 'sin_plan' && '⭕ Sin plan'}
                         </span>
+                        {accesoSuspendido ? (
+                          <p className="text-[10px] text-red-700 font-semibold mt-1">
+                            Acceso bloqueado
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {admin.planActivo || 'N/A'}
@@ -933,6 +979,26 @@ export default function GestionSuscripciones() {
                           >
                             💰 Pago
                           </button>
+                          {(accesoSuspendido || estado === "vencido" || estado === "sin_plan") && (
+                            <button
+                              onClick={() => habilitarAccesoNegocio(admin)}
+                              disabled={actualizando === admin.id}
+                              className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50 font-semibold"
+                              title="Permite entrar y extiende 1 mes sin registrar pago"
+                            >
+                              ✅ Habilitar
+                            </button>
+                          )}
+                          {!accesoSuspendido && (
+                            <button
+                              onClick={() => suspenderAccesoNegocio(admin)}
+                              disabled={actualizando === admin.id}
+                              className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded hover:bg-red-200 disabled:opacity-50"
+                              title="Bloquea el acceso al sistema"
+                            >
+                              ⛔ Suspender
+                            </button>
+                          )}
                           <button
                             onClick={() => extenderSuscripcion(admin, 1)}
                             disabled={actualizando === admin.id}
