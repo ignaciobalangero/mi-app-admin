@@ -12,6 +12,7 @@ interface Props {
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onAgregarCliente: () => void;
   rol: { tipo: string } | null;
+  stockIdsExcluidos?: string[];
 }
 
 export default function FormularioCamposVenta({
@@ -23,10 +24,11 @@ export default function FormularioCamposVenta({
   handleChange,
   onAgregarCliente,
   rol,
+  stockIdsExcluidos = [],
 }: Props) {
   const [queryCliente, setQueryCliente] = useState("");
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
       <input
         type="text"
         name="fecha"
@@ -44,50 +46,56 @@ export default function FormularioCamposVenta({
         className="p-2 border rounded w-full"
       />
 
-<div className="flex gap-2">
-  <div className="w-full">
-    <Combobox value={form.cliente} onChange={(value) => setForm((prev) => ({ ...prev, cliente: value }))}>
-      <div className="relative">
-        <Combobox.Input
-          className="p-2 border rounded w-full"
-          onChange={(e) => setQueryCliente(e.target.value)}
-          displayValue={(cliente: string) => cliente}
-          placeholder="Buscar cliente..."
-          autoComplete="off"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-        <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-400 rounded mt-1 max-h-60 overflow-y-auto text-sm shadow-lg">
-          {clientes
-            .filter((c) =>
-              c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
-            )
-            .map((c) => (
-              <Combobox.Option
-                key={c.id}
-                value={c.nombre}
-                className={({ active }) =>
-                  `px-4 py-2 cursor-pointer ${active ? "bg-blue-600 text-white" : "text-black"}`
-                }
-              >
-                {c.nombre}
-              </Combobox.Option>
-            ))}
-        </Combobox.Options>
+      <div className="flex items-start gap-2 min-w-0">
+        <div className="flex-1 min-w-0">
+          <Combobox value={form.cliente} onChange={(value) => setForm((prev) => ({ ...prev, cliente: value }))}>
+            <div className="relative">
+              <Combobox.Input
+                className="p-2 border rounded w-full"
+                onChange={(e) => setQueryCliente(e.target.value)}
+                displayValue={(cliente: string) => cliente}
+                placeholder="Buscar cliente..."
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-400 rounded mt-1 max-h-60 overflow-y-auto text-sm shadow-lg">
+                {clientes
+                  .filter((c) =>
+                    c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
+                  )
+                  .map((c) => (
+                    <Combobox.Option
+                      key={c.id}
+                      value={c.nombre}
+                      className={({ active }) =>
+                        `px-4 py-2 cursor-pointer ${active ? "bg-blue-600 text-white" : "text-black"}`
+                      }
+                    >
+                      {c.nombre}
+                    </Combobox.Option>
+                  ))}
+              </Combobox.Options>
+            </div>
+          </Combobox>
+        </div>
+        <button
+          onClick={onAgregarCliente}
+          type="button"
+          title="Agregar cliente"
+          className="shrink-0 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded border border-blue-500 flex items-center justify-center leading-none"
+        >
+          +
+        </button>
       </div>
-    </Combobox>
-  </div>
-  <button
-    onClick={onAgregarCliente}
-    type="button"
-    className="bg-blue-500 text-white px-3 rounded"
-  >
-    +
-  </button>
-</div>
 
 
-      <SelectorTelefonoStock stock={stock} form={form} setForm={setForm} />
+      <SelectorTelefonoStock
+        stock={stock}
+        form={form}
+        setForm={setForm}
+        stockIdsExcluidos={stockIdsExcluidos}
+      />
 
       <select 
         name="estado"

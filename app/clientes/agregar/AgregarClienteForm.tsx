@@ -153,6 +153,9 @@ export default function AgregarClienteForm() {
           } else if (origen === "ingreso") {
             localStorage.setItem("clienteNuevo", cliente.nombre);
             router.push("/ingreso");
+          } else if (origen === "modal-venta") {
+            localStorage.setItem("clienteNuevo", cliente.nombre);
+            router.push("/ventas-general");
           } else {
             router.push("/clientes");
           }
@@ -375,7 +378,9 @@ export default function AgregarClienteForm() {
                     <span className="font-medium text-[#9b59b6]">
                       {origen === "ventas-accesorios" ? "Ventas de Accesorios" :
                        origen === "ventas-telefonos" ? "Ventas de Teléfonos" :
-                       origen === "ingreso" ? "Ingreso de Trabajos" : "Lista de Clientes"}
+                       origen === "ingreso" ? "Ingreso de Trabajos" :
+                       origen === "modal-venta" ? "Venta General (remito)" :
+                       "Lista de Clientes"}
                     </span>
                   </p>
                 </div>

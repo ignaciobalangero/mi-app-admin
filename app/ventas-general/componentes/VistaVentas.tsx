@@ -42,6 +42,13 @@ export default function VistaVentas() {
       setDesdeTelefono(true);
     }
 
+    if (
+      localStorage.getItem("ventaModalTemporal") &&
+      localStorage.getItem("clienteNuevo")
+    ) {
+      setMostrarModalVenta(true);
+    }
+
     if (desdePedido === "1") {
       if (datosPedido && pedidoId && !pedidoTiendaYaProcesado(pedidoId)) {
         setMostrarModalVenta(true);

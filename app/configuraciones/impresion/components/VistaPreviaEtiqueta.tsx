@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  columnasEtiquetaTrabajo,
+  LABELS_ETIQUETA_TRABAJO,
+} from "@/lib/etiquetaTrabajoCampos";
+
 interface Props {
   campos: string[];
   configuracion: any;
@@ -9,12 +14,6 @@ interface Props {
 
 export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjemplo, nombreNegocio }: Props) {
   
-  const formatearMoneda = (valor: string | number): string => {
-    const numero = typeof valor === 'string' ? parseFloat(valor) : valor;
-    if (isNaN(numero)) return '0';
-    return numero.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  };
-
   // 🎯 DIMENSIONES REALES
   const dimensionesReales = {
     '62x29': { width: '62mm', height: '29mm' },
@@ -84,95 +83,38 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
     );
   };
 
-  // 📋 ORGANIZAR CAMPOS EN 2 COLUMNAS - SIN TIPAR JSX.Element
-  const organizarCamposEnColumnas = () => {
-    const columnaIzq: any[] = [];
-    const columnaDer: any[] = [];
+  const datosLayout = {
+    ...datosEjemplo,
+    id: datosEjemplo.numeroOrden ?? datosEjemplo.id,
+  };
+  const { columnaIzq: colsIzq, columnaDer: colsDer } = columnasEtiquetaTrabajo(
+    campos,
+    datosLayout as Record<string, unknown>
+  );
 
-    // FILA 1: numeroOrden (izq) + cliente (der)
-    if (campos.includes('numeroOrden')) {
-      columnaIzq.push(
-        <div key="numeroOrden">
-          {renderCampo('Código:', datosEjemplo.numeroOrden || 'ORD-000')}
-        </div>
-      );
-    }
-    if (campos.includes('cliente')) {
-      columnaDer.push(
-        <div key="cliente">
-          {renderCampo('Cliente:', datosEjemplo.cliente || 'Sin cliente')}
-        </div>
-      );
-    }
-
-    // FILA 2: modelo (izq) + clave (der)
-    if (campos.includes('modelo')) {
-      columnaIzq.push(
-        <div key="modelo">
-          {renderCampo('Modelo:', datosEjemplo.modelo || 'Sin modelo')}
-        </div>
-      );
-    }
-    if (campos.includes('clave')) {
-      columnaDer.push(
-        <div key="clave">
-          {renderCampo('Clave:', datosEjemplo.clave)}
-        </div>
-      );
-    }
-
-    // FILA 3: trabajo (izq) + imei (der)
-    if (campos.includes('trabajo')) {
-      columnaIzq.push(
-        <div key="trabajo">
-          {renderCampo('Trabajo:', datosEjemplo.trabajo || 'No especificado')}
-        </div>
-      );
-    }
-    if (campos.includes('imei')) {
-      columnaDer.push(
-        <div key="imei">
-          {renderCampo('IMEI:', datosEjemplo.imei ? datosEjemplo.imei.substring(0, 15) : '', { mono: true })}
-        </div>
-      );
-    }
-
-    // FILA 4: accesorios (izq) + anticipo (der)
-    if (campos.includes('accesorios')) {
-      columnaIzq.push(
-        <div key="accesorios">
-          {renderCampo('Acces:', datosEjemplo.accesorios || '')}
-        </div>
-      );
-    }
-    if (campos.includes('anticipo')) {
-      columnaDer.push(
-        <div key="anticipo">
-          {renderCampo('Anticipo:', datosEjemplo.anticipo ? '$' + formatearMoneda(datosEjemplo.anticipo) : '$0', { color: '#006400' })}
-        </div>
-      );
-    }
-
-    // FILA 5: obs (izq) + saldo (der)
-    if (campos.includes('obs')) {
-      columnaIzq.push(
-        <div key="obs">
-          {renderCampo('Obs:', datosEjemplo.obs || '')}
-        </div>
-      );
-    }
-    if (campos.includes('saldo')) {
-      columnaDer.push(
-        <div key="saldo">
-          {renderCampo('Saldo:', datosEjemplo.saldo ? '$' + formatearMoneda(datosEjemplo.saldo) : '$0', { color: '#8B0000' })}
-        </div>
-      );
-    }
-
-    return { columnaIzq, columnaDer };
+  const colorCampo = (id: string) => {
+    if (id === "anticipo") return "#006400";
+    if (id === "saldo") return "#8B0000";
+    return undefined;
   };
 
-  const { columnaIzq, columnaDer } = organizarCamposEnColumnas();
+  const columnaIzq = colsIzq.map((c) => (
+    <div key={c.id}>
+      {renderCampo(`${LABELS_ETIQUETA_TRABAJO[c.id] ?? c.label}:`, c.valor, {
+        mono: c.mono,
+        color: colorCampo(c.id),
+      })}
+    </div>
+  ));
+
+  const columnaDer = colsDer.map((c) => (
+    <div key={c.id}>
+      {renderCampo(`${LABELS_ETIQUETA_TRABAJO[c.id] ?? c.label}:`, c.valor, {
+        mono: c.mono,
+        color: colorCampo(c.id),
+      })}
+    </div>
+  ));
 
   // 📏 CALCULAR PADDING COMPACTO
   const paddingDinamico = '1mm';

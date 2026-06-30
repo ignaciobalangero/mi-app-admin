@@ -10,7 +10,9 @@ import type {
 } from "@/lib/caja/cajaTypes";
 import { esLineaStockExtra } from "@/lib/ventasStockProducto";
 import {
+  crearResumenMediosFisicoUSDVacio,
   crearResumenMediosVacio,
+  esPagoExcluidoDeCaja,
   medioPagoDesdeDocumento,
   montoEnARS,
   normalizarMedioPago,
@@ -187,12 +189,25 @@ function montosPagoSeparados(p: Record<string, unknown>): {
   usd: number;
   cot: number;
 } {
-  const cot = Number(p.cotizacion ?? p.cotizacionPago ?? 0);
-  const ars = Number(p.monto ?? 0);
+  const detalles = p.detallesPago as Record<string, unknown> | undefined;
+  const cot = Number(
+    p.cotizacionPago ?? detalles?.cotizacionPago ?? p.cotizacion ?? 0
+  );
+  let ars = Number(p.monto ?? 0);
   const usd = Number(p.montoUSD ?? 0);
   const moneda = String(p.moneda ?? "ARS").toUpperCase();
 
-  if (moneda === "USD" && ars <= 0) {
+  // Registros legacy: un solo doc USD con pesos físicos en detallesPago
+  if (
+    ars <= 0 &&
+    detalles?.tipo === "ARS_a_USD" &&
+    Number(detalles.montoARSOriginal ?? 0) > 0
+  ) {
+    ars = Number(detalles.montoARSOriginal);
+    return { ars, usd: 0, cot: Number(detalles.cotizacionPago ?? cot) };
+  }
+
+  if (moneda === "USD" && ars <= 0 && usd > 0) {
     return { ars: 0, usd, cot };
   }
   if (moneda === "ARS" && usd <= 0) {
@@ -238,10 +253,13 @@ function acumularPagoEnCaja(params: {
   ingresos: ResumenIngresosCaja;
   egresos: ResumenEgresosCaja;
   medios: Record<import("@/lib/caja/cajaTypes").MedioPagoCaja, number>;
+  mediosFisicoUSD: Record<import("@/lib/caja/cajaTypes").MedioPagoCaja, number>;
   totalesPorMoneda: ReturnType<typeof totalesMonedaVacios>;
   ventasPorNro: Map<number, Record<string, unknown>>;
 }) {
-  const { p, ingresos, egresos, medios, totalesPorMoneda, ventasPorNro } = params;
+  const { p, ingresos, egresos, medios, mediosFisicoUSD, totalesPorMoneda, ventasPorNro } = params;
+  if (esPagoExcluidoDeCaja(p)) return;
+
   const cat = clasificarPago(p);
   const { ars, usd, cot } = montosPagoSeparados(p);
   if (ars <= 0 && usd <= 0) return;
@@ -260,6 +278,7 @@ function acumularPagoEnCaja(params: {
     if (usd > 0) {
       const medioUsd = medioPagoDesdeDocumento(p);
       medios[medioUsd] -= montoEnARS(usd, "USD", cot);
+      mediosFisicoUSD[medioUsd] -= usd;
     }
     return;
   }
@@ -283,6 +302,7 @@ function acumularPagoEnCaja(params: {
   if (usd > 0) {
     const medioUsd = medioPagoDesdeDocumento(p);
     medios[medioUsd] += montoEnARS(usd, "USD", cot);
+    mediosFisicoUSD[medioUsd] += usd;
   }
 }
 
@@ -297,6 +317,7 @@ export async function calcularResumenCajaDia(params: {
   const ingresos = ingresosVacios();
   const egresos = egresosVacios();
   const medios = crearResumenMediosVacio();
+  const mediosFisicoUSD = crearResumenMediosFisicoUSDVacio();
   const totalesPorMoneda = totalesMonedaVacios();
   const movimientos: MovimientoCaja[] = [];
 
@@ -329,6 +350,7 @@ export async function calcularResumenCajaDia(params: {
       ingresos,
       egresos,
       medios,
+      mediosFisicoUSD,
       totalesPorMoneda,
       ventasPorNro,
     });
@@ -349,11 +371,9 @@ export async function calcularResumenCajaDia(params: {
       medios[normalizarMedioPago(String(g.metodoPago ?? g.forma ?? "efectivo"))] -= arsNativo;
     }
     if (usdNativo > 0) {
-      medios[medioPagoDesdeDocumento(g, { esGasto: true })] -= montoEnARS(
-        usdNativo,
-        "USD",
-        cot
-      );
+      const medioUsd = medioPagoDesdeDocumento(g, { esGasto: true });
+      medios[medioUsd] -= montoEnARS(usdNativo, "USD", cot);
+      mediosFisicoUSD[medioUsd] -= usdNativo;
     }
   });
 
@@ -366,9 +386,15 @@ export async function calcularResumenCajaDia(params: {
       if (m.tipo === "ingreso") {
         acumularIngresoCategoria(ingresos, m.categoria, m.montoARS, m.subcategoria);
         medios[m.medioPago] += m.montoARS;
+        if (m.montoUSD && m.montoUSD > 0) {
+          mediosFisicoUSD[m.medioPago] += m.montoUSD;
+        }
       } else {
         acumularEgresoCategoria(egresos, m.categoria, m.montoARS);
         medios[m.medioPago] -= m.montoARS;
+        if (m.montoUSD && m.montoUSD > 0) {
+          mediosFisicoUSD[m.medioPago] -= m.montoUSD;
+        }
       }
     });
   }
@@ -384,9 +410,15 @@ export async function calcularResumenCajaDia(params: {
     egresos,
     netoDiaARS,
     medios,
+    mediosFisicoUSD,
     movimientos,
     totalesPorMoneda,
   };
+}
+
+/** Billetes USD físicos esperados en caja (cobros + fondo inicial del día). */
+export function calcularEsperadoUsdBilleteFisico(resumen: ResumenCajaDia): number {
+  return (resumen.mediosFisicoUSD?.usd_billete ?? 0) + (resumen.saldoInicialUSD ?? 0);
 }
 
 /** Efectivo esperado al arqueo = saldo inicial + neto en efectivo ARS + USD convertido. */
@@ -404,4 +436,8 @@ export function calcularEsperadoPorMedio(
 
 export function formatearPrecioCaja(valor: number): string {
   return `$${Math.round(valor).toLocaleString("es-AR")}`;
+}
+
+export function formatearUsdCaja(valor: number): string {
+  return `USD ${valor.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }

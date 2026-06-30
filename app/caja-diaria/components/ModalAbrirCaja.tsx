@@ -71,7 +71,7 @@ export default function ModalAbrirCaja({ negocioID, onClose, onAbierta }: Props)
               type="number"
               value={saldoInicialARS}
               onChange={(e) => setSaldoInicialARS(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg focus:ring-2 focus:ring-[#3498db]"
+              className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-[#2c3e50] [color-scheme:light] focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
             />
           </div>
 
@@ -81,7 +81,7 @@ export default function ModalAbrirCaja({ negocioID, onClose, onAbierta }: Props)
               type="number"
               value={saldoInicialUSD}
               onChange={(e) => setSaldoInicialUSD(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg focus:ring-2 focus:ring-[#3498db]"
+              className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-[#2c3e50] [color-scheme:light] focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
             />
           </div>
 
@@ -91,7 +91,7 @@ export default function ModalAbrirCaja({ negocioID, onClose, onAbierta }: Props)
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
               rows={2}
-              className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg resize-none"
+              className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg resize-none bg-white text-[#2c3e50] [color-scheme:light] focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
             />
           </div>
         </div>

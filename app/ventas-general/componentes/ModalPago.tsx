@@ -3,6 +3,13 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import {
+  calcularSaldosVenta,
+  calcularUsdDesdeARS,
+  creditoUSDVentaSoloUSD,
+  esVentaSoloUSD,
+  notaConversionARSaUSD,
+} from "@/lib/ventas/pagoDualHelpers";
 
 interface Props {
   mostrar: boolean;
@@ -22,12 +29,18 @@ interface Props {
     totalUSD: number;
     cotizacion: number;
   };
-  telefonoComoPago?: {  // ✅ NUEVO - Teléfono como parte de pago
+  telefonoComoPago?: {
     marca: string;
     modelo: string;
     valorPago: number;
     moneda: string;
   } | null;
+  telefonosComoPago?: {
+    marca: string;
+    modelo: string;
+    valorPago: number;
+    moneda: string;
+  }[];
   negocioID: string;     // 🆕 Para cargar proveedores
   onClose: () => void;
   handlePagoChange: (
@@ -41,8 +54,9 @@ export default function ModalPago({
   mostrar,
   pago,
   totalesVenta,
-  telefonoComoPago,  // ✅ NUEVO
-  negocioID,         // 🆕
+  telefonoComoPago,
+  telefonosComoPago = [],
+  negocioID,
   onClose,
   handlePagoChange,
   onGuardarPago,
@@ -99,46 +113,57 @@ export default function ModalPago({
   const pagoUSD = parseFloat(pagoSeguro.montoUSD) || 0;
   const cotizacionUsada = cotizacionPago > 0 ? cotizacionPago : (totalesVenta?.cotizacion || 1000);
 
-  const ventaSoloUSD = !!(
-    totalesVenta &&
-    totalesVenta.totalARS === 0 &&
-    totalesVenta.totalUSD > 0
-  );
+  const ventaSoloUSD = totalesVenta
+    ? esVentaSoloUSD(totalesVenta.totalARS, totalesVenta.totalUSD)
+    : false;
 
-  // Venta solo USD + ARS: el peso cancela deuda en USD (no hace falta “tildar” nada)
-  const usdDesdeARS =
-    ventaSoloUSD && pagoARS > 0 && cotizacionUsada > 0 ? pagoARS / cotizacionUsada : 0;
-  const creditoUSD = pagoUSD > 0 ? pagoUSD : ventaSoloUSD ? usdDesdeARS : 0;
-  const pagoARSCuentaSaldoARS =
-    ventaSoloUSD && pagoARS > 0 ? 0 : pagoARS;
+  const listaTelefonosPago = (telefonosComoPago.length > 0
+    ? telefonosComoPago
+    : telefonoComoPago
+      ? [telefonoComoPago]
+      : []
+  )
+    .filter((t) => Number(t.valorPago || 0) > 0)
+    .map((t) => ({
+      valorPago: Number(t.valorPago || 0),
+      moneda: t.moneda || "ARS",
+    }));
 
-  // ✅ TELÉFONO COMO PARTE DE PAGO
-  const valorTelefonoPago = telefonoComoPago ? telefonoComoPago.valorPago : 0;
-  const monedaTelefonoPago = telefonoComoPago ? telefonoComoPago.moneda : "ARS";
+  const descuentoTelefonoPagoARS = listaTelefonosPago
+    .filter((t) => String(t.moneda).toUpperCase() !== "USD")
+    .reduce((acc, t) => acc + t.valorPago, 0);
+  const descuentoTelefonoPagoUSD = listaTelefonosPago
+    .filter((t) => String(t.moneda).toUpperCase() === "USD")
+    .reduce((acc, t) => acc + t.valorPago, 0);
 
-  // ✅ APLICAR DESCUENTO DEL TELÉFONO SEGÚN SU MONEDA
-  let saldoARS = totalesVenta ? totalesVenta.totalARS - pagoARSCuentaSaldoARS : 0;
-  let saldoUSD = totalesVenta ? totalesVenta.totalUSD - creditoUSD : 0;
-  
-  // Descontar teléfono según su moneda
-  if (telefonoComoPago) {
-    if (monedaTelefonoPago === "USD") {
-      saldoUSD -= valorTelefonoPago;
-    } else {
-      saldoARS -= valorTelefonoPago;
-    }
-  }
-  
-  const totalAproximado = totalesVenta
-    ? totalesVenta.totalARS + totalesVenta.totalUSD * cotizacionUsada
+  const usdDesdeARS = ventaSoloUSD
+    ? calcularUsdDesdeARS(pagoARS, cotizacionUsada)
     : 0;
-  // Si los ARS cancelan deuda en USD (venta solo USD), no sumar también USD×cotización (evita duplicar).
-  const soloUSD =
-    totalesVenta && totalesVenta.totalARS === 0 && totalesVenta.totalUSD > 0;
-  const pagoAproximado = soloUSD && pagoARS > 0 ? pagoARS : pagoARS + pagoUSD * cotizacionUsada;
-  const telefonoAproximado = telefonoComoPago ? 
-    (monedaTelefonoPago === "USD" ? valorTelefonoPago * cotizacionUsada : valorTelefonoPago) : 0;
-  const saldoAproximado = totalAproximado - pagoAproximado - telefonoAproximado;
+  const creditoUSD = ventaSoloUSD
+    ? creditoUSDVentaSoloUSD(pagoARS, pagoUSD, cotizacionUsada)
+    : Math.max(0, pagoUSD);
+
+  const telefonosComoPagoUI =
+    telefonosComoPago.length > 0
+      ? telefonosComoPago
+      : telefonoComoPago
+        ? [telefonoComoPago]
+        : [];
+
+  const {
+    saldoARS,
+    saldoUSD,
+    totalAproximado,
+    pagoAproximado,
+    saldoAproximado,
+  } = calcularSaldosVenta({
+    totalARS: totalesVenta?.totalARS ?? 0,
+    totalUSD: totalesVenta?.totalUSD ?? 0,
+    pagoARS,
+    pagoUSD,
+    cotizacion: cotizacionUsada,
+    telefonosPago: listaTelefonosPago,
+  });
 
   // 🆕 FUNCIÓN PARA OBTENER DESTINO FORMATEADO
   const obtenerDestino = () => {
@@ -153,20 +178,26 @@ export default function ModalPago({
   const handleGuardarPago = () => {
     const pagoARSActual = parseFloat(pagoSeguro.monto) || 0;
     const pagoUSDActual = parseFloat(pagoSeguro.montoUSD) || 0;
-    const usdEquiv =
-      ventaSoloUSD && pagoARSActual > 0 && cotizacionUsada > 0
-        ? pagoARSActual / cotizacionUsada
-        : 0;
+    const usdEquiv = ventaSoloUSD
+      ? calcularUsdDesdeARS(pagoARSActual, cotizacionUsada)
+      : 0;
+    const creditoTotalUSD = ventaSoloUSD
+      ? creditoUSDVentaSoloUSD(pagoARSActual, pagoUSDActual, cotizacionUsada)
+      : pagoUSDActual;
     const notaConversion =
       ventaSoloUSD && pagoARSActual > 0 && cotizacionUsada > 0
-        ? `Pago en ARS $${pagoARSActual.toLocaleString()} aplicado a USD ${(pagoUSDActual > 0 ? pagoUSDActual : usdEquiv).toFixed(2)} (cotización $1 USD = $${cotizacionUsada.toLocaleString()} ARS)`
+        ? notaConversionARSaUSD(pagoARSActual, usdEquiv, cotizacionUsada)
         : "";
     const pagoFormateado = {
       // ✅ AMBAS MONEDAS SIMULTÁNEAMENTE
       monto: pagoSeguro.monto || "0",        // ARS
       montoUSD: pagoSeguro.montoUSD || "0",  // USD
       moneda:
-        pagoUSDActual > 0 || (ventaSoloUSD && usdEquiv > 0) ? "USD" : "ARS", // compatibilidad
+        pagoUSDActual > 0 && pagoARSActual > 0
+          ? "DUAL"
+          : pagoUSDActual > 0 || (ventaSoloUSD && creditoTotalUSD > 0)
+            ? "USD"
+            : "ARS",
       formaPago: pagoSeguro.formaPago,
       destino: obtenerDestino(),                    // 🆕 Usar destino formateado
       tipoDestino: pagoSeguro.tipoDestino,          // 🆕
@@ -259,10 +290,10 @@ export default function ModalPago({
                       <span className="text-gray-600">Pagando efectivo:</span>
                       <span className="font-medium text-blue-600">${pagoARS.toLocaleString()}</span>
                     </div>
-                    {telefonoComoPago && monedaTelefonoPago === "ARS" && (
+                    {descuentoTelefonoPagoARS > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Teléfono entregado:</span>
-                        <span className="font-medium text-purple-600">${valorTelefonoPago.toLocaleString()}</span>
+                        <span className="text-gray-600">Teléfono{telefonosComoPagoUI.length > 1 ? "s" : ""} entregado:</span>
+                        <span className="font-medium text-purple-600">${descuentoTelefonoPagoARS.toLocaleString()}</span>
                       </div>
                     )}
                     <div className="border-t pt-1">
@@ -290,12 +321,25 @@ export default function ModalPago({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Pagando efectivo:</span>
-                      <span className="font-medium text-green-600">USD ${pagoUSD.toLocaleString()}</span>
+                      <span className="font-medium text-green-600">
+                        USD ${pagoUSD.toLocaleString()}
+                        {ventaSoloUSD && usdDesdeARS > 0 && (
+                          <span className="block text-xs text-blue-700 font-normal">
+                            + ${pagoARS.toLocaleString()} ARS ≈ USD ${usdDesdeARS.toFixed(2)}
+                          </span>
+                        )}
+                      </span>
                     </div>
-                    {telefonoComoPago && monedaTelefonoPago === "USD" && (
+                    {ventaSoloUSD && creditoUSD > 0 && (
+                      <div className="flex justify-between text-xs text-blue-800">
+                        <span>Total aplicado a deuda USD:</span>
+                        <span className="font-semibold">USD ${creditoUSD.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {descuentoTelefonoPagoUSD > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Teléfono entregado:</span>
-                        <span className="font-medium text-purple-600">USD ${valorTelefonoPago.toLocaleString()}</span>
+                        <span className="text-gray-600">Teléfono{telefonosComoPagoUI.length > 1 ? "s" : ""} entregado:</span>
+                        <span className="font-medium text-purple-600">USD ${descuentoTelefonoPagoUSD.toLocaleString()}</span>
                       </div>
                     )}
                     <div className="border-t pt-1">
@@ -312,29 +356,31 @@ export default function ModalPago({
               </div>
               
               {/* Teléfono como parte de pago - Sección destacada */}
-              {telefonoComoPago && (
+              {telefonosComoPagoUI.length > 0 && (
                 <div className="mt-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border-2 border-purple-200">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs">📱</span>
-                    <span className="font-semibold text-purple-800">Teléfono como Parte de Pago</span>
+                    <span className="font-semibold text-purple-800">
+                      Teléfono{telefonosComoPagoUI.length > 1 ? "s" : ""} como Parte de Pago
+                    </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-gray-600">Equipo:</span>
-                      <div className="font-medium text-purple-700">{telefonoComoPago.marca} {telefonoComoPago.modelo}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Valor:</span>
-                      <div className="font-bold text-purple-800">
-                        {monedaTelefonoPago === "USD" ? "USD $" : "$"}{valorTelefonoPago.toLocaleString()}
-                        {monedaTelefonoPago === "ARS" ? " ARS" : ""}
-                      </div>
-                      {monedaTelefonoPago === "USD" && totalesVenta && (
-                        <div className="text-xs text-gray-500">
-                          ≈ ${(valorTelefonoPago * totalesVenta.cotizacion).toLocaleString()} ARS
+                  <div className="space-y-2">
+                    {telefonosComoPagoUI.map((tel, index) => (
+                      <div key={`modal-pago-tel-${index}`} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm bg-white/70 rounded-lg p-2">
+                        <div>
+                          <span className="text-gray-600">Equipo:</span>
+                          <div className="font-medium text-purple-700">{tel.marca} {tel.modelo}</div>
                         </div>
-                      )}
-                    </div>
+                        <div>
+                          <span className="text-gray-600">Valor:</span>
+                          <div className="font-bold text-purple-800">
+                            {String(tel.moneda).toUpperCase() === "USD" ? "USD $" : "$"}
+                            {Number(tel.valorPago).toLocaleString()}
+                            {String(tel.moneda).toUpperCase() === "ARS" ? " ARS" : ""}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

@@ -17,3 +17,8 @@ export function puedeOperarCajaMayor(rolTipo: string | undefined): boolean {
 export function puedeRetiroDueno(rolTipo: string | undefined): boolean {
   return rolTipo === "admin";
 }
+
+/** Solo el admin puede corregir un cierre ya guardado. */
+export function puedeEditarHistorialCaja(rolTipo: string | undefined): boolean {
+  return rolTipo === "admin";
+}

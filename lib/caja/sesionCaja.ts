@@ -100,6 +100,7 @@ export async function cerrarSesionCaja(params: {
     diferenciaUSD: number;
     fondoSiguienteDiaARS: number;
     enviadoCajaMayorARS: number;
+    cotizacionUSD?: number;
     arqueo: ArqueoMedioPago[];
     arqueoJustificacion: string;
     resumenCierre: Record<string, unknown>;
@@ -114,17 +115,24 @@ export async function cerrarSesionCaja(params: {
   if (sesion.estado === "cerrada") throw new Error("Esta caja ya está cerrada.");
 
   const cierreId = params.sesionId;
+  const arqueoEfectivo = params.totales.arqueo.find((a) => a.medio === "efectivo_ars");
+  const arqueoUsd = params.totales.arqueo.find((a) => a.medio === "usd_billete");
+
   const cierreDoc = {
     fecha: sesion.fecha,
     sesionId: params.sesionId,
-    efectivoEsperadoARS: params.totales.saldoFinalEsperadoARS,
-    efectivoEsperadoUSD: 0,
-    efectivoRealARS: params.totales.saldoFinalContadoARS,
-    efectivoRealUSD: 0,
-    diferenciaARS: params.totales.diferenciaARS,
-    diferenciaUSD: params.totales.diferenciaUSD,
+    efectivoEsperadoARS: arqueoEfectivo?.esperadoARS ?? params.totales.saldoFinalEsperadoARS,
+    efectivoRealARS: arqueoEfectivo?.contadoARS ?? params.totales.saldoFinalContadoARS,
+    diferenciaARS: arqueoEfectivo?.diferenciaARS ?? params.totales.diferenciaARS,
+    efectivoEsperadoUSD: arqueoUsd?.esperadoUSD ?? 0,
+    efectivoRealUSD: arqueoUsd?.contadoUSD ?? 0,
+    diferenciaUSD: arqueoUsd?.diferenciaUSD ?? params.totales.diferenciaUSD,
+    totalEsperadoArqueoARS: params.totales.saldoFinalEsperadoARS,
+    totalContadoArqueoARS: params.totales.saldoFinalContadoARS,
+    diferenciaTotalArqueoARS: params.totales.diferenciaARS,
     fondoSiguienteDiaARS: params.totales.fondoSiguienteDiaARS,
     enviadoCajaMayorARS: params.totales.enviadoCajaMayorARS,
+    cotizacionUSDArqueo: params.totales.cotizacionUSD ?? 0,
     arqueo: params.totales.arqueo,
     arqueoJustificacion: params.totales.arqueoJustificacion,
     saldoInicialARS: sesion.saldoInicialARS,

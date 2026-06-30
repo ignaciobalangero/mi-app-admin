@@ -9,7 +9,7 @@ import ModalArqueoCierre from "./components/ModalArqueoCierre";
 import ModalMovimientoManual from "./components/ModalMovimientoManual";
 import HistorialCierres from "./components/HistorialCierres";
 import type { ResumenCajaDia, SesionCaja } from "@/lib/caja/cajaTypes";
-import { calcularResumenCajaDia, formatearPrecioCaja } from "@/lib/caja/calcularResumenDia";
+import { calcularResumenCajaDia, formatearPrecioCaja, formatearUsdCaja } from "@/lib/caja/calcularResumenDia";
 import { fechaCajaHoy } from "@/lib/caja/fechaCaja";
 import { labelMedioPago, MEDIOS_PAGO_CAJA } from "@/lib/caja/mediosPago";
 import { obtenerSesionAbierta, obtenerSesionDelDia } from "@/lib/caja/sesionCaja";
@@ -93,7 +93,7 @@ export default function CajaDiariaPage() {
   return (
     <>
       <Header />
-      <main className="pt-16 min-h-screen bg-[#f8f9fa] p-4">
+      <main className="pt-16 min-h-screen bg-[#f8f9fa] p-4 text-[#2c3e50]">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 shadow-lg text-white">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -102,7 +102,11 @@ export default function CajaDiariaPage() {
                 <p className="text-blue-100 text-sm">{hoy}</p>
                 <p className="text-xs mt-2 opacity-90">
                   {cajaAbierta
-                    ? `Abierta · fondo ${formatearPrecioCaja(sesion?.saldoInicialARS ?? 0)} ARS`
+                    ? `Abierta · fondo ${formatearPrecioCaja(sesion?.saldoInicialARS ?? 0)} ARS${
+                        (sesion?.saldoInicialUSD ?? 0) > 0
+                          ? ` · ${formatearUsdCaja(sesion?.saldoInicialUSD ?? 0)} billetes`
+                          : ""
+                      }`
                     : cajaCerradaHoy
                       ? "Caja del día cerrada"
                       : "Sin apertura — abrí la caja para operar"}
@@ -145,10 +149,15 @@ export default function CajaDiariaPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl p-4 shadow border border-[#ecf0f1]">
-                  <p className="text-sm text-[#7f8c8d]">Saldo inicial</p>
+                  <p className="text-sm text-[#7f8c8d]">Saldo inicial (apertura)</p>
                   <p className="text-2xl font-bold text-[#3498db]">
                     {formatearPrecioCaja(resumen.saldoInicialARS)}
                   </p>
+                  {(resumen.saldoInicialUSD ?? 0) > 0 && (
+                    <p className="text-sm font-semibold text-[#2980b9] mt-1">
+                      + {formatearUsdCaja(resumen.saldoInicialUSD)} billetes
+                    </p>
+                  )}
                 </div>
                 <div className="bg-white rounded-xl p-4 shadow border border-[#ecf0f1]">
                   <p className="text-sm text-[#7f8c8d]">Ingresos del día</p>
@@ -164,16 +173,33 @@ export default function CajaDiariaPage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl p-6 shadow border border-[#ecf0f1]">
+              <div className="bg-white rounded-xl p-6 shadow border border-[#ecf0f1] text-[#2c3e50]">
                 <h2 className="text-lg font-bold text-[#2c3e50] mb-4">Ingresos del día</h2>
-                <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                <div className="space-y-3 text-sm">
                   <Row label="Cobros trabajos" value={resumen.ingresos.cobrosTrabajos} />
-                  <Row label="Ventas al contado" value={resumen.ingresos.ventasContado} />
-                  <Row label="  Teléfonos ARS" value={resumen.ingresos.ventasTelefonoARS} indent />
-                  <Row label="  Teléfonos USD (equiv.)" value={resumen.ingresos.ventasTelefonoUSDEquivARS} indent />
-                  <Row label="  Accesorios" value={resumen.ingresos.ventasAccesorios} indent />
-                  <Row label="  Repuestos stock" value={resumen.ingresos.ventasRepuestoStock} indent />
-                  <Row label="  Repuestos stockExtra" value={resumen.ingresos.ventasRepuestoExtra} indent />
+
+                  {Math.abs(resumen.ingresos.ventasContado) >= 0.01 && (
+                    <div className="rounded-lg border border-[#ecf0f1] bg-[#f8f9fa] p-3 space-y-2">
+                      <div className="flex justify-between gap-4">
+                        <span className="font-semibold text-[#2c3e50]">Ventas al contado</span>
+                        <span className="font-bold text-[#2c3e50] shrink-0">
+                          {formatearPrecioCaja(resumen.ingresos.ventasContado)}
+                        </span>
+                      </div>
+                      <div className="space-y-1 border-l-2 border-[#bdc3c7] pl-3">
+                        <Row label="Teléfonos ARS" value={resumen.ingresos.ventasTelefonoARS} indent />
+                        <Row
+                          label="Teléfonos USD (equiv.)"
+                          value={resumen.ingresos.ventasTelefonoUSDEquivARS}
+                          indent
+                        />
+                        <Row label="Accesorios" value={resumen.ingresos.ventasAccesorios} indent />
+                        <Row label="Repuestos stock" value={resumen.ingresos.ventasRepuestoStock} indent />
+                        <Row label="Repuestos stockExtra" value={resumen.ingresos.ventasRepuestoExtra} indent />
+                      </div>
+                    </div>
+                  )}
+
                   <Row label="Cobros cuenta corriente" value={resumen.ingresos.cobrosCuentaCorriente} highlight />
                   <Row label="Ingresos manuales" value={resumen.ingresos.ingresosManuales} />
                 </div>
@@ -207,11 +233,21 @@ export default function CajaDiariaPage() {
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {MEDIOS_PAGO_CAJA.map(({ id }) => {
                     const v = resumen.medios[id];
-                    if (Math.abs(v) < 1) return null;
+                    const usdFisico = resumen.mediosFisicoUSD[id];
+                    if (Math.abs(v) < 1 && Math.abs(usdFisico) < 0.01) return null;
                     return (
                       <div key={id} className="bg-[#f8f9fa] rounded-lg p-3 border">
                         <p className="text-xs text-[#7f8c8d]">{labelMedioPago(id)}</p>
-                        <p className="font-bold text-[#2c3e50]">{formatearPrecioCaja(v)}</p>
+                        {id === "usd_billete" && Math.abs(usdFisico) >= 0.01 ? (
+                          <>
+                            <p className="font-bold text-[#2c3e50]">{formatearUsdCaja(usdFisico)}</p>
+                            {Math.abs(v) >= 1 && (
+                              <p className="text-xs text-[#7f8c8d] mt-1">≈ {formatearPrecioCaja(v)} ARS</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="font-bold text-[#2c3e50]">{formatearPrecioCaja(v)}</p>
+                        )}
                       </div>
                     );
                   })}
@@ -342,9 +378,19 @@ function Row({
 }) {
   if (Math.abs(value) < 0.01) return null;
   return (
-    <div className={`flex justify-between ${indent ? "pl-4 text-[#7f8c8d]" : ""}`}>
-      <span className={highlight ? "font-semibold text-[#8e44ad]" : ""}>{label}</span>
-      <span className="font-bold">{formatearPrecioCaja(value)}</span>
+    <div className={`flex justify-between gap-4 ${indent ? "pl-4" : ""}`}>
+      <span
+        className={
+          highlight
+            ? "font-semibold !text-[#8e44ad]"
+            : indent
+              ? "text-[#7f8c8d]"
+              : "!text-[#2c3e50]"
+        }
+      >
+        {label}
+      </span>
+      <span className="font-bold !text-[#2c3e50] shrink-0">{formatearPrecioCaja(value)}</span>
     </div>
   );
 }

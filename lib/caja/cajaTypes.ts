@@ -65,6 +65,10 @@ export type ArqueoMedioPago = {
   esperadoARS: number;
   contadoARS: number;
   diferenciaARS: number;
+  /** Billetes USD físicos (solo medio usd_billete). */
+  esperadoUSD?: number;
+  contadoUSD?: number;
+  diferenciaUSD?: number;
 };
 
 export type SesionCaja = {
@@ -141,6 +145,9 @@ export type ResumenEgresosCaja = {
 
 export type ResumenMediosPago = Record<MedioPagoCaja, number>;
 
+/** Monto físico en USD por medio (p. ej. billetes contados en arqueo). */
+export type ResumenMediosFisicoUSD = Record<MedioPagoCaja, number>;
+
 /** Montos cobrados en ventas/trabajos/cuenta corriente, desglosados por moneda del pago. */
 export type TotalesMonedaCaja = {
   ingresosARS: number;
@@ -158,6 +165,7 @@ export type ResumenCajaDia = {
   egresos: ResumenEgresosCaja;
   netoDiaARS: number;
   medios: ResumenMediosPago;
+  mediosFisicoUSD: ResumenMediosFisicoUSD;
   movimientos: MovimientoCaja[];
   totalesPorMoneda: TotalesMonedaCaja;
 };

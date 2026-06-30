@@ -7,7 +7,10 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "../lib/auth";
 import Header from "./Header";
 import { useRol } from "../lib/useRol";
-import { doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { calcularResumenCajaDia } from "@/lib/caja/calcularResumenDia";
+import { fechaCajaHoy } from "@/lib/caja/fechaCaja";
+import { obtenerSesionAbierta, obtenerSesionDelDia } from "@/lib/caja/sesionCaja";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import RecordatoriosInicio from "./components/RecordatoriosInicio";
@@ -37,7 +40,6 @@ function Home() {
       const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
       const anioActual = hoy.getFullYear().toString();
       const mesAnioActual = `${mesActual}-${anioActual}`;
-      const diaActual = hoy.toLocaleDateString("es-AR");
 
       const estadisticasRef = doc(db, `negocios/${rol.negocioID}/estadisticas/${mesAnioActual}`);
       const estadisticasSnap = await getDoc(estadisticasRef);
@@ -47,14 +49,24 @@ function Home() {
         setTrabajosReparados(data.trabajosReparados || 0);
         setAccesoriosVendidos(data.accesoriosVendidos || 0);
         setTelefonosVendidos(data.telefonosVendidos || 0);
-        setTotalCajaHoy(data.cajaDelDia?.[diaActual] || 0);
       } else {
-        // Si no existe, inicializar con 0
         setTrabajosReparados(0);
         setAccesoriosVendidos(0);
         setTelefonosVendidos(0);
-        setTotalCajaHoy(0);
       }
+
+      const hoyCaja = fechaCajaHoy();
+      let sesion = await obtenerSesionAbierta(rol.negocioID);
+      if (!sesion) sesion = await obtenerSesionDelDia(rol.negocioID, hoyCaja);
+
+      const resumen = await calcularResumenCajaDia({
+        negocioId: rol.negocioID,
+        fecha: hoyCaja,
+        sesionId: sesion?.id,
+        saldoInicialARS: sesion?.saldoInicialARS,
+        saldoInicialUSD: sesion?.saldoInicialUSD,
+      });
+      setTotalCajaHoy(resumen.ingresos.total);
     };
 
     cargarEstadisticasDelMes();
@@ -244,7 +256,7 @@ function Home() {
                     </p>
                     <div className="flex items-center gap-2 text-xs text-[#f39c12]">
                       <span className="inline-block w-2 h-2 bg-[#f39c12] rounded-full animate-pulse"></span>
-                      Hoy
+                      Cobrado hoy (sin permuta)
                     </div>
                   </div>
                   <div className="w-16 h-16 bg-[#f39c12]/20 rounded-2xl flex items-center justify-center shadow-lg">

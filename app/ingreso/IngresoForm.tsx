@@ -893,7 +893,6 @@ export default function IngresoForm() {
       .map(
         (e) => `
       <div class="label">
-        <div class="row">ORD: ${e.nroOrden || ""} · ID: ${e.id}</div>
         <div class="row">CLI: <span class="muted">${(e.cliente || "").toString().slice(0, 26)}</span></div>
         <div class="row">MOD: <span class="muted">${(e.modelo || "").toString().slice(0, 28)}</span></div>
         <div class="row">FAL: <span class="muted">${(e.trabajo || "").toString().slice(0, 30)}</span></div>

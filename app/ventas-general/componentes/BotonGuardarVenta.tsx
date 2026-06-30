@@ -30,6 +30,19 @@ import {
 import { actualizarStockVentaViaApi } from "@/lib/actualizarStockVentaApi";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 import { query, where, limit } from "firebase/firestore";
+import {
+  calcularSaldosVenta,
+  calcularUsdDesdeARS,
+  cotizacionEfectiva,
+  creditoUSDVentaSoloUSD,
+  esVentaSoloUSD,
+  notaConversionARSaUSD,
+  ventaEstaPagada,
+} from "@/lib/ventas/pagoDualHelpers";
+import {
+  normalizarVentaTelefonoPendiente,
+  totalesTelefonosVenta,
+} from "@/lib/ventas/telefonoVentaHelpers";
 export default function BotonGuardarVenta({
   cliente,
   productos,
@@ -370,140 +383,179 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     });
   };
 
-  // ✅ FUNCIÓN SIMPLIFICADA: Guardar venta de teléfono
   const guardarVentaTelefono = async (datosVentaTelefono: any, pagoTelefono: any) => {
     if (!rol?.negocioID) return;
 
+    const { telefonos, telefonosRecibidos } = normalizarVentaTelefonoPendiente(datosVentaTelefono);
+    if (telefonos.length === 0) return;
+
+    const telefonosPagoDesdeModal = Array.isArray(pagoTelefono?.telefonosComoPago)
+      ? pagoTelefono.telefonosComoPago
+      : pagoTelefono?.telefonoComoPago
+        ? [pagoTelefono.telefonoComoPago]
+        : [];
+
+    const telefonosRecibidosFinal =
+      telefonosRecibidos.length > 0
+        ? telefonosRecibidos
+        : telefonosPagoDesdeModal.map((t: any) => ({
+            marca: t.marca,
+            modelo: t.modelo,
+            precioCompra: t.valorPago,
+            moneda: t.moneda,
+            color: t.color,
+            estado: t.estado,
+            imei: t.imei,
+          }));
+
     const nroVenta = await obtenerYSumarNumeroVenta(rol.negocioID);
+    const { totalARS, totalUSD } = totalesTelefonosVenta(telefonos);
 
-    const precioCostoTelefono = Number(datosVentaTelefono.precioCosto || 0);
-    const precioUnitarioTelefono = Number(datosVentaTelefono.precioVenta || 0);
-    const cantidad = 1;
-    const precioVentaTelefono = precioUnitarioTelefono * cantidad;
-    const gananciaTelefono = (precioUnitarioTelefono - precioCostoTelefono) * cantidad;
-
-    // ✅ CALCULAR VALOR DEL TELÉFONO ENTREGADO COMO PARTE DE PAGO (RESPETANDO MONEDA)
-    const valorTelefonoEntregado = Number(datosVentaTelefono.telefonoRecibido?.precioCompra || 0);
-    const monedaTelefonoEntregado = datosVentaTelefono.telefonoRecibido?.moneda || "ARS";
-    
-    console.log('📱 Teléfono entregado como parte de pago:', {
-      valor: valorTelefonoEntregado,
-      moneda: monedaTelefonoEntregado,
-      modelo: datosVentaTelefono.telefonoRecibido?.modelo
+    const productosTel = telefonos.map((tel) => {
+      const precioCosto = Number(tel.precioCosto || 0);
+      const precioUnitario = Number(tel.precioVenta || 0);
+      return {
+        categoria: "Teléfono",
+        descripcion: tel.estado,
+        marca: tel.marca || "—",
+        modelo: tel.modelo,
+        color: tel.color || "—",
+        cantidad: 1,
+        precioUnitario,
+        precioCosto,
+        precioCostoPesos: precioCosto,
+        precioVenta: precioUnitario,
+        ganancia: precioUnitario - precioCosto,
+        moneda: tel.moneda || "USD",
+        gb: tel.gb || "",
+        codigo: tel.stockID || tel.modelo,
+        tipo: "telefono",
+        origenStock: "stockTelefonos",
+      };
     });
-    
-    // ✅ CALCULAR SALDO A PAGAR (considerando moneda del teléfono entregado)
-    let saldoAPagar = 0;
-    if (monedaTelefonoEntregado === "USD" && moneda === "USD") {
-      // Ambos en USD: resta directa
-      saldoAPagar = precioVentaTelefono - valorTelefonoEntregado;
-    } else if (monedaTelefonoEntregado === "ARS" && moneda === "ARS") {
-      // Ambos en ARS: resta directa
-      saldoAPagar = precioVentaTelefono - valorTelefonoEntregado;
-    } else if (monedaTelefonoEntregado === "USD" && moneda === "ARS") {
-      // Teléfono entregado USD, venta ARS: convertir teléfono a ARS
-      const valorTelefonoEnARS = valorTelefonoEntregado * cotizacion;
-      saldoAPagar = precioVentaTelefono - valorTelefonoEnARS;
-    } else if (monedaTelefonoEntregado === "ARS" && moneda === "USD") {
-      // Teléfono entregado ARS, venta USD: convertir teléfono a USD
-      const valorTelefonoEnUSD = valorTelefonoEntregado / cotizacion;
-      saldoAPagar = precioVentaTelefono - valorTelefonoEnUSD;
-    } else {
-      // Fallback: resta directa
-      saldoAPagar = precioVentaTelefono - valorTelefonoEntregado;
+
+    const gananciaTotal = productosTel.reduce((acc, p) => acc + p.ganancia, 0);
+    const totalAproximado = totalARS + totalUSD * cotizacion;
+
+    const telefonosPagoInput = telefonosRecibidosFinal
+      .map((tr) => ({
+        valorPago: Number(tr.precioCompra ?? tr.precioEstimado ?? tr.valorPago ?? 0),
+        moneda: String(tr.moneda ?? "ARS"),
+      }))
+      .filter((t) => t.valorPago > 0);
+
+    const valorTelefonoEntregado = telefonosPagoInput.reduce((acc, t) => {
+      return acc + (String(t.moneda).toUpperCase() === "USD" ? t.valorPago * cotizacion : t.valorPago);
+    }, 0);
+
+    const pagoARS_TelPreview = Number(pagoTelefono.monto || 0);
+    const pagoUSD_TelPreview = Number(pagoTelefono.montoUSD || 0);
+    const cotTelPreview = cotizacionEfectiva(
+      Number(pagoTelefono.cotizacionPago) || 0,
+      cotizacion
+    );
+    const ventaTelSoloUSD = esVentaSoloUSD(totalARS, totalUSD);
+
+    const saldosTel = calcularSaldosVenta({
+      totalARS,
+      totalUSD,
+      pagoARS: pagoARS_TelPreview,
+      pagoUSD: pagoUSD_TelPreview,
+      cotizacion: cotTelPreview,
+      telefonosPago: telefonosPagoInput,
+    });
+    const saldoAPagar = Math.max(0, saldosTel.saldoAproximado);
+    const estadoTel = ventaEstaPagada(saldosTel.saldoARS, saldosTel.saldoUSD)
+      ? "pagado"
+      : "pendiente";
+
+    const monedaVenta =
+      totalUSD > 0 && totalARS > 0 ? "DUAL" : totalUSD > 0 ? "USD" : "ARS";
+
+    let ventaTelefonosRef: Awaited<ReturnType<typeof addDoc>> | null = null;
+
+    for (let i = 0; i < telefonos.length; i++) {
+      const tel = telefonos[i];
+      const precioCosto = Number(tel.precioCosto || 0);
+      const precioVenta = Number(tel.precioVenta || 0);
+      const ganancia = precioVenta - precioCosto;
+
+      const ref = await addDoc(collection(db, `negocios/${rol.negocioID}/ventaTelefonos`), {
+        fecha: tel.fecha,
+        fechaIngreso: tel.fechaIngreso || tel.fecha,
+        proveedor: tel.proveedor || "",
+        cliente,
+        modelo: tel.modelo,
+        marca: tel.marca || "",
+        color: tel.color || "",
+        estado: tel.estado || "nuevo",
+        bateria: tel.bateria || "",
+        gb: tel.gb || "",
+        imei: tel.imei || "",
+        serie: tel.serie || "",
+        precioCosto,
+        precioVenta,
+        ganancia,
+        moneda: tel.moneda || "USD",
+        stockID: tel.stockID || "",
+        observaciones: pagoTelefono.observaciones || observaciones || "",
+        telefonosRecibidos: telefonosRecibidosFinal.length > 0 ? telefonosRecibidosFinal : null,
+        telefonoRecibido: telefonosRecibidosFinal[0] || null,
+        valorTelefonoEntregado: i === 0 ? valorTelefonoEntregado : 0,
+        saldoPendiente: i === 0 ? saldoAPagar : 0,
+        nroVenta,
+        indiceEnVenta: i,
+        totalTelefonosVenta: telefonos.length,
+        creadoEn: Timestamp.now(),
+        id: "",
+      });
+      await updateDoc(ref, { id: ref.id });
+      if (!ventaTelefonosRef) ventaTelefonosRef = ref;
+
+      if (tel.stockID) {
+        await deleteDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos/${tel.stockID}`));
+      }
     }
-    
-    // 1. Crear venta en ventaTelefonos
-    const ventaTelefonosRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventaTelefonos`), {
-      fecha: datosVentaTelefono.fecha,
-      fechaIngreso: datosVentaTelefono.fechaIngreso,
-      proveedor: datosVentaTelefono.proveedor || "",
-      cliente: cliente,
-      modelo: datosVentaTelefono.modelo,
-      marca: datosVentaTelefono.marca || "",
-      color: datosVentaTelefono.color || "",
-      estado: datosVentaTelefono.estado || "nuevo",
-      bateria: datosVentaTelefono.bateria || "",
-      gb: datosVentaTelefono.gb || "",
-      imei: datosVentaTelefono.imei || "",
-      serie: datosVentaTelefono.serie || "",
-      precioCosto: precioCostoTelefono,
-      precioVenta: precioVentaTelefono,
-      ganancia: gananciaTelefono,
-      moneda: datosVentaTelefono.moneda || "USD", // ✅ Respetar moneda seleccionada
-      stockID: datosVentaTelefono.stockID || "",
-      observaciones: pagoTelefono.observaciones || observaciones || "",
-      telefonoRecibido: datosVentaTelefono.telefonoRecibido || null,
-      valorTelefonoEntregado: valorTelefonoEntregado,
-      saldoPendiente: saldoAPagar,
-      nroVenta: nroVenta,
-      creadoEn: Timestamp.now(),
-      id: "",
-    });
 
-    await updateDoc(ventaTelefonosRef, { id: ventaTelefonosRef.id });
+    if (!ventaTelefonosRef) return;
 
-    // 2. Crear en ventasGeneral con el mismo ID
     await setDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaTelefonosRef.id}`), {
-      fecha: fecha,
-      cliente: cliente,
-      productos: [
-        {
-          categoria: "Teléfono",
-          descripcion: datosVentaTelefono.estado,
-          marca: datosVentaTelefono.marca || "—",
-          modelo: datosVentaTelefono.modelo,
-          color: datosVentaTelefono.color || "—",
-          cantidad: 1,
-          precioUnitario: precioUnitarioTelefono,
-          precioCosto: precioCostoTelefono,
-          precioCostoPesos: precioCostoTelefono,
-          precioVenta: precioVentaTelefono,
-          ganancia: gananciaTelefono,
-          moneda: datosVentaTelefono.moneda || "USD", // ✅ Respetar moneda seleccionada
-          gb: datosVentaTelefono.gb || "",
-          codigo: datosVentaTelefono.stockID || datosVentaTelefono.modelo,
-          tipo: "telefono",
-          origenStock: "stockTelefonos", // ✅ ESTA LÍNEA
-        },
-      ],
-      total: precioVentaTelefono,
-      totalARS: datosVentaTelefono.moneda === "ARS" ? precioVentaTelefono : 0,
-      totalUSD: datosVentaTelefono.moneda === "USD" ? precioVentaTelefono : 0,
-      gananciaTotal: gananciaTelefono,
+      fecha,
+      cliente,
+      productos: productosTel,
+      total: totalAproximado,
+      totalARS,
+      totalUSD,
+      gananciaTotal,
       tipo: "telefono",
       observaciones: pagoTelefono.observaciones || observaciones || "",
       timestamp: serverTimestamp(),
-      estado: saldoAPagar > 0 ? "pendiente" : "pagado",
-      moneda: datosVentaTelefono.moneda || "USD", // ✅ Respetar moneda seleccionada
-      nroVenta: nroVenta,
-      valorTelefonoEntregado: valorTelefonoEntregado,
+      estado: estadoTel,
+      moneda: monedaVenta,
+      nroVenta,
+      telefonosComoPago: telefonosPagoInput,
+      telefonoComoPago: telefonosPagoInput[0] ?? null,
+      valorTelefonoEntregado,
       saldoPendiente: saldoAPagar,
+      saldoPendienteARS: Math.max(0, saldosTel.saldoARS),
+      saldoPendienteUSD: Math.max(0, saldosTel.saldoUSD),
     });
 
-// ⭐ NUEVO: Actualizar saldo del cliente por la venta
-await actualizarSaldoCliente(
-  cliente,
-  datosVentaTelefono.moneda === "ARS" ? precioVentaTelefono : 0,
-  datosVentaTelefono.moneda === "USD" ? precioVentaTelefono : 0
-);
-console.log('💳 Saldo actualizado por venta de teléfono');
-    // 3. Eliminar del stock el teléfono vendido (el que salió de stock)
-    if (datosVentaTelefono.stockID) {
-      await deleteDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos/${datosVentaTelefono.stockID}`));
-    }
+    await actualizarSaldoCliente(cliente, totalARS, totalUSD);
 
-    // ✅ 3b. Teléfono como parte de pago: UN SOLO DOC por venta (ID fijo para que nunca se duplique)
-    if (valorTelefonoEntregado > 0 && datosVentaTelefono.telefonoRecibido) {
-      const tr = datosVentaTelefono.telefonoRecibido;
-      const valorPago = Number(tr.precioCompra ?? tr.valorPago ?? valorTelefonoEntregado);
+    for (let i = 0; i < telefonosRecibidosFinal.length; i++) {
+      const tr = telefonosRecibidosFinal[i];
+      const valorPago = Number(tr.precioCompra ?? tr.precioEstimado ?? tr.valorPago ?? 0);
+      if (valorPago <= 0) continue;
+      const monedaTel = String(tr.moneda ?? "ARS").toUpperCase() === "USD" ? "USD" : "ARS";
+
       const stockParteDePago = {
         fechaIngreso: Timestamp.now(),
         creadoEn: Timestamp.now(),
         proveedor: `Parte de pago - ${cliente}`,
         modelo: String(tr.modelo ?? "").trim(),
         marca: String(tr.marca ?? "").trim(),
-        estado: (String(tr.estado ?? "usado").toLowerCase() === "nuevo" ? "nuevo" : "usado"),
+        estado: String(tr.estado ?? "usado").toLowerCase() === "nuevo" ? "nuevo" : "usado",
         bateria: String(tr.bateria ?? "").trim(),
         gb: String(tr.gb ?? "").trim(),
         color: String(tr.color ?? "").trim(),
@@ -512,110 +564,127 @@ console.log('💳 Saldo actualizado por venta de teléfono');
         precioCompra: valorPago,
         precioVenta: valorPago,
         precioMayorista: "",
-        moneda: (String(tr.moneda ?? "ARS").trim().toUpperCase() === "USD" ? "USD" : "ARS"),
-        observaciones: String(tr.observaciones ?? "").trim() || `Teléfono recibido como parte de pago - Venta #${nroVenta}`,
+        moneda: monedaTel,
+        observaciones:
+          String(tr.observaciones ?? "").trim() ||
+          `Teléfono recibido como parte de pago - Venta #${nroVenta}`,
         tipo: "telefono",
         origen: "parte_de_pago",
         ventaId: ventaTelefonosRef.id,
       };
-      const colRef = collection(db, `negocios/${rol.negocioID}/stockTelefonos`);
-      const idFijo = `parte_pago_${ventaTelefonosRef.id}`;
-      const refPartePago = doc(colRef, idFijo);
-      await setDoc(refPartePago, stockParteDePago);
-      console.log("✅ Teléfono recibido como parte de pago guardado en stock, vinculado a venta:", ventaTelefonosRef.id);
-    }
+      const idFijo = `parte_pago_${ventaTelefonosRef.id}_${i}`;
+      await setDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos`, idFijo), stockParteDePago);
 
-    // ✅ 4. REGISTRAR PAGOS SEPARADOS POR MONEDA (RESPETANDO MONEDA TELÉFONO)
-    const pagoARS_Tel = Number(pagoTelefono.monto || 0);
-    const pagoUSD_Tel = Number(pagoTelefono.montoUSD || 0);
-
-    console.log('💰 Registrando pagos del teléfono (respetando monedas):', {
-      pagoARS: pagoARS_Tel,
-      pagoUSD: pagoUSD_Tel,
-      valorTelefonoEntregado,
-      monedaTelefonoEntregado,
-      cliente,
-      nroVenta
-    });
-
-    // ✅ GUARDAR PAGO ARS si existe
-    if (pagoARS_Tel > 0) {
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-        fecha: fecha,
-        cliente: cliente,
-        monto: pagoARS_Tel,
-        montoUSD: null,
-        forma: pagoTelefono.formaPago || "Efectivo",
-        destino: "ventaTelefonos",
-        moneda: "ARS",
-        cotizacion: cotizacion,
-        observaciones: pagoTelefono.observaciones || "",
-        timestamp: serverTimestamp(),
-        nroVenta: nroVenta,
-      });
-      console.log('✅ Pago ARS guardado:', pagoARS_Tel);
-    }
-// ⭐ NUEVO: Restar pago ARS del saldo
-      await actualizarSaldoCliente(cliente, -pagoARS_Tel, 0);
-    // ✅ GUARDAR PAGO USD si existe
-    if (pagoUSD_Tel > 0) {
-      await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-        fecha: fecha,
-        cliente: cliente,
-        monto: null,
-        montoUSD: pagoUSD_Tel,
-        forma: pagoTelefono.formaPago
-          ? `${pagoTelefono.formaPago} USD`.replace(/\s+USD USD/i, " USD")
-          : "Efectivo USD",
-        destino: "ventaTelefonos", 
-        moneda: "USD",
-        cotizacion: cotizacion,
-        observaciones: pagoTelefono.observaciones || "",
-        timestamp: serverTimestamp(),  
-        nroVenta: nroVenta,
-      });
-      console.log('✅ Pago USD guardado:', pagoUSD_Tel);
-    }
-// ⭐ NUEVO: Restar pago USD del saldo
-await actualizarSaldoCliente(cliente, 0, -pagoUSD_Tel);
-    // ✅ GUARDAR TELÉFONO COMO PARTE DE PAGO (RESPETANDO SU MONEDA)
-    if (valorTelefonoEntregado > 0) {
-      await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-        fecha: fecha,
-        cliente: cliente,
-        monto: monedaTelefonoEntregado === "ARS" ? valorTelefonoEntregado : null,
-        montoUSD: monedaTelefonoEntregado === "USD" ? valorTelefonoEntregado : null,
+        fecha,
+        cliente,
+        monto: monedaTel === "ARS" ? valorPago : null,
+        montoUSD: monedaTel === "USD" ? valorPago : null,
         forma: "Entrega equipo",
         destino: "ventaTelefonos",
-        moneda: monedaTelefonoEntregado, // ✅ RESPETA LA MONEDA ORIGINAL
-        cotizacion: cotizacion,
-        observaciones: `Teléfono entregado: ${datosVentaTelefono.telefonoRecibido?.modelo || ""}`,
+        moneda: monedaTel,
+        cotizacion,
+        observaciones: `Teléfono entregado: ${tr.modelo || ""}`,
         timestamp: serverTimestamp(),
-        nroVenta: nroVenta,
-        // Detalles del teléfono entregado
+        nroVenta,
+        excluirDeCaja: true,
+        tipoPago: "entrega_equipo",
         detallesPago: {
           tipoEquipo: "telefono",
-          modeloEntregado: datosVentaTelefono.telefonoRecibido?.modelo || "",
-          marcaEntregada: datosVentaTelefono.telefonoRecibido?.marca || "",
-          valorOriginal: valorTelefonoEntregado,
-          monedaOriginal: monedaTelefonoEntregado
-        }
+          modeloEntregado: tr.modelo || "",
+          marcaEntregada: tr.marca || "",
+          valorOriginal: valorPago,
+          monedaOriginal: monedaTel,
+        },
       });
-      console.log('✅ Teléfono como pago guardado:', {
-        valor: valorTelefonoEntregado,
-        moneda: monedaTelefonoEntregado
-      });
+
+      await actualizarSaldoCliente(
+        cliente,
+        monedaTel === "ARS" ? -valorPago : 0,
+        monedaTel === "USD" ? -valorPago : 0
+      );
     }
-    // ⭐ NUEVO: Restar teléfono entregado como pago del saldo
-    await actualizarSaldoCliente(
+
+    const pagoARS_Tel = Number(pagoTelefono.monto || 0);
+    const pagoUSD_Tel = Number(pagoTelefono.montoUSD || 0);
+    const cotTel = cotTelPreview;
+    const creditoUSDTel = ventaTelSoloUSD
+      ? creditoUSDVentaSoloUSD(pagoARS_Tel, pagoUSD_Tel, cotTel)
+      : Math.max(0, pagoUSD_Tel);
+
+    const basePagoTel = {
+      fecha,
       cliente,
-      monedaTelefonoEntregado === "ARS" ? -valorTelefonoEntregado : 0,
-      monedaTelefonoEntregado === "USD" ? -valorTelefonoEntregado : 0
-    );
-// ✅ 5. SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
-if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino) {
-  // Misma lógica que arriba pero para teléfonos
-}
+      destino: "ventaTelefonos",
+      cotizacion: cotTel,
+      observaciones: pagoTelefono.observaciones || "",
+      timestamp: serverTimestamp(),
+      nroVenta,
+    };
+
+    if (ventaTelSoloUSD) {
+      if (pagoUSD_Tel > 0) {
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          ...basePagoTel,
+          monto: null,
+          montoUSD: pagoUSD_Tel,
+          moneda: "USD",
+          forma: pagoTelefono.formaPago
+            ? `${pagoTelefono.formaPago} USD`.replace(/\s+USD USD/i, " USD")
+            : "Efectivo USD",
+          detallesPago: { tipo: "USD" },
+        });
+      }
+      if (pagoARS_Tel > 0) {
+        const usdEquiv = calcularUsdDesdeARS(pagoARS_Tel, cotTel);
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          ...basePagoTel,
+          monto: pagoARS_Tel,
+          montoUSD: null,
+          moneda: "ARS",
+          forma: pagoTelefono.formaPago || "Efectivo",
+          observaciones: [
+            pagoTelefono.observaciones || "",
+            notaConversionARSaUSD(pagoARS_Tel, usdEquiv, cotTel),
+          ]
+            .filter(Boolean)
+            .join(" • "),
+          detallesPago: {
+            tipo: "ARS_a_USD",
+            montoUSDEquivalente: usdEquiv,
+            montoARSOriginal: pagoARS_Tel,
+            cotizacionPago: cotTel,
+          },
+        });
+      }
+      if (creditoUSDTel > 0) {
+        await actualizarSaldoCliente(cliente, 0, -creditoUSDTel);
+      }
+    } else {
+      if (pagoARS_Tel > 0) {
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          ...basePagoTel,
+          monto: pagoARS_Tel,
+          montoUSD: null,
+          moneda: "ARS",
+          forma: pagoTelefono.formaPago || "Efectivo",
+        });
+        await actualizarSaldoCliente(cliente, -pagoARS_Tel, 0);
+      }
+      if (pagoUSD_Tel > 0) {
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          ...basePagoTel,
+          monto: null,
+          montoUSD: pagoUSD_Tel,
+          moneda: "USD",
+          forma: pagoTelefono.formaPago
+            ? `${pagoTelefono.formaPago} USD`.replace(/\s+USD USD/i, " USD")
+            : "Efectivo USD",
+        });
+        await actualizarSaldoCliente(cliente, 0, -pagoUSD_Tel);
+      }
+    }
+
     return ventaTelefonosRef.id;
   };
 
@@ -682,60 +751,81 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
       productos: productosConCodigo.length
     });
 
-    // ✅ PREPARAR PAGOS (evitar duplicar ARS + USD en `pagos` cuando la venta es solo USD)
+    // ✅ PREPARAR PAGOS — registra efectivo físico por moneda; venta solo USD suma ARS+USD convertido
     const pagoARS = Number(pago?.monto || 0);
     const pagoUSD = Number(pago?.montoUSD || 0);
-    const cotizPago =
-      Number(pago?.cotizacionPago) > 0 ? Number(pago.cotizacionPago) : cotizacion;
-    const cotEfectiva =
-      cotizPago > 0 ? cotizPago : cotizacion > 0 ? cotizacion : 0;
-    const ventaSoloUSD = totalARS === 0 && totalUSD > 0;
-    const cotParaConversion =
-      cotEfectiva > 0 ? cotEfectiva : cotizacion > 0 ? cotizacion : 1000;
+    const cotParaConversion = cotizacionEfectiva(
+      Number(pago?.cotizacionPago) || 0,
+      cotizacion
+    );
+    const ventaSoloUSD = esVentaSoloUSD(totalARS, totalUSD);
+    const creditoUSD = ventaSoloUSD
+      ? creditoUSDVentaSoloUSD(pagoARS, pagoUSD, cotParaConversion)
+      : Math.max(0, pagoUSD);
 
-    let usdPagoUnico: number | null = null;
-    let notaPagoARSaUSD = "";
-    if (ventaSoloUSD && (pagoARS > 0 || pagoUSD > 0)) {
-      const usd =
-        pagoUSD > 0 ? pagoUSD : pagoARS > 0 ? pagoARS / cotParaConversion : 0;
-      if (usd > 0 && Number.isFinite(usd)) {
-        usdPagoUnico = usd;
-        if (pagoARS > 0) {
-          notaPagoARSaUSD = `Pago recibido en ARS $${Number(pagoARS).toLocaleString("es-AR")} aplicado a USD ${usd.toFixed(2)} (cotización $1 USD = $${Number(cotParaConversion).toLocaleString("es-AR")} ARS)`;
-        }
-      }
+    const saldosVenta = calcularSaldosVenta({
+      totalARS,
+      totalUSD,
+      pagoARS,
+      pagoUSD,
+      cotizacion: cotParaConversion,
+    });
+    const estadoVenta = ventaEstaPagada(saldosVenta.saldoARS, saldosVenta.saldoUSD)
+      ? "pagado"
+      : "pendiente";
+
+    const notasPago: string[] = [];
+    if (ventaSoloUSD && pagoARS > 0) {
+      notasPago.push(
+        notaConversionARSaUSD(
+          pagoARS,
+          calcularUsdDesdeARS(pagoARS, cotParaConversion),
+          cotParaConversion
+        )
+      );
     }
+    if (pago?.observaciones) notasPago.push(String(pago.observaciones));
 
-    const pagoVentaFirestore =
-      ventaSoloUSD && usdPagoUnico != null && usdPagoUnico > 0
-        ? {
-            monto: null,
-            montoUSD: usdPagoUnico,
-            moneda: "USD" as const,
-            forma: pago?.formaPago || "Efectivo",
-            destino: pago?.destino || "",
-            observaciones: [pago?.observaciones || "", notaPagoARSaUSD].filter(Boolean).join(" • "),
-            cotizacion,
-            cotizacionPago: cotEfectiva > 0 ? cotEfectiva : cotParaConversion,
-            pagoARSAplicadoAUSD: pagoARS > 0,
-          }
-        : {
-            monto: pagoARS || null,
-            montoUSD: pagoUSD || null,
-            moneda:
-              pagoUSD > 0 && pagoARS > 0 ? "DUAL" : pagoUSD > 0 ? "USD" : "ARS",
-            forma:
-              pagoUSD > 0 && pagoARS > 0
-                ? "Efectivo ARS + USD"
-                : pagoUSD > 0
-                  ? "Efectivo USD"
-                  : pago?.formaPago || "Efectivo",
-            destino: pago?.destino || "",
-            observaciones: pago?.observaciones || "",
-            cotizacion,
-            cotizacionPago: cotizPago,
-            pagoARSAplicadoAUSD: false,
-          };
+    const pagoVentaFirestore = ventaSoloUSD
+      ? {
+          monto: pagoARS > 0 ? pagoARS : null,
+          montoUSD: pagoUSD > 0 ? pagoUSD : null,
+          montoUSDTotalAplicado: creditoUSD > 0 ? creditoUSD : null,
+          moneda:
+            pagoARS > 0 && pagoUSD > 0
+              ? ("DUAL" as const)
+              : pagoUSD > 0
+                ? ("USD" as const)
+                : pagoARS > 0
+                  ? ("ARS" as const)
+                  : ("USD" as const),
+          forma:
+            pagoUSD > 0 && pagoARS > 0
+              ? "Efectivo ARS + USD"
+              : pago?.formaPago || "Efectivo",
+          destino: pago?.destino || "",
+          observaciones: notasPago.filter(Boolean).join(" • "),
+          cotizacion,
+          cotizacionPago: cotParaConversion,
+          pagoARSAplicadoAUSD: pagoARS > 0,
+        }
+      : {
+          monto: pagoARS || null,
+          montoUSD: pagoUSD || null,
+          moneda:
+            pagoUSD > 0 && pagoARS > 0 ? "DUAL" : pagoUSD > 0 ? "USD" : "ARS",
+          forma:
+            pagoUSD > 0 && pagoARS > 0
+              ? "Efectivo ARS + USD"
+              : pagoUSD > 0
+                ? "Efectivo USD"
+                : pago?.formaPago || "Efectivo",
+          destino: pago?.destino || "",
+          observaciones: pago?.observaciones || "",
+          cotizacion,
+          cotizacionPago: cotParaConversion,
+          pagoARSAplicadoAUSD: false,
+        };
 
     // Crear la venta
     const pedidoMeta = leerMetaPedidoTienda();
@@ -783,7 +873,10 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
       total: totalAproximado,      // ✅ Para compatibilidad
       gananciaTotal,
       moneda: totalUSD > 0 && totalARS > 0 ? "DUAL" : totalUSD > 0 ? "USD" : "ARS", // ✅ Detectar tipo
-      estado: "pendiente",
+      estado: estadoVenta,
+      saldoPendienteARS: Math.max(0, saldosVenta.saldoARS),
+      saldoPendienteUSD: Math.max(0, saldosVenta.saldoUSD),
+      saldoPendiente: Math.max(0, saldosVenta.saldoAproximado),
       nroVenta,
       timestamp: serverTimestamp(),
       ...(pedidoMeta
@@ -797,64 +890,73 @@ if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino)
 // ⭐ NUEVO: Actualizar saldo del cliente por la venta
 await actualizarSaldoCliente(cliente, totalARS, totalUSD);
 console.log('💳 Saldo actualizado por venta normal');
-    // ✅ Un solo documento en `pagos` si la venta es solo USD; si es ARS o mixta, ARS y USD por separado
-    if (ventaSoloUSD && usdPagoUnico != null && usdPagoUnico > 0) {
-      await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-        cliente,
-        fecha,
-        monto: null,
-        montoUSD: usdPagoUnico,
-        moneda: "USD",
-        forma: pago?.formaPago || "Efectivo",
-        destino: pago?.destino || "",
-        observaciones: [pago?.observaciones || "", notaPagoARSaUSD].filter(Boolean).join(" • "),
-        cotizacion: cotParaConversion,
-        detallesPago:
-          pagoARS > 0
-            ? {
-                tipo: "ARS_a_USD",
-                montoARSOriginal: pagoARS,
-                cotizacionPago: cotParaConversion,
-              }
-            : { tipo: "USD" },
-        timestamp: serverTimestamp(),
-        nroVenta: nroVenta,
-      });
-      console.log("✅ Pago venta solo USD (único doc):", { pagoARS, pagoUSD, usdPagoUnico, cotParaConversion });
-      await actualizarSaldoCliente(cliente, 0, -usdPagoUnico);
-    } else if (!ventaSoloUSD) {
-      if (pagoARS > 0) {
+    // ✅ Pagos en colección `pagos`: efectivo físico por moneda; venta solo USD resta crédito total en USD
+    const basePagoDoc = {
+      cliente,
+      fecha,
+      forma: pago?.formaPago || "Efectivo",
+      destino: pago?.destino || "",
+      timestamp: serverTimestamp(),
+      nroVenta,
+    };
+
+    if (ventaSoloUSD) {
+      if (pagoUSD > 0) {
         await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          cliente,
-          fecha,
+          ...basePagoDoc,
+          monto: null,
+          montoUSD: pagoUSD,
+          moneda: "USD",
+          cotizacion: cotParaConversion,
+          observaciones: pago?.observaciones || "",
+          detallesPago: { tipo: "USD" },
+        });
+      }
+      if (pagoARS > 0) {
+        const usdEquiv = calcularUsdDesdeARS(pagoARS, cotParaConversion);
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          ...basePagoDoc,
           monto: pagoARS,
           montoUSD: null,
           moneda: "ARS",
-          forma: pago?.formaPago || "Efectivo",
-          destino: pago?.destino || "",
+          cotizacion: cotParaConversion,
+          observaciones: notasPago.filter(Boolean).join(" • "),
+          detallesPago: {
+            tipo: "ARS_a_USD",
+            montoUSDEquivalente: usdEquiv,
+            montoARSOriginal: pagoARS,
+            cotizacionPago: cotParaConversion,
+          },
+        });
+      }
+      if (creditoUSD > 0) {
+        await actualizarSaldoCliente(cliente, 0, -creditoUSD);
+      }
+      console.log("✅ Pagos venta solo USD:", { pagoARS, pagoUSD, creditoUSD, cotParaConversion });
+    } else {
+      if (pagoARS > 0) {
+        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+          ...basePagoDoc,
+          monto: pagoARS,
+          montoUSD: null,
+          moneda: "ARS",
           observaciones: pago?.observaciones || "",
           cotizacion: cotizacion,
-          timestamp: serverTimestamp(),
-          nroVenta: nroVenta,
         });
         console.log("✅ Pago ARS guardado:", pagoARS);
         await actualizarSaldoCliente(cliente, -pagoARS, 0);
       }
       if (pagoUSD > 0) {
         await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          cliente,
-          fecha,
+          ...basePagoDoc,
           monto: null,
           montoUSD: pagoUSD,
           moneda: "USD",
           forma: pago?.formaPago
             ? `${pago.formaPago} USD`.replace(/\s+USD USD/i, " USD")
             : "Efectivo USD",
-          destino: pago?.destino || "",
           observaciones: pago?.observaciones || "",
           cotizacion: cotizacion,
-          timestamp: serverTimestamp(),
-          nroVenta: nroVenta,
         });
         console.log("✅ Pago USD guardado:", pagoUSD);
         await actualizarSaldoCliente(cliente, 0, -pagoUSD);
@@ -867,10 +969,8 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
   const proveedor = proveedoresSnap.docs.find(doc => doc.data().nombre === pago.proveedorDestino);
   
   if (proveedor) {
-    const montoProvARS =
-      ventaSoloUSD && usdPagoUnico != null && usdPagoUnico > 0 ? pagoARS : pagoARS || 0;
-    const montoProvUSD =
-      ventaSoloUSD && usdPagoUnico != null && usdPagoUnico > 0 ? usdPagoUnico : pagoUSD || 0;
+    const montoProvARS = ventaSoloUSD ? 0 : pagoARS || 0;
+    const montoProvUSD = ventaSoloUSD ? creditoUSD : pagoUSD || 0;
     const pagoProveedor = {
       proveedorId: proveedor.id,
       proveedorNombre: proveedor.data().nombre,
@@ -1010,6 +1110,8 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
         // Limpiar localStorage
         localStorage.removeItem("ventaTelefonoPendiente");
         localStorage.removeItem("pagoTelefonoPendiente");
+        localStorage.removeItem("telefonosComoPago");
+        localStorage.removeItem("telefonoComoPago");
         localStorage.removeItem("clienteDesdeTelefono");
       } else {
         const ventaId = await guardarVentaNormal();

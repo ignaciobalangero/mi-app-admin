@@ -5,7 +5,7 @@ import VistaPreviaEtiqueta from "./VistaPreviaEtiqueta";
 
 const camposDisponiblesEtiqueta = [
   { id: 'cliente', nombre: 'Cliente', obligatorio: true },
-  { id: 'numeroOrden', nombre: 'Número de Orden', obligatorio: true },
+  { id: 'numeroOrden', nombre: 'Número de Orden / Código', obligatorio: false },
   { id: 'modelo', nombre: 'Modelo', obligatorio: false },
   { id: 'clave', nombre: 'Clave/Password', obligatorio: false },
   { id: 'trabajo', nombre: 'Tipo de Trabajo', obligatorio: false },
@@ -30,7 +30,7 @@ interface Props {
 
 export default function DiseñadorEtiqueta({ plantillaEtiqueta, onGuardarPlantilla, nombreNegocio }: Props) {
   const [camposSeleccionados, setCamposSeleccionados] = useState(
-    plantillaEtiqueta?.campos || ['cliente', 'numeroOrden', 'modelo', 'trabajo']
+    plantillaEtiqueta?.campos || ['cliente', 'modelo', 'clave', 'trabajo']
   );
   
   const [configuracion, setConfiguracion] = useState({

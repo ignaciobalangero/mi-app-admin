@@ -65,6 +65,7 @@ export default function GestionSuscripciones() {
   const [filtro, setFiltro] = useState<
     "todos" | "vencidos" | "por_vencer" | "activos" | "exentos" | "deben_pagar"
   >("todos");
+  const [busqueda, setBusqueda] = useState("");
   const [actualizando, setActualizando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("");
   
@@ -622,31 +623,54 @@ export default function GestionSuscripciones() {
     );
   };
 
+  const coincideBusquedaAdmin = (admin: AdminSuscripcion, termino: string) => {
+    const q = termino.trim().toLowerCase();
+    if (!q) return true;
+
+    const campos = [
+      admin.negocioID,
+      admin.email,
+      admin.nombre,
+      admin.planActivo,
+    ];
+
+    return campos.some((campo) => campo?.toLowerCase().includes(q));
+  };
+
   // Filtrar y ordenar admins
   const adminsFiltrados = adminsSuscripcion
     .filter(admin => {
-    if (filtro === 'todos') return true;
-    
-    const { estado } = obtenerEstadoSuscripcion(admin);
-    
-    switch (filtro) {
-      case 'vencidos':
-        return estado === 'vencido';
-      case 'por_vencer':
-        return estado === 'por_vencer';
-      case 'activos':
-        return estado === 'activo';
-      case 'exentos':
-        return estado === 'exento';
-      case "deben_pagar":
-        return debePagoSuscripcion(
-          admin.fechaVencimiento,
-          admin.ultimoPagoSuscripcion,
-          admin.esExento
-        );
-      default:
-        return true;
+    if (filtro !== 'todos') {
+      const { estado } = obtenerEstadoSuscripcion(admin);
+
+      switch (filtro) {
+        case 'vencidos':
+          if (estado !== 'vencido') return false;
+          break;
+        case 'por_vencer':
+          if (estado !== 'por_vencer') return false;
+          break;
+        case 'activos':
+          if (estado !== 'activo') return false;
+          break;
+        case 'exentos':
+          if (estado !== 'exento') return false;
+          break;
+        case "deben_pagar":
+          if (
+            !debePagoSuscripcion(
+              admin.fechaVencimiento,
+              admin.ultimoPagoSuscripcion,
+              admin.esExento
+            )
+          ) {
+            return false;
+          }
+          break;
+      }
     }
+
+    return coincideBusquedaAdmin(admin, busqueda);
   })
     .sort(compararAdminsSuscripcion);
 
@@ -793,11 +817,11 @@ export default function GestionSuscripciones() {
           </div>
         </div>
 
-        {/* Filtros */}
+        {/* Filtros y búsqueda */}
         <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-[#2c3e50] font-medium">Filtrar:</span>
+              <span className="text-[#2c3e50] font-medium shrink-0">Filtrar:</span>
               <div className="flex gap-2 flex-wrap">
                 {[
                   { key: 'todos', label: 'Todos', color: 'bg-gray-100' },
@@ -818,6 +842,29 @@ export default function GestionSuscripciones() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="relative w-full lg:max-w-md shrink-0">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                🔍
+              </span>
+              <input
+                type="search"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por negocio, nombre, email o plan..."
+                className="w-full rounded-lg border border-gray-200 py-2 pl-10 pr-10 text-sm text-[#2c3e50] placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              {busqueda.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  aria-label="Limpiar búsqueda"
+                >
+                  ✕
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

@@ -10,6 +10,24 @@ export const MEDIOS_PAGO_CAJA: { id: MedioPagoCaja; label: string }[] = [
   { id: "otro", label: "Otro" },
 ];
 
+/** Pago con teléfono/equipo entregado: afecta saldo del cliente pero no entra en caja (ya está en stock). */
+export function esPagoExcluidoDeCaja(data: Record<string, unknown>): boolean {
+  if (data.excluirDeCaja === true) return true;
+  if (String(data.tipoPago ?? "") === "entrega_equipo") return true;
+
+  const forma = String(data.forma ?? data.formaPago ?? data.metodoPago ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  if (forma.includes("entrega") && forma.includes("equipo")) return true;
+
+  const detalles = data.detallesPago as Record<string, unknown> | undefined;
+  if (detalles?.tipoEquipo === "telefono") return true;
+
+  return false;
+}
+
 export function labelMedioPago(medio: MedioPagoCaja): string {
   return MEDIOS_PAGO_CAJA.find((m) => m.id === medio)?.label ?? medio;
 }
@@ -86,6 +104,10 @@ export function crearResumenMediosVacio(): Record<MedioPagoCaja, number> {
     mercado_pago: 0,
     otro: 0,
   };
+}
+
+export function crearResumenMediosFisicoUSDVacio(): Record<MedioPagoCaja, number> {
+  return crearResumenMediosVacio();
 }
 
 /** Convierte montos a ARS para totales de caja (la caja opera en ARS). */

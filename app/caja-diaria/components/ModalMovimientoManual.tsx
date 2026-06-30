@@ -105,7 +105,7 @@ export default function ModalMovimientoManual({
             <select
               value={categoria}
               onChange={(e) => setCategoria(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg"
+              className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white text-[#2c3e50] [color-scheme:light]"
             >
               {categorias.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -120,7 +120,7 @@ export default function ModalMovimientoManual({
               type="number"
               value={monto}
               onChange={(e) => setMonto(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg"
+              className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white text-[#2c3e50] [color-scheme:light]"
             />
           </div>
           <div>
@@ -128,7 +128,7 @@ export default function ModalMovimientoManual({
             <select
               value={medioPago}
               onChange={(e) => setMedioPago(e.target.value as MedioPagoCaja)}
-              className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg"
+              className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white text-[#2c3e50] [color-scheme:light]"
             >
               {MEDIOS_PAGO_CAJA.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -143,7 +143,7 @@ export default function ModalMovimientoManual({
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg resize-none"
+              className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg resize-none bg-white text-[#2c3e50] [color-scheme:light]"
             />
           </div>
         </div>

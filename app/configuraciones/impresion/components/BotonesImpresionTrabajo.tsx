@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ImpresionGestione } from "@/app/configuraciones/impresion/utils/impresionEspecifica";
+import {
+  CAMPOS_ETIQUETA_TRABAJO_DEFAULT,
+  columnasEtiquetaTrabajo,
+} from "@/lib/etiquetaTrabajoCampos";
 
 interface Props {
   trabajo: any;
@@ -65,7 +69,7 @@ export default function BotonesImpresionTrabajo({
     const camposObligatorios = {
       ticket: ['id', 'cliente'],
       ticketA4: ['id', 'cliente'],
-      etiqueta: ['id', 'cliente'],
+      etiqueta: ['cliente'],
       etiquetaA4: ['cliente', 'numeroOrden']
     };
 
@@ -117,7 +121,7 @@ export default function BotonesImpresionTrabajo({
       }
 
       const configuracionEtiqueta = plantillas.etiqueta || {
-        campos: ['cliente', 'numeroOrden', 'modelo', 'trabajo'],
+        campos: CAMPOS_ETIQUETA_TRABAJO_DEFAULT,
         configuracion: {
           tamaño: '62x29',
           orientacion: 'horizontal',
@@ -317,38 +321,24 @@ function generarHTMLEtiquetaBrother(
   camposSeleccionados: string[],
   configuracion: any
 ) {
-  
-  // Mapeo de IDs de campos a datos del trabajo
-  const mapaCampos: any = {
-    'cliente': { label: 'CLIENTE', valor: datos.cliente, large: true },
-    'numeroOrden': { label: 'CÓDIGO', valor: datos.id, large: true },
-    'modelo': { label: 'MODELO', valor: datos.modelo, large: true },
-    'clave': { label: 'CLAVE', valor: datos.clave, large: false },
-    'trabajo': { label: 'TRABAJO', valor: datos.trabajo, large: false },
-    'imei': { label: 'IMEI', valor: datos.imei, large: false, monospace: true }
-  };
+  const { columnaIzq, columnaDer } = columnasEtiquetaTrabajo(
+    camposSeleccionados,
+    datos as Record<string, unknown>
+  );
 
-  // Dividir campos en dos columnas
-  const mitad = Math.ceil(camposSeleccionados.length / 2);
-  const columnaIzq = camposSeleccionados.slice(0, mitad);
-  const columnaDer = camposSeleccionados.slice(mitad);
-
-  // Generar HTML para campos
-  const generarCampos = (campos: string[]) => {
-    return campos.map(campoId => {
-      const campo = mapaCampos[campoId];
-      if (!campo) return '';
-      
-      const claseValue = campo.large ? 'value value-large' : 'value';
-      const claseExtra = campo.monospace ? ' imei' : '';
-      
-      return `
+  const generarCampos = (campos: typeof columnaIzq) => {
+    return campos
+      .map((campo) => {
+        const claseExtra = campo.mono ? " imei" : "";
+        const valorMostrar = campo.valor || "—";
+        return `
         <div class="field">
-          <span class="label">${campo.label}:</span>
-          <span class="${claseValue}${claseExtra}">${campo.valor || 'N/A'}</span>
+          <span class="label">${campo.label.toUpperCase()}:</span>
+          <span class="value${claseExtra}">${valorMostrar}</span>
         </div>
       `;
-    }).join('');
+      })
+      .join("");
   };
 
   // Obtener tamaño de fuente según configuración
@@ -425,9 +415,9 @@ function generarHTMLEtiquetaBrother(
           
           .field {
             display: flex;
-            align-items: baseline;
-            gap: 1.5mm;
-            line-height: 1.3;
+            flex-direction: column;
+            gap: 0.3mm;
+            line-height: 1.2;
             margin-bottom: 1mm;
           }
           
@@ -436,8 +426,6 @@ function generarHTMLEtiquetaBrother(
             color: #000;
             font-size: ${tamaños.label};
             text-transform: uppercase;
-            white-space: nowrap;
-            flex-shrink: 0;
           }
           
           .value {
@@ -445,12 +433,8 @@ function generarHTMLEtiquetaBrother(
             font-size: ${tamaños.value};
             font-weight: 900;
             word-wrap: break-word;
-            overflow: hidden;
-          }
-          
-          .value-large {
-            font-size: ${tamaños.valueLarge};
-            font-weight: 900;
+            overflow-wrap: break-word;
+            white-space: normal;
           }
           
           .imei {

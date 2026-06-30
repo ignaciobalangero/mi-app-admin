@@ -17,14 +17,24 @@ interface Props {
   stock: Telefono[];
   form: any;
   setForm: (valor: any) => void;
+  stockIdsExcluidos?: string[];
 }
 
-export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
+export default function SelectorTelefonoStock({
+  stock,
+  form,
+  setForm,
+  stockIdsExcluidos = [],
+}: Props) {
   const [query, setQuery] = useState("");
   const { rol } = useRol();
 
-  // Filtrar primero los teléfonos que NO están en servicio técnico
-  const stockDisponible = stock.filter(telefono => !telefono.enServicio);
+  const idsExcluidos = new Set(stockIdsExcluidos.map(String));
+
+  // Sin servicio técnico y sin equipos ya agregados a esta venta
+  const stockDisponible = stock.filter(
+    (telefono) => !telefono.enServicio && !idsExcluidos.has(String(telefono.id))
+  );
 
   const opcionesFiltradas =
     query === ""
@@ -117,7 +127,16 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
             {opcionesFiltradas.length === 0 && query !== "" && (
               <div className="px-4 py-2 text-gray-500">Sin coincidencias en stock disponible</div>
             )}
-            {stockDisponible.length === 0 && query === "" && (
+            {stockDisponible.length === 0 && query === "" && stockIdsExcluidos.length > 0 && (
+              <div className="px-4 py-2 text-[#2980b9] font-medium">
+                Los equipos restantes ya están en esta venta.
+                <br />
+                <span className="text-xs text-gray-500">
+                  Si quitás uno de la lista, vuelve a aparecer acá.
+                </span>
+              </div>
+            )}
+            {stockDisponible.length === 0 && query === "" && stockIdsExcluidos.length === 0 && (
               <div className="px-4 py-2 text-orange-600 font-medium">
                 📱 No hay teléfonos disponibles para venta
                 <br />
@@ -131,9 +150,14 @@ export default function SelectorTelefonoStock({ stock, form, setForm }: Props) {
       {/* Mostrar información adicional */}
       <div className="mt-1 text-xs text-gray-600">
         📱 Stock disponible: {stockDisponible.length} teléfonos
-        {stock.length - stockDisponible.length > 0 && (
+        {stockIdsExcluidos.length > 0 && (
+          <span className="text-[#2980b9] ml-2">
+            ({stockIdsExcluidos.length} en esta venta)
+          </span>
+        )}
+        {stock.filter((t) => t.enServicio).length > 0 && (
           <span className="text-orange-600 ml-2">
-            🔧 {stock.length - stockDisponible.length} en servicio técnico (ocultos)
+            🔧 {stock.filter((t) => t.enServicio).length} en servicio técnico (ocultos)
           </span>
         )}
         <div className="text-xs text-blue-600 mt-1">

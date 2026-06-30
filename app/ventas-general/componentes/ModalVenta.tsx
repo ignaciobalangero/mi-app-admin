@@ -19,6 +19,12 @@ import {
   STORAGE_PEDIDO_TIENDA_ACTIVO,
 } from "@/lib/usePedidosTiendaPendientesVenta";
 import type { PedidoTienda } from "@/lib/tiendaClienteTypes";
+import { calcularSaldosVenta } from "@/lib/ventas/pagoDualHelpers";
+import {
+  normalizarVentaTelefonoPendiente,
+  parsearTelefonosComoPagoLS,
+  telefonoDraftAProducto,
+} from "@/lib/ventas/telefonoVentaHelpers";
 
 export default function ModalVenta({
   clienteInicial = "",
@@ -65,7 +71,7 @@ export default function ModalVenta({
   const [cotizacionManual, setCotizacionManual] = useState(cotizacion || 1000);
 
   // Estado para el teléfono como parte de pago
-  const [telefonoComoPago, setTelefonoComoPago] = useState<any>(null);
+  const [telefonosComoPago, setTelefonosComoPago] = useState<any[]>([]);
 
   // ✅ SINCRONIZAR CON COTIZACIÓN AUTOMÁTICA
   useEffect(() => {
@@ -94,8 +100,10 @@ export default function ModalVenta({
           if (datosTemporales.pago) {
             setPago(datosTemporales.pago);
           }
-          if (datosTemporales.telefonoComoPago) {
-            setTelefonoComoPago(datosTemporales.telefonoComoPago);
+          if (datosTemporales.telefonosComoPago?.length) {
+            setTelefonosComoPago(datosTemporales.telefonosComoPago);
+          } else if (datosTemporales.telefonoComoPago) {
+            setTelefonosComoPago([datosTemporales.telefonoComoPago]);
           }
           
           localStorage.removeItem("clienteNuevo");
@@ -138,8 +146,17 @@ export default function ModalVenta({
     setPago((prev) => ({ ...prev, montoUSD: "" }));
   };
 
-  const quitarTelefonoPago = () => {
-    setTelefonoComoPago(null);
+  const quitarTelefonoPago = (index: number) => {
+    setTelefonosComoPago((prev) => prev.filter((_, i) => i !== index));
+    if (telefonosComoPago.length <= 1) {
+      localStorage.removeItem("telefonosComoPago");
+      localStorage.removeItem("telefonoComoPago");
+    }
+  };
+
+  const quitarTodosTelefonosPago = () => {
+    setTelefonosComoPago([]);
+    localStorage.removeItem("telefonosComoPago");
     localStorage.removeItem("telefonoComoPago");
   };
 
@@ -149,7 +166,7 @@ export default function ModalVenta({
     );
     if (!confirmar) return;
     setPago(pagoVacio);
-    quitarTelefonoPago();
+    quitarTodosTelefonosPago();
   };
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
@@ -164,6 +181,7 @@ export default function ModalVenta({
     localStorage.removeItem("ventaTelefonoPendiente");
     localStorage.removeItem("pagoTelefonoPendiente");
     localStorage.removeItem("clienteDesdeTelefono");
+    localStorage.removeItem("telefonosComoPago");
     localStorage.removeItem("telefonoComoPago");
     localStorage.removeItem("productoDesdeTelefono");
     localStorage.removeItem("pagoDesdeTelefono");
@@ -189,37 +207,32 @@ export default function ModalVenta({
     const pagoTelefonoPendiente = localStorage.getItem("pagoTelefonoPendiente");
     const clienteDesdeTelefono = localStorage.getItem("clienteDesdeTelefono");
     
-    // Verificar si hay teléfono como parte de pago
-    const telefonoComoPagoLS = localStorage.getItem("telefonoComoPago");
-    if (telefonoComoPagoLS) {
-      const telefonoData = JSON.parse(telefonoComoPagoLS);
-      setTelefonoComoPago(telefonoData);
+    const itemsPago = parsearTelefonosComoPagoLS();
+    if (itemsPago.length > 0) {
+      setTelefonosComoPago(itemsPago);
+      localStorage.removeItem("telefonosComoPago");
       localStorage.removeItem("telefonoComoPago");
     }
-    
+
     if (ventaTelefonoPendiente && desdeTelefono) {
-      const telefono = JSON.parse(ventaTelefonoPendiente);
-      
-      const productoTelefono = {
-        categoria: "Teléfono",
-        producto: `${telefono.marca} ${telefono.modelo}`,
-        descripcion: telefono.estado,
-        marca: telefono.marca || "—",
-        modelo: telefono.modelo,
-        color: telefono.color || "—",
-        cantidad: 1,
-        precioUnitario: telefono.precioVenta,
-        precioARS: telefono.moneda === "ARS" ? telefono.precioVenta : null,
-        precioUSD: telefono.moneda === "USD" ? telefono.precioVenta : null,
-        moneda: telefono.moneda,
-        codigo: telefono.stockID || telefono.modelo,
-        tipo: "telefono",
-        gb: telefono.gb || "",
-        datosTelefonoCompletos: telefono
-      };
-      
-      console.log('📱 Cargando teléfono desde localStorage:', productoTelefono);
-      setProductos([productoTelefono]);
+      const parsed = JSON.parse(ventaTelefonoPendiente);
+      const { telefonos, telefonosRecibidos } = normalizarVentaTelefonoPendiente(parsed);
+
+      const productosTelefonos = telefonos.map((t) => telefonoDraftAProducto(t));
+      console.log("📱 Cargando teléfonos desde localStorage:", productosTelefonos);
+      setProductos(productosTelefonos);
+
+      if (telefonosRecibidos.length > 0) {
+        setTelefonosComoPago(telefonosRecibidos.map((t) => ({
+          marca: t.marca || "",
+          modelo: t.modelo || "",
+          valorPago: Number(t.precioCompra ?? t.precioEstimado ?? t.valorPago ?? 0),
+          moneda: t.moneda || "ARS",
+          color: t.color || "",
+          estado: t.estado || "",
+          imei: t.imei || "",
+        })));
+      }
     }
     
     if (clienteDesdeTelefono) {
@@ -343,30 +356,34 @@ export default function ModalVenta({
   const pagoARS = Number(pago.monto || 0);
   const pagoUSD = Number(pago.montoUSD || 0);
 
-  // ✅ TELÉFONO COMO PAGO
-  const descuentoTelefonoPago = telefonoComoPago ? Number(telefonoComoPago.valorPago || 0) : 0;
-  const monedaTelefonoPago = telefonoComoPago?.moneda || "ARS";
+  const telefonosPagoInput = telefonosComoPago
+    .filter((t) => Number(t.valorPago || 0) > 0)
+    .map((t) => ({
+      valorPago: Number(t.valorPago || 0),
+      moneda: t.moneda || "ARS",
+    }));
 
-  // ✅ SALDOS DUALES
-  let saldoARS = totalARS - pagoARS;
-  let saldoUSD = totalUSD - pagoUSD;
+  const descuentoTelefonoPagoARS = telefonosPagoInput
+    .filter((t) => String(t.moneda).toUpperCase() !== "USD")
+    .reduce((acc, t) => acc + t.valorPago, 0);
+  const descuentoTelefonoPagoUSD = telefonosPagoInput
+    .filter((t) => String(t.moneda).toUpperCase() === "USD")
+    .reduce((acc, t) => acc + t.valorPago, 0);
 
-  // Aplicar descuento del teléfono según su moneda
-  if (telefonoComoPago) {
-    if (monedaTelefonoPago === "USD") {
-      saldoUSD -= descuentoTelefonoPago;
-    } else {
-      saldoARS -= descuentoTelefonoPago;
-    }
-  }
-
-  // Para el footer (total aproximado en ARS)
-  const totalAproximadoARS = totalARS + (totalUSD * cotizacionManual);
-  const pagoAproximadoARS = pagoARS + (pagoUSD * cotizacionManual);
-  const telefonoAproximadoARS = monedaTelefonoPago === "USD" 
-    ? descuentoTelefonoPago * cotizacionManual 
-    : descuentoTelefonoPago;
-  const saldoAproximadoARS = totalAproximadoARS - pagoAproximadoARS - telefonoAproximadoARS;
+  const {
+    saldoARS,
+    saldoUSD,
+    totalAproximado: totalAproximadoARS,
+    pagoAproximado: pagoAproximadoARS,
+    saldoAproximado: saldoAproximadoARS,
+  } = calcularSaldosVenta({
+    totalARS,
+    totalUSD,
+    pagoARS,
+    pagoUSD,
+    cotizacion: cotizacionManual,
+    telefonosPago: telefonosPagoInput,
+  });
 
   console.log('💰 DEBUG CÁLCULOS DUALES:', {
     totalARS,
@@ -514,7 +531,7 @@ export default function ModalVenta({
                       cliente,
                       productos,
                       pago,
-                      telefonoComoPago,
+                      telefonosComoPago,
                       origen: "modal-venta"
                     }));
                     
@@ -850,7 +867,7 @@ export default function ModalVenta({
             </div>
 
             {/* Sección de Pagos y Descuentos - Sistema dual */}
-            {((pago.monto && pago.monto > 0) || (pago.montoUSD && pago.montoUSD > 0) || telefonoComoPago) && (
+            {((pago.monto && pago.monto > 0) || (pago.montoUSD && pago.montoUSD > 0) || telefonosComoPago.length > 0) && (
               <div className="bg-gradient-to-r from-[#ecf0f1] to-white rounded-lg border border-[#3498db] p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 sm:mb-3">
                   <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] flex items-center gap-2">
@@ -920,28 +937,29 @@ export default function ModalVenta({
                     </div>
                   )}
                   
-                  {telefonoComoPago && (
-                    <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
+                  {telefonosComoPago.map((tel, index) => (
+                    <div key={`tp-${index}`} className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
                       <div className="flex justify-between items-center gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#9b59b6] rounded-full flex items-center justify-center text-white text-xs shrink-0">📱</span>
                           <div className="min-w-0">
                             <p className="font-medium text-[#2c3e50] text-sm">Teléfono como parte de pago</p>
                             <p className="text-xs text-[#7f8c8d] truncate">
-                              {telefonoComoPago.marca} {telefonoComoPago.modelo}
-                              {monedaTelefonoPago === "USD" && ` (≈ ${(descuentoTelefonoPago * cotizacionManual).toLocaleString("es-AR")} ARS)`}
+                              {tel.marca} {tel.modelo}
+                              {String(tel.moneda).toUpperCase() === "USD" &&
+                                ` (≈ ${(Number(tel.valorPago) * cotizacionManual).toLocaleString("es-AR")} ARS)`}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-sm sm:text-base font-bold text-[#9b59b6]">
-                            {telefonoComoPago.moneda === "USD" ? "USD $" : "$"}
-                            {Number(telefonoComoPago.valorPago).toLocaleString("es-AR")}
-                            {telefonoComoPago.moneda === "ARS" ? " ARS" : ""}
+                            {String(tel.moneda).toUpperCase() === "USD" ? "USD $" : "$"}
+                            {Number(tel.valorPago).toLocaleString("es-AR")}
+                            {String(tel.moneda).toUpperCase() === "ARS" ? " ARS" : ""}
                           </span>
                           <button
                             type="button"
-                            onClick={quitarTelefonoPago}
+                            onClick={() => quitarTelefonoPago(index)}
                             title="Quitar teléfono como pago"
                             className="w-7 h-7 rounded-md bg-[#fdecea] hover:bg-[#fadbd8] text-[#e74c3c] flex items-center justify-center text-sm transition-colors"
                           >
@@ -950,7 +968,7 @@ export default function ModalVenta({
                         </div>
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             )}
@@ -982,7 +1000,7 @@ export default function ModalVenta({
                       </div>
                     </div>
                     
-                    {(pagoARS > 0 || (telefonoComoPago && monedaTelefonoPago === "ARS")) && (
+                    {(pagoARS > 0 || descuentoTelefonoPagoARS > 0) && (
                       <div className="border-t border-green-300 pt-3 space-y-2">
                         {pagoARS > 0 && (
                           <div className="flex justify-between text-sm text-green-700">
@@ -991,10 +1009,10 @@ export default function ModalVenta({
                           </div>
                         )}
                         
-                        {telefonoComoPago && monedaTelefonoPago === "ARS" && (
+                        {descuentoTelefonoPagoARS > 0 && (
                           <div className="flex justify-between text-sm text-green-700">
-                            <span>📱 Teléfono:</span>
-                            <span className="font-semibold">-${descuentoTelefonoPago.toLocaleString("es-AR")}</span>
+                            <span>📱 Teléfono{telefonosComoPago.length > 1 ? "s" : ""}:</span>
+                            <span className="font-semibold">-${descuentoTelefonoPagoARS.toLocaleString("es-AR")}</span>
                           </div>
                         )}
                         
@@ -1034,7 +1052,7 @@ export default function ModalVenta({
                       </div>
                     </div>
                     
-                    {(pagoUSD > 0 || (telefonoComoPago && monedaTelefonoPago === "USD")) && (
+                    {(pagoUSD > 0 || descuentoTelefonoPagoUSD > 0) && (
                       <div className="border-t border-blue-300 pt-3 space-y-2">
                         {pagoUSD > 0 && (
                           <div className="flex justify-between text-sm text-blue-700">
@@ -1043,10 +1061,10 @@ export default function ModalVenta({
                           </div>
                         )}
                         
-                        {telefonoComoPago && monedaTelefonoPago === "USD" && (
+                        {descuentoTelefonoPagoUSD > 0 && (
                           <div className="flex justify-between text-sm text-blue-700">
-                            <span>📱 Teléfono:</span>
-                            <span className="font-semibold">-USD ${descuentoTelefonoPago.toLocaleString("es-AR")}</span>
+                            <span>📱 Teléfono{telefonosComoPago.length > 1 ? "s" : ""}:</span>
+                            <span className="font-semibold">-USD ${descuentoTelefonoPagoUSD.toLocaleString("es-AR")}</span>
                           </div>
                         )}
                         
@@ -1129,7 +1147,8 @@ export default function ModalVenta({
                 desdePedidoTienda={desdePedidoTienda}
                 pago={{
                   ...pago,
-                  telefonoComoPago: telefonoComoPago
+                  telefonosComoPago,
+                  telefonoComoPago: telefonosComoPago[0] ?? null,
                 }}
                 moneda="ARS"
                 cotizacion={cotizacionManual}
@@ -1156,7 +1175,8 @@ export default function ModalVenta({
     totalUSD,
     cotizacion: cotizacionManual
   }}
-  telefonoComoPago={telefonoComoPago}
+  telefonosComoPago={telefonosComoPago}
+  telefonoComoPago={telefonosComoPago[0] ?? null}
   negocioID={rol?.negocioID || ""}      // 🆕 AGREGAR ESTA LÍNEA
   onClose={() => setModalPagoAbierto(false)}
   handlePagoChange={(e) => {
