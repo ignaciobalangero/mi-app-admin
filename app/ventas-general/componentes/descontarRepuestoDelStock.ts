@@ -1,5 +1,11 @@
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
+import {
+  coleccionesRepuestoExtra,
+  type ColeccionRepuestoExtra,
+  type ProductoStockLike,
+} from "@/lib/ventasStockProducto";
+
 export {
   esProductoAccesorio,
   esProductoRepuestoOGeneral,
@@ -21,27 +27,31 @@ async function restarCantidad(
 
 /**
  * Resta del stock un repuesto según doc id o código.
- * Busca en stockRepuestos y stockExtra.
+ * Respeta origenStock: Extra busca primero en stockExtra; repuesto en stockRepuestos.
  */
 export async function descontarRepuestoDelStock(
   negocioID: string,
   codigo: string,
   cantidadVendida: number,
-  docId?: string
+  docId?: string,
+  meta?: ProductoStockLike | null
 ) {
   if (!negocioID || cantidadVendida <= 0) return;
   const cod = String(codigo ?? "").trim();
   const ids = Array.from(new Set([String(docId ?? "").trim(), cod].filter(Boolean)));
+  const colecciones: ColeccionRepuestoExtra[] = coleccionesRepuestoExtra(
+    meta ?? { origenStock: undefined, codigo: cod }
+  );
 
   for (const id of ids) {
-    for (const colName of ["stockRepuestos", "stockExtra"] as const) {
+    for (const colName of colecciones) {
       const ref = doc(db, `negocios/${negocioID}/${colName}/${id}`);
       if (await restarCantidad(ref, cantidadVendida)) return;
     }
   }
 
   if (cod) {
-    for (const colName of ["stockRepuestos", "stockExtra"] as const) {
+    for (const colName of colecciones) {
       const q = query(
         collection(db, `negocios/${negocioID}/${colName}`),
         where("codigo", "==", cod)
@@ -55,6 +65,6 @@ export async function descontarRepuestoDelStock(
   }
 
   console.warn(
-    `[descontarRepuestoDelStock] No se encontró ${cod || ids.join(",")} en negocios/${negocioID}`
+    `[descontarRepuestoDelStock] No se encontró ${cod || ids.join(",")} en negocios/${negocioID} (${colecciones.join("→")})`
   );
 }

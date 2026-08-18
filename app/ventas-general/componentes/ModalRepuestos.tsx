@@ -53,6 +53,36 @@ export default function ModalRepuesto({ isOpen, onClose, onAgregar }: Props) {
   }, [rol?.negocioID]);
 
   const handleAgregar = () => {
+    const desdeSelector = productos[productos.length - 1];
+    if (desdeSelector && (desdeSelector.id || desdeSelector.codigo)) {
+      const cant = Number(cantidad) > 0 ? Number(cantidad) : Number(desdeSelector.cantidad) || 1;
+      const pu = Number(desdeSelector.precioUnitario ?? precio) || 0;
+      if (pu <= 0) return;
+      onAgregar({
+        ...desdeSelector,
+        categoria: desdeSelector.categoria || "Repuesto",
+        hoja: desdeSelector.hoja || hojaSeleccionada,
+        cantidad: cant,
+        precioUnitario: pu,
+        total: pu * cant,
+        codigo: desdeSelector.codigo || desdeSelector.id || codigo,
+        id: desdeSelector.id || desdeSelector.codigo || "",
+        stockDocId: desdeSelector.stockDocId || desdeSelector.id || "",
+        tipo: desdeSelector.tipo || (desdeSelector.hoja ? "general" : "repuesto"),
+        origenStock:
+          desdeSelector.origenStock ||
+          (desdeSelector.tipo === "repuesto"
+            ? "stockRepuestos"
+            : desdeSelector.tipo === "accesorio"
+              ? "stockAccesorios"
+              : "stockExtra"),
+        moneda: desdeSelector.moneda || moneda || "USD",
+      });
+      onClose();
+      reset();
+      return;
+    }
+
     if (!producto || cantidad <= 0 || precio <= 0) return;
 
     onAgregar({
@@ -66,8 +96,12 @@ export default function ModalRepuesto({ isOpen, onClose, onAgregar }: Props) {
       cantidad,
       precioUnitario: precio,
       total: precio * cantidad,
-      codigo,
-      moneda: "USD",
+      codigo: codigo || "",
+      id: codigo || "",
+      stockDocId: codigo || "",
+      tipo: hojaSeleccionada ? "general" : "repuesto",
+      origenStock: hojaSeleccionada ? "stockExtra" : "stockRepuestos",
+      moneda: moneda || "USD",
     });
 
     onClose();

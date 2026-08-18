@@ -1,5 +1,10 @@
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
+import {
+  coleccionesRepuestoExtra,
+  type ColeccionRepuestoExtra,
+  type ProductoStockLike,
+} from "@/lib/ventasStockProducto";
 
 export const reponerRepuestosAlStock = async ({
   productos,
@@ -17,10 +22,13 @@ export const reponerRepuestosAlStock = async ({
     if (cantidadAReponer <= 0) continue;
 
     const ids = Array.from(new Set([docId, codigo].filter(Boolean)));
+    const colecciones: ColeccionRepuestoExtra[] = coleccionesRepuestoExtra(
+      producto as ProductoStockLike
+    );
     let repuesto = false;
 
     for (const id of ids) {
-      for (const colName of ["stockRepuestos", "stockExtra"] as const) {
+      for (const colName of colecciones) {
         const refRep = doc(db, `negocios/${negocioID}/${colName}/${id}`);
         const snapRep = await getDoc(refRep);
         if (snapRep.exists()) {
@@ -34,9 +42,14 @@ export const reponerRepuestosAlStock = async ({
       if (repuesto) break;
     }
 
-    if (repuesto || !codigo) continue;
+    if (repuesto || !codigo) {
+      if (!repuesto && !codigo) {
+        errores.push(ids.join(",") || "sin código");
+      }
+      continue;
+    }
 
-    for (const colName of ["stockRepuestos", "stockExtra"] as const) {
+    for (const colName of colecciones) {
       const colRef = collection(db, `negocios/${negocioID}/${colName}`);
       const q = query(colRef, where("codigo", "==", codigo));
       const querySnapshot = await getDocs(q);

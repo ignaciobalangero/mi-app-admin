@@ -22,10 +22,11 @@ export default function ModalAccesorio({ isOpen, onClose, onAgregar }: Props) {
   const [filtroTexto, setFiltroTexto] = useState("");
 
   const handleAgregar = () => {
-    const producto = productos[0];
-    if (!producto || cantidad <= 0 || producto.precioUnitario <= 0) return;
+    const producto = productos[productos.length - 1] || productos[0];
+    if (!producto || cantidad <= 0 || Number(producto.precioUnitario) <= 0) return;
 
     onAgregar({
+      ...producto,
       categoria: "Accesorio",
       producto: producto.producto,
       marca: producto.marca,
@@ -35,7 +36,11 @@ export default function ModalAccesorio({ isOpen, onClose, onAgregar }: Props) {
       cantidad,
       precioUnitario: producto.precioUnitario,
       total: producto.precioUnitario * cantidad,
-      codigo: producto.id,
+      codigo: producto.codigo || producto.id,
+      id: producto.id || producto.codigo || "",
+      stockDocId: producto.stockDocId || producto.id || "",
+      tipo: producto.tipo || "accesorio",
+      origenStock: producto.origenStock || "stockAccesorios",
       moneda: producto.moneda,
     });
 

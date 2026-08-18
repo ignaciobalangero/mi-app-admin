@@ -705,9 +705,39 @@ export default function TablaProductos({
         ...fotosParaFirestore(formulario.fotosURLs ?? normalizarFotosURLs(formulario)),
         observacion: String(formulario.observacion ?? "").trim(),
       });
+
+      // Update local only (no Firebase reload / no jump to top)
+      setProductos((prev) =>
+        prev.map((p) =>
+          p.id === formulario.id
+            ? {
+                ...p,
+                codigo: cod,
+                categoria: formulario.categoria,
+                producto: formulario.producto,
+                marca: formulario.marca,
+                color: formulario.color,
+                proveedor: formulario.proveedor,
+                cantidad: Number(formulario.cantidad || 0),
+                stockBajo: Number(formulario.stockBajo || 0),
+                precioCosto,
+                precioCostoPesos,
+                moneda,
+                precio1: p1,
+                precio2: p2,
+                precio3: p3,
+                precio1Pesos,
+                precio2Pesos,
+                precio3Pesos,
+                fotosURLs: formulario.fotosURLs ?? normalizarFotosURLs(formulario),
+                observacion: String(formulario.observacion ?? "").trim(),
+              }
+            : p
+        )
+      );
   
       cerrarModal();
-      await refrescarProductos();
+      setGuardando(false);
   
       console.log("✅ Producto actualizado correctamente");
   

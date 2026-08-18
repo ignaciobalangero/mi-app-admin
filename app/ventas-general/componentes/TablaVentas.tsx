@@ -242,21 +242,17 @@ export default function TablaVentas({ refrescar }: Props) {
       await eliminarVentaCompleta(venta);
       return;
     }
-    if (productoEliminado.codigo || productoEliminado.id || productoEliminado.stockDocId) {
-      const ventaSnap = await getDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaId}`));
-      const ventaData = ventaSnap.exists() ? ventaSnap.data() : venta;
-      const productoEnFirestore = ventaData?.productos?.[productoIndex] ?? productoEliminado;
-      const negocioStock = negocioIdStockDeVenta(
-        { negocioStockId: ventaData?.negocioStockId },
-        rol.negocioID
-      );
-      await reponerStockAlEliminarVenta(negocioStock, [productoEnFirestore]);
-    }
+
+    const ventaSnap = await getDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaId}`));
+    const ventaData = ventaSnap.exists() ? ventaSnap.data() : venta;
+    const productoEnFirestore = ventaData?.productos?.[productoIndex] ?? productoEliminado;
 
     const { totalARS, totalUSD } = totalesVentasPorMoneda(nuevosProductos);
     const cotVenta = Number(venta.cotizacionUsada || venta.pago?.cotizacion || cotizacion || 0);
     const nuevoTotal = totalARS + totalUSD * (cotVenta > 0 ? cotVenta : 1);
 
+    // Saldo primero: pagada → favor; cuenta corriente → baja la deuda.
+    // No depende del tipo de stock (repuesto / accesorio / stockExtra).
     await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaId}`), {
       productos: nuevosProductos,
       total: nuevoTotal,
@@ -269,14 +265,32 @@ export default function TablaVentas({ refrescar }: Props) {
       venta.cliente || "",
       venta.cliente || "",
       {
-        productos: venta.productos,
-        total: venta.total,
-        totalARS: venta.totalARS,
-        totalUSD: venta.totalUSD,
-        moneda: venta.moneda,
+        productos: ventaData?.productos ?? venta.productos,
+        total: ventaData?.total ?? venta.total,
+        totalARS: ventaData?.totalARS ?? venta.totalARS,
+        totalUSD: ventaData?.totalUSD ?? venta.totalUSD,
+        moneda: ventaData?.moneda ?? venta.moneda,
       },
       nuevosProductos
     );
+
+    // Stock después: si falla (p. ej. stockExtra mal etiquetado), el dinero ya quedó bien.
+    if (productoEnFirestore?.codigo || productoEnFirestore?.id || productoEnFirestore?.stockDocId) {
+      try {
+        const negocioStock = negocioIdStockDeVenta(
+          { negocioStockId: ventaData?.negocioStockId },
+          rol.negocioID
+        );
+        await reponerStockAlEliminarVenta(negocioStock, [productoEnFirestore]);
+      } catch (stockErr) {
+        console.warn("[eliminarProducto] Stock no repuesto; saldo sí ajustado:", stockErr);
+        alert(
+          `El saldo del cliente se actualizó, pero no se pudo devolver el stock: ${
+            stockErr instanceof Error ? stockErr.message : "error desconocido"
+          }`
+        );
+      }
+    }
 
     await refrescarVentas();
   };
@@ -356,14 +370,8 @@ export default function TablaVentas({ refrescar }: Props) {
     }
 
     const negocioStock = negocioIdStockDeVenta(ventaData, rol.negocioID);
-    console.log("🔧 Reponiendo stock antes de eliminar venta:", {
-      ventaId: venta.id,
-      negocioStock,
-      productos: (ventaData.productos ?? []).length,
-    });
-    await reponerStockAlEliminarVenta(negocioStock, ventaData.productos ?? []);
-    console.log("✅ Stock repuesto");
 
+    // Saldo primero (igual que al borrar un ítem): si falla stock, la CC igual se ajusta.
     await revertirSaldoPorEliminarVenta(rol.negocioID, {
       cliente: ventaData.cliente,
       nroVenta: ventaData.nroVenta,
@@ -382,6 +390,23 @@ export default function TablaVentas({ refrescar }: Props) {
       );
     }
     console.log("✅ Cuenta corriente ajustada por eliminación de venta");
+
+    console.log("🔧 Reponiendo stock al eliminar venta:", {
+      ventaId: venta.id,
+      negocioStock,
+      productos: (ventaData.productos ?? []).length,
+    });
+    try {
+      await reponerStockAlEliminarVenta(negocioStock, ventaData.productos ?? []);
+      console.log("✅ Stock repuesto");
+    } catch (stockErr) {
+      console.warn("[eliminarVentaCompleta] Stock no repuesto; saldo sí ajustado:", stockErr);
+      alert(
+        `La venta y el saldo se actualizaron, pero no se pudo devolver todo el stock: ${
+          stockErr instanceof Error ? stockErr.message : "error desconocido"
+        }`
+      );
+    }
 
     // 🔥 PASO 3: FINALMENTE ELIMINAR DE ventasGeneral
     await deleteDoc(ventaRef);

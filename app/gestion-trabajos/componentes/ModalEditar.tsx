@@ -171,13 +171,14 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
     const estadoValido = estadoNormalizado === "ENTREGADO" || estadoNormalizado === "PAGADO";
     const moneda = (trabajo.moneda ?? "ARS").toString().trim().toUpperCase() || "ARS";
     const nombreAnterior = String(trabajo.cliente ?? "").trim();
-    const nombreNuevo = String(formulario.cliente ?? "").trim();
+    const nombreNuevo = String(formulario.cliente || clienteInput || "").trim();
     const clienteCambio = nombreAnterior.toLowerCase() !== nombreNuevo.toLowerCase();
     const precioCambio = precioAnterior !== nuevoPrecio;
 
     const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
     const updatesTrabajo = {
       ...formulario,
+      cliente: nombreNuevo,
       precio: nuevoPrecio,
       fechaModificacion: new Date().toLocaleDateString("es-AR"),
     };
@@ -215,63 +216,63 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
             : clienteNuevoDoc;
 
       await runTransaction(db, async (transaction) => {
+        type SaldoCliente = { saldoARS?: number; saldoUSD?: number };
+
+        const transferirEntreClientes =
+          clienteCambio &&
+          clienteAnteriorDoc &&
+          clienteNuevoDoc &&
+          clienteAnteriorDoc.id !== clienteNuevoDoc.id;
+
+        const cargarSoloClienteNuevo =
+          clienteCambio && !clienteAnteriorDoc && clienteNuevoDoc;
+
+        const snapAnterior = transferirEntreClientes
+          ? await transaction.get(clienteAnteriorDoc!.ref)
+          : null;
+        const snapNuevo =
+          transferirEntreClientes || cargarSoloClienteNuevo
+            ? await transaction.get(clienteNuevoDoc!.ref)
+            : null;
+        const snapRefSaldo =
+          !transferirEntreClientes && !cargarSoloClienteNuevo && refSaldo && precioCambio
+            ? await transaction.get(refSaldo.ref)
+            : null;
+
         transaction.update(trabajoRef, updatesTrabajo);
 
-        if (clienteCambio && clienteAnteriorDoc && clienteNuevoDoc) {
-          if (clienteAnteriorDoc.id !== clienteNuevoDoc.id) {
-            const snapAnterior = await transaction.get(clienteAnteriorDoc.ref);
-            const datosAnterior = (snapAnterior.data() || {}) as {
-              saldoARS?: number;
-              saldoUSD?: number;
-            };
-            const { ars: restarARS, usd: restarUSD } = montoPorMoneda(
-              moneda,
-              precioAnterior
-            );
-            transaction.update(clienteAnteriorDoc.ref, {
-              saldoARS: roundSaldo(Number(datosAnterior.saldoARS ?? 0) - restarARS),
-              saldoUSD: roundSaldo(Number(datosAnterior.saldoUSD ?? 0) - restarUSD),
-              ultimaActualizacion: serverTimestamp(),
-            });
+        if (transferirEntreClientes && snapAnterior && snapNuevo) {
+          const datosAnterior = (snapAnterior.data() || {}) as SaldoCliente;
+          const datosNuevo = (snapNuevo.data() || {}) as SaldoCliente;
+          const { ars: restarARS, usd: restarUSD } = montoPorMoneda(moneda, precioAnterior);
+          const { ars: sumarARS, usd: sumarUSD } = montoPorMoneda(moneda, nuevoPrecio);
 
-            const snapNuevo = await transaction.get(clienteNuevoDoc.ref);
-            const datosNuevo = (snapNuevo.data() || {}) as {
-              saldoARS?: number;
-              saldoUSD?: number;
-            };
-            const { ars: sumarARS, usd: sumarUSD } = montoPorMoneda(moneda, nuevoPrecio);
-            transaction.update(clienteNuevoDoc.ref, {
-              saldoARS: roundSaldo(Number(datosNuevo.saldoARS ?? 0) + sumarARS),
-              saldoUSD: roundSaldo(Number(datosNuevo.saldoUSD ?? 0) + sumarUSD),
-              ultimaActualizacion: serverTimestamp(),
-            });
-            return;
-          }
-        }
-
-        if (!refSaldo) {
-          if (clienteCambio && !clienteAnteriorDoc && clienteNuevoDoc) {
-            const snapNuevo = await transaction.get(clienteNuevoDoc.ref);
-            const datosNuevo = (snapNuevo.data() || {}) as {
-              saldoARS?: number;
-              saldoUSD?: number;
-            };
-            const { ars: sumarARS, usd: sumarUSD } = montoPorMoneda(moneda, nuevoPrecio);
-            transaction.update(clienteNuevoDoc.ref, {
-              saldoARS: roundSaldo(Number(datosNuevo.saldoARS ?? 0) + sumarARS),
-              saldoUSD: roundSaldo(Number(datosNuevo.saldoUSD ?? 0) + sumarUSD),
-              ultimaActualizacion: serverTimestamp(),
-            });
-          }
+          transaction.update(clienteAnteriorDoc!.ref, {
+            saldoARS: roundSaldo(Number(datosAnterior.saldoARS ?? 0) - restarARS),
+            saldoUSD: roundSaldo(Number(datosAnterior.saldoUSD ?? 0) - restarUSD),
+            ultimaActualizacion: serverTimestamp(),
+          });
+          transaction.update(clienteNuevoDoc!.ref, {
+            saldoARS: roundSaldo(Number(datosNuevo.saldoARS ?? 0) + sumarARS),
+            saldoUSD: roundSaldo(Number(datosNuevo.saldoUSD ?? 0) + sumarUSD),
+            ultimaActualizacion: serverTimestamp(),
+          });
           return;
         }
 
-        if (precioCambio) {
-          const snap = await transaction.get(refSaldo.ref);
-          const datosCliente = (snap.data() || {}) as {
-            saldoARS?: number;
-            saldoUSD?: number;
-          };
+        if (cargarSoloClienteNuevo && snapNuevo) {
+          const datosNuevo = (snapNuevo.data() || {}) as SaldoCliente;
+          const { ars: sumarARS, usd: sumarUSD } = montoPorMoneda(moneda, nuevoPrecio);
+          transaction.update(clienteNuevoDoc!.ref, {
+            saldoARS: roundSaldo(Number(datosNuevo.saldoARS ?? 0) + sumarARS),
+            saldoUSD: roundSaldo(Number(datosNuevo.saldoUSD ?? 0) + sumarUSD),
+            ultimaActualizacion: serverTimestamp(),
+          });
+          return;
+        }
+
+        if (snapRefSaldo && refSaldo) {
+          const datosCliente = (snapRefSaldo.data() || {}) as SaldoCliente;
           const delta = nuevoPrecio - precioAnterior;
           const { ars: sumarARS, usd: sumarUSD } = montoPorMoneda(moneda, delta);
           transaction.update(refSaldo.ref, {
@@ -393,7 +394,11 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
               </label>
               <Combobox
                 value={formulario.cliente}
-                onChange={(value) => setFormulario((prev) => ({ ...prev, cliente: value }))}
+                onChange={(value) => {
+                  const nombre = String(value ?? "").trim();
+                  setFormulario((prev) => ({ ...prev, cliente: nombre }));
+                  setClienteInput(nombre);
+                }}
                 disabled={guardando}
               >
                 <div className="relative">
@@ -401,7 +406,11 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
                     className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#27ae60]/20 focus:border-[#27ae60] transition-all duration-300 text-[#2c3e50] placeholder-[#7f8c8d] bg-white shadow-sm text-sm disabled:opacity-50"
                     placeholder="Seleccionar cliente"
                     displayValue={(value: string) => value}
-                    onChange={(e) => setClienteInput(e.target.value)}
+                    onChange={(e) => {
+                      const nombre = e.target.value;
+                      setClienteInput(nombre);
+                      setFormulario((prev) => ({ ...prev, cliente: nombre }));
+                    }}
                   />
                   <Combobox.Options className="absolute z-10 w-full bg-white border-2 border-[#bdc3c7] rounded-xl mt-1 max-h-60 overflow-y-auto shadow-xl">
                     {clientesFiltrados.length === 0 ? (

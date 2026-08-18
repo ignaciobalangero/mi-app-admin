@@ -158,7 +158,7 @@ export default function FormularioVenta({ onVentaGuardada, cerrarModal }: Props)
       }      
   
       for (const p of productos.filter((p) => p.categoria === "Repuesto" && p.codigo)) {
-        await descontarRepuestoDelStock(rol.negocioID, p.codigo, p.cantidad);
+        await descontarRepuestoDelStock(rol.negocioID, p.codigo, p.cantidad, p.stockDocId || p.id, p);
       }      
   
       // Guardar pago si lo hay

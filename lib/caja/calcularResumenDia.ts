@@ -8,7 +8,8 @@ import type {
   ResumenIngresosCaja,
   SubcategoriaVentaCaja,
 } from "@/lib/caja/cajaTypes";
-import { esLineaStockExtra } from "@/lib/ventasStockProducto";
+import { esLineaStockExtra, esProductoAccesorio } from "@/lib/ventasStockProducto";
+import type { ProductoStockLike } from "@/lib/ventasStockProducto";
 import {
   crearResumenMediosFisicoUSDVacio,
   crearResumenMediosVacio,
@@ -46,22 +47,112 @@ function egresosVacios(): ResumenEgresosCaja {
   };
 }
 
+function esLineaTelefono(p: Record<string, unknown>): boolean {
+  const cat = String(p.categoria ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const tipo = String(p.tipo ?? "").toLowerCase();
+  const origen = String(p.origenStock ?? "");
+  return cat === "telefono" || tipo === "telefono" || origen === "stockTelefonos";
+}
+
+function subcategoriaDeLinea(p: Record<string, unknown>): SubcategoriaVentaCaja {
+  if (esLineaTelefono(p)) {
+    return String(p.moneda ?? "ARS").toUpperCase() === "USD"
+      ? "venta_telefono_usd"
+      : "venta_telefono_ars";
+  }
+  if (esProductoAccesorio(p as ProductoStockLike)) return "venta_accesorio";
+  if (esLineaStockExtra(p as ProductoStockLike)) return "venta_repuesto_extra";
+  return "venta_repuesto_stock";
+}
+
+function montoLineaEnARS(p: Record<string, unknown>, cot: number): number {
+  const cant = Number(p.cantidad ?? 1) || 1;
+  const unit = Number(p.precioUnitario ?? 0);
+  const importe = unit > 0 ? unit * cant : Number(p.precioVenta ?? p.precio ?? 0);
+  if (importe <= 0) return 0;
+  return String(p.moneda ?? "ARS").toUpperCase() === "USD" && cot > 0
+    ? importe * cot
+    : importe;
+}
+
+function familiaVenta(sub: SubcategoriaVentaCaja): "telefono" | "accesorio" | "extra" | "stock" {
+  if (sub === "venta_telefono_ars" || sub === "venta_telefono_usd") return "telefono";
+  if (sub === "venta_accesorio") return "accesorio";
+  if (sub === "venta_repuesto_extra") return "extra";
+  return "stock";
+}
+
+function subcategoriaDeFamilia(
+  familia: ReturnType<typeof familiaVenta>,
+  pago: Record<string, unknown>
+): SubcategoriaVentaCaja {
+  if (familia === "telefono") return fallbackSubcategoriaPago(pago);
+  if (familia === "accesorio") return "venta_accesorio";
+  if (familia === "extra") return "venta_repuesto_extra";
+  return "venta_repuesto_stock";
+}
+
 function subcategoriaVentaDesdeProductos(productos: unknown[]): SubcategoriaVentaCaja {
   const list = Array.isArray(productos) ? productos : [];
-  const esTelefono = list.some((p) => String((p as Record<string, unknown>).categoria ?? "") === "Teléfono");
+  const esTelefono = list.some((p) => esLineaTelefono(p as Record<string, unknown>));
   if (esTelefono) {
     const soloUsd = list.every(
       (p) => String((p as Record<string, unknown>).moneda ?? "ARS").toUpperCase() === "USD"
     );
     return soloUsd ? "venta_telefono_usd" : "venta_telefono_ars";
   }
-  if (list.some((p) => String((p as Record<string, unknown>).tipo ?? "").toLowerCase() === "accesorio")) {
+  if (list.some((p) => esProductoAccesorio(p as ProductoStockLike))) {
     return "venta_accesorio";
   }
-  if (list.some((p) => esLineaStockExtra(p as Record<string, unknown>))) {
+  if (list.some((p) => esLineaStockExtra(p as ProductoStockLike))) {
     return "venta_repuesto_extra";
   }
   return "venta_repuesto_stock";
+}
+
+/** Reparte el cobro entre rubros cuando la venta mezcla teléfono + accesorios/repuestos. */
+function repartirCobroVenta(
+  monto: number,
+  productos: unknown[] | undefined,
+  cot: number,
+  pago: Record<string, unknown>,
+  fallback: SubcategoriaVentaCaja
+): { sub: SubcategoriaVentaCaja; monto: number }[] {
+  if (monto <= 0) return [];
+  const list = Array.isArray(productos) ? productos : [];
+  if (list.length === 0) return [{ sub: fallback, monto }];
+
+  const pesos = new Map<ReturnType<typeof familiaVenta>, number>();
+  for (const raw of list) {
+    const p = raw as Record<string, unknown>;
+    const fam = familiaVenta(subcategoriaDeLinea(p));
+    pesos.set(fam, (pesos.get(fam) ?? 0) + montoLineaEnARS(p, cot));
+  }
+
+  const totalPesos = [...pesos.values()].reduce((a, b) => a + b, 0);
+  if (pesos.size <= 1 || totalPesos <= 0) {
+    const unica = pesos.size === 1 ? [...pesos.keys()][0] : null;
+    const sub = unica ? subcategoriaDeFamilia(unica, pago) : fallback;
+    return [{ sub, monto }];
+  }
+
+  const keys = [...pesos.keys()];
+  const partes: { sub: SubcategoriaVentaCaja; monto: number }[] = [];
+  let asignado = 0;
+  keys.forEach((fam, i) => {
+    const parte =
+      i === keys.length - 1
+        ? Math.round((monto - asignado) * 100) / 100
+        : Math.round(((pesos.get(fam)! / totalPesos) * monto) * 100) / 100;
+    asignado += parte;
+    if (Math.abs(parte) >= 0.01) {
+      partes.push({ sub: subcategoriaDeFamilia(fam, pago), monto: parte });
+    }
+  });
+  return partes.length > 0 ? partes : [{ sub: fallback, monto }];
 }
 
 function sumarSubcategoriaVenta(ing: ResumenIngresosCaja, sub: SubcategoriaVentaCaja, monto: number) {
@@ -165,21 +256,21 @@ function totalesMonedaVacios() {
   };
 }
 
-function subcategoriaDesdePago(
+function ventaDePago(
   p: Record<string, unknown>,
   ventasPorNro: Map<number, Record<string, unknown>>
-): SubcategoriaVentaCaja | undefined {
+): Record<string, unknown> | undefined {
+  const nro = Number(p.nroVenta ?? 0);
+  if (nro) return ventasPorNro.get(nro);
+  return undefined;
+}
+
+function fallbackSubcategoriaPago(p: Record<string, unknown>): SubcategoriaVentaCaja {
   const destino = String(p.destino ?? "").toLowerCase();
   if (destino.includes("ventatelefono") || destino.includes("venta_telefono")) {
     const monedaPago = String(p.moneda ?? "ARS").toUpperCase();
     const usd = Number(p.montoUSD ?? 0);
     return monedaPago === "USD" || usd > 0 ? "venta_telefono_usd" : "venta_telefono_ars";
-  }
-
-  const nro = Number(p.nroVenta ?? 0);
-  const venta = nro ? ventasPorNro.get(nro) : undefined;
-  if (venta) {
-    return subcategoriaVentaDesdeProductos(venta.productos as unknown[]);
   }
   return "venta_repuesto_stock";
 }
@@ -256,12 +347,25 @@ function acumularPagoEnCaja(params: {
   mediosFisicoUSD: Record<import("@/lib/caja/cajaTypes").MedioPagoCaja, number>;
   totalesPorMoneda: ReturnType<typeof totalesMonedaVacios>;
   ventasPorNro: Map<number, Record<string, unknown>>;
+  cotizacionFallback: number;
 }) {
-  const { p, ingresos, egresos, medios, mediosFisicoUSD, totalesPorMoneda, ventasPorNro } = params;
+  const {
+    p,
+    ingresos,
+    egresos,
+    medios,
+    mediosFisicoUSD,
+    totalesPorMoneda,
+    ventasPorNro,
+    cotizacionFallback,
+  } = params;
   if (esPagoExcluidoDeCaja(p)) return;
 
   const cat = clasificarPago(p);
-  const { ars, usd, cot } = montosPagoSeparados(p);
+  const separados = montosPagoSeparados(p);
+  const ars = separados.ars;
+  const usd = separados.usd;
+  const cot = separados.cot > 0 ? separados.cot : cotizacionFallback;
   if (ars <= 0 && usd <= 0) return;
 
   const montoTotalARS = ars + (usd > 0 && cot > 0 ? usd * cot : 0);
@@ -283,12 +387,24 @@ function acumularPagoEnCaja(params: {
     return;
   }
 
-  const sub =
-    cat === "cobro_venta"
-      ? subcategoriaDesdePago(p, ventasPorNro)
-      : undefined;
-
-  acumularIngresoCategoria(ingresos, cat, montoTotalARS, sub);
+  if (cat === "cobro_venta" && montoTotalARS > 0) {
+    const venta = ventaDePago(p, ventasPorNro);
+    const fallback = venta
+      ? subcategoriaVentaDesdeProductos(venta.productos as unknown[])
+      : fallbackSubcategoriaPago(p);
+    const partes = repartirCobroVenta(
+      montoTotalARS,
+      venta?.productos as unknown[] | undefined,
+      cot,
+      p,
+      fallback
+    );
+    for (const parte of partes) {
+      acumularIngresoCategoria(ingresos, cat, parte.monto, parte.sub);
+    }
+  } else {
+    acumularIngresoCategoria(ingresos, cat, montoTotalARS);
+  }
   acumularIngresoPorMoneda(totalesPorMoneda, ars, usd, cot);
 
   if (ars > 0) {
@@ -312,8 +428,10 @@ export async function calcularResumenCajaDia(params: {
   sesionId?: string;
   saldoInicialARS?: number;
   saldoInicialUSD?: number;
+  cotizacionUSD?: number;
 }): Promise<ResumenCajaDia> {
   const fecha = params.fecha ?? fechaCajaHoy();
+  const cotizacionFallback = params.cotizacionUSD && params.cotizacionUSD > 0 ? params.cotizacionUSD : 0;
   const ingresos = ingresosVacios();
   const egresos = egresosVacios();
   const medios = crearResumenMediosVacio();
@@ -343,6 +461,33 @@ export async function calcularResumenCajaDia(params: {
     if (nro) ventasPorNro.set(nro, { id: d.id, ...data });
   });
 
+  const nrosFaltantes: string[] = [];
+  const nrosVistos = new Set<string>();
+  pagosSnap.docs.forEach((d) => {
+    const raw = d.data().nroVenta;
+    if (raw == null || raw === "") return;
+    const key = String(raw);
+    if (nrosVistos.has(key)) return;
+    nrosVistos.add(key);
+    const nro = Number(raw);
+    if (!nro || ventasPorNro.has(nro)) return;
+    nrosFaltantes.push(key);
+  });
+  for (let i = 0; i < nrosFaltantes.length; i += 30) {
+    const chunk = nrosFaltantes.slice(i, i + 30);
+    const extra = await getDocs(
+      query(
+        collection(db, `negocios/${params.negocioId}/ventasGeneral`),
+        where("nroVenta", "in", chunk)
+      )
+    );
+    extra.docs.forEach((d) => {
+      const data = d.data();
+      const nro = Number(data.nroVenta ?? 0);
+      if (nro) ventasPorNro.set(nro, { id: d.id, ...data });
+    });
+  }
+
   pagosSnap.docs.forEach((d) => {
     const p = { id: d.id, ...d.data() } as Record<string, unknown>;
     acumularPagoEnCaja({
@@ -353,13 +498,15 @@ export async function calcularResumenCajaDia(params: {
       mediosFisicoUSD,
       totalesPorMoneda,
       ventasPorNro,
+      cotizacionFallback,
     });
   });
 
   gastosSnap.docs.forEach((d) => {
     const g = d.data() as Record<string, unknown>;
     const moneda = String(g.moneda ?? "ARS");
-    const cot = Number(g.cotizacion ?? 0);
+    const cotDoc = Number(g.cotizacion ?? 0);
+    const cot = cotDoc > 0 ? cotDoc : cotizacionFallback;
     const arsNativo = moneda === "USD" ? 0 : Number(g.monto ?? 0);
     const usdNativo = moneda === "USD" ? Number(g.monto ?? 0) : Number(g.montoUSD ?? 0);
     const monto =
@@ -383,17 +530,24 @@ export async function calcularResumenCajaDia(params: {
       if (m.esAnulado) return;
       movimientos.push(m);
 
+      const usdMov = Number(m.montoUSD ?? 0);
+      const cotMov = Number(m.cotizacionUSD ?? 0) || cotizacionFallback;
+      const arsMov = Number(m.montoARS ?? 0);
       if (m.tipo === "ingreso") {
-        acumularIngresoCategoria(ingresos, m.categoria, m.montoARS, m.subcategoria);
-        medios[m.medioPago] += m.montoARS;
-        if (m.montoUSD && m.montoUSD > 0) {
-          mediosFisicoUSD[m.medioPago] += m.montoUSD;
+        acumularIngresoCategoria(ingresos, m.categoria, arsMov, m.subcategoria);
+        if (usdMov > 0) acumularIngresoPorMoneda(totalesPorMoneda, 0, usdMov, cotMov);
+        else if (arsMov > 0) acumularIngresoPorMoneda(totalesPorMoneda, arsMov, 0, cotMov);
+        medios[m.medioPago] += arsMov;
+        if (usdMov > 0) {
+          mediosFisicoUSD[m.medioPago] += usdMov;
         }
       } else {
-        acumularEgresoCategoria(egresos, m.categoria, m.montoARS);
-        medios[m.medioPago] -= m.montoARS;
-        if (m.montoUSD && m.montoUSD > 0) {
-          mediosFisicoUSD[m.medioPago] -= m.montoUSD;
+        acumularEgresoCategoria(egresos, m.categoria, arsMov);
+        if (usdMov > 0) acumularEgresoPorMoneda(totalesPorMoneda, 0, usdMov, cotMov);
+        else if (arsMov > 0) acumularEgresoPorMoneda(totalesPorMoneda, arsMov, 0, cotMov);
+        medios[m.medioPago] -= arsMov;
+        if (usdMov > 0) {
+          mediosFisicoUSD[m.medioPago] -= usdMov;
         }
       }
     });

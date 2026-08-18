@@ -39,10 +39,12 @@ export default function CajaDiariaPage() {
     setCargando(true);
     try {
       const cfg = await getDoc(doc(db, `negocios/${rol.negocioID}/configuracion/datos`));
+      let cot = 1000;
       if (cfg.exists()) {
-        const cot = Number(cfg.data().cotizacion ?? cfg.data().cotizacionDolar ?? 0);
-        if (cot > 0) setCotizacionUSD(cot);
+        const c = Number(cfg.data().cotizacion ?? cfg.data().cotizacionDolar ?? 0);
+        if (c > 0) cot = c;
       }
+      setCotizacionUSD(cot);
 
       let s = await obtenerSesionAbierta(rol.negocioID);
       if (!s) s = await obtenerSesionDelDia(rol.negocioID, hoy);
@@ -55,6 +57,7 @@ export default function CajaDiariaPage() {
           sesionId: s.id,
           saldoInicialARS: s.saldoInicialARS,
           saldoInicialUSD: s.saldoInicialUSD,
+          cotizacionUSD: cot,
         });
         setResumen(r);
       } else {
@@ -308,6 +311,7 @@ export default function CajaDiariaPage() {
       {mostrarGasto && rol?.negocioID && (
         <ModalAgregarGasto
           negocioID={rol.negocioID}
+          cotizacionUSD={cotizacionUSD}
           onClose={() => setMostrarGasto(false)}
           onGuardado={() => {
             setMostrarGasto(false);
@@ -322,6 +326,7 @@ export default function CajaDiariaPage() {
           sesionId={sesion.id}
           rolTipo={rol.tipo}
           tipo="ingreso"
+          cotizacionUSD={cotizacionUSD}
           onClose={() => setMostrarIngreso(false)}
           onGuardado={() => {
             setMostrarIngreso(false);
@@ -336,6 +341,7 @@ export default function CajaDiariaPage() {
           sesionId={sesion.id}
           rolTipo={rol.tipo}
           tipo="egreso"
+          cotizacionUSD={cotizacionUSD}
           onClose={() => setMostrarEgreso(false)}
           onGuardado={() => {
             setMostrarEgreso(false);

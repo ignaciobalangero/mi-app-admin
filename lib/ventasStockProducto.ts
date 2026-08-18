@@ -9,6 +9,8 @@ export type ProductoStockLike = {
   sinStock?: boolean;
 };
 
+export type ColeccionRepuestoExtra = "stockRepuestos" | "stockExtra";
+
 export function codigoProductoStock(producto: ProductoStockLike): string {
   return String(producto.codigo ?? producto.stockDocId ?? producto.id ?? "").trim();
 }
@@ -19,6 +21,28 @@ export function esLineaStockExtra(producto: ProductoStockLike): boolean {
   if (origen === "stockExtra" || tipo === "stockextra") return true;
   if (tipo === "general" && (origen === "stockExtra" || origen === "")) return true;
   return !!producto.hoja;
+}
+
+/**
+ * Orden de búsqueda al descontar/reponer.
+ * stockExtra primero si la línea viene de Extra; stockRepuestos primero si es repuesto.
+ * Siempre deja la otra colección como fallback (ventas viejas mal etiquetadas).
+ */
+export function coleccionesRepuestoExtra(
+  producto?: ProductoStockLike | null
+): ColeccionRepuestoExtra[] {
+  const origen = String(producto?.origenStock ?? "").trim();
+  const tipo = String(producto?.tipo ?? "").toLowerCase();
+  const esExtra =
+    origen === "stockExtra" ||
+    tipo === "general" ||
+    tipo === "stockextra" ||
+    (!!String(producto?.hoja ?? "").trim() && origen !== "stockRepuestos");
+
+  if (origen === "stockExtra" || (esExtra && origen !== "stockRepuestos")) {
+    return ["stockExtra", "stockRepuestos"];
+  }
+  return ["stockRepuestos", "stockExtra"];
 }
 
 /** Repuesto/stockExtra tiene prioridad sobre accesorio si hay señales contradictorias. */

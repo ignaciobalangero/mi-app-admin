@@ -2,6 +2,9 @@ import { db } from "@/lib/firebaseAdmin";
 import {
   clasificarProductoStock,
   codigoProductoStock,
+  coleccionesRepuestoExtra,
+  type ColeccionRepuestoExtra,
+  type ProductoStockLike,
 } from "@/lib/ventasStockProducto";
 
 type LineaStock = {
@@ -23,7 +26,8 @@ type StockHit = {
 async function buscarRepuesto(
   negocioId: string,
   codigo: string,
-  docId?: string
+  docId?: string,
+  colecciones: ColeccionRepuestoExtra[] = ["stockRepuestos", "stockExtra"]
 ): Promise<StockHit | null> {
   const cod = codigo.trim();
   const ids = Array.from(new Set([String(docId ?? "").trim(), cod].filter(Boolean)));
@@ -31,7 +35,7 @@ async function buscarRepuesto(
     new Set([cod, cod.toUpperCase(), cod.toLowerCase()].filter(Boolean))
   );
 
-  for (const col of ["stockRepuestos", "stockExtra"] as const) {
+  for (const col of colecciones) {
     for (const id of ids) {
       const ref = db.doc(`negocios/${negocioId}/${col}/${id}`);
       const snap = await ref.get();
@@ -41,7 +45,7 @@ async function buscarRepuesto(
     }
   }
 
-  for (const col of ["stockRepuestos", "stockExtra"] as const) {
+  for (const col of colecciones) {
     for (const c of codigos) {
       const q = await db
         .collection(`negocios/${negocioId}/${col}`)
@@ -118,7 +122,8 @@ export async function descontarStockVentaServer(
     }
 
     if (tipo === "repuesto") {
-      const hit = await buscarRepuesto(negocioId, codigo, docId);
+      const cols = coleccionesRepuestoExtra(p as ProductoStockLike);
+      const hit = await buscarRepuesto(negocioId, codigo, docId, cols);
       if (!hit) {
         return { ok: false, error: `Repuesto no encontrado en stock: ${codigo}` };
       }
@@ -191,7 +196,8 @@ export async function reponerStockVentaServer(
     }
 
     if (tipo === "repuesto") {
-      const hit = await buscarRepuesto(negocioId, codigo, docId);
+      const cols = coleccionesRepuestoExtra(p as ProductoStockLike);
+      const hit = await buscarRepuesto(negocioId, codigo, docId, cols);
       if (!hit) {
         return { ok: false, error: `Repuesto no encontrado para reponer: ${codigo}` };
       }

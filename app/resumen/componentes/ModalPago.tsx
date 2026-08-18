@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarEstadoTrabajoCliente";
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { cotizacionNegocioCaja } from "@/lib/caja/cotizacionCaja";
 
 interface Trabajo {
   firebaseId: string;
@@ -145,6 +146,7 @@ export default function ModalPago({
     try {
       const montoNumerico = parseFloat(pago.monto);
       const destino = obtenerDestino() || "";
+      const cotizacion = await cotizacionNegocioCaja(negocioID);
       
       // 1. Crear el pago en la colección pagos
       const pagoData = {
@@ -162,6 +164,7 @@ export default function ModalPago({
         trabajoId: trabajo.firebaseId,
         tipo: 'ingreso',
         negocioID: negocioID,
+        cotizacion,
         trabajoDetalle: trabajo.trabajo,
         modeloDetalle: trabajo.modelo
       };

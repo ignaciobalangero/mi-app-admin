@@ -123,7 +123,6 @@ export default function FormularioEdicionVenta() {
 
     const negocioStock = negocioIdStockDeVenta(venta as Record<string, unknown>, rol.negocioID);
     const productosVenta = Array.isArray(venta.productos) ? venta.productos : [];
-    await reponerStockAlEliminarVenta(negocioStock, productosVenta);
 
     await revertirSaldoPorEliminarVenta(rol.negocioID, {
       cliente: venta.cliente as string | undefined,
@@ -140,6 +139,17 @@ export default function FormularioEdicionVenta() {
         rol.negocioID,
         String(venta.nroVenta),
         String(venta.cliente ?? "")
+      );
+    }
+
+    try {
+      await reponerStockAlEliminarVenta(negocioStock, productosVenta);
+    } catch (stockErr) {
+      console.warn("[editar/eliminarVenta] Stock no repuesto; saldo sí ajustado:", stockErr);
+      alert(
+        `El saldo se actualizó, pero no se pudo devolver todo el stock: ${
+          stockErr instanceof Error ? stockErr.message : "error desconocido"
+        }`
       );
     }
   

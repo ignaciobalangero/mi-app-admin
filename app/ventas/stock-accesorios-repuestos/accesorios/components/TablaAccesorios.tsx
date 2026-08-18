@@ -686,10 +686,13 @@ export default function TablaAccesorios({
           cotizacion={cotizacion}
           actualizarProducto={actualizarProducto}
           onProductoActualizado={(producto) => {
+            setProductos((prev) =>
+              prev.map((p) => (p.id === producto.id ? { ...p, ...producto } : p))
+            );
             if (onProductoActualizado) {
               onProductoActualizado(producto);
             }
-            refrescarProductos();
+            setModalEditar(null);
           }}
           onClose={() => setModalEditar(null)}
         />

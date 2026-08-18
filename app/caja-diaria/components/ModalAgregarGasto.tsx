@@ -6,11 +6,17 @@ import { db } from "@/lib/firebase";
 
 interface Props {
   negocioID: string;
+  cotizacionUSD?: number;
   onClose: () => void;
   onGuardado: () => void;
 }
 
-export default function ModalAgregarGasto({ negocioID, onClose, onGuardado }: Props) {
+export default function ModalAgregarGasto({
+  negocioID,
+  cotizacionUSD = 0,
+  onClose,
+  onGuardado,
+}: Props) {
   const [concepto, setConcepto] = useState("");
   const [monto, setMonto] = useState("");
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
@@ -42,10 +48,11 @@ export default function ModalAgregarGasto({ negocioID, onClose, onGuardado }: Pr
         concepto: concepto.trim(),
         monto: Number(monto),
         moneda,
+        cotizacion: moneda === "USD" ? cotizacionUSD : undefined,
         categoria: categoria || "Otro",
         fecha: hoy,
         timestamp: new Date(),
-        usuario: "Sistema" // Podés agregar el nombre del usuario actual
+        usuario: "Sistema",
       });
 
       // Toast de éxito

@@ -13,6 +13,7 @@ interface Props {
   sesionId: string;
   rolTipo: string;
   tipo: "ingreso" | "egreso";
+  cotizacionUSD?: number;
   onClose: () => void;
   onGuardado: () => void;
 }
@@ -34,6 +35,7 @@ export default function ModalMovimientoManual({
   sesionId,
   rolTipo,
   tipo,
+  cotizacionUSD = 0,
   onClose,
   onGuardado,
 }: Props) {
@@ -63,13 +65,24 @@ export default function ModalMovimientoManual({
       return;
     }
 
+    const esUsdBillete = medioPago === "usd_billete";
+    const valor = Number(monto);
+    if (esUsdBillete && (!cotizacionUSD || cotizacionUSD <= 0)) {
+      alert("Falta la cotización del dólar para registrar USD en caja.");
+      return;
+    }
+
     setGuardando(true);
     try {
+      const montoUSD = esUsdBillete ? valor : undefined;
+      const montoARS = esUsdBillete ? valor * cotizacionUSD : valor;
       await registrarMovimientoCaja(negocioID, {
         sesionId,
         tipo,
         categoria: categoria as CategoriaIngresoCaja & CategoriaEgresoCaja,
-        montoARS: Number(monto),
+        montoARS,
+        montoUSD,
+        cotizacionUSD: esUsdBillete ? cotizacionUSD : undefined,
         medioPago,
         descripcion: descripcion.trim(),
         usuario: user.email || user.uid,
@@ -115,13 +128,20 @@ export default function ModalMovimientoManual({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Monto ARS *</label>
+            <label className="block text-sm font-medium mb-1">
+              {medioPago === "usd_billete" ? "Monto USD *" : "Monto ARS *"}
+            </label>
             <input
               type="number"
               value={monto}
               onChange={(e) => setMonto(e.target.value)}
               className="w-full px-3 py-2 border-2 border-[#bdc3c7] rounded-lg bg-white text-[#2c3e50] [color-scheme:light]"
             />
+            {medioPago === "usd_billete" && cotizacionUSD > 0 && Number(monto) > 0 && (
+              <p className="text-xs text-[#7f8c8d] mt-1">
+                ≈ ${(Number(monto) * cotizacionUSD).toLocaleString("es-AR")} ARS
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Medio de pago</label>

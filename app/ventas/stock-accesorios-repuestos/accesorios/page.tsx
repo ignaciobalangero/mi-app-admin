@@ -245,9 +245,6 @@ export default function StockProductosPage() {
 
       console.log("✅ Producto actualizado correctamente en Firebase");
       
-      // Trigger refresh
-      triggerRefresh();
-      
     } catch (error) {
       console.error("❌ Error al actualizar producto en Firebase:", error);
       throw error;
@@ -377,7 +374,12 @@ export default function StockProductosPage() {
           <TablaAccesorios
             eliminarProducto={eliminarProducto}
             actualizarProducto={actualizarProductoEnFirebase}
-            onProductoActualizado={() => triggerRefresh()}
+            onProductoActualizado={() => {
+              // La tabla actualiza la fila en memoria; no recargar Firebase.
+              if (negocioID || rol?.negocioID) {
+                void cargarProductosParaResumen();
+              }
+            }}
             cotizacion={cotizacionSegura}
             onCotizacionChange={actualizarCotizacion}
             negocioID={rol?.negocioID || negocioID}

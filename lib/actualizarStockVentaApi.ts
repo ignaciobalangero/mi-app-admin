@@ -49,7 +49,7 @@ async function descontarStockViaCliente(
     const docId = String(p.stockDocId ?? p.id ?? "").trim() || undefined;
 
     if (tipo === "repuesto") {
-      await descontarRepuestoDelStock(negocioId, codigo, cantidad, docId);
+      await descontarRepuestoDelStock(negocioId, codigo, cantidad, docId, p);
     } else if (tipo === "accesorio") {
       await descontarAccesorioDelStock(negocioId, codigo, cantidad);
     }

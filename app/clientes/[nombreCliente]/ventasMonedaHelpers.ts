@@ -249,7 +249,11 @@ export function productoEdicionAGuardar(p: any, cotizacion: number) {
     moneda,
     codigo: p.codigo,
     tipo: p.tipo,
+    origenStock: p.origenStock || "",
+    stockDocId: p.stockDocId || p.id || "",
+    id: p.stockDocId || p.id || "",
     hoja: p.hoja || "",
+    sinStock: p.sinStock === true,
     total: totalLineaProductoEnARS({ ...p, precioUnitario: pu, cantidad: cant, moneda }, cot),
     cotizacionUsada: Number(p.cotizacionUsada) > 0 ? Number(p.cotizacionUsada) : cot,
   };

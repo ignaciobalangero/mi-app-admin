@@ -845,17 +845,17 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         ganancia: p.ganancia,                 // ✅ En moneda original
         moneda: p.moneda,                     // ✅ USD o ARS según lo elegido
         codigo: p.codigo || p.id || "",
-        stockDocId: p.id || "",
+        stockDocId: p.stockDocId || p.id || "",
         tipo: p.tipo,
         origenStock:
-        p.tipo === "repuesto"
-          ? "stockRepuestos"
-          : p.tipo === "accesorio"
-          ? "stockAccesorios"
-          : p.tipo === "general"
-          ? "stockExtra"
-          : "stockAccesorios",
-      
+          p.origenStock ||
+          (p.tipo === "repuesto"
+            ? "stockRepuestos"
+            : p.tipo === "accesorio"
+              ? "stockAccesorios"
+              : p.tipo === "general" || p.hoja
+                ? "stockExtra"
+                : "stockAccesorios"),
         hoja: p.hoja || "",
         // ✅ AGREGAR CAMPOS SEPARADOS PARA CLARIDAD
         precioUnitarioUSD: p.moneda === "USD" ? p.precioUnitario : null,
@@ -1059,17 +1059,17 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
                 ganancia: p.ganancia,
                 moneda: p.moneda,
                 codigo: p.codigo || p.id || "",
-                stockDocId: p.id || "",
+                stockDocId: p.stockDocId || p.id || "",
                 tipo: p.tipo,
                 origenStock:
-  p.tipo === "repuesto"
-    ? "stockRepuestos"
-    : p.tipo === "accesorio"
-    ? "stockAccesorios"
-    : p.tipo === "general"
-    ? "stockExtra"
-    : "stockAccesorios",
-
+                  p.origenStock ||
+                  (p.tipo === "repuesto"
+                    ? "stockRepuestos"
+                    : p.tipo === "accesorio"
+                      ? "stockAccesorios"
+                      : p.tipo === "general" || p.hoja
+                        ? "stockExtra"
+                        : "stockAccesorios"),
                 hoja: p.hoja || "",
               }))
             ];

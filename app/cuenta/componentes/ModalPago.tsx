@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { cotizacionNegocioCaja } from "@/lib/caja/cotizacionCaja";
 
 interface Trabajo {
   firebaseId?: string;
@@ -100,6 +101,7 @@ export default function ModalPago({
     setGuardandoPago(true);
     try {
       const montoNumerico = parseFloat(pago.monto);
+      const cotizacion = await cotizacionNegocioCaja(negocioID);
       
       const pagoData = {
         monto: pago.moneda === "USD" ? null : montoNumerico,
@@ -112,7 +114,8 @@ export default function ModalPago({
         fecha: new Date().toLocaleDateString('es-AR'),
         fechaCompleta: new Date(),
         tipo: 'ingreso',
-        negocioID: negocioID
+        negocioID: negocioID,
+        cotizacion,
       };
 
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);

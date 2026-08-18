@@ -3,7 +3,12 @@
 import { useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { normalizeMonedaCuenta, totalesVentasPorMoneda } from "./ventasMonedaHelpers";
+import {
+  importeLineaProducto,
+  monedaLineaProducto,
+  normalizeMonedaCuenta,
+  totalesVentasPorMoneda,
+} from "./ventasMonedaHelpers";
 
 interface GeneradorPDFProps {
   nombreCliente: string;
@@ -11,6 +16,182 @@ interface GeneradorPDFProps {
   ventas: any[];
   pagos: any[];
   calcularTotales: () => any;
+}
+
+function nombreProductoLinea(p: any): string {
+  const nombre = String(
+    p?.descripcion || p?.producto || p?.modelo || p?.nombre || "Producto"
+  ).trim();
+  return nombre || "Producto";
+}
+
+function textoOpcional(v: unknown): string {
+  const s = String(v ?? "").trim();
+  if (!s || s === "—") return "";
+  return s;
+}
+
+/** Misma info que el detalle de ventas: producto, marca, modelo, cantidad y p. unitario. */
+function descripcionLineaVenta(p: any): string {
+  const nom = nombreProductoLinea(p);
+  const cant = Number(p?.cantidad ?? 1) || 1;
+  const marca = textoOpcional(p?.marca);
+  const modelo = textoOpcional(p?.modelo);
+  const extra = [marca, modelo].filter((x) => x && x !== nom).join(" · ");
+  const pu = Number(p?.precioUnitario ?? 0);
+  const mon = monedaLineaProducto(p);
+  const puTxt =
+    pu > 0
+      ? ` · ${mon === "USD" ? "US$" : "$"} ${pu.toLocaleString("es-AR")} c/u`
+      : "";
+  const cabecera = cant > 1 ? `${cant}× ${nom}` : nom;
+  return extra ? `${cabecera}\n${extra}${puTxt}` : `${cabecera}${puTxt}`;
+}
+
+function fechaOrdenDe(fecha: string): Date {
+  const f = new Date(String(fecha ?? "").split("/").reverse().join("-"));
+  return Number.isNaN(f.getTime()) ? new Date(0) : f;
+}
+
+/** Una fila de historial por artículo (como el detalle de ventas). */
+function movimientosDeVenta(venta: any) {
+  const fecha = String(venta?.fecha || "");
+  const fechaOrden = fechaOrdenDe(fecha);
+  const productos = Array.isArray(venta?.productos) ? venta.productos : [];
+
+  if (productos.length === 0) {
+    const { totalARS, totalUSD } = totalesVentasPorMoneda(venta?.productos);
+    const filas: any[] = [];
+    if (totalUSD > 0) {
+      filas.push({
+        fecha,
+        fechaOrden,
+        tipo: "venta",
+        descripcion: "Venta general",
+        monto: totalUSD,
+        moneda: "USD",
+        esDeuda: true,
+      });
+    }
+    if (totalARS > 0) {
+      filas.push({
+        fecha,
+        fechaOrden,
+        tipo: "venta",
+        descripcion: "Venta general",
+        monto: totalARS,
+        moneda: "ARS",
+        esDeuda: true,
+      });
+    }
+    return filas;
+  }
+
+  return productos.map((p: any) => ({
+    fecha,
+    fechaOrden,
+    tipo: "venta",
+    descripcion: descripcionLineaVenta(p),
+    monto: importeLineaProducto(p),
+    moneda: monedaLineaProducto(p),
+    esDeuda: true,
+  }));
+}
+
+function filasDetalleLlevado(trabajos: any[], ventas: any[]) {
+  const filas: string[][] = [];
+
+  for (const trabajo of trabajos) {
+    if (trabajo.estado !== "ENTREGADO" && trabajo.estado !== "PAGADO") continue;
+    const mon = normalizeMonedaCuenta(trabajo.moneda);
+    const monto = Number(trabajo.precio || 0);
+    const puTxt =
+      mon === "USD"
+        ? `US$ ${monto.toLocaleString("es-AR")}`
+        : `$ ${monto.toLocaleString("es-AR")}`;
+    filas.push([
+      String(trabajo.fecha || ""),
+      `${trabajo.modelo || "—"} — ${trabajo.trabajo || "—"}`,
+      "—",
+      "—",
+      "1",
+      puTxt,
+      puTxt,
+    ]);
+  }
+
+  for (const venta of ventas) {
+    const productos = Array.isArray(venta?.productos) ? venta.productos : [];
+    for (const p of productos) {
+      const cant = Number(p?.cantidad ?? 1) || 1;
+      const pu = Number(p?.precioUnitario ?? 0);
+      const sub = importeLineaProducto(p);
+      const mon = monedaLineaProducto(p);
+      const fmt = (n: number) =>
+        mon === "USD"
+          ? `US$ ${n.toLocaleString("es-AR")}`
+          : `$ ${n.toLocaleString("es-AR")}`;
+      filas.push([
+        String(venta.fecha || ""),
+        nombreProductoLinea(p),
+        textoOpcional(p?.marca) || "—",
+        textoOpcional(p?.modelo) || "—",
+        String(cant),
+        fmt(pu),
+        fmt(sub),
+      ]);
+    }
+  }
+
+  return filas;
+}
+
+function agregarTablaDetalleLlevado(
+  doc: jsPDF,
+  startY: number,
+  trabajos: any[],
+  ventas: any[]
+): number {
+  const body = filasDetalleLlevado(trabajos, ventas);
+  if (body.length === 0) return startY;
+
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(44, 62, 80);
+  doc.text("DETALLE DE LO LLEVADO", 15, startY);
+
+  autoTable(doc, {
+    startY: startY + 6,
+    head: [["Fecha", "Producto / Trabajo", "Marca", "Modelo", "Cant.", "P. unit.", "Subtotal"]],
+    body,
+    theme: "grid",
+    margin: { left: 8, right: 8 },
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 2,
+      textColor: [0, 0, 0],
+      overflow: "linebreak",
+      cellWidth: "wrap",
+    },
+    headStyles: {
+      fillColor: [39, 174, 96],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 7.5,
+    },
+    alternateRowStyles: { fillColor: [245, 250, 247] },
+    columnStyles: {
+      0: { cellWidth: 22, halign: "center" },
+      1: { cellWidth: 58 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 28 },
+      4: { cellWidth: 14, halign: "center" },
+      5: { cellWidth: 22, halign: "right" },
+      6: { cellWidth: 22, halign: "right" },
+    },
+  });
+
+  return ((doc as any).lastAutoTable?.finalY ?? startY) + 12;
 }
 
 export default function GeneradorPDF({
@@ -64,39 +245,8 @@ export default function GeneradorPDF({
       }
     });
 
-    // Ventas: cada línea según moneda del producto (default ARS)
     ventas.forEach((venta) => {
-      const { totalARS, totalUSD } = totalesVentasPorMoneda(venta.productos);
-
-      const descripcion = venta.productos
-        ?.map((p: any) => p.modelo || p.nombre || "Producto")
-        .join(", ") || "Venta general";
-
-      // Agregar entrada USD si hay monto
-      if (totalUSD > 0) {
-        historial.push({
-          fecha: venta.fecha,
-          fechaOrden: new Date(venta.fecha.split("/").reverse().join("-")),
-          tipo: "venta",
-          descripcion: descripcion,
-          monto: totalUSD,
-          moneda: "USD",
-          esDeuda: true,
-        });
-      }
-
-      // Agregar entrada ARS si hay monto
-      if (totalARS > 0) {
-        historial.push({
-          fecha: venta.fecha,
-          fechaOrden: new Date(venta.fecha.split("/").reverse().join("-")),
-          tipo: "venta",
-          descripcion: descripcion,
-          monto: totalARS,
-          moneda: "ARS",
-          esDeuda: true,
-        });
-      }
+      historial.push(...movimientosDeVenta(venta));
     });
 
     // Agregar pagos
@@ -313,7 +463,7 @@ export default function GeneradorPDF({
           return [
             item.fecha,
             tipoTexto,
-            item.descripcion.length > 45 ? item.descripcion.substring(0, 42) + "..." : item.descripcion,
+            item.descripcion,
             montoARS,
             montoUSD,
             saldoARS,
@@ -328,11 +478,13 @@ export default function GeneradorPDF({
           theme: 'grid',
           margin: { left: 5, right: 5 },
           styles: {
-            fontSize: 8.5,
-            cellPadding: 3,
+            fontSize: 8,
+            cellPadding: 2.5,
             textColor: [0, 0, 0],
             lineColor: [200, 200, 200],
             lineWidth: 0.5,
+            overflow: "linebreak",
+            valign: "top",
           },
           headStyles: {
             fillColor: [79, 70, 229],
@@ -388,6 +540,29 @@ export default function GeneradorPDF({
           },
         });
       }
+
+      // Detalle de productos/trabajos (lo que llevaron)
+      let yDetalle =
+        historialDesdeCero.length > 0
+          ? ((doc as any).lastAutoTable?.finalY ?? 200) + 14
+          : yPosition + 110;
+      if (yDetalle > 240) {
+        doc.addPage();
+        yDetalle = 20;
+      }
+      const desdeOrden = historialDesdeCero[0]?.fechaOrden as Date | undefined;
+      const trabajosDetalle = trabajos.filter((t) => {
+        if (t.estado !== "ENTREGADO" && t.estado !== "PAGADO") return false;
+        if (!desdeOrden) return true;
+        const f = new Date(String(t.fecha).split("/").reverse().join("-"));
+        return !Number.isNaN(f.getTime()) && f >= desdeOrden;
+      });
+      const ventasDetalle = ventas.filter((v) => {
+        if (!desdeOrden) return true;
+        const f = new Date(String(v.fecha).split("/").reverse().join("-"));
+        return !Number.isNaN(f.getTime()) && f >= desdeOrden;
+      });
+      agregarTablaDetalleLlevado(doc, yDetalle, trabajosDetalle, ventasDetalle);
 
       // Footer
       const totalPages = doc.getNumberOfPages();
@@ -472,35 +647,7 @@ export default function GeneradorPDF({
       });
 
       ventas.forEach((venta) => {
-        const { totalARS, totalUSD } = totalesVentasPorMoneda(venta.productos);
-
-        const descripcion = venta.productos
-          ?.map((p: any) => p.modelo || p.nombre || "Producto")
-          .join(", ") || "Venta general";
-
-        if (totalUSD > 0) {
-          historial.push({
-            fecha: venta.fecha,
-            fechaOrden: new Date(venta.fecha.split("/").reverse().join("-")),
-            tipo: "venta",
-            descripcion: descripcion,
-            monto: totalUSD,
-            moneda: "USD",
-            esDeuda: true,
-          });
-        }
-
-        if (totalARS > 0) {
-          historial.push({
-            fecha: venta.fecha,
-            fechaOrden: new Date(venta.fecha.split("/").reverse().join("-")),
-            tipo: "venta",
-            descripcion: descripcion,
-            monto: totalARS,
-            moneda: "ARS",
-            esDeuda: true,
-          });
-        }
+        historial.push(...movimientosDeVenta(venta));
       });
 
       pagos.forEach((pago) => {
@@ -574,7 +721,7 @@ export default function GeneradorPDF({
           return [
             item.fecha,
             tipoTexto,
-            item.descripcion.length > 45 ? item.descripcion.substring(0, 42) + "..." : item.descripcion,
+            item.descripcion,
             montoARS,
             montoUSD,
             saldoARS,
@@ -589,9 +736,11 @@ export default function GeneradorPDF({
           theme: 'grid',
           margin: { left: 5, right: 5 },
           styles: {
-            fontSize: 8.5,
-            cellPadding: 3,
+            fontSize: 8,
+            cellPadding: 2.5,
             textColor: [0, 0, 0],
+            overflow: "linebreak",
+            valign: "top",
           },
           headStyles: {
             fillColor: [79, 70, 229],
@@ -639,6 +788,27 @@ export default function GeneradorPDF({
           },
         });
       }
+
+      let yDetalleHist = ((doc as any).lastAutoTable?.finalY ?? yPosition + 20) + 14;
+      if (yDetalleHist > 240) {
+        doc.addPage();
+        yDetalleHist = 20;
+      }
+      const desde = fechaDesde ? new Date(fechaDesde) : null;
+      const hasta = fechaHasta ? new Date(fechaHasta) : null;
+      const enRango = (fechaStr: string) => {
+        const f = new Date(String(fechaStr).split("/").reverse().join("-"));
+        if (Number.isNaN(f.getTime())) return true;
+        if (desde && f < desde) return false;
+        if (hasta && f > hasta) return false;
+        return true;
+      };
+      const trabajosDetalle = trabajos.filter(
+        (t) =>
+          (t.estado === "ENTREGADO" || t.estado === "PAGADO") && enRango(t.fecha)
+      );
+      const ventasDetalle = ventas.filter((v) => enRango(v.fecha));
+      agregarTablaDetalleLlevado(doc, yDetalleHist, trabajosDetalle, ventasDetalle);
 
       // Footer
       const totalPages = doc.getNumberOfPages();
