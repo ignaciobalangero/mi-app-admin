@@ -132,14 +132,15 @@ function repartirCobroVenta(
     pesos.set(fam, (pesos.get(fam) ?? 0) + montoLineaEnARS(p, cot));
   }
 
-  const totalPesos = [...pesos.values()].reduce((a, b) => a + b, 0);
+  const valores = Array.from(pesos.values());
+  const totalPesos = valores.reduce((a, b) => a + b, 0);
   if (pesos.size <= 1 || totalPesos <= 0) {
-    const unica = pesos.size === 1 ? [...pesos.keys()][0] : null;
+    const unica = pesos.size === 1 ? Array.from(pesos.keys())[0] : null;
     const sub = unica ? subcategoriaDeFamilia(unica, pago) : fallback;
     return [{ sub, monto }];
   }
 
-  const keys = [...pesos.keys()];
+  const keys = Array.from(pesos.keys());
   const partes: { sub: SubcategoriaVentaCaja; monto: number }[] = [];
   let asignado = 0;
   keys.forEach((fam, i) => {

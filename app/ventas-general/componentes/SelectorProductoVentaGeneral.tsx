@@ -33,6 +33,7 @@ interface ProductoStock {
   tipo: "accesorio" | "repuesto" | "general" | "libre";
   origenStock?: string;
   hoja?: string;
+  stockDocId?: string;
   precioUnitario?: number;
   precioARS?: number | null;
   precioUSD?: number | null; 

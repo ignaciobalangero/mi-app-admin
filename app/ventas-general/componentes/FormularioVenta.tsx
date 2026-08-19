@@ -30,6 +30,8 @@ interface ProductoVenta {
   marca?: string;
   modelo?: string;
   hoja?: string;
+  stockDocId?: string;
+  id?: string;
 }
 
 interface Props {
