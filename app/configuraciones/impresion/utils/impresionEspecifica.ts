@@ -38,6 +38,16 @@ export const ImpresionGestione = {
           <div class="separator"></div>
           <div class="center bold total">TOTAL: $${trabajo.precio?.toLocaleString() || '0'}</div>
           <div class="separator"></div>
+
+          ${
+            trabajo.qrDataUrl
+              ? `<div class="center" style="margin: 8px 0;">
+                  <img src="${trabajo.qrDataUrl}" alt="QR" width="96" height="96" style="display:block;margin:0 auto;" />
+                  <div style="font-size: 9px; margin-top: 4px;">Escaneá para ver estado y fotos</div>
+                </div>
+                <div class="separator"></div>`
+              : ""
+          }
           
           <div class="center">¡Gracias por confiar en nosotros!</div>
           <div class="center" style="font-size: 10px; margin-top: 10px;">

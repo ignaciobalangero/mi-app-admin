@@ -90,12 +90,42 @@ export default function BotonesImpresionTrabajo({
     return true;
   };
 
+  const asegurarQrSeguimiento = async (): Promise<{
+    qrDataUrl: string;
+    urlEstado: string;
+  }> => {
+    let token = String(trabajo.tokenPublico || "").trim();
+    const firebaseId = trabajo.firebaseId || trabajo.idFirebase;
+    if (!token && firebaseId) {
+      token = generarTokenPublicoTrabajo();
+      try {
+        await updateDoc(doc(db, `negocios/${negocioId}/trabajos/${firebaseId}`), {
+          tokenPublico: token,
+        });
+        trabajo.tokenPublico = token;
+      } catch (e) {
+        console.warn("No se pudo guardar tokenPublico:", e);
+      }
+    }
+
+    if (!token) return { qrDataUrl: "", urlEstado: "" };
+
+    const urlEstado = urlEstadoTrabajoPublico(window.location.origin, negocioId, token);
+    const qrDataUrl = await QRCode.toDataURL(urlEstado, { width: 180, margin: 1 });
+    return { qrDataUrl, urlEstado };
+  };
+
   const imprimirTicketTermico = async () => {
     if (!validarDatos('ticket')) return;
     
     setImprimiendo('ticket');
     try {
-      ImpresionGestione.ticketZerforce(trabajo);
+      const { qrDataUrl, urlEstado } = await asegurarQrSeguimiento();
+      ImpresionGestione.ticketZerforce({
+        ...trabajo,
+        qrDataUrl,
+        urlEstadoPublico: urlEstado,
+      });
       
       // ✨ CERRAR MODAL DESPUÉS DE IMPRIMIR
       if (onImpresionCompleta) {
@@ -183,27 +213,7 @@ export default function BotonesImpresionTrabajo({
         console.error("Error obteniendo configuración:", error);
       }
 
-      // Asegurar token público y QR de seguimiento
-      let token = String(trabajo.tokenPublico || "").trim();
-      const firebaseId = trabajo.firebaseId || trabajo.idFirebase;
-      if (!token && firebaseId) {
-        token = generarTokenPublicoTrabajo();
-        try {
-          await updateDoc(doc(db, `negocios/${negocioId}/trabajos/${firebaseId}`), {
-            tokenPublico: token,
-          });
-          trabajo.tokenPublico = token;
-        } catch (e) {
-          console.warn("No se pudo guardar tokenPublico:", e);
-        }
-      }
-
-      let qrDataUrl = "";
-      let urlEstado = "";
-      if (token) {
-        urlEstado = urlEstadoTrabajoPublico(window.location.origin, negocioId, token);
-        qrDataUrl = await QRCode.toDataURL(urlEstado, { width: 180, margin: 1 });
-      }
+      const { qrDataUrl, urlEstado } = await asegurarQrSeguimiento();
 
       const contenidoA4 = generarHTMLTicketA4(
         { ...trabajo, qrDataUrl, urlEstadoPublico: urlEstado },
