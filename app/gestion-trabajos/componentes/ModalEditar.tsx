@@ -4,6 +4,13 @@ import { useState, useEffect } from "react";
 import { doc, updateDoc, getDocs, collection, getDoc, runTransaction, query, where, limit, serverTimestamp, type QueryDocumentSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Combobox } from "@headlessui/react";
+import CampoFotosTrabajo from "@/components/CampoFotosTrabajo";
+import {
+  generarTokenPublicoTrabajo,
+  normalizarFotosTrabajo,
+  urlEstadoTrabajoPublico,
+  type FotoTrabajo,
+} from "@/lib/trabajosFotos";
 
 interface Trabajo {
   firebaseId: string;
@@ -20,6 +27,9 @@ interface Trabajo {
   repuestosUsados?: any[]; 
   fechaModificacion?: string;
   estadoCuentaCorriente?: string;
+  tokenPublico?: string;
+  fotosIngreso?: FotoTrabajo[];
+  fotosProceso?: FotoTrabajo[];
 }
 
 interface TrabajoFormulario {
@@ -88,6 +98,10 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
   const [guardando, setGuardando] = useState(false);
   const [clientes, setClientes] = useState<string[]>([]);
   const [clienteInput, setClienteInput] = useState("");
+  const [fotosIngreso, setFotosIngreso] = useState<FotoTrabajo[]>([]);
+  const [fotosProceso, setFotosProceso] = useState<FotoTrabajo[]>([]);
+  const [tokenPublico, setTokenPublico] = useState("");
+  const [urlPublica, setUrlPublica] = useState("");
 
   // Cargar clientes al montar el componente
   useEffect(() => {
@@ -140,6 +154,13 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
             imei: data.imei || "",
           });
           setClienteInput(data.cliente || "");
+          setFotosIngreso(normalizarFotosTrabajo(data.fotosIngreso, "ingreso"));
+          setFotosProceso(normalizarFotosTrabajo(data.fotosProceso, "proceso"));
+          const token = String(data.tokenPublico || "").trim() || generarTokenPublicoTrabajo();
+          setTokenPublico(token);
+          if (typeof window !== "undefined") {
+            setUrlPublica(urlEstadoTrabajoPublico(window.location.origin, negocioID, token));
+          }
         }
       } catch (error) {
         console.error("Error cargando trabajo:", error);
@@ -181,6 +202,9 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
       cliente: nombreNuevo,
       precio: nuevoPrecio,
       fechaModificacion: new Date().toLocaleDateString("es-AR"),
+      fotosIngreso,
+      fotosProceso,
+      tokenPublico: tokenPublico || generarTokenPublicoTrabajo(),
     };
 
     setGuardando(true);
@@ -541,6 +565,41 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
                 disabled={guardando}
                 className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#95a5a6]/20 focus:border-[#95a5a6] transition-all duration-300 text-[#2c3e50] placeholder-[#7f8c8d] resize-none bg-white shadow-sm text-sm disabled:opacity-50"
               />
+            </div>
+
+            <div className="md:col-span-2 space-y-3">
+              <CampoFotosTrabajo
+                negocioID={negocioID}
+                trabajoId={trabajo.firebaseId}
+                tipo="ingreso"
+                fotos={fotosIngreso}
+                onChange={setFotosIngreso}
+                subirInmediato
+              />
+              <CampoFotosTrabajo
+                negocioID={negocioID}
+                trabajoId={trabajo.firebaseId}
+                tipo="proceso"
+                fotos={fotosProceso}
+                onChange={setFotosProceso}
+                subirInmediato
+              />
+              {urlPublica ? (
+                <div className="rounded-xl border border-[#3498db]/40 bg-[#ebf5fb] p-3 text-xs text-[#2c3e50]">
+                  <p className="font-semibold mb-1">Seguimiento con QR (para el cliente)</p>
+                  <a
+                    href={urlPublica}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#2980b9] break-all underline"
+                  >
+                    {urlPublica}
+                  </a>
+                  <p className="mt-1 text-[#7f8c8d]">
+                    Se imprime en la orden A4. El cliente ve estado y fotos sin login.
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
 

@@ -25,6 +25,9 @@ import { Combobox } from "@headlessui/react";
 import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/BotonesImpresionTrabajo";
 import ModalConfirmarImpresion from "./ModalConfirmarImpresion";
 import { PatronDrawer, PatronViewer, type Patron } from "@/app/components/PatronDesbloqueo";
+import CampoFotosTrabajo, { filesPendientesDeFotos } from "@/components/CampoFotosTrabajo";
+import { subirFotoTrabajo } from "@/lib/trabajosFotosCliente";
+import type { FotoTrabajo } from "@/lib/trabajosFotos";
 
 interface Cliente {
   nombre: string;
@@ -54,6 +57,7 @@ const inicialForm = {
   accesorios: "",
   precio: "",
   anticipo: "",
+  fotosIngreso: [] as any[],
 };
 
 const inicialEquipo = {
@@ -67,6 +71,7 @@ const inicialEquipo = {
   accesorios: "",
   precio: "",
   anticipo: "",
+  fotosIngreso: [] as any[],
 };
 
 const inicialCheckData = {
@@ -771,6 +776,7 @@ export default function IngresoForm() {
         saldo: saldoNumerico,
         estado: "PENDIENTE",
         checkIn: mostrarCheckIn ? checkData : null,
+        fotosIngreso: [],
       };
     });
 
@@ -783,6 +789,43 @@ export default function IngresoForm() {
     });
 
     if (res) {
+      // Subir fotos de ingreso pendientes y asociarlas al trabajo
+      try {
+        const usuario = auth.currentUser?.email || auth.currentUser?.uid || "";
+        for (let i = 0; i < equipos.length; i++) {
+          const eq = equipos[i] as any;
+          const guardado = res.trabajosGuardados[i];
+          if (!guardado?.firebaseId) continue;
+          const pendientes = filesPendientesDeFotos(
+            Array.isArray(eq.fotosIngreso) ? (eq.fotosIngreso as FotoTrabajo[]) : []
+          );
+          if (pendientes.length === 0) continue;
+          const subidas: FotoTrabajo[] = [];
+          for (const file of pendientes) {
+            subidas.push(
+              await subirFotoTrabajo({
+                negocioID,
+                trabajoId: guardado.firebaseId,
+                tipo: "ingreso",
+                file,
+                usuario,
+              })
+            );
+          }
+          if (subidas.length > 0) {
+            await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${guardado.firebaseId}`), {
+              fotosIngreso: subidas,
+            });
+            (guardado as any).fotosIngreso = subidas;
+          }
+        }
+      } catch (fotoErr) {
+        console.warn("Trabajos guardados; error subiendo fotos de ingreso:", fotoErr);
+        alert(
+          "Los trabajos se guardaron, pero hubo un problema al subir alguna foto. Podés agregarlas después desde Gestión."
+        );
+      }
+
       setMensajeExito(res.mensaje);
       setTrabajosParaImprimir(res.trabajosGuardados);
       // Importante: no usar trabajosPayload[0] acá — no trae `cliente` (solo va en el batch).
@@ -1229,6 +1272,17 @@ export default function IngresoForm() {
                   placeholder="Observaciones adicionales sobre el trabajo..."
                 />
               </div>
+
+              <div className="md:col-span-2">
+                <CampoFotosTrabajo
+                  negocioID={negocioID || ""}
+                  tipo="ingreso"
+                  fotos={(form as any).fotosIngreso || []}
+                  onChange={(fotos) => setForm((prev: any) => ({ ...prev, fotosIngreso: fotos }))}
+                  subirInmediato={false}
+                  titulo="Fotos de cómo ingresa el equipo"
+                />
+              </div>
             </div>
 
             {/* ➕ Carga múltiple de equipos */}
@@ -1373,6 +1427,16 @@ export default function IngresoForm() {
                             rows={2}
                             className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] resize-none"
                             placeholder="Observaciones adicionales..."
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <CampoFotosTrabajo
+                            negocioID={negocioID || ""}
+                            tipo="ingreso"
+                            fotos={eq.fotosIngreso || []}
+                            onChange={(fotos) => actualizarEquipoExtra(idx, { fotosIngreso: fotos })}
+                            subirInmediato={false}
+                            titulo={`Fotos ingreso — equipo #${idx + 2}`}
                           />
                         </div>
                       </div>

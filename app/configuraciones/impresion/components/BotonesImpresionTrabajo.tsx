@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ImpresionGestione } from "@/app/configuraciones/impresion/utils/impresionEspecifica";
 import {
   CAMPOS_ETIQUETA_TRABAJO_DEFAULT,
   columnasEtiquetaTrabajo,
 } from "@/lib/etiquetaTrabajoCampos";
+import {
+  generarTokenPublicoTrabajo,
+  urlEstadoTrabajoPublico,
+} from "@/lib/trabajosFotos";
+import QRCode from "qrcode";
 
 interface Props {
   trabajo: any;
@@ -178,7 +183,33 @@ export default function BotonesImpresionTrabajo({
         console.error("Error obteniendo configuración:", error);
       }
 
-      const contenidoA4 = generarHTMLTicketA4(trabajo, logoUrl, garantiaServicio);
+      // Asegurar token público y QR de seguimiento
+      let token = String(trabajo.tokenPublico || "").trim();
+      const firebaseId = trabajo.firebaseId || trabajo.idFirebase;
+      if (!token && firebaseId) {
+        token = generarTokenPublicoTrabajo();
+        try {
+          await updateDoc(doc(db, `negocios/${negocioId}/trabajos/${firebaseId}`), {
+            tokenPublico: token,
+          });
+          trabajo.tokenPublico = token;
+        } catch (e) {
+          console.warn("No se pudo guardar tokenPublico:", e);
+        }
+      }
+
+      let qrDataUrl = "";
+      let urlEstado = "";
+      if (token) {
+        urlEstado = urlEstadoTrabajoPublico(window.location.origin, negocioId, token);
+        qrDataUrl = await QRCode.toDataURL(urlEstado, { width: 180, margin: 1 });
+      }
+
+      const contenidoA4 = generarHTMLTicketA4(
+        { ...trabajo, qrDataUrl, urlEstadoPublico: urlEstado },
+        logoUrl,
+        garantiaServicio
+      );
       
       const ventana = window.open('', '_blank', 'width=800,height=600');
       if (ventana) {
@@ -549,6 +580,16 @@ function generarHTMLTicketA4(datos: any, logoUrl: string, garantia: string) {
         <div class="header">
           ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="logo">` : ''}
           <div class="title">ORDEN DE SERVICIO TÉCNICO</div>
+          ${
+            datos.qrDataUrl
+              ? `<div style="margin-top:12px;text-align:center">
+                  <img src="${datos.qrDataUrl}" alt="QR seguimiento" width="120" height="120" style="border:1px solid #ddd;border-radius:8px" />
+                  <div style="font-size:10px;color:#7f8c8d;margin-top:6px;max-width:280px;margin-left:auto;margin-right:auto">
+                    Escaneá para ver el estado y fotos del trabajo
+                  </div>
+                </div>`
+              : ""
+          }
         </div>
         
         <div class="info-grid">

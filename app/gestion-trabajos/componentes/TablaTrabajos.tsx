@@ -793,7 +793,8 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
               <BotonesImpresionTrabajo 
                 trabajo={{
                   ...trabajoParaImprimir,
-                  id: trabajoParaImprimir.id || trabajoParaImprimir.firebaseId, // ✨ Usar id del trabajo, fallback a firebaseId
+                  id: trabajoParaImprimir.id || trabajoParaImprimir.firebaseId,
+                  firebaseId: trabajoParaImprimir.firebaseId,
                 }}
                 negocioId={negocioID}
                 ocultarEtiquetasA4={true}

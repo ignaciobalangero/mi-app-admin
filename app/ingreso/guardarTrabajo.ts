@@ -1,6 +1,8 @@
 import { addDoc, collection, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { imprimirEtiqueta } from "@/lib/qzPrinter";
+import { generarTokenPublicoTrabajo } from "@/lib/trabajosFotos";
+import type { FotoTrabajo } from "@/lib/trabajosFotos";
 
 interface TrabajoData {
   fecha: string;
@@ -20,6 +22,9 @@ interface TrabajoData {
   nroOrden?: string;
   accesorios?: string;
   checkIn?: any;
+  tokenPublico?: string;
+  fotosIngreso?: FotoTrabajo[];
+  fotosProceso?: FotoTrabajo[];
 }
 
 export const guardarTrabajo = async (
@@ -36,6 +41,9 @@ export const guardarTrabajo = async (
       anticipo: Number(datos.anticipo || 0), // ✨ Guardar anticipo
       saldo: Number(datos.saldo || datos.precio), // ✨ Guardar saldo
       estado: datos.estado || "PENDIENTE",
+      tokenPublico: datos.tokenPublico || generarTokenPublicoTrabajo(),
+      fotosIngreso: datos.fotosIngreso || [],
+      fotosProceso: datos.fotosProceso || [],
       creadoEn: serverTimestamp(),
     };
 
@@ -136,6 +144,10 @@ export const guardarTrabajosBatch = async (
       const anticipoNum = Number(t.anticipo ?? 0);
       const saldoNum = Number(t.saldo ?? (precioNum - anticipoNum));
 
+      const tokenPublico = t.tokenPublico || generarTokenPublicoTrabajo();
+      const fotosIngreso = Array.isArray(t.fotosIngreso) ? t.fotosIngreso : [];
+      const fotosProceso = Array.isArray(t.fotosProceso) ? t.fotosProceso : [];
+
       const trabajoConMeta: TrabajoData = {
         ...t,
         fecha: input.fecha,
@@ -146,6 +158,9 @@ export const guardarTrabajosBatch = async (
         saldo: saldoNum.toString(),
         estado: "PENDIENTE",
         checkIn: (t as any).checkIn ?? null,
+        tokenPublico,
+        fotosIngreso,
+        fotosProceso,
         creadoEn: serverTimestamp() as any,
       } as any;
 
@@ -154,12 +169,16 @@ export const guardarTrabajosBatch = async (
         precio: precioNum,
         anticipo: anticipoNum,
         saldo: saldoNum,
+        tokenPublico,
+        fotosIngreso,
+        fotosProceso,
         creadoEn: serverTimestamp(),
       });
 
       trabajosGuardados.push({
         ...(trabajoConMeta as any),
         firebaseId: ref.id,
+        tokenPublico,
       });
     });
 

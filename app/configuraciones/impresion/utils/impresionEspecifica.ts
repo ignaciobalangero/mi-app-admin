@@ -352,7 +352,11 @@ export const ImpresionGestione = {
             <div class="orden-info">
               <div class="orden-numero">ORDEN N° ${trabajo.id}</div>
               <div class="fecha-impresion">Fecha: ${new Date().toLocaleDateString('es-AR')}</div>
-              <div class="qr-placeholder">QR</div>
+              ${
+                trabajo.qrDataUrl
+                  ? `<img src="${trabajo.qrDataUrl}" alt="QR" width="56" height="56" style="margin:4px 0 0 auto;display:block" />`
+                  : `<div class="qr-placeholder">QR</div>`
+              }
             </div>
           </div>
           

@@ -11,6 +11,8 @@ const RUTAS_PERMITIDAS_TIENDA = [
   /^\/_next\//,
   /^\/favicon\.ico$/,
   /^\/consulta-stock\//,
+  /^\/estado-trabajo\//,
+  /^\/api\/estado-trabajo(?:\/|$)/,
 ];
 
 function rutaPermitidaEnDominioTienda(pathname: string): boolean {
