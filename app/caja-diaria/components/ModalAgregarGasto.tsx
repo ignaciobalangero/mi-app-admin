@@ -48,7 +48,7 @@ export default function ModalAgregarGasto({
         concepto: concepto.trim(),
         monto: Number(monto),
         moneda,
-        cotizacion: moneda === "USD" ? cotizacionUSD : undefined,
+        ...(moneda === "USD" && cotizacionUSD > 0 ? { cotizacion: cotizacionUSD } : {}),
         categoria: categoria || "Otro",
         fecha: hoy,
         timestamp: new Date(),
