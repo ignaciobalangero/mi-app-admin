@@ -1651,6 +1651,7 @@ const eliminarTrabajo = async () => {
                 trabajo={{
                   ...trabajoParaImprimir,
                   id: trabajoParaImprimir.id || trabajoParaImprimir.firebaseId,
+                  firebaseId: trabajoParaImprimir.firebaseId,
                 }}
                 negocioId={negocioID}
                 ocultarEtiquetasA4={true}
