@@ -3,18 +3,27 @@ import { db } from "@/lib/firebase";
 import type { MovimientoCaja } from "@/lib/caja/cajaTypes";
 import { fechaCajaHoy } from "@/lib/caja/fechaCaja";
 
+/** Firestore rechaza `undefined`; solo mandamos campos con valor. */
+function sinUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const limpio: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) limpio[k] = v;
+  }
+  return limpio as T;
+}
+
 export async function registrarMovimientoCaja(
   negocioId: string,
   mov: Omit<MovimientoCaja, "id" | "fecha" | "timestamp" | "esAnulado"> & {
     fecha?: string;
   }
 ): Promise<string> {
-  const payload: Omit<MovimientoCaja, "id"> = {
+  const payload = sinUndefined({
     ...mov,
     fecha: mov.fecha ?? fechaCajaHoy(),
     timestamp: serverTimestamp() as unknown as Date,
     esAnulado: false,
-  };
+  });
 
   const ref = await addDoc(collection(db, `negocios/${negocioId}/movimientosCaja`), payload);
   return ref.id;

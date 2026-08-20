@@ -74,15 +74,15 @@ export default function ModalMovimientoManual({
 
     setGuardando(true);
     try {
-      const montoUSD = esUsdBillete ? valor : undefined;
       const montoARS = esUsdBillete ? valor * cotizacionUSD : valor;
       await registrarMovimientoCaja(negocioID, {
         sesionId,
         tipo,
         categoria: categoria as CategoriaIngresoCaja & CategoriaEgresoCaja,
         montoARS,
-        montoUSD,
-        cotizacionUSD: esUsdBillete ? cotizacionUSD : undefined,
+        ...(esUsdBillete
+          ? { montoUSD: valor, cotizacionUSD }
+          : {}),
         medioPago,
         descripcion: descripcion.trim(),
         usuario: user.email || user.uid,
