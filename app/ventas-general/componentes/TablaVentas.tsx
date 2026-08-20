@@ -35,7 +35,6 @@ import {
 } from "@/app/clientes/[nombreCliente]/ventasMonedaHelpers";
 import {
   ajustarSaldoPorEdicionVenta,
-  eliminarPagosAsociadosAVenta,
   revertirSaldoPorEliminarVenta,
 } from "@/lib/actualizarSaldoCliente";
 import { modeloDistintoDeProducto } from "@/lib/impresionVentaGeneral";
@@ -251,6 +250,18 @@ export default function TablaVentas({ refrescar }: Props) {
     const cotVenta = Number(venta.cotizacionUsada || venta.pago?.cotizacion || cotizacion || 0);
     const nuevoTotal = totalARS + totalUSD * (cotVenta > 0 ? cotVenta : 1);
 
+    const productosAntes = (ventaData?.productos ?? venta.productos) as unknown[];
+    const deudaAntes = totalesVentasPorMoneda(productosAntes as any[]);
+    const deudaDespues = { totalARS, totalUSD };
+    if (
+      deudaAntes.totalARS === deudaDespues.totalARS &&
+      deudaAntes.totalUSD === deudaDespues.totalUSD
+    ) {
+      throw new Error(
+        "No se pudo calcular el importe del ítem a devolver (precio en 0). Revisá la línea en la venta."
+      );
+    }
+
     // Saldo primero: pagada → favor; cuenta corriente → baja la deuda.
     // No depende del tipo de stock (repuesto / accesorio / stockExtra).
     await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaId}`), {
@@ -265,7 +276,7 @@ export default function TablaVentas({ refrescar }: Props) {
       venta.cliente || "",
       venta.cliente || "",
       {
-        productos: ventaData?.productos ?? venta.productos,
+        productos: productosAntes,
         total: ventaData?.total ?? venta.total,
         totalARS: ventaData?.totalARS ?? venta.totalARS,
         totalUSD: ventaData?.totalUSD ?? venta.totalUSD,
@@ -372,6 +383,7 @@ export default function TablaVentas({ refrescar }: Props) {
     const negocioStock = negocioIdStockDeVenta(ventaData, rol.negocioID);
 
     // Saldo primero (igual que al borrar un ítem): si falla stock, la CC igual se ajusta.
+    // No se borran los pagos: quedan como crédito → saldo a favor si estaba pagada.
     await revertirSaldoPorEliminarVenta(rol.negocioID, {
       cliente: ventaData.cliente,
       nroVenta: ventaData.nroVenta,
@@ -382,13 +394,6 @@ export default function TablaVentas({ refrescar }: Props) {
       totalUSD: ventaData.totalUSD,
       moneda: ventaData.moneda,
     });
-    if (ventaData.nroVenta) {
-      await eliminarPagosAsociadosAVenta(
-        rol.negocioID,
-        String(ventaData.nroVenta),
-        ventaData.cliente
-      );
-    }
     console.log("✅ Cuenta corriente ajustada por eliminación de venta");
 
     console.log("🔧 Reponiendo stock al eliminar venta:", {

@@ -109,22 +109,47 @@ export async function ajustarSaldoPorEdicionVenta(
 
   const ant = String(clienteAnterior ?? "").trim();
   const neu = String(clienteNuevo ?? "").trim();
+  const deltaARS = nuevo.totalARS - viejo.totalARS;
+  const deltaUSD = nuevo.totalUSD - viejo.totalUSD;
+
+  console.log("[editar venta → saldo]", { cliente: neu || ant, viejo, nuevo, deltaARS, deltaUSD });
 
   if (ant === neu) {
-    await actualizarSaldoClienteNegocio(
-      negocioID,
-      neu,
-      nuevo.totalARS - viejo.totalARS,
-      nuevo.totalUSD - viejo.totalUSD
-    );
+    if (deltaARS === 0 && deltaUSD === 0) return;
+    const ok = await actualizarSaldoClienteNegocio(negocioID, neu, deltaARS, deltaUSD);
+    if (!ok) {
+      throw new Error(
+        `No se pudo actualizar la cuenta corriente de "${neu}". Verificá que el cliente exista con el mismo nombre.`
+      );
+    }
     return;
   }
 
   if (ant) {
-    await actualizarSaldoClienteNegocio(negocioID, ant, -viejo.totalARS, -viejo.totalUSD);
+    const okAnt = await actualizarSaldoClienteNegocio(
+      negocioID,
+      ant,
+      -viejo.totalARS,
+      -viejo.totalUSD
+    );
+    if (!okAnt) {
+      throw new Error(
+        `No se pudo actualizar la cuenta corriente de "${ant}". Verificá que el cliente exista con el mismo nombre.`
+      );
+    }
   }
   if (neu) {
-    await actualizarSaldoClienteNegocio(negocioID, neu, nuevo.totalARS, nuevo.totalUSD);
+    const okNeu = await actualizarSaldoClienteNegocio(
+      negocioID,
+      neu,
+      nuevo.totalARS,
+      nuevo.totalUSD
+    );
+    if (!okNeu) {
+      throw new Error(
+        `No se pudo actualizar la cuenta corriente de "${neu}". Verificá que el cliente exista con el mismo nombre.`
+      );
+    }
   }
 }
 
@@ -174,8 +199,11 @@ export async function pagosColeccionDeVenta(
 }
 
 /**
- * Revierte el impacto en cuenta corriente al eliminar una venta:
- * resta la deuda de productos y devuelve los pagos registrados al guardar.
+ * Revierte la deuda de la venta en cuenta corriente (devolución de productos).
+ *
+ * Importante: NO se anulan los pagos. Si la venta estaba pagada, al sacar la deuda
+ * queda saldo a favor (mismo criterio que al borrar un ítem de una venta mixta).
+ * Los docs en `pagos` se dejan para que historial y cuenta corriente coincidan.
  */
 export async function revertirSaldoPorEliminarVenta(
   negocioID: string,
@@ -194,28 +222,19 @@ export async function revertirSaldoPorEliminarVenta(
   }
 
   const deuda = deudaVentaPorMoneda(venta);
-  let pagos = { totalARS: 0, totalUSD: 0 };
-
-  if (venta.nroVenta) {
-    pagos = await pagosColeccionDeVenta(negocioID, String(venta.nroVenta), nombre);
-  }
-  if (pagos.totalARS === 0 && pagos.totalUSD === 0) {
-    pagos = pagosEmbebidosDeVenta(venta);
-  }
-
-  const deltaARS = -deuda.totalARS + pagos.totalARS;
-  const deltaUSD = -deuda.totalUSD + pagos.totalUSD;
+  const deltaARS = -deuda.totalARS;
+  const deltaUSD = -deuda.totalUSD;
 
   console.log("[eliminar venta → saldo]", {
     cliente: nombre,
     deuda,
-    pagos,
     deltaARS,
     deltaUSD,
+    nota: "Solo se revierte la deuda; los pagos quedan como crédito a favor",
   });
 
   if (deltaARS === 0 && deltaUSD === 0) {
-    console.warn("[eliminar venta → saldo] Sin cambio (deuda y pagos se compensan o montos en 0).");
+    console.warn("[eliminar venta → saldo] Deuda en 0; no hay nada que acreditar.");
     return;
   }
 

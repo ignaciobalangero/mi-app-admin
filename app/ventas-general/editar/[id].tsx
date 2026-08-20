@@ -13,7 +13,6 @@ import {
   reponerStockAlEliminarVenta,
 } from "@/lib/actualizarStockVentaApi";
 import {
-  eliminarPagosAsociadosAVenta,
   revertirSaldoPorEliminarVenta,
 } from "@/lib/actualizarSaldoCliente";
 
@@ -134,13 +133,6 @@ export default function FormularioEdicionVenta() {
       totalUSD: venta.totalUSD as number | undefined,
       moneda: venta.moneda as string | undefined,
     });
-    if (venta.nroVenta) {
-      await eliminarPagosAsociadosAVenta(
-        rol.negocioID,
-        String(venta.nroVenta),
-        String(venta.cliente ?? "")
-      );
-    }
 
     try {
       await reponerStockAlEliminarVenta(negocioStock, productosVenta);

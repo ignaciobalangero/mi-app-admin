@@ -9,16 +9,41 @@ export function normalizeMonedaCuenta(m: unknown): "ARS" | "USD" {
 }
 
 export function monedaLineaProducto(p: any): "ARS" | "USD" {
-  return normalizeMonedaCuenta(p?.moneda);
+  if (p?.moneda != null && String(p.moneda).trim() !== "") {
+    return normalizeMonedaCuenta(p.moneda);
+  }
+  // Fallback para líneas Extra/viejas sin `moneda` pero con campos USD
+  const usd = Number(p?.precioUnitarioUSD ?? p?.precioVentaUSD ?? 0);
+  const ars = Number(p?.precioUnitarioARS ?? p?.precioVentaARS ?? 0);
+  if (usd > 0 && ars <= 0) return "USD";
+  return "ARS";
 }
 
+/**
+ * Importe de la línea en su moneda.
+ * Misma prioridad que al guardar la venta (`precioVenta` ya es total de línea).
+ */
 export function importeLineaProducto(p: any): number {
-  const cant = Number(p?.cantidad ?? 1);
-  const pu = Number(p?.precioUnitario ?? 0);
-  if (pu > 0) return pu * cant;
+  const cant = Number(p?.cantidad ?? 1) || 1;
   const pv = Number(p?.precioVenta ?? 0);
   if (pv > 0) return pv;
-  return 0;
+
+  const pu = Number(p?.precioUnitario ?? p?.precio ?? 0);
+  if (pu > 0) return pu * cant;
+
+  const pvMoneda = Number(
+    monedaLineaProducto(p) === "USD"
+      ? p?.precioVentaUSD ?? p?.precioUnitarioUSD ?? 0
+      : p?.precioVentaARS ?? p?.precioUnitarioARS ?? 0
+  );
+  if (pvMoneda > 0) {
+    // precioVenta* ya es total; precioUnitario* se multiplica
+    if (Number(p?.precioVentaUSD ?? p?.precioVentaARS ?? 0) > 0) return pvMoneda;
+    return pvMoneda * cant;
+  }
+
+  const total = Number(p?.total ?? 0);
+  return total > 0 ? total : 0;
 }
 
 export function totalesVentasPorMoneda(productos: any[] | undefined): {
