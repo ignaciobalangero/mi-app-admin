@@ -472,11 +472,10 @@ export default function ModalVenta({
           <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-3 bg-[#f8f9fa] min-h-0 pb-[200px]">
             
             {/* Información del Cliente - CON BOTÓN AGREGAR */}
-            <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm"
-                 style={{ 
-                   zIndex: queryCliente ? 50000 : 'auto', 
-                   position: queryCliente ? 'relative' : 'static' 
-                 }}>
+            <div
+              className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm relative"
+              style={{ zIndex: queryCliente.trim() ? 60 : 20 }}
+            >
               <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] mb-2 sm:mb-3 flex items-center gap-2">
                 <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-md flex items-center justify-center text-white text-xs">👤</span>
                 <span className="text-sm sm:text-base">Datos del Cliente</span>
@@ -484,12 +483,9 @@ export default function ModalVenta({
               
               {/* 🔥 CONTENEDOR CON COMBOBOX + BOTÓN */}
               <div className="flex gap-2">
-                <div className="flex-1">
-                  <Combobox value={cliente} onChange={setCliente}>
-                    <div className="relative" 
-                         style={{ 
-                           zIndex: queryCliente ? 50001 : 'auto' 
-                         }}>
+                <div className="flex-1 relative z-30">
+                  <Combobox value={cliente} onChange={(v) => { setCliente(v || ""); setQueryCliente(""); }}>
+                    <div className="relative">
                       <Combobox.Input
                         className="w-full p-2 sm:p-3 border border-[#bdc3c7] rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
                         onChange={(e) => setQueryCliente(e.target.value)}
@@ -500,8 +496,8 @@ export default function ModalVenta({
                         spellCheck={false}
                       />
                       <Combobox.Options 
-                        className="absolute w-full bg-white border border-[#bdc3c7] rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl"
-                        style={{ zIndex: 50002 }}
+                        className="absolute left-0 right-0 top-full mt-1 w-full bg-white border border-[#bdc3c7] rounded-lg max-h-60 overflow-y-auto shadow-2xl"
+                        style={{ zIndex: 70 }}
                       >
                         {listaClientes
                           .filter((c) => c.toLowerCase().includes(queryCliente.toLowerCase()))
@@ -548,13 +544,16 @@ export default function ModalVenta({
               </div>
             </div>
 
-            {/* Selector de Productos - Con z-index corregido */}
-            <div className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm">
+            {/* Selector de Productos — z-index bajo para no tapar el dropdown de clientes */}
+            <div
+              className="bg-white rounded-lg border border-[#ecf0f1] p-3 sm:p-4 shadow-sm relative"
+              style={{ zIndex: queryCliente.trim() ? 10 : 30 }}
+            >
               <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] mb-2 sm:mb-3 flex items-center gap-2">
                 <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#27ae60] rounded-md flex items-center justify-center text-white text-xs">🛍️</span>
                 <span className="text-sm sm:text-base">Agregar Productos</span>
               </h3>
-              <div className="relative" style={{ zIndex: 100000 }}>
+              <div className="relative">
                 <SelectorProductoVentaGeneral
                   productos={productos}
                   setProductos={setProductos}
