@@ -28,8 +28,8 @@ import {
   esProductoRepuestoOGeneral,
 } from "@/lib/ventasStockProducto";
 import { actualizarStockVentaViaApi } from "@/lib/actualizarStockVentaApi";
+import { actualizarSaldoClienteNegocio } from "@/lib/actualizarSaldoCliente";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
-import { query, where, limit } from "firebase/firestore";
 import {
   calcularSaldosVenta,
   calcularUsdDesdeARS,
@@ -45,6 +45,7 @@ import {
 } from "@/lib/ventas/telefonoVentaHelpers";
 export default function BotonGuardarVenta({
   cliente,
+  clienteId = "",
   productos,
   fecha,
   observaciones,
@@ -55,6 +56,7 @@ export default function BotonGuardarVenta({
   desdePedidoTienda = false,
 }: {
   cliente: string;
+  clienteId?: string;
   productos: any[];
   fecha: string;
   observaciones: string;
@@ -111,41 +113,21 @@ export default function BotonGuardarVenta({
     }
   };
 
-  // ⭐ NUEVO: Función para actualizar saldo del cliente
-const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
-  if (!rol?.negocioID) return;
-
-  try {
-    const clientesSnap = await getDocs(
-      query(
-        collection(db, `negocios/${rol.negocioID}/clientes`),
-        where("nombre", "==", nombreCliente),
-        limit(1)
-      )
+  // Actualizar saldo del cliente (por ID si hay, si no por nombre exacto)
+  const actualizarSaldoCliente = async (
+    nombreCliente: string,
+    sumarARS: number,
+    sumarUSD: number
+  ) => {
+    if (!rol?.negocioID) return;
+    await actualizarSaldoClienteNegocio(
+      rol.negocioID,
+      nombreCliente,
+      sumarARS,
+      sumarUSD,
+      clienteId
     );
-
-    if (clientesSnap.empty) {
-      console.log(`⚠️ Cliente no encontrado: ${nombreCliente}`);
-      return;
-    }
-
-    const clienteDoc = clientesSnap.docs[0];
-    const datosCliente = clienteDoc.data();
-
-    const nuevoSaldoARS = Number(datosCliente.saldoARS ?? 0) + Number(sumarARS);
-    const nuevoSaldoUSD = Number(datosCliente.saldoUSD ?? 0) + Number(sumarUSD);
-
-    await updateDoc(clienteDoc.ref, {
-      saldoARS: Number(Math.round(nuevoSaldoARS * 100) / 100),
-      saldoUSD: Number(Math.round(nuevoSaldoUSD * 100) / 100),
-      ultimaActualizacion: serverTimestamp()
-    });
-
-    console.log(`✅ Saldo actualizado: ${nombreCliente} | ARS ${sumarARS > 0 ? '+' : ''}${sumarARS} | USD ${sumarUSD > 0 ? '+' : ''}${sumarUSD}`);
-  } catch (error) {
-    console.error(`❌ Error actualizando saldo de ${nombreCliente}:`, error);
-  }
-};
+  };
 
   // ✅ FUNCIÓN CORREGIDA: Calcular totales SEPARADOS por moneda (para guardado)
   const calcularTotalesSeparados = (productos: any[]) => {
@@ -522,6 +504,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     await setDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaTelefonosRef.id}`), {
       fecha,
       cliente,
+      ...(clienteId ? { clienteId } : {}),
       productos: productosTel,
       total: totalAproximado,
       totalARS,
@@ -865,6 +848,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         cotizacionUsada: p.cotizacionUsada ?? null,
       })),
       cliente,
+      ...(clienteId ? { clienteId } : {}),
       fecha,
       observaciones,
       pago: pagoVentaFirestore,

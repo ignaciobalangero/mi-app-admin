@@ -386,6 +386,7 @@ export default function TablaVentas({ refrescar }: Props) {
     // No se borran los pagos: quedan como crédito → saldo a favor si estaba pagada.
     await revertirSaldoPorEliminarVenta(rol.negocioID, {
       cliente: ventaData.cliente,
+      clienteId: ventaData.clienteId,
       nroVenta: ventaData.nroVenta,
       pago: ventaData.pago,
       productos: ventaData.productos,

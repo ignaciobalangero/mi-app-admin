@@ -125,6 +125,7 @@ export default function FormularioEdicionVenta() {
 
     await revertirSaldoPorEliminarVenta(rol.negocioID, {
       cliente: venta.cliente as string | undefined,
+      clienteId: venta.clienteId as string | undefined,
       nroVenta: venta.nroVenta as string | undefined,
       pago: venta.pago as { monto?: number | null; montoUSD?: number | null } | undefined,
       productos: productosVenta,

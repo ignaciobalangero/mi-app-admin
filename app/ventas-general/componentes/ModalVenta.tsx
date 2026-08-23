@@ -112,8 +112,15 @@ export default function ModalVenta({
           if (rol?.negocioID) {
             const recargarClientes = async () => {
               const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/clientes`));
-              const nombres = snap.docs.map((doc) => doc.data().nombre);
-              setListaClientes(nombres);
+              const lista = snap.docs
+                .map((d) => ({
+                  id: d.id,
+                  nombre: String(d.data()?.nombre ?? "").trim(),
+                }))
+                .filter((c) => c.nombre);
+              setListaClientes(lista);
+              const hit = lista.find((c) => c.nombre === clienteNuevo);
+              if (hit) setClienteId(hit.id);
             };
             recargarClientes();
           }
@@ -170,7 +177,8 @@ export default function ModalVenta({
   };
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
-  const [listaClientes, setListaClientes] = useState<string[]>([]);
+  const [listaClientes, setListaClientes] = useState<{ id: string; nombre: string }[]>([]);
+  const [clienteId, setClienteId] = useState("");
   const [queryCliente, setQueryCliente] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
 
@@ -320,8 +328,14 @@ export default function ModalVenta({
     if (!rol?.negocioID) return;
     const cargarClientes = async () => {
       const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/clientes`));
-      const nombres = snap.docs.map((doc) => doc.data().nombre);
-      setListaClientes(nombres);
+      setListaClientes(
+        snap.docs
+          .map((d) => ({
+            id: d.id,
+            nombre: String(d.data()?.nombre ?? "").trim(),
+          }))
+          .filter((c) => c.nombre)
+      );
     };
     cargarClientes();
   }, [rol?.negocioID]);
@@ -484,11 +498,23 @@ export default function ModalVenta({
               {/* 🔥 CONTENEDOR CON COMBOBOX + BOTÓN */}
               <div className="flex gap-2">
                 <div className="flex-1 relative z-30">
-                  <Combobox value={cliente} onChange={(v) => { setCliente(v || ""); setQueryCliente(""); }}>
+                  <Combobox
+                    value={cliente}
+                    onChange={(v) => {
+                      const nombre = v || "";
+                      setCliente(nombre);
+                      const hit = listaClientes.find((c) => c.nombre === nombre);
+                      setClienteId(hit?.id || "");
+                      setQueryCliente("");
+                    }}
+                  >
                     <div className="relative">
                       <Combobox.Input
                         className="w-full p-2 sm:p-3 border border-[#bdc3c7] rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-                        onChange={(e) => setQueryCliente(e.target.value)}
+                        onChange={(e) => {
+                          setQueryCliente(e.target.value);
+                          setClienteId("");
+                        }}
                         displayValue={() => cliente}
                         placeholder="🔍 Ingrese o seleccione el nombre del cliente..."
                         autoComplete="off"
@@ -500,18 +526,20 @@ export default function ModalVenta({
                         style={{ zIndex: 70 }}
                       >
                         {listaClientes
-                          .filter((c) => c.toLowerCase().includes(queryCliente.toLowerCase()))
-                          .map((c, i) => (
+                          .filter((c) =>
+                            c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
+                          )
+                          .map((c) => (
                             <Combobox.Option
-                              key={i}
-                              value={c}
+                              key={c.id}
+                              value={c.nombre}
                               className={({ active }) =>
                                 `px-3 py-2 cursor-pointer transition-colors text-[#2c3e50] text-sm ${
                                   active ? "bg-[#3498db] text-white" : "hover:bg-[#ecf0f1]"
                                 }`
                               }
                             >
-                              {c}
+                              {c.nombre}
                             </Combobox.Option>
                           ))}
                       </Combobox.Options>
@@ -1140,6 +1168,7 @@ export default function ModalVenta({
      
               <BotonGuardarVenta
                 cliente={cliente}
+                clienteId={clienteId}
                 productos={productos}
                 fecha={new Date().toLocaleDateString("es-AR")}
                 observaciones={observaciones}
