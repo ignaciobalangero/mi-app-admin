@@ -35,28 +35,6 @@ export function limpiarNombreClienteExacto(s: string): string {
     .trim();
 }
 
-/**
- * Ventas de mostrador / sin cuenta (el campo cliente existe, pero no es un doc de Clientes).
- * No deben sumar ni restar saldoARS/USD.
- */
-export function esClienteSinCuentaCorriente(nombre: string): boolean {
-  const n = limpiarNombreClienteExacto(nombre)
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  if (!n) return true;
-  return (
-    n === "publico" ||
-    n === "publica" ||
-    n === "consumidor final" ||
-    n === "consumidorfinal" ||
-    n === "cf" ||
-    n === "sin cliente" ||
-    n === "varios" ||
-    n === "mostrador"
-  );
-}
-
 type ClienteRef = {
   ref: DocumentReference<DocumentData>;
   data: DocumentData;
@@ -149,10 +127,6 @@ export async function actualizarSaldoClienteNegocioDetalle(
   const id = String(clienteId ?? "").trim();
   if (!negocioID || (!nombre && !id)) return { ok: false, motivo: "sin_datos" };
   if (sumarARS === 0 && sumarUSD === 0) return { ok: true };
-  if (!id && esClienteSinCuentaCorriente(nombre)) {
-    console.log(`[saldo] "${nombre}" sin cuenta corriente; no se ajusta saldo`);
-    return { ok: true };
-  }
 
   try {
     const cliente = await encontrarClienteParaSaldo(negocioID, nombre, id);
@@ -319,10 +293,6 @@ export async function revertirSaldoPorEliminarVenta(
   }
   if (!nombre && !clienteId) {
     throw new Error("La venta no tiene cliente; no se puede ajustar cuenta corriente.");
-  }
-  if (!clienteId && esClienteSinCuentaCorriente(nombre)) {
-    console.log(`[eliminar venta → saldo] "${nombre}" sin cuenta corriente; no se ajusta saldo`);
-    return;
   }
 
   const deuda = deudaVentaPorMoneda(venta);
