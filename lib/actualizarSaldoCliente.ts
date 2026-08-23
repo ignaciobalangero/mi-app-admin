@@ -20,21 +20,24 @@ function roundSaldo(n: number): number {
   return Number(Math.round(n * 100) / 100);
 }
 
-/** Comparación tolerante: espacios, mayúsculas y tildes. */
-export function normalizarNombreCliente(s: string): string {
+/**
+ * Limpieza mínima para comparar el MISMO nombre:
+ * - NBSP → espacio normal
+ * - trim de bordes
+ * NO cambia mayúsculas ni tildes (así no se confunde con otro cliente).
+ */
+export function limpiarNombreClienteExacto(s: string): string {
   return String(s ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function encontrarDocCliente(
   negocioID: string,
   nombreCliente: string
 ): Promise<QueryDocumentSnapshot<DocumentData> | null> {
-  const nombre = String(nombreCliente ?? "").trim();
+  const nombre = limpiarNombreClienteExacto(nombreCliente);
   if (!negocioID || !nombre) return null;
 
   const exactSnap = await getDocs(
@@ -46,11 +49,10 @@ async function encontrarDocCliente(
   );
   if (!exactSnap.empty) return exactSnap.docs[0];
 
-  // Fallback: nombre editado / distinta capitalización / tilde / espacios dobles
+  // Solo si en Firestore quedó con espacios raros: mismo texto tras limpiar.
   const todosSnap = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
-  const target = normalizarNombreCliente(nombre);
   const hit = todosSnap.docs.find(
-    (d) => normalizarNombreCliente(String(d.data()?.nombre ?? "")) === target
+    (d) => limpiarNombreClienteExacto(String(d.data()?.nombre ?? "")) === nombre
   );
   return hit ?? null;
 }
@@ -100,7 +102,7 @@ export async function actualizarSaldoClienteNegocioDetalle(
   sumarARS: number,
   sumarUSD: number
 ): Promise<ResultadoActualizarSaldo> {
-  const nombre = String(nombreCliente ?? "").trim();
+  const nombre = limpiarNombreClienteExacto(nombreCliente);
   if (!negocioID || !nombre) return { ok: false, motivo: "sin_datos" };
   if (sumarARS === 0 && sumarUSD === 0) return { ok: true };
 
@@ -159,8 +161,8 @@ export async function ajustarSaldoPorEdicionVenta(
     productosNuevos as Parameters<typeof totalesVentasPorMoneda>[0]
   );
 
-  const ant = String(clienteAnterior ?? "").trim();
-  const neu = String(clienteNuevo ?? "").trim();
+  const ant = limpiarNombreClienteExacto(clienteAnterior);
+  const neu = limpiarNombreClienteExacto(clienteNuevo);
   const deltaARS = nuevo.totalARS - viejo.totalARS;
   const deltaUSD = nuevo.totalUSD - viejo.totalUSD;
 
@@ -170,7 +172,7 @@ export async function ajustarSaldoPorEdicionVenta(
     if (r.motivo === "error") {
       return `No se pudo actualizar la cuenta corriente de "${nombre}": ${r.detalle || "error desconocido"}.`;
     }
-    return `No se encontró el cliente "${nombre}" en Clientes (probá el mismo nombre, sin espacios de más).`;
+    return `No se encontró el cliente "${nombre}" en Clientes con ese nombre exacto. Revisá mayúsculas/tildes o renombrá la venta al nombre tal cual está en Clientes.`;
   };
 
   if (ant === neu) {
@@ -260,7 +262,7 @@ export async function revertirSaldoPorEliminarVenta(
     pago?: { monto?: number | null; montoUSD?: number | null };
   }
 ): Promise<void> {
-  const nombre = String(venta?.cliente ?? "").trim();
+  const nombre = limpiarNombreClienteExacto(venta?.cliente ?? "");
   if (!negocioID) {
     throw new Error("Sin negocio para ajustar cuenta corriente.");
   }
@@ -293,19 +295,14 @@ export async function revertirSaldoPorEliminarVenta(
   );
   if (r.ok) return;
 
-  // Cliente borrado/renombrado: no bloquear el delete de la venta.
-  // Al guardar, si no estaba en Clientes el saldo tampoco se había sumado.
-  if (r.motivo === "no_encontrado") {
-    console.warn(
-      `[eliminar venta → saldo] Cliente "${nombre}" no encontrado; se elimina la venta sin tocar CC.`
+  if (r.motivo === "error") {
+    throw new Error(
+      `No se pudo actualizar la cuenta corriente de "${nombre}": ${r.detalle || "error desconocido"}.`
     );
-    return;
   }
 
   throw new Error(
-    r.motivo === "error"
-      ? `No se pudo actualizar la cuenta corriente de "${nombre}": ${r.detalle || "error desconocido"}.`
-      : `No se pudo actualizar la cuenta corriente de "${nombre}".`
+    `No se encontró el cliente "${nombre}" en Clientes con ese nombre exacto. No se eliminó la venta para no desfasar el saldo. Abrí Clientes, copiá el nombre tal cual y editá la venta, o renombrá el cliente.`
   );
 }
 
