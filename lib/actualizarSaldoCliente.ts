@@ -7,6 +7,8 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  type QueryDocumentSnapshot,
+  type DocumentData,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -17,6 +19,47 @@ import {
 function roundSaldo(n: number): number {
   return Number(Math.round(n * 100) / 100);
 }
+
+/** Comparación tolerante: espacios, mayúsculas y tildes. */
+export function normalizarNombreCliente(s: string): string {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+async function encontrarDocCliente(
+  negocioID: string,
+  nombreCliente: string
+): Promise<QueryDocumentSnapshot<DocumentData> | null> {
+  const nombre = String(nombreCliente ?? "").trim();
+  if (!negocioID || !nombre) return null;
+
+  const exactSnap = await getDocs(
+    query(
+      collection(db, `negocios/${negocioID}/clientes`),
+      where("nombre", "==", nombre),
+      limit(1)
+    )
+  );
+  if (!exactSnap.empty) return exactSnap.docs[0];
+
+  // Fallback: nombre editado / distinta capitalización / tilde / espacios dobles
+  const todosSnap = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
+  const target = normalizarNombreCliente(nombre);
+  const hit = todosSnap.docs.find(
+    (d) => normalizarNombreCliente(String(d.data()?.nombre ?? "")) === target
+  );
+  return hit ?? null;
+}
+
+export type ResultadoActualizarSaldo = {
+  ok: boolean;
+  motivo?: "sin_datos" | "no_encontrado" | "error";
+  detalle?: string;
+};
 
 /** Deuda de una venta en cuenta corriente (misma lógica que recalcular saldos). */
 export function deudaVentaPorMoneda(venta: {
@@ -51,32 +94,25 @@ export function deudaVentaPorMoneda(venta: {
 }
 
 /** Suma (o resta) ARS/USD al saldo del cliente en Firebase. */
-export async function actualizarSaldoClienteNegocio(
+export async function actualizarSaldoClienteNegocioDetalle(
   negocioID: string,
   nombreCliente: string,
   sumarARS: number,
   sumarUSD: number
-): Promise<boolean> {
+): Promise<ResultadoActualizarSaldo> {
   const nombre = String(nombreCliente ?? "").trim();
-  if (!negocioID || !nombre) return false;
-  if (sumarARS === 0 && sumarUSD === 0) return true;
+  if (!negocioID || !nombre) return { ok: false, motivo: "sin_datos" };
+  if (sumarARS === 0 && sumarUSD === 0) return { ok: true };
 
   try {
-    const clientesSnap = await getDocs(
-      query(
-        collection(db, `negocios/${negocioID}/clientes`),
-        where("nombre", "==", nombre),
-        limit(1)
-      )
-    );
-
-    if (clientesSnap.empty) {
+    const clienteDoc = await encontrarDocCliente(negocioID, nombre);
+    if (!clienteDoc) {
       console.warn(`Cliente no encontrado para saldo: "${nombre}"`);
-      return false;
+      return { ok: false, motivo: "no_encontrado" };
     }
 
-    const clienteDoc = clientesSnap.docs[0];
     const datos = clienteDoc.data();
+    const nombreDoc = String(datos.nombre ?? nombre).trim();
 
     await updateDoc(clienteDoc.ref, {
       saldoARS: roundSaldo(Number(datos.saldoARS ?? 0) + Number(sumarARS)),
@@ -85,13 +121,29 @@ export async function actualizarSaldoClienteNegocio(
     });
 
     console.log(
-      `[saldo] ${nombre}: ARS ${sumarARS >= 0 ? "+" : ""}${sumarARS}, USD ${sumarUSD >= 0 ? "+" : ""}${sumarUSD}`
+      `[saldo] ${nombreDoc}: ARS ${sumarARS >= 0 ? "+" : ""}${sumarARS}, USD ${sumarUSD >= 0 ? "+" : ""}${sumarUSD}`
     );
-    return true;
+    return { ok: true };
   } catch (error) {
+    const detalle = error instanceof Error ? error.message : String(error);
     console.error(`Error actualizando saldo de ${nombre}:`, error);
-    return false;
+    return { ok: false, motivo: "error", detalle };
   }
+}
+
+export async function actualizarSaldoClienteNegocio(
+  negocioID: string,
+  nombreCliente: string,
+  sumarARS: number,
+  sumarUSD: number
+): Promise<boolean> {
+  const r = await actualizarSaldoClienteNegocioDetalle(
+    negocioID,
+    nombreCliente,
+    sumarARS,
+    sumarUSD
+  );
+  return r.ok;
 }
 
 /** Ajusta cuenta corriente al editar una venta (resta lo viejo, suma lo nuevo). */
@@ -114,42 +166,37 @@ export async function ajustarSaldoPorEdicionVenta(
 
   console.log("[editar venta → saldo]", { cliente: neu || ant, viejo, nuevo, deltaARS, deltaUSD });
 
+  const mensajeFalloSaldo = (nombre: string, r: ResultadoActualizarSaldo) => {
+    if (r.motivo === "error") {
+      return `No se pudo actualizar la cuenta corriente de "${nombre}": ${r.detalle || "error desconocido"}.`;
+    }
+    return `No se encontró el cliente "${nombre}" en Clientes (probá el mismo nombre, sin espacios de más).`;
+  };
+
   if (ant === neu) {
     if (deltaARS === 0 && deltaUSD === 0) return;
-    const ok = await actualizarSaldoClienteNegocio(negocioID, neu, deltaARS, deltaUSD);
-    if (!ok) {
-      throw new Error(
-        `No se pudo actualizar la cuenta corriente de "${neu}". Verificá que el cliente exista con el mismo nombre.`
-      );
-    }
+    const r = await actualizarSaldoClienteNegocioDetalle(negocioID, neu, deltaARS, deltaUSD);
+    if (!r.ok) throw new Error(mensajeFalloSaldo(neu, r));
     return;
   }
 
   if (ant) {
-    const okAnt = await actualizarSaldoClienteNegocio(
+    const rAnt = await actualizarSaldoClienteNegocioDetalle(
       negocioID,
       ant,
       -viejo.totalARS,
       -viejo.totalUSD
     );
-    if (!okAnt) {
-      throw new Error(
-        `No se pudo actualizar la cuenta corriente de "${ant}". Verificá que el cliente exista con el mismo nombre.`
-      );
-    }
+    if (!rAnt.ok) throw new Error(mensajeFalloSaldo(ant, rAnt));
   }
   if (neu) {
-    const okNeu = await actualizarSaldoClienteNegocio(
+    const rNeu = await actualizarSaldoClienteNegocioDetalle(
       negocioID,
       neu,
       nuevo.totalARS,
       nuevo.totalUSD
     );
-    if (!okNeu) {
-      throw new Error(
-        `No se pudo actualizar la cuenta corriente de "${neu}". Verificá que el cliente exista con el mismo nombre.`
-      );
-    }
+    if (!rNeu.ok) throw new Error(mensajeFalloSaldo(neu, rNeu));
   }
 }
 
@@ -238,12 +285,28 @@ export async function revertirSaldoPorEliminarVenta(
     return;
   }
 
-  const ok = await actualizarSaldoClienteNegocio(negocioID, nombre, deltaARS, deltaUSD);
-  if (!ok) {
-    throw new Error(
-      `No se pudo actualizar la cuenta corriente de "${nombre}". Verificá que el cliente exista en Clientes con el mismo nombre exacto.`
+  const r = await actualizarSaldoClienteNegocioDetalle(
+    negocioID,
+    nombre,
+    deltaARS,
+    deltaUSD
+  );
+  if (r.ok) return;
+
+  // Cliente borrado/renombrado: no bloquear el delete de la venta.
+  // Al guardar, si no estaba en Clientes el saldo tampoco se había sumado.
+  if (r.motivo === "no_encontrado") {
+    console.warn(
+      `[eliminar venta → saldo] Cliente "${nombre}" no encontrado; se elimina la venta sin tocar CC.`
     );
+    return;
   }
+
+  throw new Error(
+    r.motivo === "error"
+      ? `No se pudo actualizar la cuenta corriente de "${nombre}": ${r.detalle || "error desconocido"}.`
+      : `No se pudo actualizar la cuenta corriente de "${nombre}".`
+  );
 }
 
 /** Borra documentos en `pagos` asociados a la venta (después de revertir saldo). */
