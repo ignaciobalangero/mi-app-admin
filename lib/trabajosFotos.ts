@@ -62,3 +62,37 @@ export function etiquetaEstadoTrabajo(estado: string): string {
   if (e === "PAGADO") return "Pagado / cerrado";
   return estado || "Sin estado";
 }
+
+/** Texto listo para WhatsApp / SMS con el link de seguimiento de un solo trabajo. */
+export function mensajeSeguimientoTrabajoCliente(opts: {
+  cliente?: string;
+  nroOrden?: string;
+  modelo?: string;
+  url: string;
+  nombreNegocio?: string;
+}): string {
+  const cliente = String(opts.cliente || "").trim() || "cliente";
+  const orden = String(opts.nroOrden || "").trim();
+  const modelo = String(opts.modelo || "").trim();
+  const negocio = String(opts.nombreNegocio || "").trim();
+  const url = String(opts.url || "").trim();
+
+  const lineas = [
+    `Hola ${cliente}!`,
+    "",
+    orden || modelo
+      ? `Te dejamos el seguimiento de tu equipo${orden ? ` (orden ${orden})` : ""}${
+          modelo ? `: ${modelo}` : ""
+        }.`
+      : "Te dejamos el seguimiento de tu equipo.",
+    "",
+    "Con este link podés ver el estado actual y las fotos (solo de tu trabajo):",
+    url,
+    "",
+    "Si tenés dudas, respondé a este mensaje.",
+  ];
+  if (negocio) {
+    lineas.push("", `— ${negocio}`);
+  }
+  return lineas.join("\n");
+}

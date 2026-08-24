@@ -7,6 +7,7 @@ import { Combobox } from "@headlessui/react";
 import CampoFotosTrabajo from "@/components/CampoFotosTrabajo";
 import {
   generarTokenPublicoTrabajo,
+  mensajeSeguimientoTrabajoCliente,
   normalizarFotosTrabajo,
   urlEstadoTrabajoPublico,
   type FotoTrabajo,
@@ -14,6 +15,7 @@ import {
 
 interface Trabajo {
   firebaseId: string;
+  id?: string;
   fecha: string;
   cliente: string;
   modelo: string;
@@ -102,6 +104,8 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
   const [fotosProceso, setFotosProceso] = useState<FotoTrabajo[]>([]);
   const [tokenPublico, setTokenPublico] = useState("");
   const [urlPublica, setUrlPublica] = useState("");
+  const [copiadoSeguimiento, setCopiadoSeguimiento] = useState<"link" | "msg" | "">("");
+  const [nombreNegocio, setNombreNegocio] = useState("");
 
   // Cargar clientes al montar el componente
   useEffect(() => {
@@ -156,10 +160,20 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
           setClienteInput(data.cliente || "");
           setFotosIngreso(normalizarFotosTrabajo(data.fotosIngreso, "ingreso"));
           setFotosProceso(normalizarFotosTrabajo(data.fotosProceso, "proceso"));
-          const token = String(data.tokenPublico || "").trim() || generarTokenPublicoTrabajo();
+          const tokenExistente = String(data.tokenPublico || "").trim();
+          const token = tokenExistente || generarTokenPublicoTrabajo();
           setTokenPublico(token);
           if (typeof window !== "undefined") {
             setUrlPublica(urlEstadoTrabajoPublico(window.location.origin, negocioID, token));
+          }
+          if (!tokenExistente) {
+            try {
+              await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`), {
+                tokenPublico: token,
+              });
+            } catch (e) {
+              console.warn("No se pudo guardar tokenPublico al abrir edición:", e);
+            }
           }
         }
       } catch (error) {
@@ -169,6 +183,19 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
     };
 
     cargarDatosTrabajo();
+
+    const cargarNombreNegocio = async () => {
+      if (!negocioID) return;
+      try {
+        const snap = await getDoc(doc(db, `negocios/${negocioID}/configuracion/datos`));
+        if (snap.exists()) {
+          setNombreNegocio(String(snap.data().nombreNegocio || "").trim());
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    if (isOpen) cargarNombreNegocio();
   }, [trabajo, isOpen, negocioID]);
 
   // Filtrar clientes para el combobox
@@ -585,19 +612,58 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
                 subirInmediato
               />
               {urlPublica ? (
-                <div className="rounded-xl border border-[#3498db]/40 bg-[#ebf5fb] p-3 text-xs text-[#2c3e50]">
-                  <p className="font-semibold mb-1">Seguimiento con QR (para el cliente)</p>
+                <div className="rounded-xl border border-[#3498db]/40 bg-[#ebf5fb] p-3 text-xs text-[#2c3e50] space-y-2">
+                  <p className="font-semibold text-sm">Seguimiento para el cliente (QR + mensaje)</p>
+                  <p className="text-[#7f8c8d]">
+                    El QR sale en el <strong>ticket térmico</strong> y en el <strong>Ticket A4</strong>. El cliente entra solo a este trabajo: estado, info y fotos, sin login.
+                  </p>
                   <a
                     href={urlPublica}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[#2980b9] break-all underline"
+                    className="text-[#2980b9] break-all underline block"
                   >
                     {urlPublica}
                   </a>
-                  <p className="mt-1 text-[#7f8c8d]">
-                    Se imprime en la orden A4. El cliente ve estado y fotos sin login.
-                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(urlPublica);
+                          setCopiadoSeguimiento("link");
+                          setTimeout(() => setCopiadoSeguimiento(""), 2000);
+                        } catch {
+                          alert("No se pudo copiar el link");
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#3498db] text-white text-xs font-semibold hover:bg-[#2980b9]"
+                    >
+                      {copiadoSeguimiento === "link" ? "✓ Link copiado" : "Copiar link"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const msg = mensajeSeguimientoTrabajoCliente({
+                          cliente: formulario.cliente || trabajo?.cliente,
+                          nroOrden: trabajo?.id || trabajo?.firebaseId,
+                          modelo: formulario.modelo || trabajo?.modelo,
+                          url: urlPublica,
+                          nombreNegocio,
+                        });
+                        try {
+                          await navigator.clipboard.writeText(msg);
+                          setCopiadoSeguimiento("msg");
+                          setTimeout(() => setCopiadoSeguimiento(""), 2000);
+                        } catch {
+                          alert("No se pudo copiar el mensaje");
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#27ae60] text-white text-xs font-semibold hover:bg-[#1e8449]"
+                    >
+                      {copiadoSeguimiento === "msg" ? "✓ Mensaje copiado" : "Copiar mensaje para WhatsApp"}
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </div>

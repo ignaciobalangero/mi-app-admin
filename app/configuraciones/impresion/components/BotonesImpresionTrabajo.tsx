@@ -10,6 +10,7 @@ import {
 } from "@/lib/etiquetaTrabajoCampos";
 import {
   generarTokenPublicoTrabajo,
+  mensajeSeguimientoTrabajoCliente,
   urlEstadoTrabajoPublico,
 } from "@/lib/trabajosFotos";
 import QRCode from "qrcode";
@@ -43,6 +44,8 @@ export default function BotonesImpresionTrabajo({
   });
 
   const [imprimiendo, setImprimiendo] = useState('');
+  const [nombreNegocioSeguimiento, setNombreNegocioSeguimiento] = useState("");
+  const [copiadoMsg, setCopiadoMsg] = useState(false);
 
   useEffect(() => {
     cargarConfiguracion();
@@ -65,8 +68,37 @@ export default function BotonesImpresionTrabajo({
       if (plantillasSnap.exists()) {
         setPlantillas(plantillasSnap.data() as any);
       }
+
+      const datosRef = doc(db, `negocios/${negocioId}/configuracion/datos`);
+      const datosSnap = await getDoc(datosRef);
+      if (datosSnap.exists()) {
+        setNombreNegocioSeguimiento(String(datosSnap.data().nombreNegocio || "").trim());
+      }
     } catch (error) {
       console.error("Error cargando configuración de impresión:", error);
+    }
+  };
+
+  const copiarMensajeSeguimiento = async () => {
+    try {
+      const { urlEstado } = await asegurarQrSeguimiento();
+      if (!urlEstado) {
+        alert("No se pudo generar el link de seguimiento. Guardá el trabajo e intentá de nuevo.");
+        return;
+      }
+      const msg = mensajeSeguimientoTrabajoCliente({
+        cliente: trabajo.cliente,
+        nroOrden: trabajo.id || trabajo.numeroOrden || trabajo.firebaseId,
+        modelo: trabajo.modelo,
+        url: urlEstado,
+        nombreNegocio: nombreNegocioSeguimiento,
+      });
+      await navigator.clipboard.writeText(msg);
+      setCopiadoMsg(true);
+      setTimeout(() => setCopiadoMsg(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo copiar el mensaje de seguimiento");
     }
   };
 
@@ -344,9 +376,20 @@ export default function BotonesImpresionTrabajo({
         )}
       </div>
 
-      <div className="mt-3 p-2 bg-gray-50 rounded-lg">
-        <div className="text-xs text-black">
-          <strong>💡 Tip:</strong> Al hacer clic, se abrirá directamente el diálogo de impresión de tu navegador para elegir la impresora.
+      <div className="mt-3 flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={copiarMensajeSeguimiento}
+          className="w-full rounded-lg border border-[#27ae60] bg-[#eafaf1] px-3 py-2 text-sm font-semibold text-[#1e8449] hover:bg-[#d5f5e3] transition-colors"
+        >
+          {copiadoMsg
+            ? "✓ Mensaje de seguimiento copiado — pegalo en WhatsApp"
+            : "📋 Copiar mensaje de seguimiento (link para el cliente)"}
+        </button>
+        <div className="p-2 bg-gray-50 rounded-lg">
+          <div className="text-xs text-black">
+            <strong>Seguimiento:</strong> el QR sale en Ticket térmico y Ticket A4. El mensaje copiado incluye el mismo link (solo ese trabajo: estado y fotos).
+          </div>
         </div>
       </div>
     </div>
