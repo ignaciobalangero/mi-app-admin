@@ -278,7 +278,9 @@ export default function GestionTrabajosPage() {
         ))
         &&
         (!textoTrabajo || t.trabajo?.toLowerCase().includes(textoTrabajo)) &&
-        (!textoIMEI || t.imei?.toLowerCase().includes(textoIMEI))
+        (!textoIMEI ||
+          t.imei?.toLowerCase().includes(textoIMEI) ||
+          t.modelo?.toLowerCase().includes(textoIMEI))
       )
       // ✅ NUEVO: Filtro por fechas
       .filter((t) => {
@@ -374,10 +376,11 @@ export default function GestionTrabajosPage() {
                 />
                 <input
                   type="text"
-                  placeholder="🔍 Buscar por IMEI"
+                  placeholder="🔍 Buscar por IMEI o modelo"
                   value={filtroIMEI}
                   onChange={(e) => setFiltroIMEI(e.target.value)}
                   className="px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                  title="Buscar por IMEI o modelo"
                 />
                 
                 {/* ✅ NUEVO: Filtros de fecha */}

@@ -142,7 +142,9 @@ export default function ResumenPage() {
       return (
         (!texto || [t.cliente, t.modelo, t.fecha].some((campo) => campo?.toLowerCase().includes(texto))) &&
         (!textoTrabajo || t.trabajo?.toLowerCase().includes(textoTrabajo)) &&
-        (!textoIMEI || t.imei?.toLowerCase().includes(textoIMEI)) &&
+        (!textoIMEI ||
+          t.imei?.toLowerCase().includes(textoIMEI) ||
+          t.modelo?.toLowerCase().includes(textoIMEI)) &&
         (filtroCodigo === "" || t.id?.toLowerCase().includes(filtroCodigo.toLowerCase()))
       );
     })
@@ -234,11 +236,11 @@ export default function ResumenPage() {
               
               <input
                 type="text"
-                placeholder="🔍 Buscar por IMEI"
+                placeholder="🔍 Buscar por IMEI o modelo"
                 value={filtroIMEI}
                 onChange={(e) => setFiltroIMEI(e.target.value)}
                 className="px-3 sm:px-4 py-2 sm:py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm sm:text-base"
-                title="Buscar por IMEI"
+                title="Buscar por IMEI o modelo"
               />
               
               <input
