@@ -48,6 +48,16 @@ export const ImpresionGestione = {
                 <div class="separator"></div>`
               : ""
           }
+
+          ${
+            trabajo.firmaClienteUrl
+              ? `<div class="center" style="margin: 6px 0;">
+                  <div style="font-size: 10px; font-weight: bold; margin-bottom: 4px;">Firma del cliente</div>
+                  <img src="${trabajo.firmaClienteUrl}" alt="Firma" style="max-width: 200px; max-height: 70px; display:block; margin: 0 auto;" />
+                </div>
+                <div class="separator"></div>`
+              : ""
+          }
           
           <div class="center">¡Gracias por confiar en nosotros!</div>
           <div class="center" style="font-size: 10px; margin-top: 10px;">
@@ -472,7 +482,11 @@ export const ImpresionGestione = {
               <div class="firma-texto">FIRMA TÉCNICO</div>
             </div>
             <div class="firma-box">
-              <div class="firma-linea"></div>
+              ${
+                trabajo.firmaClienteUrl
+                  ? `<img src="${trabajo.firmaClienteUrl}" alt="Firma cliente" style="max-width:100%;max-height:48px;object-fit:contain;display:block;margin:0 auto 4px" />`
+                  : `<div class="firma-linea"></div>`
+              }
               <div class="firma-texto">FIRMA CLIENTE</div>
             </div>
           </div>

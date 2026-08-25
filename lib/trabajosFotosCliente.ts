@@ -63,3 +63,26 @@ export async function subirFotosTrabajoTemp(params: {
   }
   return out;
 }
+
+/** Sube firma del cliente (PNG data URL) a Storage. */
+export async function subirFirmaClienteTrabajo(params: {
+  negocioID: string;
+  trabajoId: string;
+  dataUrl: string;
+}): Promise<string> {
+  const { negocioID, trabajoId, dataUrl } = params;
+  if (!dataUrl.startsWith("data:image/")) {
+    throw new Error("Firma inválida");
+  }
+
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  if (blob.size > 2 * 1024 * 1024) {
+    throw new Error("La firma es demasiado pesada");
+  }
+
+  const path = `negocios/${negocioID}/trabajos/${trabajoId}/firma/firma-cliente-${Date.now()}.png`;
+  const r = refStorage(storage, path);
+  await uploadBytes(r, blob, { contentType: "image/png" });
+  return getDownloadURL(r);
+}

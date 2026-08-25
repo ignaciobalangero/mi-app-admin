@@ -5,6 +5,7 @@ import { doc, updateDoc, getDocs, collection, getDoc, runTransaction, query, whe
 import { db } from "@/lib/firebase";
 import { Combobox } from "@headlessui/react";
 import CampoFotosTrabajo from "@/components/CampoFotosTrabajo";
+import CampoFirmaDigital from "@/components/CampoFirmaDigital";
 import {
   generarTokenPublicoTrabajo,
   mensajeSeguimientoTrabajoCliente,
@@ -12,6 +13,7 @@ import {
   urlEstadoTrabajoPublico,
   type FotoTrabajo,
 } from "@/lib/trabajosFotos";
+import { subirFirmaClienteTrabajo } from "@/lib/trabajosFotosCliente";
 
 interface Trabajo {
   firebaseId: string;
@@ -32,6 +34,7 @@ interface Trabajo {
   tokenPublico?: string;
   fotosIngreso?: FotoTrabajo[];
   fotosProceso?: FotoTrabajo[];
+  firmaClienteUrl?: string;
 }
 
 interface TrabajoFormulario {
@@ -106,6 +109,7 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
   const [urlPublica, setUrlPublica] = useState("");
   const [copiadoSeguimiento, setCopiadoSeguimiento] = useState<"link" | "msg" | "">("");
   const [nombreNegocio, setNombreNegocio] = useState("");
+  const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
 
   // Cargar clientes al montar el componente
   useEffect(() => {
@@ -160,6 +164,7 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
           setClienteInput(data.cliente || "");
           setFotosIngreso(normalizarFotosTrabajo(data.fotosIngreso, "ingreso"));
           setFotosProceso(normalizarFotosTrabajo(data.fotosProceso, "proceso"));
+          setFirmaCliente(String(data.firmaClienteUrl || "").trim() || null);
           const tokenExistente = String(data.tokenPublico || "").trim();
           const token = tokenExistente || generarTokenPublicoTrabajo();
           setTokenPublico(token);
@@ -224,6 +229,28 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
     const precioCambio = precioAnterior !== nuevoPrecio;
 
     const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
+
+    let firmaClienteUrl = String(trabajo.firmaClienteUrl || "").trim();
+    if (firmaCliente?.startsWith("data:image/")) {
+      try {
+        firmaClienteUrl = await subirFirmaClienteTrabajo({
+          negocioID,
+          trabajoId: trabajo.firebaseId,
+          dataUrl: firmaCliente,
+        });
+        setFirmaCliente(firmaClienteUrl);
+      } catch (e) {
+        console.error(e);
+        alert("No se pudo subir la firma. Revisá la conexión e intentá de nuevo.");
+        setGuardando(false);
+        return;
+      }
+    } else if (firmaCliente === null || firmaCliente === "") {
+      firmaClienteUrl = "";
+    } else if (firmaCliente.startsWith("http")) {
+      firmaClienteUrl = firmaCliente;
+    }
+
     const updatesTrabajo = {
       ...formulario,
       cliente: nombreNuevo,
@@ -232,6 +259,9 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
       fotosIngreso,
       fotosProceso,
       tokenPublico: tokenPublico || generarTokenPublicoTrabajo(),
+      ...(firmaClienteUrl
+        ? { firmaClienteUrl, firmaClienteEn: new Date().toISOString() }
+        : { firmaClienteUrl: "" }),
     };
 
     setGuardando(true);
@@ -610,6 +640,12 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
                 fotos={fotosProceso}
                 onChange={setFotosProceso}
                 subirInmediato
+              />
+              <CampoFirmaDigital
+                value={firmaCliente}
+                onChange={setFirmaCliente}
+                disabled={guardando}
+                titulo="Firma del cliente"
               />
               {urlPublica ? (
                 <div className="rounded-xl border border-[#3498db]/40 bg-[#ebf5fb] p-3 text-xs text-[#2c3e50] space-y-2">

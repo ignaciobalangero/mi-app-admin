@@ -673,7 +673,11 @@ function generarHTMLTicketA4(datos: any, logoUrl: string, garantia: string) {
         <div class="signatures">
           <div class="signature-grid">
             <div class="signature-box">
-              <div class="signature-line"></div>
+              ${
+                datos.firmaClienteUrl
+                  ? `<img src="${datos.firmaClienteUrl}" alt="Firma cliente" style="max-width:100%;max-height:60px;object-fit:contain;display:block;margin:0 auto 8px" />`
+                  : `<div class="signature-line"></div>`
+              }
               <p style="margin: 0; font-weight: bold;">Firma del Cliente</p>
             </div>
             <div class="signature-box">

@@ -26,7 +26,8 @@ import BotonesImpresionTrabajo from "@/app/configuraciones/impresion/components/
 import ModalConfirmarImpresion from "./ModalConfirmarImpresion";
 import { PatronDrawer, PatronViewer, type Patron } from "@/app/components/PatronDesbloqueo";
 import CampoFotosTrabajo, { filesPendientesDeFotos } from "@/components/CampoFotosTrabajo";
-import { subirFotoTrabajo } from "@/lib/trabajosFotosCliente";
+import CampoFirmaDigital from "@/components/CampoFirmaDigital";
+import { subirFotoTrabajo, subirFirmaClienteTrabajo } from "@/lib/trabajosFotosCliente";
 import type { FotoTrabajo } from "@/lib/trabajosFotos";
 
 interface Cliente {
@@ -112,6 +113,7 @@ export default function IngresoForm() {
   const [patronTarget, setPatronTarget] = useState<
     { tipo: "principal" } | { tipo: "extra"; idx: number } | null
   >(null);
+  const [firmaClienteDataUrl, setFirmaClienteDataUrl] = useState<string | null>(null);
   const [patronBorrador, setPatronBorrador] = useState<Patron>([]);
 
   // ✨ FUNCIÓN PARA FORMATEAR NÚMEROS CON PUNTOS (50.000)
@@ -273,6 +275,7 @@ export default function IngresoForm() {
     setModoImpresionMultiple(null);
     setTrabajoSeleccionadoImpresion(null);
     setMostrarModalConfirmacion(false); // ✨ NUEVO
+    setFirmaClienteDataUrl(null);
   };
 
   // ✅ FUNCIÓN ACTUALIZADA: Ticket con modal nativo
@@ -643,7 +646,11 @@ export default function IngresoForm() {
           <div class="signatures">
             <div class="signature-grid">
               <div class="signature-box">
-                <div class="signature-line"></div>
+                ${
+                  datos.firmaClienteUrl
+                    ? `<img src="${datos.firmaClienteUrl}" alt="Firma" style="max-width:100%;max-height:60px;object-fit:contain;display:block;margin:0 auto 8px" />`
+                    : `<div class="signature-line"></div>`
+                }
                 <p style="margin: 0; font-weight: bold;">Firma del Cliente</p>
               </div>
               <div class="signature-box">
@@ -824,6 +831,35 @@ export default function IngresoForm() {
         alert(
           "Los trabajos se guardaron, pero hubo un problema al subir alguna foto. Podés agregarlas después desde Gestión."
         );
+      }
+
+      // Firma digital del cliente (una por orden → se aplica a todos los equipos guardados)
+      if (firmaClienteDataUrl?.startsWith("data:image/")) {
+        try {
+          const primero = res.trabajosGuardados[0];
+          if (primero?.firebaseId) {
+            const urlFirma = await subirFirmaClienteTrabajo({
+              negocioID,
+              trabajoId: primero.firebaseId,
+              dataUrl: firmaClienteDataUrl,
+            });
+            await Promise.all(
+              res.trabajosGuardados.map(async (g) => {
+                if (!g?.firebaseId) return;
+                await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${g.firebaseId}`), {
+                  firmaClienteUrl: urlFirma,
+                  firmaClienteEn: new Date().toISOString(),
+                });
+                (g as any).firmaClienteUrl = urlFirma;
+              })
+            );
+          }
+        } catch (firmaErr) {
+          console.warn("Trabajos guardados; error subiendo firma:", firmaErr);
+          alert(
+            "Los trabajos se guardaron, pero no se pudo guardar la firma. Podés firmar después desde Gestión → Editar."
+          );
+        }
       }
 
       setMensajeExito(res.mensaje);
@@ -1281,6 +1317,14 @@ export default function IngresoForm() {
                   onChange={(fotos) => setForm((prev: any) => ({ ...prev, fotosIngreso: fotos }))}
                   subirInmediato={false}
                   titulo="Fotos de cómo ingresa el equipo"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <CampoFirmaDigital
+                  value={firmaClienteDataUrl}
+                  onChange={setFirmaClienteDataUrl}
+                  titulo="Firma del cliente (ingreso)"
                 />
               </div>
             </div>

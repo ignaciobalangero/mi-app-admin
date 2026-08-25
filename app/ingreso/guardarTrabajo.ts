@@ -25,6 +25,7 @@ interface TrabajoData {
   tokenPublico?: string;
   fotosIngreso?: FotoTrabajo[];
   fotosProceso?: FotoTrabajo[];
+  firmaClienteUrl?: string;
 }
 
 export const guardarTrabajo = async (
@@ -44,6 +45,7 @@ export const guardarTrabajo = async (
       tokenPublico: datos.tokenPublico || generarTokenPublicoTrabajo(),
       fotosIngreso: datos.fotosIngreso || [],
       fotosProceso: datos.fotosProceso || [],
+      ...(datos.firmaClienteUrl ? { firmaClienteUrl: datos.firmaClienteUrl } : {}),
       creadoEn: serverTimestamp(),
     };
 
@@ -147,6 +149,7 @@ export const guardarTrabajosBatch = async (
       const tokenPublico = t.tokenPublico || generarTokenPublicoTrabajo();
       const fotosIngreso = Array.isArray(t.fotosIngreso) ? t.fotosIngreso : [];
       const fotosProceso = Array.isArray(t.fotosProceso) ? t.fotosProceso : [];
+      const firmaClienteUrl = String((t as any).firmaClienteUrl || "").trim();
 
       const trabajoConMeta: TrabajoData = {
         ...t,
@@ -161,6 +164,7 @@ export const guardarTrabajosBatch = async (
         tokenPublico,
         fotosIngreso,
         fotosProceso,
+        ...(firmaClienteUrl ? { firmaClienteUrl } : {}),
         creadoEn: serverTimestamp() as any,
       } as any;
 
@@ -172,6 +176,7 @@ export const guardarTrabajosBatch = async (
         tokenPublico,
         fotosIngreso,
         fotosProceso,
+        ...(firmaClienteUrl ? { firmaClienteUrl } : {}),
         creadoEn: serverTimestamp(),
       });
 
