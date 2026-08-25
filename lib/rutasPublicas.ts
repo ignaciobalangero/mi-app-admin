@@ -24,6 +24,7 @@ const RUTAS_PUBLICAS_EXACTAS_O_PREFIJO = [
   "/privacidad",
   "/cliente",
   "/estado-trabajo",
+  "/firmar-trabajo",
 ] as const;
 
 /** true = no pide sesión, no sidebar admin, no pantalla de cuenta vencida. */
@@ -32,6 +33,7 @@ export function esRutaPublica(pathname: string, host?: string | null): boolean {
   if (esInicioDominioTienda(pathname, host)) return true;
   if (pathname === "/cliente" || pathname.startsWith("/cliente/")) return true;
   if (pathname === "/estado-trabajo" || pathname.startsWith("/estado-trabajo/")) return true;
+  if (pathname === "/firmar-trabajo" || pathname.startsWith("/firmar-trabajo/")) return true;
   return RUTAS_PUBLICAS_EXACTAS_O_PREFIJO.some(
     (ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`)
   );

@@ -53,6 +53,16 @@ export function urlEstadoTrabajoPublico(
   return `${base}/estado-trabajo/${encodeURIComponent(negocioID)}/${encodeURIComponent(token)}`;
 }
 
+/** Página solo para firmar (ideal iPad), sin login. */
+export function urlFirmarTrabajoPublico(
+  origin: string,
+  negocioID: string,
+  token: string
+): string {
+  const base = origin.replace(/\/$/, "");
+  return `${base}/firmar-trabajo/${encodeURIComponent(negocioID)}/${encodeURIComponent(token)}`;
+}
+
 export function etiquetaEstadoTrabajo(estado: string): string {
   const e = String(estado || "").toUpperCase();
   if (e.includes("ACEPTACION")) return "Pendiente de aceptación";

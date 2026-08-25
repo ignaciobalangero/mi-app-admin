@@ -1,6 +1,8 @@
+import { randomUUID } from "crypto";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getAuth as adminGetAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 function ensureAdminApp() {
   if (getApps().length > 0) return getApps()[0]!;
@@ -17,6 +19,8 @@ function ensureAdminApp() {
 
   return initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
+    storageBucket:
+      process.env.FIREBASE_STORAGE_BUCKET || "ingresos-trabajos.appspot.com",
   });
 }
 
@@ -28,6 +32,28 @@ export function getAdminAuth(): Auth {
 export function getAdminDb(): Firestore {
   ensureAdminApp();
   return getFirestore();
+}
+
+/** Sube un PNG y devuelve URL de descarga Firebase Storage. */
+export async function subirPngPublicoAdmin(params: {
+  path: string;
+  buffer: Buffer;
+}): Promise<string> {
+  ensureAdminApp();
+  const bucket = getStorage().bucket();
+  const file = bucket.file(params.path);
+  const token = randomUUID();
+  await file.save(params.buffer, {
+    contentType: "image/png",
+    metadata: {
+      cacheControl: "public,max-age=31536000",
+      metadata: {
+        firebaseStorageDownloadTokens: token,
+      },
+    },
+  });
+  const encoded = encodeURIComponent(params.path);
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encoded}?alt=media&token=${token}`;
 }
 
 /** Compat: no inicializa hasta el primer uso (evita fallos en `next build` sin env). */

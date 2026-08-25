@@ -13,6 +13,8 @@ const RUTAS_PERMITIDAS_TIENDA = [
   /^\/consulta-stock\//,
   /^\/estado-trabajo\//,
   /^\/api\/estado-trabajo(?:\/|$)/,
+  /^\/firmar-trabajo\//,
+  /^\/api\/firmar-trabajo(?:\/|$)/,
 ];
 
 function rutaPermitidaEnDominioTienda(pathname: string): boolean {

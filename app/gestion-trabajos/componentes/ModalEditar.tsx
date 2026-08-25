@@ -11,9 +11,11 @@ import {
   mensajeSeguimientoTrabajoCliente,
   normalizarFotosTrabajo,
   urlEstadoTrabajoPublico,
+  urlFirmarTrabajoPublico,
   type FotoTrabajo,
 } from "@/lib/trabajosFotos";
 import { subirFirmaClienteTrabajo } from "@/lib/trabajosFotosCliente";
+import QRCode from "qrcode";
 
 interface Trabajo {
   firebaseId: string;
@@ -107,7 +109,9 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
   const [fotosProceso, setFotosProceso] = useState<FotoTrabajo[]>([]);
   const [tokenPublico, setTokenPublico] = useState("");
   const [urlPublica, setUrlPublica] = useState("");
-  const [copiadoSeguimiento, setCopiadoSeguimiento] = useState<"link" | "msg" | "">("");
+  const [urlFirmar, setUrlFirmar] = useState("");
+  const [qrFirmarDataUrl, setQrFirmarDataUrl] = useState("");
+  const [copiadoSeguimiento, setCopiadoSeguimiento] = useState<"link" | "msg" | "firmar" | "">("");
   const [nombreNegocio, setNombreNegocio] = useState("");
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
 
@@ -169,7 +173,15 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
           const token = tokenExistente || generarTokenPublicoTrabajo();
           setTokenPublico(token);
           if (typeof window !== "undefined") {
-            setUrlPublica(urlEstadoTrabajoPublico(window.location.origin, negocioID, token));
+            const urlSeg = urlEstadoTrabajoPublico(window.location.origin, negocioID, token);
+            const urlFir = urlFirmarTrabajoPublico(window.location.origin, negocioID, token);
+            setUrlPublica(urlSeg);
+            setUrlFirmar(urlFir);
+            try {
+              setQrFirmarDataUrl(await QRCode.toDataURL(urlFir, { width: 200, margin: 1 }));
+            } catch {
+              setQrFirmarDataUrl("");
+            }
           }
           if (!tokenExistente) {
             try {
@@ -645,8 +657,57 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
                 value={firmaCliente}
                 onChange={setFirmaCliente}
                 disabled={guardando}
-                titulo="Firma del cliente"
+                titulo="Firma del cliente (en esta pantalla)"
               />
+              {urlFirmar ? (
+                <div className="rounded-xl border border-[#9b59b6]/40 bg-[#f5eef8] p-3 text-xs text-[#2c3e50] space-y-2">
+                  <p className="font-semibold text-sm">Firmar desde el iPad</p>
+                  <p className="text-[#7f8c8d]">
+                    Cargá el trabajo en la PC y abrí este link o escaneá el QR en el iPad. El cliente firma ahí (Pencil), sin entrar a toda la app. Después imprimís el ticket en la PC.
+                  </p>
+                  {qrFirmarDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qrFirmarDataUrl}
+                      alt="QR firmar en iPad"
+                      className="w-40 h-40 mx-auto border border-[#d7bde2] rounded-lg bg-white"
+                    />
+                  ) : null}
+                  <a
+                    href={urlFirmar}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#8e44ad] break-all underline block"
+                  >
+                    {urlFirmar}
+                  </a>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(urlFirmar);
+                          setCopiadoSeguimiento("firmar");
+                          setTimeout(() => setCopiadoSeguimiento(""), 2000);
+                        } catch {
+                          alert("No se pudo copiar");
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#9b59b6] text-white text-xs font-semibold hover:bg-[#8e44ad]"
+                    >
+                      {copiadoSeguimiento === "firmar" ? "✓ Link de firma copiado" : "Copiar link para iPad"}
+                    </button>
+                    <a
+                      href={urlFirmar}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-white border border-[#9b59b6] text-[#8e44ad] text-xs font-semibold"
+                    >
+                      Abrir en esta ventana
+                    </a>
+                  </div>
+                </div>
+              ) : null}
               {urlPublica ? (
                 <div className="rounded-xl border border-[#3498db]/40 bg-[#ebf5fb] p-3 text-xs text-[#2c3e50] space-y-2">
                   <p className="font-semibold text-sm">Seguimiento para el cliente (QR + mensaje)</p>

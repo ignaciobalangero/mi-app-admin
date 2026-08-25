@@ -12,6 +12,7 @@ import {
   generarTokenPublicoTrabajo,
   mensajeSeguimientoTrabajoCliente,
   urlEstadoTrabajoPublico,
+  urlFirmarTrabajoPublico,
 } from "@/lib/trabajosFotos";
 import QRCode from "qrcode";
 
@@ -46,6 +47,7 @@ export default function BotonesImpresionTrabajo({
   const [imprimiendo, setImprimiendo] = useState('');
   const [nombreNegocioSeguimiento, setNombreNegocioSeguimiento] = useState("");
   const [copiadoMsg, setCopiadoMsg] = useState(false);
+  const [copiadoFirmar, setCopiadoFirmar] = useState(false);
 
   useEffect(() => {
     cargarConfiguracion();
@@ -99,6 +101,28 @@ export default function BotonesImpresionTrabajo({
     } catch (e) {
       console.error(e);
       alert("No se pudo copiar el mensaje de seguimiento");
+    }
+  };
+
+  const prepararLinkFirmaIpad = async (abrir: boolean) => {
+    try {
+      await asegurarQrSeguimiento();
+      const token = String(trabajo.tokenPublico || "").trim();
+      if (!token) {
+        alert("No se pudo generar el link de firma. Guardá el trabajo e intentá de nuevo.");
+        return;
+      }
+      const urlFir = urlFirmarTrabajoPublico(window.location.origin, negocioId, token);
+      if (abrir) {
+        window.open(urlFir, "_blank", "noopener,noreferrer");
+        return;
+      }
+      await navigator.clipboard.writeText(urlFir);
+      setCopiadoFirmar(true);
+      setTimeout(() => setCopiadoFirmar(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo preparar el link de firma para iPad");
     }
   };
 
@@ -379,6 +403,20 @@ export default function BotonesImpresionTrabajo({
       <div className="mt-3 flex flex-col gap-2">
         <button
           type="button"
+          onClick={() => prepararLinkFirmaIpad(true)}
+          className="w-full rounded-lg border border-[#9b59b6] bg-[#f5eef8] px-3 py-2 text-sm font-semibold text-[#8e44ad] hover:bg-[#ebdef0] transition-colors"
+        >
+          ✍️ Abrir firma en iPad (nueva pestaña / QR en el link)
+        </button>
+        <button
+          type="button"
+          onClick={() => prepararLinkFirmaIpad(false)}
+          className="w-full rounded-lg border border-[#9b59b6] bg-white px-3 py-2 text-sm font-semibold text-[#8e44ad] hover:bg-[#f5eef8] transition-colors"
+        >
+          {copiadoFirmar ? "✓ Link de firma copiado" : "📋 Copiar link de firma para el iPad"}
+        </button>
+        <button
+          type="button"
           onClick={copiarMensajeSeguimiento}
           className="w-full rounded-lg border border-[#27ae60] bg-[#eafaf1] px-3 py-2 text-sm font-semibold text-[#1e8449] hover:bg-[#d5f5e3] transition-colors"
         >
@@ -388,7 +426,7 @@ export default function BotonesImpresionTrabajo({
         </button>
         <div className="p-2 bg-gray-50 rounded-lg">
           <div className="text-xs text-black">
-            <strong>Seguimiento:</strong> el QR sale en Ticket térmico y Ticket A4. El mensaje copiado incluye el mismo link (solo ese trabajo: estado y fotos).
+            <strong>Flujo tipico:</strong> cargás en la PC → abrís el link de firma en el iPad → el cliente firma → imprimís ticket en la PC (sale la firma).
           </div>
         </div>
       </div>
