@@ -4,6 +4,10 @@ import { getAuth as adminGetAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 
+/** Mismo bucket que usa el cliente en lib/firebase.ts (gs://…). */
+const STORAGE_BUCKET =
+  process.env.FIREBASE_STORAGE_BUCKET || "ingresos-trabajos.firebasestorage.app";
+
 function ensureAdminApp() {
   if (getApps().length > 0) return getApps()[0]!;
 
@@ -19,8 +23,7 @@ function ensureAdminApp() {
 
   return initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
-    storageBucket:
-      process.env.FIREBASE_STORAGE_BUCKET || "ingresos-trabajos.appspot.com",
+    storageBucket: STORAGE_BUCKET,
   });
 }
 
@@ -40,7 +43,8 @@ export async function subirPngPublicoAdmin(params: {
   buffer: Buffer;
 }): Promise<string> {
   ensureAdminApp();
-  const bucket = getStorage().bucket();
+  // Bucket explícito: evita fallar si el Admin ya se inicializó sin storageBucket.
+  const bucket = getStorage().bucket(STORAGE_BUCKET);
   const file = bucket.file(params.path);
   const token = randomUUID();
   await file.save(params.buffer, {

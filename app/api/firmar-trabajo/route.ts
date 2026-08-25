@@ -116,9 +116,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, firmaClienteUrl });
   } catch (e) {
     console.error("[api/firmar-trabajo POST]", e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Error al guardar la firma" },
-      { status: 500 }
-    );
+    const msg = e instanceof Error ? e.message : "Error al guardar la firma";
+    // No devolver el JSON crudo de Google al cliente
+    const amigable = /bucket does not exist/i.test(msg)
+      ? "Error de almacenamiento (bucket). Reintentá en unos minutos o avisá al administrador."
+      : msg;
+    return NextResponse.json({ error: amigable }, { status: 500 });
   }
 }
