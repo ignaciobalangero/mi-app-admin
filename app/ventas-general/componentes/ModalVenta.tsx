@@ -501,10 +501,20 @@ export default function ModalVenta({
                   <Combobox
                     value={cliente}
                     onChange={(v) => {
-                      const nombre = v || "";
-                      setCliente(nombre);
-                      const hit = listaClientes.find((c) => c.nombre === nombre);
-                      setClienteId(hit?.id || "");
+                      const nombre = String(v || "").trim();
+                      const hit = listaClientes.find(
+                        (c) =>
+                          c.nombre === nombre ||
+                          c.nombre.trim().toLowerCase() === nombre.toLowerCase()
+                      );
+                      if (hit) {
+                        // Guardar el nombre TAL CUAL está en Clientes (importante para el saldo)
+                        setCliente(hit.nombre);
+                        setClienteId(hit.id);
+                      } else {
+                        setCliente(nombre);
+                        setClienteId("");
+                      }
                       setQueryCliente("");
                     }}
                   >
@@ -512,7 +522,10 @@ export default function ModalVenta({
                       <Combobox.Input
                         className="w-full p-2 sm:p-3 border border-[#bdc3c7] rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
                         onChange={(e) => {
-                          setQueryCliente(e.target.value);
+                          const v = e.target.value;
+                          setQueryCliente(v);
+                          setCliente(v);
+                          // Si escribe a mano, no hay ID confiable → se busca por nombre al guardar
                           setClienteId("");
                         }}
                         displayValue={() => cliente}

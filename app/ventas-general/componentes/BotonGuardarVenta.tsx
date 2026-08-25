@@ -28,7 +28,7 @@ import {
   esProductoRepuestoOGeneral,
 } from "@/lib/ventasStockProducto";
 import { actualizarStockVentaViaApi } from "@/lib/actualizarStockVentaApi";
-import { actualizarSaldoClienteNegocio } from "@/lib/actualizarSaldoCliente";
+import { actualizarSaldoClienteNegocioDetalle } from "@/lib/actualizarSaldoCliente";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 import {
   calcularSaldosVenta,
@@ -120,13 +120,23 @@ export default function BotonGuardarVenta({
     sumarUSD: number
   ) => {
     if (!rol?.negocioID) return;
-    await actualizarSaldoClienteNegocio(
+    if (sumarARS === 0 && sumarUSD === 0) return;
+
+    const r = await actualizarSaldoClienteNegocioDetalle(
       rol.negocioID,
       nombreCliente,
       sumarARS,
       sumarUSD,
       clienteId
     );
+    if (r.ok) return;
+
+    const detalle =
+      r.motivo === "no_encontrado"
+        ? `No se encontró "${nombreCliente}" en Clientes. El saldo NO se actualizó. Elegí el cliente de la lista (no lo escribas a mano) o revisá el nombre en Clientes.`
+        : `No se pudo actualizar el saldo de "${nombreCliente}": ${r.detalle || "error"}.`;
+    console.warn("[venta → saldo]", detalle, r);
+    alert(`⚠️ ${detalle}`);
   };
 
   // ✅ FUNCIÓN CORREGIDA: Calcular totales SEPARADOS por moneda (para guardado)

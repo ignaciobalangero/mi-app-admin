@@ -45,17 +45,28 @@ async function encontrarClienteParaSaldo(
   nombreCliente: string,
   clienteId?: string
 ): Promise<ClienteRef | null> {
+  const nombre = limpiarNombreClienteExacto(nombreCliente);
   const id = String(clienteId ?? "").trim();
+
+  // 1) Por ID solo si el nombre del doc coincide (o la venta no trae nombre).
+  // Evita actualizar otro cliente si quedó un clienteId viejo en el formulario.
   if (negocioID && id) {
     const snap = await getDoc(doc(db, `negocios/${negocioID}/clientes/${id}`));
     if (snap.exists()) {
-      return { ref: snap.ref, data: snap.data() };
+      const data = snap.data();
+      const nombreDoc = limpiarNombreClienteExacto(String(data.nombre ?? ""));
+      if (!nombre || !nombreDoc || nombreDoc === nombre) {
+        return { ref: snap.ref, data };
+      }
+      console.warn(
+        `[saldo] clienteId=${id} es "${nombreDoc}" pero la venta dice "${nombre}"; busco por nombre.`
+      );
     }
   }
 
-  const nombre = limpiarNombreClienteExacto(nombreCliente);
   if (!negocioID || !nombre) return null;
 
+  // 2) Nombre exacto (tras limpiar espacios)
   const exactSnap = await getDocs(
     query(
       collection(db, `negocios/${negocioID}/clientes`),
@@ -68,7 +79,7 @@ async function encontrarClienteParaSaldo(
     return { ref: d.ref, data: d.data() };
   }
 
-  // Mismo nombre si en Firestore quedó con espacios raros (no es match aproximado).
+  // 3) Mismo nombre con espacios raros en Firestore (sin cambiar mayúsculas/tildes)
   const todosSnap = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
   const hit = todosSnap.docs.find(
     (d) => limpiarNombreClienteExacto(String(d.data()?.nombre ?? "")) === nombre
