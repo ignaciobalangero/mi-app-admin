@@ -12,18 +12,27 @@ import GeneradorPDF from "./GeneradorPDF";
 import { deudaVentaPorMoneda } from "@/lib/actualizarSaldoCliente";
 import { monedaLineaProducto, totalesVentasPorMoneda } from "./ventasMonedaHelpers";
 
+/** Nombre usable para la fila (ignora placeholders "—" / "---" de modelo vacío). */
+function nombreProductoLinea(x: any): string {
+  const candidatos = [x?.producto, x?.descripcion, x?.modelo];
+  for (const c of candidatos) {
+    const s = String(c ?? "").trim();
+    if (!s || s === "—" || s === "---" || s === "-") continue;
+    return s;
+  }
+  return "Producto";
+}
+
 /** Una sola línea para la tabla (no afecta cálculos de saldo). */
 function resumenLineaProductos(v: any): string {
   const p = v.productos || [];
   if (p.length === 0) return "Sin productos";
   if (p.length === 1) {
     const x = p[0];
-    const n = x.modelo || x.producto || x.descripcion || "Producto";
-    return `${n} ×${x.cantidad ?? 1}`;
+    return `${nombreProductoLinea(x)} ×${x.cantidad ?? 1}`;
   }
   const x = p[0];
-  const n = x.modelo || x.producto || x.descripcion || "Ítem";
-  return `${n} ×${x.cantidad ?? 1} · +${p.length - 1} más`;
+  return `${nombreProductoLinea(x)} ×${x.cantidad ?? 1} · +${p.length - 1} más`;
 }
 
 /** Totales por venta: misma regla que cuenta corriente (moneda por línea). */

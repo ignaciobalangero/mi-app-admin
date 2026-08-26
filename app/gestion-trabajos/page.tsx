@@ -22,8 +22,10 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import TablaTrabajos from "./componentes/TablaTrabajos";
-import FiltroTrabajos from "./componentes/FiltroTrabajos";
 import ModalPago from "./componentes/ModalPago";
+import PanelFiltrosOrdenes, {
+  ESTADOS_GESTION,
+} from "@/components/PanelFiltrosOrdenes";
 
 interface Trabajo {
   firebaseId: string;
@@ -356,137 +358,56 @@ export default function GestionTrabajosPage() {
             </div>
           </div>
 
-          {/* Filtros y controles - Estilo GestiOne */}
-          <div className="mb-4 rounded-2xl border border-[#ecf0f1] bg-white p-3 shadow-lg sm:p-6">
-            <div className="mb-4 flex items-center gap-4">
-              <div className="w-10 h-8 bg-[#f39c12] rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg">🔍</span>
-              </div>
-              <h2 className="text-2xl font-bold text-[#2c3e50]">Filtros de Búsqueda</h2>
-            </div>
-            
-            <div className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-center">
-              {/* Filtros a la izquierda */}
-              <div className="flex flex-wrap items-center gap-3">
-                <FiltroTrabajos
-                  filtroTexto={filtroTexto}
-                  setFiltroTexto={setFiltroTexto}
-                  filtroTrabajo={filtroTrabajo}
-                  setFiltroTrabajo={setFiltroTrabajo}
-                />
-                <input
-                  type="text"
-                  placeholder="🔍 Buscar por IMEI o modelo"
-                  value={filtroIMEI}
-                  onChange={(e) => setFiltroIMEI(e.target.value)}
-                  className="px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-                  title="Buscar por IMEI o modelo"
-                />
-                
-                {/* ✅ NUEVO: Filtros de fecha */}
-                <div className="flex gap-2 items-center bg-[#f8f9fa] p-2 rounded-lg border border-[#bdc3c7]">
-                  <button
-                    onClick={() => setTipoFecha(tipoFecha === "ingreso" ? "modificacion" : "ingreso")}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      tipoFecha === "ingreso" 
-                        ? "bg-[#3498db] text-white" 
-                        : "bg-[#e74c3c] text-white"
-                    }`}
-                    title="Cambiar entre fecha de ingreso y fecha de modificación"
-                  >
-                    {tipoFecha === "ingreso" ? "📅 Ingreso" : "🔄 Modificación"}
-                  </button>
-                  
-                  <input
-                    type="date"
-                    value={filtroFechaDesde}
-                    onChange={(e) => setFiltroFechaDesde(e.target.value)}
-                    className="px-3 py-2 border border-[#bdc3c7] rounded-lg text-sm focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
-                    title="Fecha desde"
-                  />
-                  
-                  <span className="text-[#7f8c8d] text-sm">hasta</span>
-                  
-                  <input
-                    type="date"
-                    value={filtroFechaHasta}
-                    onChange={(e) => setFiltroFechaHasta(e.target.value)}
-                    className="px-3 py-2 border border-[#bdc3c7] rounded-lg text-sm focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
-                    title="Fecha hasta"
-                  />
-                  
-                  {(filtroFechaDesde || filtroFechaHasta) && (
-                    <button
-                      onClick={() => {
-                        setFiltroFechaDesde("");
-                        setFiltroFechaHasta("");
-                      }}
-                      className="text-[#e74c3c] hover:text-[#c0392b] transition-colors text-sm px-2"
-                      title="Limpiar filtros de fecha"
-                    >
-                      ❌
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Botones de estado a la derecha */}
-              <div className="flex flex-wrap gap-2">
-                {["TODOS", "PENDIENTE ACEPTACION", "PENDIENTE", "REPARADO", "ENTREGADO", "PAGADO"].map((estado) => (
-                  <button
-                    key={estado}
-                    onClick={() => setFiltroEstado(estado as any)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 ${
-                      filtroEstado === estado 
-                        ? "bg-[#3498db] text-white shadow-md" 
-                        : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
-                    }`}
-                  >
-                    {estado === "TODOS" ? "📋 TODOS" :
-                     estado === "PENDIENTE ACEPTACION" ? "🕓 PEND. ACEPT." :
-                     estado === "PENDIENTE" ? "⏳ PENDIENTE" :
-                     estado === "REPARADO" ? "🔧 REPARADO" :
-                     estado === "ENTREGADO" ? "📦 ENTREGADO" :
-                     "💰 PAGADO"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          {/* Filtros unificados */}
+          <PanelFiltrosOrdenes
+            filtroTexto={filtroTexto}
+            setFiltroTexto={setFiltroTexto}
+            filtroTrabajo={filtroTrabajo}
+            setFiltroTrabajo={setFiltroTrabajo}
+            filtroIMEI={filtroIMEI}
+            setFiltroIMEI={setFiltroIMEI}
+            filtroFechaDesde={filtroFechaDesde}
+            setFiltroFechaDesde={setFiltroFechaDesde}
+            filtroFechaHasta={filtroFechaHasta}
+            setFiltroFechaHasta={setFiltroFechaHasta}
+            tipoFecha={tipoFecha}
+            setTipoFecha={setTipoFecha}
+            filtroEstado={filtroEstado}
+            setFiltroEstado={(v) => setFiltroEstado(v as typeof filtroEstado)}
+            estados={ESTADOS_GESTION}
+          />
 
           {/* Estadísticas rápidas */}
-          <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg border border-[#ecf0f1]">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-[#e74c3c]">
-                  {trabajosFiltrados.filter(t => t.estado === "PENDIENTE").length}
-                </div>
-                <div className="text-sm text-[#7f8c8d]">Pendientes</div>
+          <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm sm:grid-cols-5 sm:gap-3 sm:p-4">
+            <div className="rounded-xl bg-rose-50/80 px-2 py-3 text-center">
+              <div className="text-xl font-bold tabular-nums text-rose-600 sm:text-2xl">
+                {trabajosFiltrados.filter((t) => t.estado === "PENDIENTE").length}
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-[#5e35b1]">
-                  {trabajosFiltrados.filter(t => t.estado === "PENDIENTE ACEPTACION").length}
-                </div>
-                <div className="text-sm text-[#7f8c8d]">Pend. acept.</div>
+              <div className="text-[11px] font-medium text-slate-500 sm:text-xs">Pendientes</div>
+            </div>
+            <div className="rounded-xl bg-violet-50/80 px-2 py-3 text-center">
+              <div className="text-xl font-bold tabular-nums text-violet-700 sm:text-2xl">
+                {trabajosFiltrados.filter((t) => t.estado === "PENDIENTE ACEPTACION").length}
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-[#f39c12]">
-                  {trabajosFiltrados.filter(t => t.estado === "REPARADO").length}
-                </div>
-                <div className="text-sm text-[#7f8c8d]">Reparados</div>
+              <div className="text-[11px] font-medium text-slate-500 sm:text-xs">Pend. acept.</div>
+            </div>
+            <div className="rounded-xl bg-amber-50/80 px-2 py-3 text-center">
+              <div className="text-xl font-bold tabular-nums text-amber-600 sm:text-2xl">
+                {trabajosFiltrados.filter((t) => t.estado === "REPARADO").length}
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-[#27ae60]">
-                  {trabajosFiltrados.filter(t => t.estado === "ENTREGADO").length}
-                </div>
-                <div className="text-sm text-[#7f8c8d]">Entregados</div>
+              <div className="text-[11px] font-medium text-slate-500 sm:text-xs">Reparados</div>
+            </div>
+            <div className="rounded-xl bg-emerald-50/80 px-2 py-3 text-center">
+              <div className="text-xl font-bold tabular-nums text-emerald-600 sm:text-2xl">
+                {trabajosFiltrados.filter((t) => t.estado === "ENTREGADO").length}
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-[#3498db]">
-                  {trabajosFiltrados.filter(t => t.estado === "PAGADO").length}
-                </div>
-                <div className="text-sm text-[#7f8c8d]">Pagados</div>
+              <div className="text-[11px] font-medium text-slate-500 sm:text-xs">Entregados</div>
+            </div>
+            <div className="col-span-2 rounded-xl bg-sky-50/80 px-2 py-3 text-center sm:col-span-1">
+              <div className="text-xl font-bold tabular-nums text-sky-600 sm:text-2xl">
+                {trabajosFiltrados.filter((t) => t.estado === "PAGADO").length}
               </div>
+              <div className="text-[11px] font-medium text-slate-500 sm:text-xs">Pagados</div>
             </div>
           </div>
 

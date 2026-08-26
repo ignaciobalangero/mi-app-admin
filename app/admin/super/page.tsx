@@ -210,6 +210,13 @@ export default function SuperAdminPage() {
             >
               🏢 Ver todos los negocios
             </button>
+
+            <button
+              onClick={() => router.push("/admin/unificar-nombre-cliente")}
+              className="bg-gradient-to-r from-[#16a085] to-[#1abc9c] hover:from-[#138d75] hover:to-[#16a085] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 text-sm"
+            >
+              🔁 Unificar nombre de cliente
+            </button>
             
             <button
               onClick={() => router.push("/configuraciones")}

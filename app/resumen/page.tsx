@@ -8,7 +8,9 @@ import RequireAdmin from "@/lib/RequireAdmin";
 import Header from "../Header";
 import { useRol } from "@/lib/useRol";
 import TablaTrabajos from "./componentes/TablaTrabajos";
-import FiltroTrabajos from "@/app/gestion-trabajos/componentes/FiltroTrabajos";
+import PanelFiltrosOrdenes, {
+  ESTADOS_RESUMEN,
+} from "@/components/PanelFiltrosOrdenes";
 
 interface Trabajo {
   firebaseId: string;
@@ -215,149 +217,36 @@ export default function ResumenPage() {
             </div>
           </div>
 
-          {/* PANEL DE FILTROS */}
-          <div className="bg-white rounded-2xl p-3 sm:p-4 md:p-5 mb-4 shadow-lg border border-[#ecf0f1]">
-            <div className="flex items-center gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-5 md:mb-6">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-[#f39c12] rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg sm:text-xl">🔍</span>
-              </div>
-              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-[#2c3e50]">Filtros de Búsqueda</h2>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-5 md:mb-6">
-              <div className="lg:col-span-2 sm:col-span-2">
-                <FiltroTrabajos
-                  filtroTexto={filtroTexto}
-                  setFiltroTexto={setFiltroTexto}
-                  filtroTrabajo={filtroTrabajo}
-                  setFiltroTrabajo={setFiltroTrabajo}
-                />
-              </div>
-              
-              <input
-                type="text"
-                placeholder="🔍 Buscar por IMEI o modelo"
-                value={filtroIMEI}
-                onChange={(e) => setFiltroIMEI(e.target.value)}
-                className="px-3 sm:px-4 py-2 sm:py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm sm:text-base"
-                title="Buscar por IMEI o modelo"
-              />
-              
-              <input
-                type="text"
-                placeholder="🔢 Filtrar por código"
-                value={filtroCodigo}
-                onChange={(e) => setFiltroCodigo(e.target.value)}
-                className="px-3 sm:px-4 py-2 sm:py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-sm sm:text-base"
-                title="Buscar por código de trabajo (ej: EO-52348)"
-              />
-              
+          {/* PANEL DE FILTROS UNIFICADO */}
+          <PanelFiltrosOrdenes
+            filtroTexto={filtroTexto}
+            setFiltroTexto={setFiltroTexto}
+            filtroTrabajo={filtroTrabajo}
+            setFiltroTrabajo={setFiltroTrabajo}
+            filtroIMEI={filtroIMEI}
+            setFiltroIMEI={setFiltroIMEI}
+            filtroCodigo={filtroCodigo}
+            setFiltroCodigo={setFiltroCodigo}
+            mostrarCodigo
+            filtroFechaDesde={filtroFechaDesde}
+            setFiltroFechaDesde={setFiltroFechaDesde}
+            filtroFechaHasta={filtroFechaHasta}
+            setFiltroFechaHasta={setFiltroFechaHasta}
+            tipoFecha={tipoFecha}
+            setTipoFecha={setTipoFecha}
+            filtroEstado={filtroEstado}
+            setFiltroEstado={setFiltroEstado}
+            estados={ESTADOS_RESUMEN}
+            accionExtra={
               <button
+                type="button"
                 onClick={exportarCSV}
-                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-md flex items-center justify-center gap-2 text-sm sm:text-base"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700"
               >
-                📄 <span className="hidden sm:inline">Exportar</span> CSV
+                Exportar CSV
               </button>
-            </div>
-
-            <div className="flex gap-2 items-center bg-[#f8f9fa] p-2 rounded-lg border border-[#bdc3c7] mb-4">
-              <button
-                onClick={() => setTipoFecha(tipoFecha === "ingreso" ? "modificacion" : "ingreso")}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  tipoFecha === "ingreso" 
-                    ? "bg-[#3498db] text-white" 
-                    : "bg-[#e74c3c] text-white"
-                }`}
-                title="Cambiar entre fecha de ingreso y fecha de modificación"
-              >
-                {tipoFecha === "ingreso" ? "📅 Ingreso" : "🔄 Modificación"}
-              </button>
-              
-              <input
-                type="date"
-                value={filtroFechaDesde}
-                onChange={(e) => setFiltroFechaDesde(e.target.value)}
-                className="px-3 py-2 border border-[#bdc3c7] rounded-lg text-sm focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
-                title="Fecha desde"
-              />
-              
-              <span className="text-[#7f8c8d] text-sm">hasta</span>
-              
-              <input
-                type="date"
-                value={filtroFechaHasta}
-                onChange={(e) => setFiltroFechaHasta(e.target.value)}
-                className="px-3 py-2 border border-[#bdc3c7] rounded-lg text-sm focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
-                title="Fecha hasta"
-              />
-              
-              {(filtroFechaDesde || filtroFechaHasta) && (
-                <button
-                  onClick={() => {
-                    setFiltroFechaDesde("");
-                    setFiltroFechaHasta("");
-                  }}
-                  className="text-[#e74c3c] hover:text-[#c0392b] transition-colors text-sm px-2"
-                  title="Limpiar filtros de fecha"
-                >
-                  ❌
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-2 sm:gap-3">
-              <button
-                onClick={() => setFiltroEstado("TODOS")}
-                className={`px-2 sm:px-3 md:px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md text-xs sm:text-sm ${
-                  filtroEstado === "TODOS" 
-                    ? "bg-[#3498db] text-white shadow-lg border-2 border-[#2980b9]" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
-                }`}
-              >
-                📋 <span className="hidden sm:inline">Todos</span>
-              </button>
-              <button
-                onClick={() => setFiltroEstado("PENDIENTE")}
-                className={`px-2 sm:px-3 md:px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md text-xs sm:text-sm ${
-                  filtroEstado === "PENDIENTE" 
-                    ? "bg-[#B71C1C] text-white shadow-lg border-2 border-[#8E0000]" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
-                }`}
-              >
-                ⏳ <span className="hidden sm:inline">Pendientes</span>
-              </button>
-              <button
-                onClick={() => setFiltroEstado("REPARADO")}
-                className={`px-2 sm:px-3 md:px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md text-xs sm:text-sm ${
-                  filtroEstado === "REPARADO" 
-                    ? "bg-[#D84315] text-white shadow-lg border-2 border-[#BF360C]" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
-                }`}
-              >
-                🔧 <span className="hidden sm:inline">Reparados</span>
-              </button>
-              <button
-                onClick={() => setFiltroEstado("ENTREGADO")}
-                className={`px-2 sm:px-3 md:px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md text-xs sm:text-sm ${
-                  filtroEstado === "ENTREGADO" 
-                    ? "bg-[#1B5E20] text-white shadow-lg border-2 border-[#0D3711]" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
-                }`}
-              >
-                📦 <span className="hidden sm:inline">Entregados</span>
-              </button>
-              <button
-                onClick={() => setFiltroEstado("PAGADO")}
-                className={`px-2 sm:px-3 md:px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 shadow-md text-xs sm:text-sm ${
-                  filtroEstado === "PAGADO" 
-                    ? "bg-[#1565C0] text-white shadow-lg border-2 border-[#0D47A1]" 
-                    : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb] border-2 border-[#bdc3c7]"
-                }`}
-              >
-                💰 <span className="hidden sm:inline">Pagados</span>
-              </button>
-            </div>
-          </div>
+            }
+          />
 
           {/* TABLA DE TRABAJOS */}
           <TablaTrabajos
