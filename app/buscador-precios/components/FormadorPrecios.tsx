@@ -41,6 +41,8 @@ const COLORES_CONOCIDOS = new Set([
   "naranja",
 ]);
 
+const INDICADOR_PRECIO = /(?:\$|u\$|USD|U\$S)/i;
+
 // Obtiene la base del producto (sin precio ni color final) para mostrar.
 // (Misma lógica base que BuscadorComparativo, para mantener consistencia.)
 const obtenerBaseProducto = (linea: string): { base: string; color: string | null } => {
@@ -78,9 +80,9 @@ const extraerPrecio = (linea: string): number | null => {
   const patrones = [
     /u\$\s*(\d+)/i, // u$1380
     /\$\s*(\d+[.,]?\d*)/, // $350000 o $350.000
-    /(\d+[.,]\d{3}[.,]?\d*)/, // 350.000 o 350,000
-    /USD\s*(\d+[.,]?\d*)/i, // USD 500
+    /USD\s*(\d+[.,]?\d*)/i, // USD 500 (antes que números sueltos tipo 128 GB)
     /U\$S\s*(\d+[.,]?\d*)/i, // U$S 500
+    /(\d+[.,]\d{3}[.,]?\d*)/, // 350.000 o 350,000
     /(\d{3,})/, // Cualquier número de 3+ dígitos
   ];
 
@@ -155,12 +157,12 @@ const expandirVariantes = (lineas: string[]): string[] => {
         lineaTrim
       );
 
-    const tienePrecioEnLinea = /(?:\$|u\$)/i.test(lineaTrim);
-    const tieneGBconPrecio = /\d+\s*GB.+(?:\$|u\$)/i.test(lineaTrim);
+    const tienePrecioEnLinea = INDICADOR_PRECIO.test(lineaTrim);
+    const tieneGBconPrecio = /\d+\s*GB.+(?:\$|u\$|USD|U\$S)/i.test(lineaTrim);
 
     const esTitulo = tieneMarcaModelo && !tieneGBconPrecio && !tienePrecioEnLinea;
 
-    const esLineaConSpecs = /^\d+\s*GB.+(?:\$|u\$)/i.test(lineaTrim);
+    const esLineaConSpecs = /^\d+\s*GB.+(?:\$|u\$|USD|U\$S)/i.test(lineaTrim);
 
     if (esTitulo) {
       tituloActual = lineaTrim
@@ -191,7 +193,7 @@ const expandirVariantes = (lineas: string[]): string[] => {
       } else {
         lineasExpandidas.push(lineaTrim);
       }
-    } else if (/(?:\$|u\$)/i.test(lineaTrim)) {
+    } else if (INDICADOR_PRECIO.test(lineaTrim)) {
       lineasExpandidas.push(lineaTrim);
       tituloActual = "";
     }

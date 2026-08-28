@@ -68,9 +68,9 @@ export default function BuscadorComparativo({ proveedores }: Props) {
     const patrones = [
       /u\$\s*(\d+)/i,                  // u$1380
       /\$\s*(\d+[.,]?\d*)/,           // $350000 o $350.000
-      /(\d+[.,]\d{3}[.,]?\d*)/,       // 350.000 o 350,000
-      /USD\s*(\d+[.,]?\d*)/i,         // USD 500
+      /USD\s*(\d+[.,]?\d*)/i,         // USD 500 (antes que números sueltos tipo 128 GB)
       /U\$S\s*(\d+[.,]?\d*)/i,        // U$S 500
+      /(\d+[.,]\d{3}[.,]?\d*)/,       // 350.000 o 350,000
       /(\d{3,})/,                      // Cualquier número de 3+ dígitos
     ];
 
@@ -153,13 +153,13 @@ export default function BuscadorComparativo({ proveedores }: Props) {
       const tieneMarcaModelo = 
         /(?:APPLE|IPHONE|SAMSUNG|GALAXY|XIAOMI|REDMI|POCO|MOTOROLA|MOTO|INFINIX|MACBOOK|IPAD)/i.test(lineaTrim);
       
-      const tienePrecioEnLinea = /(?:\$|u\$)/i.test(lineaTrim);
-      const tieneGBconPrecio = /\d+\s*GB.+(?:\$|u\$)/i.test(lineaTrim); // acepta "256 GB" o "256GB"
+      const tienePrecioEnLinea = /(?:\$|u\$|USD|U\$S)/i.test(lineaTrim);
+      const tieneGBconPrecio = /\d+\s*GB.+(?:\$|u\$|USD|U\$S)/i.test(lineaTrim); // acepta "256 GB" o "256GB"
       
       const esTitulo = tieneMarcaModelo && !tieneGBconPrecio && !tienePrecioEnLinea;
 
       // DETECCIÓN DE LÍNEA CON SPECS: Empieza con X GB y tiene precio (ej. "256GB $..." o "256 GB $...")
-      const esLineaConSpecs = /^\d+\s*GB.+(?:\$|u\$)/i.test(lineaTrim);
+      const esLineaConSpecs = /^\d+\s*GB.+(?:\$|u\$|USD|U\$S)/i.test(lineaTrim);
 
       if (esTitulo) {
         // Guardar título (limpiando emojis)
@@ -195,7 +195,7 @@ export default function BuscadorComparativo({ proveedores }: Props) {
           lineasExpandidas.push(lineaTrim);
         }
         
-      } else if (/(?:\$|u\$)/i.test(lineaTrim)) {
+      } else if (/(?:\$|u\$|USD|U\$S)/i.test(lineaTrim)) {
         // Línea con precio pero no es specs (ej: línea completa con todo)
         lineasExpandidas.push(lineaTrim);
         tituloActual = ""; // Resetear título
