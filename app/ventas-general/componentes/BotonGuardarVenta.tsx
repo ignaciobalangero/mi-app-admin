@@ -281,6 +281,14 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
             ? producto.precioUSD ?? producto.precioUnitario ?? 0
             : producto.precioARS ?? producto.precioUnitario ?? 0
         );
+        const precioCosto = Math.max(
+          0,
+          Number(producto.precioCosto ?? producto.precioCostoPesos ?? 0)
+        );
+        const precioCostoPesos =
+          producto.moneda === "ARS"
+            ? precioCosto
+            : Number(producto.precioCostoPesos ?? 0);
         return {
           ...producto,
           tipo: "libre",
@@ -289,9 +297,9 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
           codigo: "",
           precioUnitario: precioVentaReal,
           precioVenta: precioVentaReal * cantidad,
-          precioCosto: 0,
-          precioCostoPesos: 0,
-          ganancia: precioVentaReal * cantidad,
+          precioCosto,
+          precioCostoPesos,
+          ganancia: (precioVentaReal - precioCosto) * cantidad,
           cotizacionUsada: cotizacionActual,
         };
       }

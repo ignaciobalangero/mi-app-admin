@@ -86,6 +86,7 @@ export default function SelectorProductoVentaGeneral({
     categoria: "Sin stock",
     cantidad: 1,
     precio: 0,
+    precioCosto: 0,
     moneda: "ARS" as "ARS" | "USD",
     observacion: "",
   });
@@ -99,6 +100,7 @@ export default function SelectorProductoVentaGeneral({
       categoria: "Sin stock",
       cantidad: 1,
       precio: 0,
+      precioCosto: 0,
       moneda: "ARS",
       observacion: "",
     });
@@ -112,9 +114,10 @@ export default function SelectorProductoVentaGeneral({
     }
     const precio = Number(libreForm.precio);
     if (!Number.isFinite(precio) || precio <= 0) {
-      alert("⚠️ El precio debe ser mayor a 0");
+      alert("⚠️ El precio de venta debe ser mayor a 0");
       return;
     }
+    const precioCosto = Math.max(0, Number(libreForm.precioCosto) || 0);
     const cantidadLibre = Math.max(1, Number(libreForm.cantidad) || 1);
     const moneda = libreForm.moneda;
     const modelo = libreForm.modelo.trim() || nombre;
@@ -140,6 +143,8 @@ export default function SelectorProductoVentaGeneral({
         precio1: 0,
         precio2: 0,
         precio3: 0,
+        precioCosto,
+        precioCostoPesos: moneda === "ARS" ? precioCosto : 0,
         observacion: libreForm.observacion.trim(),
       },
     ]);
@@ -1064,19 +1069,63 @@ useEffect(() => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
-                  Precio unitario ({libreForm.moneda}) *
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={libreForm.precio || ""}
-                  onChange={(e) => setLibreForm((f) => ({ ...f, precio: Number(e.target.value) }))}
-                  className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg text-lg font-medium text-center"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
+                    Precio de costo ({libreForm.moneda})
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={libreForm.precioCosto || ""}
+                    onChange={(e) =>
+                      setLibreForm((f) => ({ ...f, precioCosto: Number(e.target.value) }))
+                    }
+                    placeholder="0"
+                    className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg text-lg font-medium text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
+                    Precio de venta ({libreForm.moneda}) *
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={libreForm.precio || ""}
+                    onChange={(e) =>
+                      setLibreForm((f) => ({ ...f, precio: Number(e.target.value) }))
+                    }
+                    className="w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg text-lg font-medium text-center"
+                  />
+                </div>
               </div>
+
+              {Number(libreForm.precio) > 0 && (
+                <div className="rounded-lg border border-[#d5f5e3] bg-[#eafaf1] px-3 py-2 text-sm text-[#1e8449]">
+                  Ganancia unitaria:{" "}
+                  <strong>
+                    {(
+                      Number(libreForm.precio) - Math.max(0, Number(libreForm.precioCosto) || 0)
+                    ).toLocaleString("es-AR")}{" "}
+                    {libreForm.moneda}
+                  </strong>
+                  {Number(libreForm.cantidad) > 1 && (
+                    <span className="text-[#196f3d]">
+                      {" "}
+                      · Total:{" "}
+                      {(
+                        (Number(libreForm.precio) -
+                          Math.max(0, Number(libreForm.precioCosto) || 0)) *
+                        Math.max(1, Number(libreForm.cantidad) || 1)
+                      ).toLocaleString("es-AR")}{" "}
+                      {libreForm.moneda}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
