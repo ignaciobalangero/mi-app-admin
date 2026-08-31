@@ -73,6 +73,7 @@ export default function BotonGuardarVenta({
   const { rol } = useRol();
   const [guardando, setGuardando] = useState(false);
   const guardandoRef = useRef(false);
+  const clienteDeBase = Boolean(String(clienteId || "").trim());
 
   const leerMetaPedidoTienda = () => {
     const raw = localStorage.getItem(STORAGE_PEDIDO_TIENDA_ACTIVO);
@@ -986,6 +987,12 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
 
   const guardarVenta = async () => {
     if (!rol?.negocioID || productos.length === 0 || !cliente) return;
+    if (!String(clienteId || "").trim()) {
+      alert(
+        "Seleccioná el cliente de la lista antes de guardar. Así el saldo se actualiza sin confusiones de nombre."
+      );
+      return;
+    }
     if (guardandoRef.current) return;
     guardandoRef.current = true;
     setGuardando(true);
@@ -1133,12 +1140,17 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
         <button
           type="button"
           onClick={guardarVenta}
-          disabled={guardando}
+          disabled={guardando || !clienteDeBase}
           className={`rounded-lg font-medium flex items-center gap-2 transition-all duration-200 transform text-white ${
-            guardando 
+            guardando || !clienteDeBase
               ? "bg-[#bdc3c7] cursor-not-allowed" 
               : "bg-[#3498db] hover:bg-[#2980b9] hover:scale-105"
           }`}
+          title={
+            !clienteDeBase
+              ? "Seleccioná el cliente de la lista"
+              : undefined
+          }
           style={{ 
             height: "40px", 
             padding: "0 24px",

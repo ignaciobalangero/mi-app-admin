@@ -25,6 +25,7 @@ import {
   parsearTelefonosComoPagoLS,
   telefonoDraftAProducto,
 } from "@/lib/ventas/telefonoVentaHelpers";
+import { limpiarNombreClienteExacto } from "@/lib/actualizarSaldoCliente";
 
 export default function ModalVenta({
   clienteInicial = "",
@@ -340,6 +341,32 @@ export default function ModalVenta({
     cargarClientes();
   }, [rol?.negocioID]);
 
+  // Si hay nombre (teléfono/pedido/tipeo exacto) pero aún no hay ID, vincularlo con Clientes.
+  useEffect(() => {
+    const nombre = limpiarNombreClienteExacto(cliente);
+    if (!nombre || listaClientes.length === 0) return;
+
+    if (clienteId) {
+      const porId = listaClientes.find((c) => c.id === clienteId);
+      if (porId) {
+        if (porId.nombre !== cliente) setCliente(porId.nombre);
+        return;
+      }
+    }
+
+    const hit = listaClientes.find(
+      (c) => limpiarNombreClienteExacto(c.nombre) === nombre
+    );
+    if (hit) {
+      setClienteId(hit.id);
+      if (hit.nombre !== cliente) setCliente(hit.nombre);
+    } else if (clienteId) {
+      setClienteId("");
+    }
+  }, [listaClientes, cliente, clienteId]);
+
+  const clienteDeBase = Boolean(String(clienteId || "").trim());
+
   if (!rol || !rol.negocioID || numeroVenta === "") return null;
 
   // ✅ CÁLCULOS DUALES - Separar por moneda original
@@ -499,20 +526,13 @@ export default function ModalVenta({
               <div className="flex gap-2">
                 <div className="flex-1 relative z-30">
                   <Combobox
-                    value={cliente}
-                    onChange={(v) => {
-                      const nombre = String(v || "").trim();
-                      const hit = listaClientes.find(
-                        (c) =>
-                          c.nombre === nombre ||
-                          c.nombre.trim().toLowerCase() === nombre.toLowerCase()
-                      );
-                      if (hit) {
-                        // Guardar el nombre TAL CUAL está en Clientes (importante para el saldo)
-                        setCliente(hit.nombre);
-                        setClienteId(hit.id);
+                    value={listaClientes.find((c) => c.id === clienteId) ?? null}
+                    onChange={(c: { id: string; nombre: string } | null) => {
+                      if (c) {
+                        setCliente(c.nombre);
+                        setClienteId(c.id);
                       } else {
-                        setCliente(nombre);
+                        setCliente("");
                         setClienteId("");
                       }
                       setQueryCliente("");
@@ -520,16 +540,20 @@ export default function ModalVenta({
                   >
                     <div className="relative">
                       <Combobox.Input
-                        className="w-full p-2 sm:p-3 border border-[#bdc3c7] rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
+                        className={`w-full p-2 sm:p-3 border rounded-lg text-sm sm:text-base bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] ${
+                          cliente.trim() && !clienteDeBase
+                            ? "border-[#e67e22]"
+                            : "border-[#bdc3c7]"
+                        }`}
                         onChange={(e) => {
                           const v = e.target.value;
                           setQueryCliente(v);
                           setCliente(v);
-                          // Si escribe a mano, no hay ID confiable → se busca por nombre al guardar
+                          // Sin elegir de la lista no hay ID → no se puede guardar
                           setClienteId("");
                         }}
                         displayValue={() => cliente}
-                        placeholder="🔍 Ingrese o seleccione el nombre del cliente..."
+                        placeholder="🔍 Seleccioná el cliente de la lista..."
                         autoComplete="off"
                         autoCorrect="off"
                         spellCheck={false}
@@ -545,7 +569,7 @@ export default function ModalVenta({
                           .map((c) => (
                             <Combobox.Option
                               key={c.id}
-                              value={c.nombre}
+                              value={c}
                               className={({ active }) =>
                                 `px-3 py-2 cursor-pointer transition-colors text-[#2c3e50] text-sm ${
                                   active ? "bg-[#3498db] text-white" : "hover:bg-[#ecf0f1]"
@@ -558,6 +582,11 @@ export default function ModalVenta({
                       </Combobox.Options>
                     </div>
                   </Combobox>
+                  {cliente.trim() && !clienteDeBase && (
+                    <p className="mt-1 text-xs text-[#e67e22]">
+                      Elegí el cliente de la lista (no alcanza con escribir el nombre) para poder guardar.
+                    </p>
+                  )}
                 </div>
                 
                 {/* 🔥 BOTÓN AGREGAR CLIENTE */}
@@ -1167,6 +1196,10 @@ export default function ModalVenta({
 
               <button
                 onClick={() => {
+                  if (!clienteDeBase) {
+                    alert("Seleccioná el cliente de la lista antes de cobrar.");
+                    return;
+                  }
                   console.log("COBRAR PRESIONADO - Sistema Dual", {
                     totalARS,
                     totalUSD,
@@ -1174,7 +1207,12 @@ export default function ModalVenta({
                   });
                   setModalPagoAbierto(true);
                 }}
-                className="w-full sm:w-auto bg-[#27ae60] hover:bg-[#229954] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center justify-center gap-2 text-sm"
+                disabled={!clienteDeBase}
+                className={`w-full sm:w-auto text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg flex items-center justify-center gap-2 text-sm ${
+                  clienteDeBase
+                    ? "bg-[#27ae60] hover:bg-[#229954] transform hover:scale-105"
+                    : "bg-[#bdc3c7] cursor-not-allowed"
+                }`}
               >
                 💳 COBRAR
               </button>
