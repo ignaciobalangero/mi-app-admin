@@ -1,24 +1,28 @@
-import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
+import { doc, getDoc, runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-// 👉 esta SÍ incrementa (solo se usa en guardar venta)
+/** Incrementa y devuelve el nro de venta en una transacción (evita duplicados por carrera). */
 export async function obtenerYSumarNumeroVenta(negocioID: string): Promise<string> {
   const ref = doc(db, `negocios/${negocioID}/configuracion/contadorVentas`);
-  const snap = await getDoc(ref);
 
-  if (!snap.exists()) {
-    await setDoc(ref, { ultimo: 1 });
-    return "00001";
-  }
+  return runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    let siguiente: number;
 
-  const data = snap.data();
-  const siguiente = (data.ultimo || 0) + 1;
+    if (!snap.exists()) {
+      siguiente = 1;
+      transaction.set(ref, { ultimo: 1 });
+    } else {
+      const ultimo = Number(snap.data()?.ultimo ?? 0);
+      siguiente = ultimo + 1;
+      transaction.update(ref, { ultimo: siguiente });
+    }
 
-  await updateDoc(ref, { ultimo: increment(1) });
-  return siguiente.toString().padStart(5, "0");
+    return siguiente.toString().padStart(5, "0");
+  });
 }
 
-// 👉 esta NO incrementa, solo visual (usala en ModalVenta)
+/** Solo visual (ModalVenta); no incrementa. */
 export async function obtenerUltimoNumeroVenta(negocioID: string): Promise<string> {
   const ref = doc(db, `negocios/${negocioID}/configuracion/contadorVentas`);
   const snap = await getDoc(ref);

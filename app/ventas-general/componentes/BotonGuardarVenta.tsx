@@ -992,7 +992,7 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
 
     try {
       const ventaTelefonoPendiente = localStorage.getItem("ventaTelefonoPendiente");
-      
+
       if (ventaTelefonoPendiente && desdeTelefono) {
         const datosVentaTelefono = JSON.parse(ventaTelefonoPendiente);
         const pagoTelefono = pago || {};
@@ -1121,16 +1121,17 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
     } catch (error) {
       console.error("Error al guardar la venta:", error);
       alert(error instanceof Error ? error.message : "Error al guardar la venta.");
-    } finally {
       guardandoRef.current = false;
       setGuardando(false);
     }
+    // Si guardó OK: el botón queda bloqueado hasta que router.replace desmonte el modal.
   };
 
   return (
     <div className="mt-6">
       <div className="flex justify-end gap-4">
         <button
+          type="button"
           onClick={guardarVenta}
           disabled={guardando}
           className={`rounded-lg font-medium flex items-center gap-2 transition-all duration-200 transform text-white ${

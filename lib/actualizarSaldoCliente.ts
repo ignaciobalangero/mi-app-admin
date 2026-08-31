@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   query,
   serverTimestamp,
@@ -17,10 +18,6 @@ import {
   normalizeMonedaCuenta,
   totalesVentasPorMoneda,
 } from "@/app/clientes/[nombreCliente]/ventasMonedaHelpers";
-
-function roundSaldo(n: number): number {
-  return Number(Math.round(n * 100) / 100);
-}
 
 /**
  * Limpieza mínima para comparar el MISMO nombre:
@@ -148,9 +145,10 @@ export async function actualizarSaldoClienteNegocioDetalle(
 
     const nombreDoc = limpiarNombreClienteExacto(String(cliente.data.nombre ?? nombre));
 
+    // increment() evita pisar saldos si hay varios ajustes seguidos (venta + pagos).
     await updateDoc(cliente.ref, {
-      saldoARS: roundSaldo(Number(cliente.data.saldoARS ?? 0) + Number(sumarARS)),
-      saldoUSD: roundSaldo(Number(cliente.data.saldoUSD ?? 0) + Number(sumarUSD)),
+      saldoARS: increment(Number(sumarARS)),
+      saldoUSD: increment(Number(sumarUSD)),
       ultimaActualizacion: serverTimestamp(),
     });
 
