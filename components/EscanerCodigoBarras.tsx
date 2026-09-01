@@ -301,7 +301,7 @@ export default function EscanerCodigoBarras({
       if (!activo) return;
       if (ts - ultimoIntento >= 100) {
         ultimoIntento = ts;
-        const espejos = camaraActiva.esFrontal ? [false, true] : [false, true];
+        const espejos = [false, true];
         const recortes: Recorte[] = ["centro", "completo"];
 
         for (const recorte of recortes) {
@@ -363,8 +363,6 @@ export default function EscanerCodigoBarras({
 
   if (!abierto) return null;
 
-  const espejarPreview = camaraActiva?.esFrontal ?? !esDispositivoMobile();
-
   return (
     <div className="fixed inset-0 z-[999999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
@@ -372,7 +370,7 @@ export default function EscanerCodigoBarras({
           <div>
             <h3 className="font-bold text-lg">📷 {titulo}</h3>
             <p className="text-xs text-white/80">
-              Centrá el código en el recuadro. Usamos la misma cámara que ves en pantalla.
+              El código debe verse derecho (sin invertido). Centrálo en el recuadro verde.
             </p>
           </div>
           <button
@@ -415,7 +413,6 @@ export default function EscanerCodigoBarras({
             <video
               ref={videoRef}
               className="w-full h-full object-cover bg-black"
-              style={espejarPreview ? { transform: "scaleX(-1)" } : undefined}
               muted
               playsInline
               autoPlay
@@ -430,7 +427,7 @@ export default function EscanerCodigoBarras({
           {error ? <p className="text-center text-red-300 text-sm">{error}</p> : null}
           {!error && !iniciando ? (
             <p className="text-center text-slate-400 text-[11px]">
-              Acercá el código de barras del IMEI al recuadro verde y mantenelo firme 1–2 segundos.
+              Si el IMEI se lee al revés en pantalla, cambiá de cámara arriba. Mantené el código firme 1–2 s.
             </p>
           ) : null}
         </div>
