@@ -14,6 +14,7 @@ import {
   updateDoc,
   addDoc,
   serverTimestamp,
+  onSnapshot,
 } from "firebase/firestore";
 import Header from "../Header";
 import RequireAuth from "../../lib/requireAuth";
@@ -27,8 +28,14 @@ import ModalConfirmarImpresion from "./ModalConfirmarImpresion";
 import { PatronDrawer, PatronViewer, type Patron } from "@/app/components/PatronDesbloqueo";
 import CampoFotosTrabajo, { filesPendientesDeFotos } from "@/components/CampoFotosTrabajo";
 import CampoFirmaDigital from "@/components/CampoFirmaDigital";
+import CampoImei from "@/components/CampoImei";
 import { subirFotoTrabajo, subirFirmaClienteTrabajo } from "@/lib/trabajosFotosCliente";
 import type { FotoTrabajo } from "@/lib/trabajosFotos";
+import {
+  crearBorradorFirmaIngreso,
+  eliminarBorradorFirmaIngreso,
+  nuevoTokenPublicoIngreso,
+} from "@/lib/borradorFirmaIngreso";
 
 interface Cliente {
   nombre: string;
@@ -114,6 +121,9 @@ export default function IngresoForm() {
     { tipo: "principal" } | { tipo: "extra"; idx: number } | null
   >(null);
   const [firmaClienteDataUrl, setFirmaClienteDataUrl] = useState<string | null>(null);
+  const [firmaClienteUrlIpad, setFirmaClienteUrlIpad] = useState<string | null>(null);
+  const [borradorFirmaId, setBorradorFirmaId] = useState<string | null>(null);
+  const [tokenPublicoIngreso, setTokenPublicoIngreso] = useState(() => nuevoTokenPublicoIngreso());
   const [patronBorrador, setPatronBorrador] = useState<Patron>([]);
 
   // ✨ FUNCIÓN PARA FORMATEAR NÚMEROS CON PUNTOS (50.000)
@@ -258,8 +268,46 @@ export default function IngresoForm() {
     }
   };
 
+  useEffect(() => {
+    if (!negocioID || !borradorFirmaId) return;
+    const unsub = onSnapshot(doc(db, `negocios/${negocioID}/trabajos/${borradorFirmaId}`), (snap) => {
+      const url = String(snap.data()?.firmaClienteUrl || "").trim();
+      if (url) {
+        setFirmaClienteUrlIpad(url);
+        setFirmaClienteDataUrl(null);
+      }
+    });
+    return () => unsub();
+  }, [negocioID, borradorFirmaId]);
+
+  const prepararBorradorFirma = async () => {
+    if (!negocioID) {
+      alert("No se encontró un negocio asociado a este usuario");
+      return null;
+    }
+    if (!form.cliente?.trim()) {
+      alert("Completá el cliente antes de abrir el QR de firma");
+      return null;
+    }
+    if (borradorFirmaId) {
+      return { trabajoFirebaseId: borradorFirmaId, tokenPublico: tokenPublicoIngreso };
+    }
+    const borrador = await crearBorradorFirmaIngreso(negocioID, {
+      nroOrden,
+      cliente: form.cliente.trim(),
+      idTrabajo: form.id || `${nroOrden}-01`,
+      tokenPublico: tokenPublicoIngreso,
+    });
+    setBorradorFirmaId(borrador.trabajoFirebaseId);
+    return borrador;
+  };
+
   // ✅ FUNCIÓN AUXILIAR: Limpiar formulario
   const limpiarFormulario = () => {
+    if (borradorFirmaId && negocioID) {
+      void eliminarBorradorFirmaIngreso(negocioID, borradorFirmaId);
+    }
+
     const hoy = new Date();
     const nroOrdenGenerado = "ORD-" + hoy.getTime().toString().slice(-6);
     setNroOrden(nroOrdenGenerado);
@@ -276,6 +324,9 @@ export default function IngresoForm() {
     setTrabajoSeleccionadoImpresion(null);
     setMostrarModalConfirmacion(false); // ✨ NUEVO
     setFirmaClienteDataUrl(null);
+    setFirmaClienteUrlIpad(null);
+    setBorradorFirmaId(null);
+    setTokenPublicoIngreso(nuevoTokenPublicoIngreso());
   };
 
   // ✅ FUNCIÓN ACTUALIZADA: Ticket con modal nativo
@@ -784,6 +835,7 @@ export default function IngresoForm() {
         estado: "PENDIENTE",
         checkIn: mostrarCheckIn ? checkData : null,
         fotosIngreso: [],
+        ...(idx === 0 ? { tokenPublico: tokenPublicoIngreso } : {}),
       };
     });
 
@@ -793,6 +845,7 @@ export default function IngresoForm() {
       fecha: form.fecha,
       cliente: form.cliente,
       trabajos: trabajosPayload as any,
+      reutilizarFirebaseIdPrimerTrabajo: borradorFirmaId || undefined,
     });
 
     if (res) {
@@ -834,7 +887,10 @@ export default function IngresoForm() {
       }
 
       // Firma digital del cliente (una por orden → se aplica a todos los equipos guardados)
-      if (firmaClienteDataUrl?.startsWith("data:image/")) {
+      const firmaDesdeIpad =
+        firmaClienteUrlIpad || String(res.trabajosGuardados[0]?.firmaClienteUrl || "").trim();
+
+      if (firmaClienteDataUrl?.startsWith("data:image/") && !firmaDesdeIpad) {
         try {
           const primero = res.trabajosGuardados[0];
           if (primero?.firebaseId) {
@@ -860,7 +916,25 @@ export default function IngresoForm() {
             "Los trabajos se guardaron, pero no se pudo guardar la firma. Podés firmar después desde Gestión → Editar."
           );
         }
+      } else if (firmaDesdeIpad && res.trabajosGuardados.length > 1) {
+        try {
+          await Promise.all(
+            res.trabajosGuardados.slice(1).map(async (g) => {
+              if (!g?.firebaseId) return;
+              await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${g.firebaseId}`), {
+                firmaClienteUrl: firmaDesdeIpad,
+                firmaClienteEn: new Date().toISOString(),
+                firmaClienteOrigen: "ipad-publico",
+              });
+              (g as any).firmaClienteUrl = firmaDesdeIpad;
+            })
+          );
+        } catch (firmaErr) {
+          console.warn("Trabajos guardados; error copiando firma iPad a equipos extra:", firmaErr);
+        }
       }
+
+      setBorradorFirmaId(null);
 
       setMensajeExito(res.mensaje);
       setTrabajosParaImprimir(res.trabajosGuardados);
@@ -1210,12 +1284,9 @@ export default function IngresoForm() {
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
                   📲 IMEI
                 </label>
-                <input
-                  type="text"
+                <CampoImei
                   value={form.imei}
-                  onChange={(e) => setForm((prev) => ({ ...prev, imei: e.target.value }))}
-                  className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
-                  placeholder="Número IMEI"
+                  onChange={(imei) => setForm((prev) => ({ ...prev, imei }))}
                 />
               </div>
 
@@ -1322,9 +1393,30 @@ export default function IngresoForm() {
 
               <div className="md:col-span-2">
                 <CampoFirmaDigital
-                  value={firmaClienteDataUrl}
-                  onChange={setFirmaClienteDataUrl}
+                  value={firmaClienteUrlIpad || firmaClienteDataUrl}
+                  onChange={(v) => {
+                    if (!v) {
+                      setFirmaClienteDataUrl(null);
+                      setFirmaClienteUrlIpad(null);
+                      return;
+                    }
+                    if (v.startsWith("data:image/")) {
+                      setFirmaClienteDataUrl(v);
+                      setFirmaClienteUrlIpad(null);
+                    }
+                  }}
                   titulo="Firma del cliente (ingreso)"
+                  firmaIpad={
+                    negocioID
+                      ? {
+                          negocioID,
+                          trabajoFirebaseId: borradorFirmaId || undefined,
+                          tokenPublico: tokenPublicoIngreso,
+                          onPrepararBorrador: prepararBorradorFirma,
+                          onTokenGenerado: setTokenPublicoIngreso,
+                        }
+                      : undefined
+                  }
                 />
               </div>
             </div>
@@ -1407,12 +1499,10 @@ export default function IngresoForm() {
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📲 IMEI</label>
-                          <input
-                            type="text"
+                          <CampoImei
                             value={eq.imei}
-                            onChange={(e) => actualizarEquipoExtra(idx, { imei: e.target.value })}
-                            className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
-                            placeholder="Número IMEI"
+                            onChange={(imei) => actualizarEquipoExtra(idx, { imei })}
+                            inputClassName="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
                           />
                         </div>
                         <div>

@@ -89,10 +89,16 @@ export default function GestionTrabajosPage() {
     if (!negocioID) return;
     try {
       const snap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
-      const lista: Trabajo[] = snap.docs.map((docSnap) => ({
-        firebaseId: docSnap.id,
-        ...(docSnap.data() as Omit<Trabajo, "firebaseId">),
-      }));
+      const lista: Trabajo[] = snap.docs
+        .map((docSnap) => ({
+          firebaseId: docSnap.id,
+          ...(docSnap.data() as Omit<Trabajo, "firebaseId">),
+        }))
+        .filter(
+          (t) =>
+            t.estado !== "BORRADOR_INGRESO" &&
+            !(t as Trabajo & { esBorradorIngreso?: boolean }).esBorradorIngreso
+        );
       lista.sort((a, b) => parsearFecha(b.fecha).getTime() - parsearFecha(a.fecha).getTime());
       setTrabajos(lista);
     } catch (error) {

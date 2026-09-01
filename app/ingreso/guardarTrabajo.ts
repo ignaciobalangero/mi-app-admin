@@ -1,4 +1,4 @@
-import { addDoc, collection, serverTimestamp, writeBatch, doc } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp, writeBatch, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { imprimirEtiqueta } from "@/lib/qzPrinter";
 import { generarTokenPublicoTrabajo } from "@/lib/trabajosFotos";
@@ -118,6 +118,8 @@ export interface GuardarTrabajosBatchInput {
   fecha: string;
   cliente: string;
   trabajos: Omit<TrabajoData, "cliente" | "fecha" | "nroOrden">[];
+  /** Reutiliza el doc borrador creado para firma iPad (solo el primer equipo). */
+  reutilizarFirebaseIdPrimerTrabajo?: string;
 }
 
 export interface TrabajoGuardadoBatch extends TrabajoData {
@@ -140,8 +142,27 @@ export const guardarTrabajosBatch = async (
 
     const trabajosCol = collection(db, `negocios/${negocioID}/trabajos`);
 
+    let firmaBorradorUrl = "";
+    let firmaBorradorEn = "";
+    const reutilizarId = String(input.reutilizarFirebaseIdPrimerTrabajo || "").trim();
+    if (reutilizarId) {
+      try {
+        const borradorSnap = await getDoc(doc(db, `negocios/${negocioID}/trabajos/${reutilizarId}`));
+        if (borradorSnap.exists()) {
+          const b = borradorSnap.data();
+          firmaBorradorUrl = String(b?.firmaClienteUrl || "").trim();
+          firmaBorradorEn = String(b?.firmaClienteEn || "").trim();
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     input.trabajos.forEach((t, idx) => {
-      const ref = doc(trabajosCol); // id único
+      const ref =
+        idx === 0 && reutilizarId
+          ? doc(db, `negocios/${negocioID}/trabajos/${reutilizarId}`)
+          : doc(trabajosCol);
       const precioNum = Number(t.precio ?? 0);
       const anticipoNum = Number(t.anticipo ?? 0);
       const saldoNum = Number(t.saldo ?? (precioNum - anticipoNum));
@@ -168,6 +189,15 @@ export const guardarTrabajosBatch = async (
         creadoEn: serverTimestamp() as any,
       } as any;
 
+      const firmaFinal =
+        firmaClienteUrl || (idx === 0 && firmaBorradorUrl ? firmaBorradorUrl : "");
+      const firmaEnFinal =
+        idx === 0 && firmaBorradorEn && firmaFinal === firmaBorradorUrl
+          ? firmaBorradorEn
+          : firmaFinal
+            ? new Date().toISOString()
+            : undefined;
+
       batch.set(ref, {
         ...trabajoConMeta,
         precio: precioNum,
@@ -176,7 +206,13 @@ export const guardarTrabajosBatch = async (
         tokenPublico,
         fotosIngreso,
         fotosProceso,
-        ...(firmaClienteUrl ? { firmaClienteUrl } : {}),
+        esBorradorIngreso: false,
+        ...(firmaFinal
+          ? {
+              firmaClienteUrl: firmaFinal,
+              ...(firmaEnFinal ? { firmaClienteEn: firmaEnFinal } : {}),
+            }
+          : {}),
         creadoEn: serverTimestamp(),
       });
 
@@ -184,6 +220,7 @@ export const guardarTrabajosBatch = async (
         ...(trabajoConMeta as any),
         firebaseId: ref.id,
         tokenPublico,
+        ...(firmaFinal ? { firmaClienteUrl: firmaFinal } : {}),
       });
     });
 
