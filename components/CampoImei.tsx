@@ -82,6 +82,7 @@ export default function CampoImei({
       <ModalConsultaImei
         abierto={consultando}
         imei={imeiLimpio}
+        onImeiChange={(imei) => onChange(imei)}
         onCerrar={() => setConsultando(false)}
       />
     </>
