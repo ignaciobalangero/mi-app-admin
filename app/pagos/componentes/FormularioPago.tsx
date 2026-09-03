@@ -54,9 +54,8 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
    return `${y}-${m}-${day}`;
  });
  
- // Estados para mostrar trabajos pendientes del cliente seleccionado
+ // Trabajos pendientes (se usan para marcar PAGADO al guardar, sin mostrar sugerencia)
  const [trabajosPendientes, setTrabajosPendientes] = useState<Trabajo[]>([]);
- const [mostrarTrabajos, setMostrarTrabajos] = useState(false);
 
  const hoyInputDate = () => {
    const d = new Date();
@@ -158,7 +157,6 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
    const cargarTrabajosPendientes = async () => {
      if (!cliente || !negocioID) {
        setTrabajosPendientes([]);
-       setMostrarTrabajos(false);
        return;
      }
 
@@ -193,23 +191,6 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
        });
 
        setTrabajosPendientes(trabajosDelCliente);
-       setMostrarTrabajos(trabajosDelCliente.length > 0);
-
-       // Pre-llenar monto con el total de la deuda en la moneda seleccionada
-       if (trabajosDelCliente.length > 0) {
-         const totalARS = trabajosDelCliente
-           .filter(t => (t.moneda || "ARS") === "ARS")
-           .reduce((sum, t) => sum + t.precio, 0);
-         const totalUSD = trabajosDelCliente
-           .filter(t => t.moneda === "USD")
-           .reduce((sum, t) => sum + t.precio, 0);
-
-         if (moneda === "ARS" && totalARS > 0) {
-           setMonto(totalARS);
-         } else if (moneda === "USD" && totalUSD > 0) {
-           setMonto(totalUSD);
-         }
-       }
 
      } catch (error) {
        console.error("Error al cargar trabajos pendientes:", error);
@@ -355,7 +336,6 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
      setMoneda("ARS");
      setFechaPago(hoyInputDate());
      setTrabajosPendientes([]);
-     setMostrarTrabajos(false);
 
      setTimeout(() => setMensaje(""), 3000);
    } catch (error) {
@@ -429,14 +409,6 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
     setMensaje("❌ Error inesperado al eliminar");
   }
 };
- // Calcular totales de deuda por moneda
- const totalDeudaARS = trabajosPendientes
-   .filter(t => (t.moneda || "ARS") === "ARS")
-   .reduce((sum, t) => sum + t.precio, 0);
- const totalDeudaUSD = trabajosPendientes
-   .filter(t => t.moneda === "USD")
-   .reduce((sum, t) => sum + t.precio, 0);
-
  return (
    <div className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1]">
      
@@ -446,10 +418,10 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
        </div>
        <div>
          <h2 className="text-lg font-bold text-[#2c3e50]">
-           {editandoId ? "Editar Pago" : "Nuevo Pago Inteligente"}
+           {editandoId ? "Editar Pago" : "Nuevo Pago"}
          </h2>
          <p className="text-[#7f8c8d] text-xs">
-           Registra pagos y marca trabajos automáticamente
+           Registrá pagos de clientes
          </p>
        </div>
      </div>
@@ -464,78 +436,6 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
        </div>
      )}
 
-     {/* Información de trabajos pendientes */}
-     {mostrarTrabajos && (
-       <div className="bg-gradient-to-r from-[#ebf3fd] to-[#d6eafc] rounded-xl p-4 mb-4 border-2 border-[#3498db]">
-         <div className="flex items-center gap-2 mb-3">
-           <div className="w-6 h-6 bg-[#3498db] rounded-lg flex items-center justify-center">
-             <span className="text-white text-xs">📋</span>
-           </div>
-           <h3 className="font-bold text-[#2c3e50] text-sm">
-             Trabajos Pendientes de {cliente}
-           </h3>
-         </div>
-         
-         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-           {totalDeudaARS > 0 && (
-             <div className="bg-white/60 rounded-lg p-3">
-               <p className="text-xs text-[#7f8c8d]">Total en Pesos</p>
-               <p className="font-bold text-[#e74c3c]">${totalDeudaARS.toLocaleString()}</p>
-             </div>
-           )}
-           {totalDeudaUSD > 0 && (
-             <div className="bg-white/60 rounded-lg p-3">
-               <p className="text-xs text-[#7f8c8d]">Total en USD</p>
-               <p className="font-bold text-[#e74c3c]">USD ${totalDeudaUSD.toLocaleString()}</p>
-             </div>
-           )}
-         </div>
-
-         <div className="space-y-1 max-h-32 overflow-y-auto">
-           {trabajosPendientes.slice(0, 5).map((trabajo, idx) => (
-             <div key={trabajo.firebaseId} className="text-xs bg-white/40 rounded px-2 py-1 flex justify-between items-center">
-               <span>{trabajo.modelo} - {trabajo.trabajo}</span>
-               <span className="font-semibold">
-                 {trabajo.moneda === "USD" ? "USD " : "$"}{trabajo.precio}
-               </span>
-             </div>
-           ))}
-           {trabajosPendientes.length > 5 && (
-             <div className="text-xs text-[#7f8c8d] text-center">
-               +{trabajosPendientes.length - 5} trabajos más...
-             </div>
-           )}
-         </div>
-
-         <div className="mt-3 pt-3 border-t border-[#3498db]/30">
-           <div className="flex flex-wrap gap-2">
-             <span className="text-xs text-[#7f8c8d]">Pagos sugeridos:</span>
-             {totalDeudaARS > 0 && (
-               <button
-                 onClick={() => {
-                   setMoneda("ARS");
-                   setMonto(totalDeudaARS);
-                 }}
-                 className="bg-[#27ae60] hover:bg-[#229954] text-white px-2 py-1 rounded text-xs font-medium transition-all"
-               >
-                 Total ARS: ${totalDeudaARS.toLocaleString()}
-               </button>
-             )}
-             {totalDeudaUSD > 0 && (
-               <button
-                 onClick={() => {
-                   setMoneda("USD");
-                   setMonto(totalDeudaUSD);
-                 }}
-                 className="bg-[#f39c12] hover:bg-[#e67e22] text-white px-2 py-1 rounded text-xs font-medium transition-all"
-               >
-                 Total USD: ${totalDeudaUSD.toLocaleString()}
-               </button>
-             )}
-           </div>
-         </div>
-       </div>
-     )}
 
      {/* Grid con todos los campos de 2 columnas */}
      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-6">
@@ -750,21 +650,8 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
              : "bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] hover:scale-105"
          }`}
        >
-         💾 {editandoId ? "Actualizar" : "Guardar Pago Inteligente"}
+         💾 {editandoId ? "Actualizar" : "Guardar Pago"}
        </button>
-     </div>
-
-     <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-3 mt-4 border border-[#bdc3c7]">
-       <div className="flex items-center gap-3 text-[#2c3e50]">
-         <div className="w-6 h-6 bg-[#3498db] rounded-lg flex items-center justify-center">
-           <span className="text-white text-xs">🚀</span>
-         </div>
-         <div className="flex-1">
-           <p className="text-sm font-medium">
-             <strong>Nuevo:</strong> Pago Inteligente activado. Al seleccionar un cliente, verás sus trabajos pendientes y el sistema marcará automáticamente los trabajos como "PAGADO" según el monto recibido.
-           </p>
-         </div>
-       </div>
      </div>
    </div>
  );
