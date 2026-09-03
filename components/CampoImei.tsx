@@ -3,6 +3,7 @@
 import { useState } from "react";
 import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
 import ModalConsultaImei from "@/components/ModalConsultaImei";
+import { extraerImei } from "@/lib/extraerImei";
 
 type Props = {
   value: string;
@@ -75,7 +76,7 @@ export default function CampoImei({
       <EscanerCodigoBarras
         abierto={escaneando}
         titulo="Escanear IMEI"
-        onDetectado={(codigo) => onChange(normalizarImei(codigo))}
+        onDetectado={(codigo) => onChange(extraerImei(codigo) || normalizarImei(codigo))}
         onCerrar={() => setEscaneando(false)}
       />
 

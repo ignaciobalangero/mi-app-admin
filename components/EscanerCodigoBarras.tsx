@@ -6,10 +6,10 @@ import {
   BinaryBitmap,
   DecodeHintType,
   HybridBinarizer,
-  InvertedLuminanceSource,
   MultiFormatReader,
   RGBLuminanceSource,
 } from "@zxing/library";
+import { extraerImei } from "@/lib/extraerImei";
 
 type Props = {
   abierto: boolean;
@@ -18,181 +18,116 @@ type Props = {
   onCerrar: () => void;
 };
 
-type CamaraInfo = {
-  deviceId: string;
-  label: string;
-  esFrontal: boolean;
-};
-
-function esDispositivoMobile(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-}
-
-function inferirEsFrontal(label: string, facingMode?: string): boolean {
-  if (facingMode === "user") return true;
-  if (facingMode === "environment") return false;
-  const l = label.toLowerCase();
-  if (/back|rear|environment|trasera|trás|wide angle|telephoto/i.test(l)) return false;
-  if (/front|face|user|facetime|isight|integrated|built-in|selfie|continuity/i.test(l)) return true;
-  return !esDispositivoMobile();
-}
-
 function crearLector(): MultiFormatReader {
   const hints = new Map();
   hints.set(DecodeHintType.TRY_HARDER, true);
   hints.set(DecodeHintType.POSSIBLE_FORMATS, [
     BarcodeFormat.CODE_128,
     BarcodeFormat.CODE_39,
+    BarcodeFormat.CODE_93,
     BarcodeFormat.ITF,
+    BarcodeFormat.CODABAR,
     BarcodeFormat.EAN_13,
     BarcodeFormat.EAN_8,
-    BarcodeFormat.CODABAR,
     BarcodeFormat.UPC_A,
     BarcodeFormat.UPC_E,
-    BarcodeFormat.QR_CODE,
   ]);
   const reader = new MultiFormatReader();
   reader.setHints(hints);
   return reader;
 }
 
-function decodificarCanvas(canvas: HTMLCanvasElement, reader: MultiFormatReader): string | null {
+function decodificarZxing(canvas: HTMLCanvasElement, reader: MultiFormatReader): string | null {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
-
   const { width, height } = canvas;
-  if (width < 8 || height < 8) return null;
-
+  if (width < 20 || height < 8) return null;
   const imageData = ctx.getImageData(0, 0, width, height);
-  const base = new RGBLuminanceSource(imageData.data, width, height);
-
-  for (const invertir of [false, true]) {
-    const source = invertir ? new InvertedLuminanceSource(base) : base;
-    const bitmap = new BinaryBitmap(new HybridBinarizer(source));
-    try {
-      const texto = reader.decodeWithState(bitmap).getText().trim();
-      if (texto) return texto;
-    } catch {
-      /* siguiente variante */
-    }
+  const source = new RGBLuminanceSource(imageData.data, width, height);
+  const bitmap = new BinaryBitmap(new HybridBinarizer(source));
+  try {
+    return reader.decodeWithState(bitmap).getText().trim();
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
-type Recorte = "completo" | "centro";
-
-function capturarFrame(
+function capturarFranja(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-  opts: { espejarHorizontal: boolean; recorte: Recorte }
+  ctx: CanvasRenderingContext2D
 ): boolean {
   const w = video.videoWidth;
   const h = video.videoHeight;
   if (!w || !h || video.readyState < 2) return false;
 
-  let sx = 0;
-  let sy = 0;
-  let sw = w;
-  let sh = h;
-
-  if (opts.recorte === "centro") {
-    sw = Math.floor(w * 0.82);
-    sh = Math.floor(h * 0.5);
-    sx = Math.floor((w - sw) / 2);
-    sy = Math.floor((h - sh) / 2);
-  }
+  // Franja ancha (IMEI en caja/etiqueta suele ser horizontal).
+  const sw = Math.floor(w * 0.92);
+  const sh = Math.max(80, Math.floor(h * 0.38));
+  const sx = Math.floor((w - sw) / 2);
+  const sy = Math.floor((h - sh) / 2);
 
   canvas.width = sw;
   canvas.height = sh;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (opts.espejarHorizontal) {
-    ctx.translate(sw, 0);
-    ctx.scale(-1, 1);
-  }
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
   return true;
 }
 
-async function listarCamarasDisponibles(): Promise<CamaraInfo[]> {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  return devices
-    .filter((d) => d.kind === "videoinput" && d.deviceId)
-    .map((d, i) => ({
-      deviceId: d.deviceId,
-      label: d.label?.trim() || `Cámara ${i + 1}`,
-      esFrontal: inferirEsFrontal(d.label || ""),
-    }));
-}
+async function abrirCamaraTrasera(): Promise<MediaStream> {
+  const videoBase: MediaTrackConstraints = {
+    facingMode: { ideal: "environment" },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+  };
 
-async function abrirStreamCamara(
-  deviceIdPreferido?: string,
-  preferirFrontal = !esDispositivoMobile()
-): Promise<{ stream: MediaStream; info: CamaraInfo }> {
-  const intentos: MediaStreamConstraints[] = [];
+  const intentos: MediaStreamConstraints[] = [
+    { video: { ...videoBase, facingMode: { exact: "environment" } } },
+    { video: videoBase },
+    { video: { facingMode: "environment" } },
+  ];
 
-  if (deviceIdPreferido) {
-    intentos.push({
-      video: {
-        deviceId: { exact: deviceIdPreferido },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    });
-    intentos.push({
-      video: {
-        deviceId: { ideal: deviceIdPreferido },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    });
-  }
-
-  if (preferirFrontal) {
-    intentos.push({
-      video: {
-        facingMode: { ideal: "user" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    });
-  } else {
-    intentos.push({
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    });
-  }
-
-  intentos.push({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
-  intentos.push({ video: true });
-
-  let ultimoError: unknown;
-  for (const constraints of intentos) {
+  let ultimo: unknown;
+  for (const c of intentos) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(c);
       const track = stream.getVideoTracks()[0];
-      const settings = track.getSettings();
-      const deviceId = settings.deviceId || deviceIdPreferido || "";
-      const label = track.label?.trim() || "Cámara activa";
-      const esFrontal = inferirEsFrontal(label, settings.facingMode);
-      return {
-        stream,
-        info: { deviceId, label, esFrontal },
-      };
+      const facing = track.getSettings().facingMode;
+      if (facing === "user") {
+        stream.getTracks().forEach((t) => t.stop());
+        continue;
+      }
+      try {
+        await track.applyConstraints({
+          advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet],
+        });
+      } catch {
+        /* no todas las cámaras soportan foco */
+      }
+      return stream;
     } catch (e) {
-      ultimoError = e;
+      ultimo = e;
     }
   }
-
-  throw ultimoError ?? new Error("No se pudo abrir la cámara");
+  throw ultimo ?? new Error("No hay cámara trasera");
 }
 
-/** Escanea códigos de barras con la cámara activa (misma que se ve en pantalla). */
+async function crearWorkerOcr() {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("eng", 1, { logger: () => undefined });
+  await worker.setParameters({ tessedit_char_whitelist: "0123456789" });
+  return worker;
+}
+
+async function leerImeiConOcr(
+  canvas: HTMLCanvasElement,
+  worker: Awaited<ReturnType<typeof crearWorkerOcr>>
+): Promise<string | null> {
+  const { data } = await worker.recognize(canvas);
+  return extraerImei(data.text || "");
+}
+
+/** Escáner de IMEI: cámara trasera, código de barras y OCR de 15 dígitos. */
 export default function EscanerCodigoBarras({
   abierto,
   titulo = "Escanear código",
@@ -203,13 +138,14 @@ export default function EscanerCodigoBarras({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  const ocrBusy = useRef(false);
+  const ocrLast = useRef(0);
+  const ocrWorkerRef = useRef<Awaited<ReturnType<typeof crearWorkerOcr>> | null>(null);
   const onDetectadoRef = useRef(onDetectado);
   const onCerrarRef = useRef(onCerrar);
   const [error, setError] = useState("");
   const [iniciando, setIniciando] = useState(false);
-  const [camaras, setCamaras] = useState<CamaraInfo[]>([]);
-  const [camaraActiva, setCamaraActiva] = useState<CamaraInfo | null>(null);
-  const [camaraId, setCamaraId] = useState("");
+  const [estado, setEstado] = useState("Apuntá al código de barras o al número IMEI");
 
   useEffect(() => {
     onDetectadoRef.current = onDetectado;
@@ -223,23 +159,35 @@ export default function EscanerCodigoBarras({
     }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject = null;
-    }
+    if (videoRef.current?.srcObject) videoRef.current.srcObject = null;
+    const w = ocrWorkerRef.current;
+    ocrWorkerRef.current = null;
+    if (w) void w.terminate();
   }, []);
+
+  const emitir = useCallback(
+    (raw: string) => {
+      const imei = extraerImei(raw);
+      if (!imei) return false;
+      detenerStream();
+      onDetectadoRef.current(imei);
+      onCerrarRef.current();
+      return true;
+    },
+    [detenerStream]
+  );
 
   useEffect(() => {
     if (!abierto) {
       detenerStream();
-      setCamaras([]);
-      setCamaraActiva(null);
-      setCamaraId("");
       setError("");
       setIniciando(false);
+      setEstado("Apuntá al código de barras o al número IMEI");
       return;
     }
 
     let cancelado = false;
+    const reader = crearLector();
 
     const iniciar = async () => {
       setIniciando(true);
@@ -247,30 +195,24 @@ export default function EscanerCodigoBarras({
       detenerStream();
 
       try {
-        const { stream, info } = await abrirStreamCamara(undefined, !esDispositivoMobile());
+        const stream = await abrirCamaraTrasera();
         if (cancelado) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
-
         streamRef.current = stream;
-        setCamaraActiva(info);
-        setCamaraId(info.deviceId);
-
-        const lista = await listarCamarasDisponibles();
-        if (cancelado) return;
-        setCamaras(lista.length > 0 ? lista : [info]);
-
         const video = videoRef.current;
         if (!video) return;
-
+        video.setAttribute("playsinline", "true");
+        video.setAttribute("webkit-playsinline", "true");
         video.srcObject = stream;
         await video.play();
+        setEstado("Buscando código de barras…");
       } catch (e) {
         if (cancelado) return;
-        console.warn("EscanerCodigoBarras abrir:", e);
+        console.warn("EscanerCodigoBarras:", e);
         setError(
-          "No se pudo abrir la cámara. Revisá permisos en Safari/Chrome (Cámara) o ingresá el IMEI manualmente."
+          "No se pudo abrir la cámara trasera. En iPad/iPhone permití Cámara y usá la de atrás. En Mac no hay cámara trasera."
         );
       } finally {
         if (!cancelado) setIniciando(false);
@@ -278,6 +220,7 @@ export default function EscanerCodigoBarras({
     };
 
     void iniciar();
+
     return () => {
       cancelado = true;
       detenerStream();
@@ -285,8 +228,7 @@ export default function EscanerCodigoBarras({
   }, [abierto, detenerStream]);
 
   useEffect(() => {
-    if (!abierto || !camaraId || !camaraActiva || !videoRef.current || !canvasRef.current) return;
-    if (iniciando) return;
+    if (!abierto || iniciando || error || !videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -295,34 +237,46 @@ export default function EscanerCodigoBarras({
 
     const reader = crearLector();
     let activo = true;
-    let ultimoIntento = 0;
+    let ultimoBarcode = 0;
 
     const loop = (ts: number) => {
       if (!activo) return;
-      if (ts - ultimoIntento >= 100) {
-        ultimoIntento = ts;
-        const espejos = [false, true];
-        const recortes: Recorte[] = ["centro", "completo"];
 
-        for (const recorte of recortes) {
-          for (const espejar of espejos) {
-            if (!capturarFrame(video, canvas, ctx, { espejarHorizontal: espejar, recorte })) continue;
-            const texto = decodificarCanvas(canvas, reader);
-            if (texto) {
-              activo = false;
-              detenerStream();
-              onDetectadoRef.current(texto);
-              onCerrarRef.current();
-              return;
-            }
-          }
+      if (ts - ultimoBarcode >= 80) {
+        ultimoBarcode = ts;
+        if (capturarFranja(video, canvas, ctx)) {
+          const texto = decodificarZxing(canvas, reader);
+          if (texto && emitir(texto)) return;
         }
       }
+
+      // OCR cada ~1.6s si el código de barras no aparece (número impreso).
+      if (!ocrBusy.current && ts - ocrLast.current >= 1600) {
+        ocrLast.current = ts;
+        ocrBusy.current = true;
+        setEstado("Leyendo número IMEI (15 dígitos)…");
+        void (async () => {
+          try {
+            if (!ocrWorkerRef.current) {
+              ocrWorkerRef.current = await crearWorkerOcr();
+            }
+            if (!activo || !ocrWorkerRef.current) return;
+            const imei = await leerImeiConOcr(canvas, ocrWorkerRef.current);
+            if (!activo) return;
+            if (imei && emitir(imei)) return;
+            setEstado("No hay código de barras: acercá el número IMEI al recuadro");
+          } catch {
+            if (activo) setEstado("Acercá el código o el número IMEI al recuadro");
+          } finally {
+            ocrBusy.current = false;
+          }
+        })();
+      }
+
       rafRef.current = requestAnimationFrame(loop);
     };
 
     rafRef.current = requestAnimationFrame(loop);
-
     return () => {
       activo = false;
       if (rafRef.current != null) {
@@ -330,36 +284,7 @@ export default function EscanerCodigoBarras({
         rafRef.current = null;
       }
     };
-  }, [abierto, camaraId, camaraActiva, iniciando, detenerStream]);
-
-  const cambiarCamara = async (nuevoId: string) => {
-    if (!nuevoId || nuevoId === camaraId) return;
-    setIniciando(true);
-    setError("");
-    detenerStream();
-
-    try {
-      const cam = camaras.find((c) => c.deviceId === nuevoId);
-      const { stream, info } = await abrirStreamCamara(
-        nuevoId,
-        cam?.esFrontal ?? !esDispositivoMobile()
-      );
-      streamRef.current = stream;
-      setCamaraActiva(info);
-      setCamaraId(info.deviceId);
-
-      const video = videoRef.current;
-      if (video) {
-        video.srcObject = stream;
-        await video.play();
-      }
-    } catch (e) {
-      console.warn("EscanerCodigoBarras cambiar:", e);
-      setError("No se pudo cambiar a esa cámara. Probá otra.");
-    } finally {
-      setIniciando(false);
-    }
-  };
+  }, [abierto, iniciando, error, emitir]);
 
   if (!abierto) return null;
 
@@ -369,9 +294,7 @@ export default function EscanerCodigoBarras({
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-5 py-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="font-bold text-lg">📷 {titulo}</h3>
-            <p className="text-xs text-white/80">
-              El código debe verse derecho (sin invertido). Centrálo en el recuadro verde.
-            </p>
+            <p className="text-xs text-white/80">Solo cámara trasera. Código de barras o IMEI de 15 dígitos.</p>
           </div>
           <button
             type="button"
@@ -384,31 +307,6 @@ export default function EscanerCodigoBarras({
         </div>
 
         <div className="p-4 bg-slate-950 space-y-3">
-          {camaraActiva ? (
-            <p className="text-xs text-emerald-300">
-              Cámara activa: <strong>{camaraActiva.label}</strong>
-            </p>
-          ) : null}
-
-          {camaras.length > 0 ? (
-            <label className="block text-xs text-slate-300">
-              Cambiar cámara
-              <select
-                value={camaraId}
-                disabled={iniciando}
-                onChange={(e) => void cambiarCamara(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-900 text-white text-sm px-3 py-2 disabled:opacity-50"
-              >
-                {camaras.map((c) => (
-                  <option key={c.deviceId} value={c.deviceId}>
-                    {c.label}
-                    {c.esFrontal ? " (frontal)" : " (trasera)"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
           <div className="relative overflow-hidden rounded-xl bg-black aspect-[4/3]">
             <video
               ref={videoRef}
@@ -418,17 +316,15 @@ export default function EscanerCodigoBarras({
               autoPlay
             />
             <canvas ref={canvasRef} className="hidden" aria-hidden />
-            <div className="pointer-events-none absolute inset-x-[9%] top-[25%] bottom-[25%] border-2 border-dashed border-emerald-400/80 rounded-lg" />
+            <div className="pointer-events-none absolute inset-x-[4%] top-[31%] bottom-[31%] border-2 border-dashed border-emerald-400/80 rounded-lg" />
           </div>
 
           {iniciando ? (
-            <p className="text-center text-slate-300 text-sm">Iniciando cámara…</p>
+            <p className="text-center text-slate-300 text-sm">Abriendo cámara trasera…</p>
           ) : null}
           {error ? <p className="text-center text-red-300 text-sm">{error}</p> : null}
           {!error && !iniciando ? (
-            <p className="text-center text-slate-400 text-[11px]">
-              Si el IMEI se lee al revés en pantalla, cambiá de cámara arriba. Mantené el código firme 1–2 s.
-            </p>
+            <p className="text-center text-slate-400 text-[11px]">{estado}</p>
           ) : null}
         </div>
 
