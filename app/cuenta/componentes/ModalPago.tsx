@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { cotizacionNegocioCaja } from "@/lib/caja/cotizacionCaja";
@@ -31,6 +31,25 @@ interface Props {
   onPagoGuardado: () => void;
 }
 
+function hoyInputDate(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Convierte yyyy-mm-dd a fecha es-AR + Date (mediodía local, evita desfase de zona). */
+function fechaDesdeInput(yyyyMmDd: string): { fecha: string; fechaCompleta: Date } {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number);
+  if (!y || !m || !d) {
+    const ahora = new Date();
+    return { fecha: ahora.toLocaleDateString("es-AR"), fechaCompleta: ahora };
+  }
+  const fechaCompleta = new Date(y, m - 1, d, 12, 0, 0);
+  return { fecha: fechaCompleta.toLocaleDateString("es-AR"), fechaCompleta };
+}
+
 export default function ModalPago({
   mostrar,
   clienteSeleccionado,
@@ -43,11 +62,25 @@ export default function ModalPago({
     moneda: "ARS",
     formaPago: "",
     destino: "",
-    observaciones: ""
+    observaciones: "",
+    fecha: hoyInputDate(),
   });
   
   const [guardandoPago, setGuardandoPago] = useState(false);
   const [pagoGuardado, setPagoGuardado] = useState(false);
+
+  useEffect(() => {
+    if (!mostrar) return;
+    setPago({
+      monto: "",
+      moneda: "ARS",
+      formaPago: "",
+      destino: "",
+      observaciones: "",
+      fecha: hoyInputDate(),
+    });
+    setPagoGuardado(false);
+  }, [mostrar, clienteSeleccionado?.cliente]);
 
   if (!mostrar || !clienteSeleccionado) return null;
 
@@ -102,6 +135,7 @@ export default function ModalPago({
     try {
       const montoNumerico = parseFloat(pago.monto);
       const cotizacion = await cotizacionNegocioCaja(negocioID);
+      const { fecha, fechaCompleta } = fechaDesdeInput(pago.fecha || hoyInputDate());
       
       const pagoData = {
         monto: pago.moneda === "USD" ? null : montoNumerico,
@@ -111,8 +145,8 @@ export default function ModalPago({
         destino: pago.destino,
         observaciones: pago.observaciones,
         cliente: clienteSeleccionado.cliente,
-        fecha: new Date().toLocaleDateString('es-AR'),
-        fechaCompleta: new Date(),
+        fecha,
+        fechaCompleta,
         tipo: 'ingreso',
         negocioID: negocioID,
         cotizacion,
@@ -167,7 +201,8 @@ export default function ModalPago({
           moneda: "ARS",
           formaPago: "",
           destino: "",
-          observaciones: ""
+          observaciones: "",
+          fecha: hoyInputDate(),
         });
         setPagoGuardado(false);
       }, 1500);
@@ -260,6 +295,33 @@ export default function ModalPago({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Fecha del pago */}
+          <div className="bg-white rounded-xl border-2 border-[#1abc9c] p-4 sm:p-6 shadow-sm">
+            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#1abc9c] rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs sm:text-sm">📅</span>
+              </div>
+              <span className="text-sm sm:text-base">Fecha del pago</span>
+            </h4>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-[#2c3e50]">
+                Fecha: *
+              </label>
+              <input
+                type="date"
+                name="fecha"
+                value={pago.fecha}
+                max={hoyInputDate()}
+                onChange={handlePagoChange}
+                disabled={guardandoPago}
+                className="w-full sm:w-auto min-w-[200px] p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#1abc9c] focus:border-[#1abc9c] transition-all text-sm sm:text-base text-[#2c3e50] disabled:opacity-50"
+              />
+              <p className="text-xs text-[#7f8c8d]">
+                Por defecto es hoy. Podés elegir una fecha anterior si el pago quedó sin cargar.
+              </p>
+            </div>
           </div>
 
           {/* Monto del pago */}

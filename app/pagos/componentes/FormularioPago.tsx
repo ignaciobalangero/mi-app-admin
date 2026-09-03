@@ -46,10 +46,35 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
  const [editandoId, setEditandoId] = useState<string | null>(null);
  const [mensaje, setMensaje] = useState("");
  const [queryCliente, setQueryCliente] = useState("");
+ const [fechaPago, setFechaPago] = useState(() => {
+   const d = new Date();
+   const y = d.getFullYear();
+   const m = String(d.getMonth() + 1).padStart(2, "0");
+   const day = String(d.getDate()).padStart(2, "0");
+   return `${y}-${m}-${day}`;
+ });
  
  // Estados para mostrar trabajos pendientes del cliente seleccionado
  const [trabajosPendientes, setTrabajosPendientes] = useState<Trabajo[]>([]);
  const [mostrarTrabajos, setMostrarTrabajos] = useState(false);
+
+ const hoyInputDate = () => {
+   const d = new Date();
+   const y = d.getFullYear();
+   const m = String(d.getMonth() + 1).padStart(2, "0");
+   const day = String(d.getDate()).padStart(2, "0");
+   return `${y}-${m}-${day}`;
+ };
+
+ const fechaDesdeInput = (yyyyMmDd: string) => {
+   const [y, m, d] = yyyyMmDd.split("-").map(Number);
+   if (!y || !m || !d) {
+     const ahora = new Date();
+     return { fecha: ahora.toLocaleDateString("es-AR"), fechaCompleta: ahora };
+   }
+   const fechaCompleta = new Date(y, m - 1, d, 12, 0, 0);
+   return { fecha: fechaCompleta.toLocaleDateString("es-AR"), fechaCompleta };
+ };
 // ⭐ NUEVO: Función para actualizar saldo del cliente
 const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
   if (!negocioID) return;
@@ -249,10 +274,11 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
 
    const clienteID = clienteDoc.id;
    const destino = obtenerDestino() || "";
+   const { fecha, fechaCompleta } = fechaDesdeInput(fechaPago || hoyInputDate());
 
    const nuevoPago = {
-     fecha: new Date().toLocaleDateString("es-AR"),
-     fechaCompleta: new Date(),
+     fecha,
+     fechaCompleta,
      cliente,
      monto: moneda === "USD" ? null : monto,
      montoUSD: moneda === "USD" ? monto : null,
@@ -285,7 +311,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
           const pagoProveedor = {
             proveedorId: proveedor.id,
             proveedorNombre: proveedor.nombre,
-            fecha: new Date().toLocaleDateString("es-AR"),
+            fecha,
             monto: moneda === "ARS" ? monto : 0,
             montoUSD: moneda === "USD" ? monto : 0,
             forma: forma,
@@ -327,6 +353,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
      setProveedorSeleccionado("");
      setDestinoLibre("");
      setMoneda("ARS");
+     setFechaPago(hoyInputDate());
      setTrabajosPendientes([]);
      setMostrarTrabajos(false);
 
@@ -590,6 +617,23 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
            <option value="ARS">🇦🇷 Pesos</option>
            <option value="USD">🇺🇸 Dólares</option>
          </select>
+       </div>
+
+       {/* Fecha - 2 columnas */}
+       <div className="col-span-2">
+         <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+           📅 Fecha del pago
+         </label>
+         <input
+           type="date"
+           value={fechaPago}
+           max={hoyInputDate()}
+           onChange={(e) => setFechaPago(e.target.value)}
+           className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#27ae60] focus:border-[#27ae60] transition-all text-[#2c3e50] text-sm"
+         />
+         <p className="text-[11px] text-[#7f8c8d] mt-1">
+           Por defecto hoy. Podés poner una fecha anterior.
+         </p>
        </div>
 
        {/* Cotización - 2 columnas */}
