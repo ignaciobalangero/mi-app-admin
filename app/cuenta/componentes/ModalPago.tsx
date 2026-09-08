@@ -50,6 +50,36 @@ function fechaDesdeInput(yyyyMmDd: string): { fecha: string; fechaCompleta: Date
   return { fecha: fechaCompleta.toLocaleDateString("es-AR"), fechaCompleta };
 }
 
+/** Formato argentino al tipear: 130000 → 130.000 (USD admite ,00). */
+function formatearMontoAR(valor: string, moneda: "ARS" | "USD" | string): string {
+  if (moneda === "USD") {
+    const limpio = valor.replace(/[^\d,]/g, "");
+    const partes = limpio.split(",");
+    const enteros = (partes[0] || "").replace(/^0+(?=\d)/, "") || (partes.length > 1 ? "0" : "");
+    const enterosFmt = enteros.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    if (partes.length > 1) return `${enterosFmt},${partes[1].slice(0, 2)}`;
+    return enterosFmt;
+  }
+  const numero = valor.replace(/[^\d]/g, "");
+  return numero.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function parsearMontoAR(valor: string, moneda: "ARS" | "USD" | string): number {
+  if (moneda === "USD") {
+    return parseFloat(String(valor || "0").replace(/\./g, "").replace(",", ".")) || 0;
+  }
+  return parseFloat(String(valor || "0").replace(/\./g, "")) || 0;
+}
+
+function montoDesdeNumero(n: number, moneda: "ARS" | "USD" | string): string {
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (moneda === "USD") {
+    const fijo = n.toFixed(2).replace(".", ",");
+    return formatearMontoAR(fijo, "USD");
+  }
+  return formatearMontoAR(String(Math.round(n)), "ARS");
+}
+
 export default function ModalPago({
   mostrar,
   clienteSeleccionado,
@@ -122,9 +152,28 @@ export default function ModalPago({
 
   const handlePagoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setPago(prev => ({
+    if (name === "monto") {
+      setPago((prev) => ({
+        ...prev,
+        monto: formatearMontoAR(value, prev.moneda),
+      }));
+      return;
+    }
+    if (name === "moneda") {
+      const moneda = value as "ARS" | "USD";
+      setPago((prev) => {
+        const numerico = parsearMontoAR(prev.monto, prev.moneda);
+        return {
+          ...prev,
+          moneda,
+          monto: numerico > 0 ? montoDesdeNumero(numerico, moneda) : "",
+        };
+      });
+      return;
+    }
+    setPago((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -133,7 +182,12 @@ export default function ModalPago({
 
     setGuardandoPago(true);
     try {
-      const montoNumerico = parseFloat(pago.monto);
+      const montoNumerico = parsearMontoAR(pago.monto, pago.moneda);
+      if (montoNumerico <= 0) {
+        alert("Ingresá un monto válido");
+        setGuardandoPago(false);
+        return;
+      }
       const cotizacion = await cotizacionNegocioCaja(negocioID);
       const { fecha, fechaCompleta } = fechaDesdeInput(pago.fecha || hoyInputDate());
       
@@ -338,15 +392,20 @@ export default function ModalPago({
                   Monto recibido: *
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   name="monto"
                   value={pago.monto}
                   onChange={handlePagoChange}
-                  placeholder={pago.moneda === "USD" ? "0.00" : "0"}
+                  placeholder={pago.moneda === "USD" ? "0,00" : "0"}
                   className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-base sm:text-lg font-medium text-[#2c3e50] placeholder-[#7f8c8d]"
                   disabled={guardandoPago}
                 />
+                <p className="text-xs text-[#7f8c8d]">
+                  {pago.moneda === "USD"
+                    ? "Ej: 1.250,50"
+                    : "Ej: 130.000"}
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-[#2c3e50]">
@@ -373,7 +432,7 @@ export default function ModalPago({
                   type="button"
                   onClick={() => setPago(prev => ({
                     ...prev,
-                    monto: clienteSeleccionado.saldoPesos.toString(),
+                    monto: montoDesdeNumero(clienteSeleccionado.saldoPesos, "ARS"),
                     moneda: "ARS"
                   }))}
                   disabled={guardandoPago}
@@ -387,7 +446,7 @@ export default function ModalPago({
                   type="button"
                   onClick={() => setPago(prev => ({
                     ...prev,
-                    monto: clienteSeleccionado.saldoUSD.toString(),
+                    monto: montoDesdeNumero(clienteSeleccionado.saldoUSD, "USD"),
                     moneda: "USD"
                   }))}
                   disabled={guardandoPago}
