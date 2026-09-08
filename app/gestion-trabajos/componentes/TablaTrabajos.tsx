@@ -70,7 +70,7 @@ export default function TablaTrabajos({
   recargarTrabajos,
 }: TablaProps) {
   const obtenerClaseEstado = (trabajo: Trabajo) => {
-    if (trabajoEsGarantia(trabajo)) return "bg-teal-100 border-l-4 border-[#00897B]";
+    if (trabajoEsGarantia(trabajo)) return "bg-fuchsia-100 border-l-4 border-[#C2185B]";
     const est = trabajo.estado?.toString().trim().toUpperCase();
     if (est === "PAGADO") return "bg-blue-100 border-l-4 border-[#1565C0]";
     if (est === "ENTREGADO") return "bg-green-100 border-l-4 border-[#1B5E20]";
@@ -572,7 +572,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                     {/* Estado */}
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
                       <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
-                        trabajoEsGarantia(t) ? "bg-[#00897B] text-white border-2 border-[#00695C]" :
+                        trabajoEsGarantia(t) ? "bg-[#C2185B] text-white border-2 border-[#880E4F]" :
                         t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                         t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                         t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :

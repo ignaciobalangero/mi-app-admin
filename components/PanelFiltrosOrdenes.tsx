@@ -223,7 +223,7 @@ export default function PanelFiltrosOrdenes({
                 e.variante === "monto"
                   ? "bg-amber-600 text-white shadow-sm shadow-amber-600/25"
                   : e.valor === "GARANTIA"
-                    ? "bg-teal-600 text-white shadow-sm shadow-teal-600/25"
+                    ? "bg-fuchsia-700 text-white shadow-sm shadow-fuchsia-700/25"
                     : "bg-sky-600 text-white shadow-sm shadow-sky-600/25";
               return (
                 <button

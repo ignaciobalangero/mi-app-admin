@@ -1327,16 +1327,16 @@ export default function IngresoForm() {
                     placeholder="0"
                   />
                 </div>
-                <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border-2 border-[#00897B]/30 bg-teal-50/80 px-3 py-2.5">
+                <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border-2 border-[#C2185B]/30 bg-fuchsia-50/80 px-3 py-2.5">
                   <input
                     type="checkbox"
                     checked={!!form.esGarantia}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, esGarantia: e.target.checked }))
                     }
-                    className="h-4 w-4 rounded border-[#00897B] text-[#00897B] focus:ring-[#00897B]"
+                    className="h-4 w-4 rounded border-[#C2185B] text-[#C2185B] focus:ring-[#C2185B]"
                   />
-                  <span className="text-sm font-semibold text-[#00695C]">
+                  <span className="text-sm font-semibold text-[#880E4F]">
                     🛡️ Este equipo es garantía
                   </span>
                 </label>
@@ -1545,16 +1545,16 @@ export default function IngresoForm() {
                               placeholder="0"
                             />
                           </div>
-                          <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border-2 border-[#00897B]/30 bg-teal-50/80 px-3 py-2">
+                          <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border-2 border-[#C2185B]/30 bg-fuchsia-50/80 px-3 py-2">
                             <input
                               type="checkbox"
                               checked={!!eq.esGarantia}
                               onChange={(e) =>
                                 actualizarEquipoExtra(idx, { esGarantia: e.target.checked })
                               }
-                              className="h-4 w-4 rounded border-[#00897B] text-[#00897B] focus:ring-[#00897B]"
+                              className="h-4 w-4 rounded border-[#C2185B] text-[#C2185B] focus:ring-[#C2185B]"
                             />
-                            <span className="text-xs font-semibold text-[#00695C]">
+                            <span className="text-xs font-semibold text-[#880E4F]">
                               🛡️ Este equipo es garantía
                             </span>
                           </label>
