@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import html2canvas from "html2canvas";
 import {
   descripcionProductoVenta,
   htmlImpresionVenta,
   imprimirHtmlVenta,
-  mensajeRemitoVentaWhatsApp,
   type TipoImpresionVenta,
   type VentaImpresion,
 } from "@/lib/impresionVentaGeneral";
@@ -20,6 +20,25 @@ interface ModalRemitoProps {
   negocioID?: string;
 }
 
+async function canvasAPngFile(canvas: HTMLCanvasElement, nombre: string): Promise<File> {
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))),
+      "image/png"
+    );
+  });
+  return new File([blob], nombre, { type: "image/png" });
+}
+
+function descargarArchivo(file: File) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
 export default function ModalRemitoImpresion({
   mostrar,
   venta,
@@ -27,15 +46,15 @@ export default function ModalRemitoImpresion({
   nombreNegocio = "",
   direccionNegocio = "",
   telefonoNegocio = "",
-  negocioID: _negocioID = "",
 }: ModalRemitoProps) {
   const [tipo, setTipo] = useState<TipoImpresionVenta | null>(null);
   const [enviandoRemito, setEnviandoRemito] = useState(false);
-  const [remitoCopiado, setRemitoCopiado] = useState(false);
+  const [remitoListo, setRemitoListo] = useState(false);
+  const remitoRef = useRef<HTMLDivElement>(null);
 
   const cerrar = () => {
     setTipo(null);
-    setRemitoCopiado(false);
+    setRemitoListo(false);
     onClose();
   };
 
@@ -54,17 +73,39 @@ export default function ModalRemitoImpresion({
   };
 
   const handleEnviarRemito = async () => {
-    if (!venta || tipo !== "formal") return;
+    if (!venta || tipo !== "formal" || !remitoRef.current) return;
     setEnviandoRemito(true);
-    setRemitoCopiado(false);
+    setRemitoListo(false);
     try {
-      const mensaje = mensajeRemitoVentaWhatsApp(venta, negocio);
-      await navigator.clipboard.writeText(mensaje);
-      setRemitoCopiado(true);
-      setTimeout(() => setRemitoCopiado(false), 2500);
+      const nro = venta.nroVenta || venta.id?.slice(-6) || "remito";
+      const canvas = await html2canvas(remitoRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        logging: false,
+      });
+      const file = await canvasAPngFile(canvas, `remito-${nro}.png`);
+
+      const shareData: ShareData = {
+        files: [file],
+        title: `Remito #${nro}`,
+      };
+
+      if (typeof navigator.canShare === "function" && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        setRemitoListo(true);
+      } else {
+        descargarArchivo(file);
+        setRemitoListo(true);
+        alert(
+          "Se descargó la imagen del remito.\nAbrí WhatsApp y adjuntá esa imagen en el chat del cliente."
+        );
+      }
+      setTimeout(() => setRemitoListo(false), 3000);
     } catch (e) {
       console.error(e);
-      alert("No se pudo copiar el remito. Probá de nuevo o revisá permisos del portapapeles.");
+      if (e instanceof Error && e.name === "AbortError") return;
+      alert("No se pudo generar la imagen del remito. Probá de nuevo.");
     } finally {
       setEnviandoRemito(false);
     }
@@ -103,7 +144,7 @@ export default function ModalRemitoImpresion({
                 {!tipo
                   ? "Elegí el formato según el destino del documento"
                   : tipo === "formal"
-                    ? "Vista previa · imprimir o copiar remito para enviar"
+                    ? "Vista previa · imprimir o enviar imagen del remito"
                     : "Vista previa · listo para imprimir"}
               </p>
             </div>
@@ -126,9 +167,9 @@ export default function ModalRemitoImpresion({
                     className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] hover:from-[#7d3c98] hover:to-[#8e44ad] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
                   >
                     {enviandoRemito
-                      ? "Copiando…"
-                      : remitoCopiado
-                        ? "✅ Remito copiado"
+                      ? "Generando imagen…"
+                      : remitoListo
+                        ? "✅ Listo"
                         : "📤 Enviar remito"}
                   </button>
                 )}
@@ -164,7 +205,7 @@ export default function ModalRemitoImpresion({
                   Cliente final
                 </h3>
                 <p className="text-sm text-[#7f8c8d]">
-                  Remito formal con precios, totales y datos del negocio. Ideal para entregar al comprador. Podés imprimirlo o copiar el remito para enviarlo.
+                  Remito formal con precios y totales. Podés imprimirlo o enviarlo como imagen por WhatsApp.
                 </p>
               </button>
               <button
@@ -240,7 +281,11 @@ export default function ModalRemitoImpresion({
               </p>
             </div>
           ) : (
-            <>
+            <div
+              ref={remitoRef}
+              className="bg-white p-2 sm:p-4"
+              style={{ backgroundColor: "#ffffff" }}
+            >
               <div className="text-center border-b-2 border-[#3498db] pb-6 mb-6">
                 <h1 className="text-3xl font-bold text-[#2c3e50] mb-2">
                   {nombreNegocio || (
@@ -358,7 +403,7 @@ export default function ModalRemitoImpresion({
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
