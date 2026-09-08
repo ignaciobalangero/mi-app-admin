@@ -1294,6 +1294,7 @@ export default function TablaVentas({ refrescar }: Props) {
           nombreNegocio={datosNegocio.nombre}
           direccionNegocio={datosNegocio.direccion}
           telefonoNegocio={datosNegocio.telefono}
+          negocioID={rol?.negocioID || ""}
         />
       )}
       

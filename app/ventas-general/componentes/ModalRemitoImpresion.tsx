@@ -5,6 +5,7 @@ import {
   descripcionProductoVenta,
   htmlImpresionVenta,
   imprimirHtmlVenta,
+  mensajeRemitoVentaWhatsApp,
   type TipoImpresionVenta,
   type VentaImpresion,
 } from "@/lib/impresionVentaGeneral";
@@ -16,6 +17,7 @@ interface ModalRemitoProps {
   nombreNegocio?: string;
   direccionNegocio?: string;
   telefonoNegocio?: string;
+  negocioID?: string;
 }
 
 export default function ModalRemitoImpresion({
@@ -25,11 +27,15 @@ export default function ModalRemitoImpresion({
   nombreNegocio = "",
   direccionNegocio = "",
   telefonoNegocio = "",
+  negocioID: _negocioID = "",
 }: ModalRemitoProps) {
   const [tipo, setTipo] = useState<TipoImpresionVenta | null>(null);
+  const [enviandoRemito, setEnviandoRemito] = useState(false);
+  const [remitoCopiado, setRemitoCopiado] = useState(false);
 
   const cerrar = () => {
     setTipo(null);
+    setRemitoCopiado(false);
     onClose();
   };
 
@@ -44,6 +50,23 @@ export default function ModalRemitoImpresion({
     const html = htmlImpresionVenta(venta, tipo, negocio);
     if (!imprimirHtmlVenta(html)) {
       alert("No se pudo abrir la ventana de impresión. Revisá el bloqueador de ventanas emergentes.");
+    }
+  };
+
+  const handleEnviarRemito = async () => {
+    if (!venta || tipo !== "formal") return;
+    setEnviandoRemito(true);
+    setRemitoCopiado(false);
+    try {
+      const mensaje = mensajeRemitoVentaWhatsApp(venta, negocio);
+      await navigator.clipboard.writeText(mensaje);
+      setRemitoCopiado(true);
+      setTimeout(() => setRemitoCopiado(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo copiar el remito. Probá de nuevo o revisá permisos del portapapeles.");
+    } finally {
+      setEnviandoRemito(false);
     }
   };
 
@@ -79,11 +102,13 @@ export default function ModalRemitoImpresion({
               <p className="text-blue-100 text-xs">
                 {!tipo
                   ? "Elegí el formato según el destino del documento"
-                  : "Vista previa · listo para imprimir"}
+                  : tipo === "formal"
+                    ? "Vista previa · imprimir o copiar remito para enviar"
+                    : "Vista previa · listo para imprimir"}
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 justify-end">
             {tipo && (
               <>
                 <button
@@ -93,6 +118,20 @@ export default function ModalRemitoImpresion({
                 >
                   ← Volver
                 </button>
+                {tipo === "formal" && (
+                  <button
+                    type="button"
+                    onClick={handleEnviarRemito}
+                    disabled={enviandoRemito}
+                    className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] hover:from-[#7d3c98] hover:to-[#8e44ad] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
+                  >
+                    {enviandoRemito
+                      ? "Copiando…"
+                      : remitoCopiado
+                        ? "✅ Remito copiado"
+                        : "📤 Enviar remito"}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleImprimir}
@@ -125,7 +164,7 @@ export default function ModalRemitoImpresion({
                   Cliente final
                 </h3>
                 <p className="text-sm text-[#7f8c8d]">
-                  Remito formal con precios, totales y datos del negocio. Ideal para entregar al comprador.
+                  Remito formal con precios, totales y datos del negocio. Ideal para entregar al comprador. Podés imprimirlo o copiar el remito para enviarlo.
                 </p>
               </button>
               <button

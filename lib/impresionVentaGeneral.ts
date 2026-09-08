@@ -284,3 +284,62 @@ export function htmlImpresionVenta(
     ? htmlImpresionVentaChecklist(venta, negocio)
     : htmlImpresionVentaFormal(venta, negocio);
 }
+
+/** Texto plano del remito para enviar por WhatsApp al cliente. */
+export function mensajeRemitoVentaWhatsApp(
+  venta: VentaImpresion,
+  negocio: { nombre?: string } = {}
+): string {
+  const { subtotal, descuentos, totalFinal } = totalesVenta(venta);
+  const nro = venta.nroVenta || venta.id?.slice(-6) || "—";
+  const nombreNegocio = String(negocio.nombre || "").trim();
+  const lineas: string[] = [];
+
+  lineas.push(`*Remito de venta #${nro}*`);
+  if (nombreNegocio) lineas.push(`_${nombreNegocio}_`);
+  lineas.push(`Fecha: ${venta.fecha || "—"}`);
+  lineas.push(`Cliente: ${venta.cliente || "—"}`);
+  lineas.push(
+    `Estado: ${venta.estado === "pagado" ? "PAGADO" : "PENDIENTE"}`
+  );
+  lineas.push("");
+
+  (venta.productos || []).forEach((p, i) => {
+    const cant = Number(p.cantidad) || 0;
+    const pu = Number(p.precioUnitario) || 0;
+    const sub = pu * cant;
+    const cod = String(p.codigo || "").trim();
+    const color = String(p.color || "").trim();
+    let linea = `${i + 1}. ${cant}× ${descripcionProductoVenta(p)}`;
+    if (color) linea += ` (${color})`;
+    if (cod) linea += `\n   Cód: ${cod}`;
+    linea += `\n   $${pu.toLocaleString("es-AR")} c/u · Subtotal $${sub.toLocaleString("es-AR")}`;
+    lineas.push(linea);
+  });
+
+  lineas.push("");
+  lineas.push(`Subtotal: $${subtotal.toLocaleString("es-AR")}`);
+  if (descuentos > 0) {
+    lineas.push(`Descuentos/pagos: -$${descuentos.toLocaleString("es-AR")}`);
+  }
+  lineas.push(`*Total: $${totalFinal.toLocaleString("es-AR")}*`);
+
+  if (venta.pagos?.length) {
+    lineas.push("");
+    lineas.push("*Pagos:*");
+    for (const pago of venta.pagos) {
+      lineas.push(
+        `· ${pago.formaPago || "Pago"} — $${Number(pago.monto || 0).toLocaleString("es-AR")} ${pago.moneda || ""}`.trim()
+      );
+    }
+  }
+  if (venta.telefonoComoPago) {
+    lineas.push(
+      `· Teléfono parte de pago — $${Number(venta.telefonoComoPago.valorPago || 0).toLocaleString("es-AR")}`
+    );
+  }
+
+  lineas.push("");
+  lineas.push("_Gracias por tu compra._");
+  return lineas.join("\n");
+}
