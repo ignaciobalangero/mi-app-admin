@@ -10,14 +10,17 @@ import {
 } from "@/lib/categoriaRepuesto";
 import {
   calcularDiferenciasConteo,
+  calcularDiferenciasPrecio,
   crearLineasConteo,
   docAProductoControlStock,
   filtrarProductosControl,
   generarHtmlImpresionControlStock,
   imprimirControlStock,
   parseStockReal,
+  preciosUnitariosDesdeProducto,
   subtituloFiltrosControl,
   type DiferenciaConteoStock,
+  type DiferenciaPrecioStock,
   type FiltroTiendaControl,
   type LineaConteoStock,
   type ProductoControlStock,
@@ -56,6 +59,7 @@ export default function ControlStockRepuestos({
   const [lineas, setLineas] = useState<LineaConteoStock[]>([]);
   const [busquedaConteo, setBusquedaConteo] = useState("");
   const [diferencias, setDiferencias] = useState<DiferenciaConteoStock[]>([]);
+  const [diferenciasPrecio, setDiferenciasPrecio] = useState<DiferenciaPrecioStock[]>([]);
 
   useEffect(() => setMounted(true), []);
 
@@ -102,6 +106,7 @@ export default function ControlStockRepuestos({
       setPaso("config");
       setBusquedaConteo("");
       setDiferencias([]);
+      setDiferenciasPrecio([]);
       setLineas([]);
       setCategoriaFiltro("");
       setMarcaFiltro("");
@@ -136,11 +141,13 @@ export default function ControlStockRepuestos({
   const statsConteo = useMemo(() => {
     const contados = lineas.filter((l) => l.contado).length;
     const difs = calcularDiferenciasConteo(lineas);
+    const difsPrecio = calcularDiferenciasPrecio(lineas);
     return {
       total: lineas.length,
       contados,
       pendientes: lineas.length - contados,
       diferencias: difs.length,
+      precios: difsPrecio.length,
     };
   }, [lineas]);
 
@@ -201,31 +208,63 @@ export default function ControlStockRepuestos({
     );
   };
 
+  const actualizarPrecio = (
+    id: string,
+    campo: "precioUsd" | "precioArs",
+    valor: string
+  ) => {
+    setLineas((prev) =>
+      prev.map((l) =>
+        l.producto.id === id ? { ...l, [campo]: valor } : l
+      )
+    );
+  };
+
   const irAResumen = () => {
-    const difs = calcularDiferenciasConteo(lineas);
-    setDiferencias(difs);
+    setDiferencias(calcularDiferenciasConteo(lineas));
+    setDiferenciasPrecio(calcularDiferenciasPrecio(lineas));
     setPaso("resumen");
   };
 
   const aplicarCorrecciones = async () => {
-    if (!negocioID || diferencias.length === 0) return;
+    if (!negocioID) return;
+    const totalCambios = diferencias.length + diferenciasPrecio.length;
+    if (totalCambios === 0) return;
+
     const ok = confirm(
-      `¿Actualizar stock de ${diferencias.length} producto(s) en el sistema?`
+      `¿Aplicar ${diferencias.length} cambio(s) de stock y ${diferenciasPrecio.length} de precio?`
     );
     if (!ok) return;
 
     setAplicando(true);
     try {
       const batch = writeBatch(db);
+      const porId = new Map<string, Record<string, unknown>>();
+
       for (const d of diferencias) {
-        batch.update(doc(db, `negocios/${negocioID}/stockRepuestos`, d.id), {
+        porId.set(d.id, {
+          ...(porId.get(d.id) || {}),
           cantidad: d.stockReal,
+        });
+      }
+      for (const d of diferenciasPrecio) {
+        porId.set(d.id, {
+          ...(porId.get(d.id) || {}),
+          precio1: d.precio1,
+          precio1Pesos: d.precio1Pesos,
+        });
+      }
+
+      for (const [id, patch] of Array.from(porId.entries())) {
+        batch.update(doc(db, `negocios/${negocioID}/stockRepuestos`, id), {
+          ...patch,
           ultimaActualizacion: serverTimestamp(),
         });
       }
+
       await batch.commit();
       onStockActualizado?.();
-      alert("Stock actualizado correctamente.");
+      alert("Cambios aplicados correctamente.");
       onCerrar();
     } catch (e) {
       console.error(e);
@@ -413,7 +452,7 @@ export default function ControlStockRepuestos({
                       Contar en iPad / tablet
                     </div>
                     <div className="text-xs text-[#7f8c8d] mt-1">
-                      Tildá lo contado y cargá stock real si hay diferencia
+                      Contá stock y ajustá precios unitarios USD / ARS
                     </div>
                   </button>
                 </div>
@@ -455,13 +494,19 @@ export default function ControlStockRepuestos({
                 );
                 const hayDiff =
                   linea.contado && stockRealNum !== stockSistema;
+                const origPrecios = preciosUnitariosDesdeProducto(linea.producto);
+                const usdNum = Number(String(linea.precioUsd).replace(",", ".")) || 0;
+                const arsNum = Number(String(linea.precioArs).replace(",", ".")) || 0;
+                const hayDiffPrecio =
+                  Math.abs(usdNum - origPrecios.usd) > 0.004 ||
+                  Math.round(arsNum) !== Math.round(origPrecios.ars);
 
                 return (
                   <li
                     key={linea.producto.id}
                     className={`rounded-2xl border-2 bg-white p-3 sm:p-4 transition-colors ${
                       linea.contado
-                        ? hayDiff
+                        ? hayDiff || hayDiffPrecio
                           ? "border-[#e67e22] bg-[#fef9f3]"
                           : "border-[#27ae60] bg-[#f8fdf9]"
                         : "border-[#ecf0f1]"
@@ -494,6 +539,15 @@ export default function ControlStockRepuestos({
                           <span className="rounded-full bg-[#ecf0f1] px-2 py-0.5 text-[10px] font-semibold uppercase">
                             {linea.producto.categoria}
                           </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              linea.producto.moneda === "USD"
+                                ? "bg-[#ebf5fb] text-[#2980b9]"
+                                : "bg-[#eafaf1] text-[#1e8449]"
+                            }`}
+                          >
+                            {linea.producto.moneda}
+                          </span>
                         </div>
                         <p className="font-semibold text-[#2c3e50] leading-snug">
                           {linea.producto.producto}
@@ -504,6 +558,57 @@ export default function ControlStockRepuestos({
                             </span>
                           )}
                         </p>
+
+                        <div className="mt-2 grid grid-cols-2 gap-2 max-w-xs">
+                          <label className="block">
+                            <span className="text-[10px] uppercase font-semibold text-[#2980b9]">
+                              Precio USD
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              inputMode="decimal"
+                              value={linea.precioUsd}
+                              onChange={(e) =>
+                                actualizarPrecio(
+                                  linea.producto.id,
+                                  "precioUsd",
+                                  e.target.value
+                                )
+                              }
+                              className={`mt-0.5 w-full rounded-lg border-2 px-2 py-1.5 text-sm font-semibold focus:outline-none touch-manipulation ${
+                                hayDiffPrecio && Math.abs(usdNum - origPrecios.usd) > 0.004
+                                  ? "border-[#8e44ad] bg-[#f5eef8] text-[#6c3483]"
+                                  : "border-[#ecf0f1] bg-[#f8f9fa]"
+                              }`}
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-[10px] uppercase font-semibold text-[#1e8449]">
+                              Precio ARS
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              step="1"
+                              inputMode="numeric"
+                              value={linea.precioArs}
+                              onChange={(e) =>
+                                actualizarPrecio(
+                                  linea.producto.id,
+                                  "precioArs",
+                                  e.target.value
+                                )
+                              }
+                              className={`mt-0.5 w-full rounded-lg border-2 px-2 py-1.5 text-sm font-semibold focus:outline-none touch-manipulation ${
+                                hayDiffPrecio && Math.round(arsNum) !== Math.round(origPrecios.ars)
+                                  ? "border-[#8e44ad] bg-[#f5eef8] text-[#6c3483]"
+                                  : "border-[#ecf0f1] bg-[#f8f9fa]"
+                              }`}
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       <div className="flex flex-shrink-0 items-center gap-2">
@@ -565,7 +670,16 @@ export default function ControlStockRepuestos({
                     {" "}
                     ·{" "}
                     <span className="font-bold text-[#e67e22]">
-                      {statsConteo.diferencias} diferencias
+                      {statsConteo.diferencias} stock
+                    </span>
+                  </>
+                )}
+                {statsConteo.precios > 0 && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="font-bold text-[#8e44ad]">
+                      {statsConteo.precios} precios
                     </span>
                   </>
                 )}
@@ -573,7 +687,7 @@ export default function ControlStockRepuestos({
               <button
                 type="button"
                 onClick={irAResumen}
-                disabled={statsConteo.contados === 0}
+                disabled={statsConteo.contados === 0 && statsConteo.precios === 0}
                 className="rounded-xl bg-[#3498db] px-6 py-3 text-base font-bold text-white shadow-lg disabled:opacity-50 touch-manipulation"
               >
                 Ver resumen →
@@ -587,7 +701,7 @@ export default function ControlStockRepuestos({
       {paso === "resumen" && (
         <div className="flex-1 overflow-y-auto px-4 py-6 pb-24">
           <div className="mx-auto max-w-2xl space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-xl border border-[#ecf0f1] bg-white p-4 text-center">
                 <div className="text-2xl font-black text-[#3498db]">
                   {statsConteo.total}
@@ -604,7 +718,13 @@ export default function ControlStockRepuestos({
                 <div className="text-2xl font-black text-[#e67e22]">
                   {diferencias.length}
                 </div>
-                <div className="text-xs text-[#d35400]">Diferencias</div>
+                <div className="text-xs text-[#d35400]">Stock</div>
+              </div>
+              <div className="rounded-xl border border-[#8e44ad]/30 bg-[#f5eef8] p-4 text-center">
+                <div className="text-2xl font-black text-[#8e44ad]">
+                  {diferenciasPrecio.length}
+                </div>
+                <div className="text-xs text-[#6c3483]">Precios</div>
               </div>
             </div>
 
@@ -615,20 +735,22 @@ export default function ControlStockRepuestos({
               </div>
             )}
 
-            {diferencias.length === 0 ? (
+            {diferencias.length === 0 && diferenciasPrecio.length === 0 ? (
               <div className="rounded-2xl border border-[#27ae60]/30 bg-[#d5f4e6] p-8 text-center">
                 <div className="text-4xl mb-2">✅</div>
                 <p className="font-bold text-[#229954]">
-                  Sin diferencias en lo contado
+                  Sin cambios de stock ni precios
                 </p>
                 <p className="text-sm text-[#27ae60] mt-1">
-                  El stock real coincide con el sistema
+                  El stock real y los precios coinciden con el sistema
                 </p>
               </div>
             ) : (
+              <>
+                {diferencias.length > 0 && (
               <div className="rounded-2xl border border-[#ecf0f1] bg-white overflow-hidden">
                 <div className="border-b border-[#ecf0f1] px-4 py-3 font-bold">
-                  Productos con diferencia
+                  Productos con diferencia de stock
                 </div>
                 <ul className="divide-y divide-[#ecf0f1]">
                   {diferencias.map((d) => (
@@ -670,10 +792,63 @@ export default function ControlStockRepuestos({
                   ))}
                 </ul>
               </div>
+                )}
+
+                {diferenciasPrecio.length > 0 && (
+                  <div className="rounded-2xl border border-[#8e44ad]/20 bg-white overflow-hidden">
+                    <div className="border-b border-[#ecf0f1] px-4 py-3 font-bold text-[#6c3483]">
+                      Cambios de precio unitario
+                    </div>
+                    <ul className="divide-y divide-[#ecf0f1]">
+                      {diferenciasPrecio.map((d) => (
+                        <li
+                          key={d.id}
+                          className="flex flex-wrap items-center gap-3 px-4 py-3"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono text-xs text-[#7f8c8d]">
+                              {d.codigo}
+                            </div>
+                            <div className="font-semibold truncate">{d.producto}</div>
+                            <div className="text-xs text-[#95a5a6]">
+                              Moneda base: {d.moneda}
+                            </div>
+                          </div>
+                          <div className="text-right text-sm">
+                            <div className="text-[#7f8c8d]">Antes</div>
+                            <div className="font-medium">
+                              {d.moneda === "USD"
+                                ? `U$D ${d.precio1Antes}`
+                                : `$ ${d.precio1Antes.toLocaleString("es-AR")}`}
+                              <span className="text-[#95a5a6] text-xs">
+                                {" "}
+                                / $ {d.precio1PesosAntes.toLocaleString("es-AR")}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-[#bdc3c7]">→</div>
+                          <div className="text-right text-sm">
+                            <div className="text-[#7f8c8d]">Nuevo</div>
+                            <div className="font-bold text-[#8e44ad]">
+                              {d.moneda === "USD"
+                                ? `U$D ${d.precio1}`
+                                : `$ ${d.precio1.toLocaleString("es-AR")}`}
+                              <span className="text-[#6c3483] text-xs font-semibold">
+                                {" "}
+                                / $ {d.precio1Pesos.toLocaleString("es-AR")}
+                              </span>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="flex flex-wrap gap-3 pt-2">
-              {diferencias.length > 0 && (
+              {(diferencias.length > 0 || diferenciasPrecio.length > 0) && (
                 <button
                   type="button"
                   onClick={aplicarCorrecciones}
@@ -682,7 +857,7 @@ export default function ControlStockRepuestos({
                 >
                   {aplicando
                     ? "Aplicando..."
-                    : `Aplicar ${diferencias.length} corrección(es)`}
+                    : `Aplicar cambios (${diferencias.length + diferenciasPrecio.length})`}
                 </button>
               )}
               <button
@@ -690,7 +865,9 @@ export default function ControlStockRepuestos({
                 onClick={onCerrar}
                 className="rounded-xl border-2 border-[#ecf0f1] px-4 py-3 font-semibold hover:bg-white touch-manipulation"
               >
-                {diferencias.length > 0 ? "Cerrar sin aplicar" : "Cerrar"}
+                {diferencias.length > 0 || diferenciasPrecio.length > 0
+                  ? "Cerrar sin aplicar"
+                  : "Cerrar"}
               </button>
             </div>
           </div>

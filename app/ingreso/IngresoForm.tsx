@@ -65,6 +65,7 @@ const inicialForm = {
   accesorios: "",
   precio: "",
   anticipo: "",
+  esGarantia: false,
   fotosIngreso: [] as any[],
 };
 
@@ -79,6 +80,7 @@ const inicialEquipo = {
   accesorios: "",
   precio: "",
   anticipo: "",
+  esGarantia: false,
   fotosIngreso: [] as any[],
 };
 
@@ -117,7 +119,6 @@ export default function IngresoForm() {
   const [trabajosGuardadosConAnticipo, setTrabajosGuardadosConAnticipo] = useState<any[]>([]);
   const [totalAnticipoPendiente, setTotalAnticipoPendiente] = useState(0);
   const [mostrarModalPatron, setMostrarModalPatron] = useState(false);
-  const [esGarantia, setEsGarantia] = useState(false);
   const [patronTarget, setPatronTarget] = useState<
     { tipo: "principal" } | { tipo: "extra"; idx: number } | null
   >(null);
@@ -328,7 +329,6 @@ export default function IngresoForm() {
     setFirmaClienteUrlIpad(null);
     setBorradorFirmaId(null);
     setTokenPublicoIngreso(nuevoTokenPublicoIngreso());
-    setEsGarantia(false);
   };
 
   // ✅ FUNCIÓN ACTUALIZADA: Ticket con modal nativo
@@ -772,7 +772,8 @@ export default function IngresoForm() {
       anticipo: anticipoNumerico,
       saldo: saldoNumerico,
       fecha: form.fecha,
-      estado: esGarantia ? "GARANTIA" : "PENDIENTE",
+      estado: form.esGarantia ? "GARANTIA" : "PENDIENTE",
+      ...(form.esGarantia ? { esGarantia: true } : {}),
       checkIn: mostrarCheckIn ? checkData : null,
     };
 
@@ -835,7 +836,8 @@ export default function IngresoForm() {
         precio: precioNumerico,
         anticipo: anticipoNumerico,
         saldo: saldoNumerico,
-        estado: esGarantia ? "GARANTIA" : "PENDIENTE",
+        estado: e.esGarantia ? "GARANTIA" : "PENDIENTE",
+        ...(e.esGarantia ? { esGarantia: true } : {}),
         checkIn: mostrarCheckIn ? checkData : null,
         fotosIngreso: [],
         ...(idx === 0 ? { tokenPublico: tokenPublicoIngreso } : {}),
@@ -1328,15 +1330,14 @@ export default function IngresoForm() {
                 <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border-2 border-[#00897B]/30 bg-teal-50/80 px-3 py-2.5">
                   <input
                     type="checkbox"
-                    checked={esGarantia}
-                    onChange={(e) => setEsGarantia(e.target.checked)}
+                    checked={!!form.esGarantia}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, esGarantia: e.target.checked }))
+                    }
                     className="h-4 w-4 rounded border-[#00897B] text-[#00897B] focus:ring-[#00897B]"
                   />
                   <span className="text-sm font-semibold text-[#00695C]">
-                    🛡️ Ingreso en garantía
-                  </span>
-                  <span className="text-xs text-[#00897B]">
-                    (estado GARANTIA)
+                    🛡️ Este equipo es garantía
                   </span>
                 </label>
               </div>
@@ -1442,7 +1443,7 @@ export default function IngresoForm() {
             <div className="mt-6">
               <div>
                 <p className="text-sm font-semibold text-[#2c3e50]">📦 Equipos en esta orden</p>
-                <p className="text-xs text-[#7f8c8d]">Todos se guardan como trabajos separados con el mismo nroOrden (PENDIENTE o GARANTIA según marques).</p>
+                <p className="text-xs text-[#7f8c8d]">Cada equipo se guarda aparte; la garantía se marca por equipo.</p>
               </div>
 
               {equiposExtra.length > 0 && (
@@ -1544,6 +1545,19 @@ export default function IngresoForm() {
                               placeholder="0"
                             />
                           </div>
+                          <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border-2 border-[#00897B]/30 bg-teal-50/80 px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={!!eq.esGarantia}
+                              onChange={(e) =>
+                                actualizarEquipoExtra(idx, { esGarantia: e.target.checked })
+                              }
+                              className="h-4 w-4 rounded border-[#00897B] text-[#00897B] focus:ring-[#00897B]"
+                            />
+                            <span className="text-xs font-semibold text-[#00695C]">
+                              🛡️ Este equipo es garantía
+                            </span>
+                          </label>
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">💵 Anticipo</label>

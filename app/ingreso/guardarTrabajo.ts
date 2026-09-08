@@ -19,6 +19,7 @@ interface TrabajoData {
   anticipo?: string;
   saldo?: string;
   estado?: string;
+  esGarantia?: boolean;
   nroOrden?: string;
   accesorios?: string;
   checkIn?: any;
@@ -42,6 +43,7 @@ export const guardarTrabajo = async (
       anticipo: Number(datos.anticipo || 0), // ✨ Guardar anticipo
       saldo: Number(datos.saldo || datos.precio), // ✨ Guardar saldo
       estado: datos.estado || "PENDIENTE",
+      ...(datos.esGarantia || datos.estado === "GARANTIA" ? { esGarantia: true } : {}),
       tokenPublico: datos.tokenPublico || generarTokenPublicoTrabajo(),
       fotosIngreso: datos.fotosIngreso || [],
       fotosProceso: datos.fotosProceso || [],
@@ -181,6 +183,7 @@ export const guardarTrabajosBatch = async (
         anticipo: anticipoNum.toString(),
         saldo: saldoNum.toString(),
         estado: t.estado || "PENDIENTE",
+        ...((t as any).esGarantia || t.estado === "GARANTIA" ? { esGarantia: true } : {}),
         checkIn: (t as any).checkIn ?? null,
         tokenPublico,
         fotosIngreso,

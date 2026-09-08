@@ -26,7 +26,7 @@ import ModalPago from "./componentes/ModalPago";
 import PanelFiltrosOrdenes, {
   ESTADOS_GESTION,
 } from "@/components/PanelFiltrosOrdenes";
-import { trabajoSinCosto, trabajoSinPrecio } from "@/lib/trabajosFiltros";
+import { trabajoSinCosto, trabajoSinPrecio, trabajoEsGarantia } from "@/lib/trabajosFiltros";
 
 interface Trabajo {
   firebaseId: string;
@@ -321,6 +321,7 @@ export default function GestionTrabajosPage() {
         if (filtroEstado === "TODOS") return true;
         if (filtroEstado === "SIN COSTO") return trabajoSinCosto(t);
         if (filtroEstado === "SIN PRECIO") return trabajoSinPrecio(t);
+        if (filtroEstado === "GARANTIA") return trabajoEsGarantia(t);
         return t.estado === filtroEstado;
       })
       .sort((a, b) => {

@@ -11,6 +11,10 @@ import ModalEmitirFactura from "@/app/ventas-general/componentes/ModalEmitirFact
 import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 import { PatronViewer } from "@/app/components/PatronDesbloqueo";
 import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarEstadoTrabajoCliente";
+import {
+  payloadEsGarantiaAlCambiarEstado,
+  trabajoEsGarantia,
+} from "@/lib/trabajosFiltros";
 
 interface Trabajo {
   firebaseId: string;
@@ -26,6 +30,8 @@ interface Trabajo {
   observaciones: string;
   reparacionRealizada?: string;
   estado: string;
+  /** Queda true si alguna vez fue garantía (aunque el estado cambie a ENTREGADO, etc.). */
+  esGarantia?: boolean;
   estadoCuentaCorriente?: string;
   anticipo?: number;
   saldo?: number;
@@ -209,6 +215,7 @@ export default function TablaTrabajos({
     const payloadTrabajo: any = {
       estado: nuevoEstado,
       fechaModificacion,
+      ...payloadEsGarantiaAlCambiarEstado(trabajo, nuevoEstado),
     };
     if (imeiToSave) payloadTrabajo.imei = imeiToSave;
 
@@ -705,10 +712,10 @@ const eliminarTrabajo = async () => {
                   : "";
 
                 let bgClass = "";
-                if (t.estado === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
+                if (trabajoEsGarantia(t)) bgClass = "bg-teal-100 border-l-4 border-[#00897B]";
+                else if (t.estado === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
                 else if (t.estado === "ENTREGADO") bgClass = "bg-green-100 border-l-4 border-[#1B5E20]";
                 else if (t.estado === "REPARADO") bgClass = "bg-orange-100 border-l-4 border-[#D84315]";
-                else if (t.estado === "GARANTIA") bgClass = "bg-teal-100 border-l-4 border-[#00897B]";
                 else if (t.estado === "PENDIENTE") bgClass = "bg-red-100 border-l-4 border-[#B71C1C]";
                 else if (esPendienteAceptacion(t.estado)) bgClass = "bg-white border-l-4 border-[#5e35b1]";
 
@@ -809,24 +816,26 @@ const eliminarTrabajo = async () => {
                                             
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
                       <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
+                        trabajoEsGarantia(t) ? "bg-[#00897B] text-white border-2 border-[#00695C]" :
                         t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                         t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                         t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
-                        t.estado === "GARANTIA" ? "bg-[#00897B] text-white border-2 border-[#00695C]" :
                         esPendienteAceptacion(t.estado) ? "bg-[#5e35b1] text-white border-2 border-[#4527a0]" :
                         t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
                         "bg-[#424242] text-white border-2 border-[#212121]"
                       }`}>
                         <span className="sm:hidden">
-                          {t.estado === "PAGADO" ? "💰" :
+                          {trabajoEsGarantia(t) ? "🛡️" :
+                           t.estado === "PAGADO" ? "💰" :
                            t.estado === "ENTREGADO" ? "📦" :
                            t.estado === "REPARADO" ? "🔧" :
-                           t.estado === "GARANTIA" ? "🛡️" :
                            esPendienteAceptacion(t.estado) ? "🕓" :
                            t.estado === "PENDIENTE" ? "⏳" : "❓"}
                         </span>
                         <span className="hidden sm:inline">
-                          {t.estado}
+                          {trabajoEsGarantia(t) && t.estado !== "GARANTIA"
+                            ? `${t.estado} · GAR`
+                            : t.estado}
                         </span>
                       </span>
                     </td>
@@ -1257,18 +1266,20 @@ const eliminarTrabajo = async () => {
                   <strong className="text-black text-xs sm:text-sm">Estado:</strong>
                   <span
                     className={`px-2 py-1 rounded-lg text-xs font-bold inline-block ${
-                      trabajoDetalle.estado === "PAGADO"
+                      trabajoEsGarantia(trabajoDetalle)
+                        ? "bg-[#00897B] text-white"
+                        : trabajoDetalle.estado === "PAGADO"
                         ? "bg-[#1565C0] text-white"
                         : trabajoDetalle.estado === "ENTREGADO"
                         ? "bg-[#1B5E20] text-white"
                         : trabajoDetalle.estado === "REPARADO"
                         ? "bg-[#D84315] text-white"
-                        : trabajoDetalle.estado === "GARANTIA"
-                        ? "bg-[#00897B] text-white"
                         : "bg-[#B71C1C] text-white"
                     }`}
                   >
-                    {trabajoDetalle.estado}
+                    {trabajoEsGarantia(trabajoDetalle) && trabajoDetalle.estado !== "GARANTIA"
+                      ? `${trabajoDetalle.estado} · GAR`
+                      : trabajoDetalle.estado}
                   </span>
                 </div>
 

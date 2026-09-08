@@ -1,4 +1,5 @@
 import { mismoCategoria } from "@/lib/categoriaRepuesto";
+import { normalizarMoneda, pesosDesdeMoneda } from "@/lib/monedaRepuesto";
 
 export type FiltroTiendaControl = "todos" | "tienda" | "no_tienda";
 
@@ -11,6 +12,10 @@ export interface ProductoControlStock {
   proveedor: string;
   cantidad: number;
   publicarEnCatalogoWeb: boolean;
+  moneda: "ARS" | "USD";
+  cotizacion: number;
+  precio1: number;
+  precio1Pesos: number;
 }
 
 export interface FiltrosControlStock {
@@ -24,6 +29,10 @@ export interface LineaConteoStock {
   producto: ProductoControlStock;
   contado: boolean;
   stockReal: string;
+  /** Precio unitario editable en USD (independiente del ARS). */
+  precioUsd: string;
+  /** Precio unitario editable en ARS. */
+  precioArs: string;
 }
 
 export interface DiferenciaConteoStock {
@@ -36,10 +45,30 @@ export interface DiferenciaConteoStock {
   diferencia: number;
 }
 
+export interface DiferenciaPrecioStock {
+  id: string;
+  codigo: string;
+  producto: string;
+  moneda: "ARS" | "USD";
+  precio1Antes: number;
+  precio1PesosAntes: number;
+  precio1: number;
+  precio1Pesos: number;
+}
+
 export function docAProductoControlStock(
   id: string,
   data: Record<string, unknown>
 ): ProductoControlStock {
+  const moneda = normalizarMoneda(data.moneda);
+  const cotizacion = Number(data.cotizacion) || 0;
+  const precio1 = Number(data.precio1) || 0;
+  const precio1PesosRaw = Number(data.precio1Pesos);
+  const precio1Pesos =
+    Number.isFinite(precio1PesosRaw) && precio1PesosRaw > 0
+      ? precio1PesosRaw
+      : pesosDesdeMoneda(precio1, moneda, cotizacion > 0 ? cotizacion : 1);
+
   return {
     id,
     codigo: String(data.codigo ?? id),
@@ -49,7 +78,54 @@ export function docAProductoControlStock(
     proveedor: String(data.proveedor ?? "").trim(),
     cantidad: Number(data.cantidad) || 0,
     publicarEnCatalogoWeb: Boolean(data.publicarEnCatalogoWeb),
+    moneda,
+    cotizacion,
+    precio1,
+    precio1Pesos,
   };
+}
+
+/** Valores iniciales USD/ARS para editar en el conteo. */
+export function preciosUnitariosDesdeProducto(p: ProductoControlStock): {
+  usd: number;
+  ars: number;
+} {
+  const cot = p.cotizacion > 0 ? p.cotizacion : 0;
+  if (p.moneda === "USD") {
+    return {
+      usd: p.precio1,
+      ars: p.precio1Pesos || (cot > 0 ? pesosDesdeMoneda(p.precio1, "USD", cot) : 0),
+    };
+  }
+  const ars = p.precio1Pesos || p.precio1;
+  return {
+    ars,
+    usd: cot > 0 ? Math.round((ars / cot) * 100) / 100 : 0,
+  };
+}
+
+export function parsePrecioControl(valor: string, fallback = 0): number {
+  const n = Number(String(valor).replace(",", ".").trim());
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+/** Mapea los inputs USD/ARS al schema del repuesto (precio1 + precio1Pesos). */
+export function payloadPreciosControl(
+  moneda: "ARS" | "USD",
+  precioUsd: number,
+  precioArs: number,
+  cotizacion: number
+): { precio1: number; precio1Pesos: number } {
+  if (moneda === "USD") {
+    const precio1 = Math.round(precioUsd * 100) / 100;
+    const precio1Pesos =
+      precioArs > 0
+        ? Math.round(precioArs)
+        : pesosDesdeMoneda(precio1, "USD", cotizacion > 0 ? cotizacion : 1);
+    return { precio1, precio1Pesos };
+  }
+  const precio1 = Math.round(precioArs);
+  return { precio1, precio1Pesos: precio1 };
 }
 
 function coincideTextoExacto(valor: string, filtro: string): boolean {
@@ -99,11 +175,16 @@ export function subtituloFiltrosControl(filtros: FiltrosControlStock): string {
 export function crearLineasConteo(
   productos: ProductoControlStock[]
 ): LineaConteoStock[] {
-  return productos.map((producto) => ({
-    producto,
-    contado: false,
-    stockReal: String(producto.cantidad),
-  }));
+  return productos.map((producto) => {
+    const { usd, ars } = preciosUnitariosDesdeProducto(producto);
+    return {
+      producto,
+      contado: false,
+      stockReal: String(producto.cantidad),
+      precioUsd: usd ? String(usd) : "",
+      precioArs: ars ? String(ars) : "",
+    };
+  });
 }
 
 export function parseStockReal(valor: string, fallback: number): number {
@@ -130,6 +211,37 @@ export function calcularDiferenciasConteo(
       stockSistema,
       stockReal,
       diferencia: stockReal - stockSistema,
+    });
+  }
+
+  return difs;
+}
+
+export function calcularDiferenciasPrecio(
+  lineas: LineaConteoStock[]
+): DiferenciaPrecioStock[] {
+  const difs: DiferenciaPrecioStock[] = [];
+
+  for (const linea of lineas) {
+    const p = linea.producto;
+    const orig = preciosUnitariosDesdeProducto(p);
+    const usd = parsePrecioControl(linea.precioUsd, orig.usd);
+    const ars = parsePrecioControl(linea.precioArs, orig.ars);
+    const payload = payloadPreciosControl(p.moneda, usd, ars, p.cotizacion);
+
+    const mismoPrecio1 = Math.abs(payload.precio1 - p.precio1) < 0.005;
+    const mismoPesos = Math.round(payload.precio1Pesos) === Math.round(p.precio1Pesos);
+    if (mismoPrecio1 && mismoPesos) continue;
+
+    difs.push({
+      id: p.id,
+      codigo: p.codigo,
+      producto: p.producto,
+      moneda: p.moneda,
+      precio1Antes: p.precio1,
+      precio1PesosAntes: p.precio1Pesos,
+      precio1: payload.precio1,
+      precio1Pesos: payload.precio1Pesos,
     });
   }
 
@@ -163,7 +275,7 @@ export function generarHtmlImpresionControlStock(opts: {
 }): string {
   const filas = opts.productos
     .map(
-      (p, i) => `
+      (p) => `
       <tr>
         <td class="c-check">☐</td>
         <td class="c-cod">${escHtml(p.codigo)}</td>
