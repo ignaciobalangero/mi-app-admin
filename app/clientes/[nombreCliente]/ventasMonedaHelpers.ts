@@ -208,9 +208,9 @@ export function recalcularProductoEnEdicion(
   valor: string | number,
   cotizacion: number
 ) {
-  const moneda = monedaLineaProducto(producto);
   const cot = cotizacion > 0 ? cotizacion : 1000;
   const actual = { ...producto };
+  let moneda = monedaLineaProducto(actual);
 
   if (campo === "producto") actual.producto = String(valor);
   else if (campo === "marca") actual.marca = String(valor);
@@ -218,6 +218,23 @@ export function recalcularProductoEnEdicion(
   else if (campo === "precioUnitario") actual.precioUnitario = Number(valor) || 0;
   else if (campo === "cantidad") actual.cantidad = Math.max(1, Number(valor) || 1);
   else if (campo === "costo") actual.costo = Number(valor) || 0;
+  else if (campo === "moneda") {
+    const nueva = normalizeMonedaCuenta(valor);
+    if (nueva !== moneda) {
+      // Convertir montos a la nueva moneda para que la ganancia quede coherente.
+      if (moneda === "USD" && nueva === "ARS") {
+        actual.precioUnitario = Number(((Number(actual.precioUnitario) || 0) * cot).toFixed(2));
+        actual.costo = Number(((Number(actual.costo) || 0) * cot).toFixed(2));
+      } else if (moneda === "ARS" && nueva === "USD") {
+        actual.precioUnitario = Number(((Number(actual.precioUnitario) || 0) / cot).toFixed(2));
+        actual.costo = Number(((Number(actual.costo) || 0) / cot).toFixed(2));
+      }
+      moneda = nueva;
+      actual.moneda = nueva;
+    }
+  }
+
+  actual.moneda = moneda;
 
   const pu = Number(actual.precioUnitario) || 0;
   const cant = Number(actual.cantidad) || 1;
@@ -229,9 +246,17 @@ export function recalcularProductoEnEdicion(
   if (moneda === "USD") {
     actual.precioCosto = costo;
     actual.precioCostoPesos = costo * cot;
+    actual.precioUnitarioUSD = pu;
+    actual.precioUnitarioARS = null;
+    actual.precioVentaUSD = actual.precioVenta;
+    actual.precioVentaARS = null;
   } else {
     actual.precioCostoPesos = costo;
     actual.precioCosto = costo;
+    actual.precioUnitarioARS = pu;
+    actual.precioUnitarioUSD = null;
+    actual.precioVentaARS = actual.precioVenta;
+    actual.precioVentaUSD = null;
   }
 
   actual.total = totalLineaProductoEnARS(actual, cot);
@@ -281,6 +306,10 @@ export function productoEdicionAGuardar(p: any, cotizacion: number) {
     sinStock: p.sinStock === true,
     total: totalLineaProductoEnARS({ ...p, precioUnitario: pu, cantidad: cant, moneda }, cot),
     cotizacionUsada: Number(p.cotizacionUsada) > 0 ? Number(p.cotizacionUsada) : cot,
+    precioUnitarioUSD: moneda === "USD" ? pu : null,
+    precioUnitarioARS: moneda === "ARS" ? pu : null,
+    precioVentaUSD: moneda === "USD" ? precioVenta : null,
+    precioVentaARS: moneda === "ARS" ? precioVenta : null,
   };
 }
 

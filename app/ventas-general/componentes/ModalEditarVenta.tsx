@@ -203,8 +203,8 @@ export default function ModalEditarVenta({
                   key={index}
                   className="bg-[#f8f9fa] rounded-lg p-4 border border-[#ecf0f1]"
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <span
                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                           producto.sinStock || producto.tipo === "libre"
@@ -220,18 +220,37 @@ export default function ModalEditarVenta({
                           ? "Sin stock"
                           : producto.categoria}
                       </span>
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          moneda === "USD"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        💰 Venta en {moneda}
-                      </span>
+                      <div className="inline-flex rounded-lg border-2 border-[#bdc3c7] overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => actualizarProducto(index, "moneda", "ARS")}
+                          className={`px-3 py-1 text-xs font-bold transition-colors ${
+                            moneda === "ARS"
+                              ? "bg-[#27ae60] text-white"
+                              : "bg-white text-[#2c3e50] hover:bg-[#ecf0f1]"
+                          }`}
+                        >
+                          🇦🇷 ARS
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => actualizarProducto(index, "moneda", "USD")}
+                          className={`px-3 py-1 text-xs font-bold transition-colors border-l-2 border-[#bdc3c7] ${
+                            moneda === "USD"
+                              ? "bg-[#3498db] text-white"
+                              : "bg-white text-[#2c3e50] hover:bg-[#ecf0f1]"
+                          }`}
+                        >
+                          🇺🇸 USD
+                        </button>
+                      </div>
                     </div>
                     <span className="text-sm text-[#7f8c8d]">Producto {index + 1}</span>
                   </div>
+                  <p className="text-[11px] text-[#7f8c8d] mb-3">
+                    Al cambiar moneda se convierten costo y precio con la cotización de la venta
+                    (${cot.toLocaleString("es-AR")} ARS/USD). Después podés ajustar los montos a mano.
+                  </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                     <div>
