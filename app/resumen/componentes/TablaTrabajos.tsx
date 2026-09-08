@@ -708,7 +708,9 @@ const eliminarTrabajo = async () => {
                 if (t.estado === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
                 else if (t.estado === "ENTREGADO") bgClass = "bg-green-100 border-l-4 border-[#1B5E20]";
                 else if (t.estado === "REPARADO") bgClass = "bg-orange-100 border-l-4 border-[#D84315]";
+                else if (t.estado === "GARANTIA") bgClass = "bg-teal-100 border-l-4 border-[#00897B]";
                 else if (t.estado === "PENDIENTE") bgClass = "bg-red-100 border-l-4 border-[#B71C1C]";
+                else if (esPendienteAceptacion(t.estado)) bgClass = "bg-white border-l-4 border-[#5e35b1]";
 
                 const fechaAMostrar = tipoFecha === "modificacion" 
                   ? (t.fechaModificacion || t.fecha) 
@@ -810,6 +812,7 @@ const eliminarTrabajo = async () => {
                         t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                         t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                         t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
+                        t.estado === "GARANTIA" ? "bg-[#00897B] text-white border-2 border-[#00695C]" :
                         esPendienteAceptacion(t.estado) ? "bg-[#5e35b1] text-white border-2 border-[#4527a0]" :
                         t.estado === "PENDIENTE" ? "bg-[#B71C1C] text-white border-2 border-[#8E0000]" :
                         "bg-[#424242] text-white border-2 border-[#212121]"
@@ -818,6 +821,7 @@ const eliminarTrabajo = async () => {
                           {t.estado === "PAGADO" ? "💰" :
                            t.estado === "ENTREGADO" ? "📦" :
                            t.estado === "REPARADO" ? "🔧" :
+                           t.estado === "GARANTIA" ? "🛡️" :
                            esPendienteAceptacion(t.estado) ? "🕓" :
                            t.estado === "PENDIENTE" ? "⏳" : "❓"}
                         </span>
@@ -930,6 +934,7 @@ const eliminarTrabajo = async () => {
                             </option>
                           )}
                           <option value="PENDIENTE">⏳ Pendiente</option>
+                          <option value="GARANTIA">🛡️ Garantía</option>
                           <option value="REPARADO">🔧 Reparado</option>
                           <option value="ENTREGADO">📦 Entregado</option>
                           <option value="PAGADO">💰 Pagado</option>
@@ -1258,6 +1263,8 @@ const eliminarTrabajo = async () => {
                         ? "bg-[#1B5E20] text-white"
                         : trabajoDetalle.estado === "REPARADO"
                         ? "bg-[#D84315] text-white"
+                        : trabajoDetalle.estado === "GARANTIA"
+                        ? "bg-[#00897B] text-white"
                         : "bg-[#B71C1C] text-white"
                     }`}
                   >

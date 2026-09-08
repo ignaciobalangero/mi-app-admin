@@ -11,6 +11,7 @@ import TablaTrabajos from "./componentes/TablaTrabajos";
 import PanelFiltrosOrdenes, {
   ESTADOS_RESUMEN,
 } from "@/components/PanelFiltrosOrdenes";
+import { trabajoSinCosto, trabajoSinPrecio } from "@/lib/trabajosFiltros";
 
 interface Trabajo {
   firebaseId: string;
@@ -176,9 +177,8 @@ export default function ResumenPage() {
     })
     .filter((t) => {
       if (filtroEstado === "TODOS") return true;
-      if (filtroEstado === "PAGADO") {
-        return t.estado === "PAGADO";
-      }
+      if (filtroEstado === "SIN COSTO") return trabajoSinCosto(t);
+      if (filtroEstado === "SIN PRECIO") return trabajoSinPrecio(t);
       return t.estado === filtroEstado;
     })
     .sort((a, b) => {

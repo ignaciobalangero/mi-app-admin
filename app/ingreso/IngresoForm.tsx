@@ -117,6 +117,7 @@ export default function IngresoForm() {
   const [trabajosGuardadosConAnticipo, setTrabajosGuardadosConAnticipo] = useState<any[]>([]);
   const [totalAnticipoPendiente, setTotalAnticipoPendiente] = useState(0);
   const [mostrarModalPatron, setMostrarModalPatron] = useState(false);
+  const [esGarantia, setEsGarantia] = useState(false);
   const [patronTarget, setPatronTarget] = useState<
     { tipo: "principal" } | { tipo: "extra"; idx: number } | null
   >(null);
@@ -327,6 +328,7 @@ export default function IngresoForm() {
     setFirmaClienteUrlIpad(null);
     setBorradorFirmaId(null);
     setTokenPublicoIngreso(nuevoTokenPublicoIngreso());
+    setEsGarantia(false);
   };
 
   // ✅ FUNCIÓN ACTUALIZADA: Ticket con modal nativo
@@ -770,6 +772,7 @@ export default function IngresoForm() {
       anticipo: anticipoNumerico,
       saldo: saldoNumerico,
       fecha: form.fecha,
+      estado: esGarantia ? "GARANTIA" : "PENDIENTE",
       checkIn: mostrarCheckIn ? checkData : null,
     };
 
@@ -832,7 +835,7 @@ export default function IngresoForm() {
         precio: precioNumerico,
         anticipo: anticipoNumerico,
         saldo: saldoNumerico,
-        estado: "PENDIENTE",
+        estado: esGarantia ? "GARANTIA" : "PENDIENTE",
         checkIn: mostrarCheckIn ? checkData : null,
         fotosIngreso: [],
         ...(idx === 0 ? { tokenPublico: tokenPublicoIngreso } : {}),
@@ -1322,6 +1325,20 @@ export default function IngresoForm() {
                     placeholder="0"
                   />
                 </div>
+                <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border-2 border-[#00897B]/30 bg-teal-50/80 px-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={esGarantia}
+                    onChange={(e) => setEsGarantia(e.target.checked)}
+                    className="h-4 w-4 rounded border-[#00897B] text-[#00897B] focus:ring-[#00897B]"
+                  />
+                  <span className="text-sm font-semibold text-[#00695C]">
+                    🛡️ Ingreso en garantía
+                  </span>
+                  <span className="text-xs text-[#00897B]">
+                    (estado GARANTIA)
+                  </span>
+                </label>
               </div>
 
               {/* Anticipo */}
@@ -1425,7 +1442,7 @@ export default function IngresoForm() {
             <div className="mt-6">
               <div>
                 <p className="text-sm font-semibold text-[#2c3e50]">📦 Equipos en esta orden</p>
-                <p className="text-xs text-[#7f8c8d]">Todos se guardan como trabajos separados con estado PENDIENTE y el mismo nroOrden.</p>
+                <p className="text-xs text-[#7f8c8d]">Todos se guardan como trabajos separados con el mismo nroOrden (PENDIENTE o GARANTIA según marques).</p>
               </div>
 
               {equiposExtra.length > 0 && (

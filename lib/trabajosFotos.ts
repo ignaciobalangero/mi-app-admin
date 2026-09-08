@@ -67,6 +67,7 @@ export function etiquetaEstadoTrabajo(estado: string): string {
   const e = String(estado || "").toUpperCase();
   if (e.includes("ACEPTACION")) return "Pendiente de aceptación";
   if (e === "PENDIENTE") return "En reparación / pendiente";
+  if (e === "GARANTIA") return "En garantía";
   if (e === "REPARADO") return "Reparado — listo para retirar";
   if (e === "ENTREGADO") return "Entregado";
   if (e === "PAGADO") return "Pagado / cerrado";

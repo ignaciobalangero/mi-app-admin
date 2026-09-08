@@ -26,6 +26,7 @@ import ModalPago from "./componentes/ModalPago";
 import PanelFiltrosOrdenes, {
   ESTADOS_GESTION,
 } from "@/components/PanelFiltrosOrdenes";
+import { trabajoSinCosto, trabajoSinPrecio } from "@/lib/trabajosFiltros";
 
 interface Trabajo {
   firebaseId: string;
@@ -55,9 +56,7 @@ export default function GestionTrabajosPage() {
   const [filtroIMEI, setFiltroIMEI] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroTrabajo, setFiltroTrabajo] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState<
-    "TODOS" | "PENDIENTE ACEPTACION" | "PENDIENTE" | "REPARADO" | "ENTREGADO" | "PAGADO"
-  >("TODOS");
+  const [filtroEstado, setFiltroEstado] = useState<string>("TODOS");
   
   // ✅ NUEVOS: Estados para filtros de fecha
   const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
@@ -320,12 +319,9 @@ export default function GestionTrabajosPage() {
       })
       .filter((t) => {
         if (filtroEstado === "TODOS") return true;
-        if (filtroEstado === "PENDIENTE ACEPTACION") return t.estado === "PENDIENTE ACEPTACION";
-        if (filtroEstado === "PENDIENTE") return t.estado === "PENDIENTE";
-        if (filtroEstado === "ENTREGADO") return t.estado === "ENTREGADO";
-        if (filtroEstado === "REPARADO") return t.estado === "REPARADO";
-        if (filtroEstado === "PAGADO") return t.estado === "PAGADO";
-        return true;
+        if (filtroEstado === "SIN COSTO") return trabajoSinCosto(t);
+        if (filtroEstado === "SIN PRECIO") return trabajoSinPrecio(t);
+        return t.estado === filtroEstado;
       })
       .sort((a, b) => {
         const pa = esPendienteAceptacion(a.estado) ? 0 : 1;

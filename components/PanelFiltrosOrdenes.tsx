@@ -6,15 +6,20 @@ export type EstadoFiltroOrdenes =
   | "TODOS"
   | "PENDIENTE ACEPTACION"
   | "PENDIENTE"
+  | "GARANTIA"
   | "REPARADO"
   | "ENTREGADO"
   | "PAGADO"
+  | "SIN COSTO"
+  | "SIN PRECIO"
   | string;
 
 type EstadoChip = {
   valor: EstadoFiltroOrdenes;
   label: string;
   labelCorto?: string;
+  /** Chips de monto (sin costo/precio) usan otro color activo. */
+  variante?: "estado" | "monto";
 };
 
 const INPUT =
@@ -214,15 +219,19 @@ export default function PanelFiltrosOrdenes({
           <div className="flex flex-wrap gap-1.5">
             {estados.map((e) => {
               const activo = filtroEstado === e.valor;
+              const activoCls =
+                e.variante === "monto"
+                  ? "bg-amber-600 text-white shadow-sm shadow-amber-600/25"
+                  : e.valor === "GARANTIA"
+                    ? "bg-teal-600 text-white shadow-sm shadow-teal-600/25"
+                    : "bg-sky-600 text-white shadow-sm shadow-sky-600/25";
               return (
                 <button
                   key={e.valor}
                   type="button"
                   onClick={() => setFiltroEstado(e.valor)}
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-wide transition ${
-                    activo
-                      ? "bg-sky-600 text-white shadow-sm shadow-sky-600/25"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
+                    activo ? activoCls : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
                   }`}
                 >
                   <span className="sm:hidden">{e.labelCorto || e.label}</span>
@@ -241,15 +250,21 @@ export const ESTADOS_GESTION: EstadoChip[] = [
   { valor: "TODOS", label: "Todos", labelCorto: "Todos" },
   { valor: "PENDIENTE ACEPTACION", label: "Pend. aceptación", labelCorto: "Acept." },
   { valor: "PENDIENTE", label: "Pendiente", labelCorto: "Pend." },
+  { valor: "GARANTIA", label: "Garantía", labelCorto: "Gar." },
   { valor: "REPARADO", label: "Reparado", labelCorto: "Rep." },
   { valor: "ENTREGADO", label: "Entregado", labelCorto: "Ent." },
   { valor: "PAGADO", label: "Pagado", labelCorto: "Pag." },
+  { valor: "SIN COSTO", label: "Sin costo", labelCorto: "S/costo", variante: "monto" },
+  { valor: "SIN PRECIO", label: "Sin precio", labelCorto: "S/precio", variante: "monto" },
 ];
 
 export const ESTADOS_RESUMEN: EstadoChip[] = [
   { valor: "TODOS", label: "Todos", labelCorto: "Todos" },
   { valor: "PENDIENTE", label: "Pendientes", labelCorto: "Pend." },
+  { valor: "GARANTIA", label: "Garantía", labelCorto: "Gar." },
   { valor: "REPARADO", label: "Reparados", labelCorto: "Rep." },
   { valor: "ENTREGADO", label: "Entregados", labelCorto: "Ent." },
   { valor: "PAGADO", label: "Pagados", labelCorto: "Pag." },
+  { valor: "SIN COSTO", label: "Sin costo", labelCorto: "S/costo", variante: "monto" },
+  { valor: "SIN PRECIO", label: "Sin precio", labelCorto: "S/precio", variante: "monto" },
 ];

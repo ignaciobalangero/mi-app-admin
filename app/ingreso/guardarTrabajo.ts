@@ -180,7 +180,7 @@ export const guardarTrabajosBatch = async (
         precio: precioNum.toString(),
         anticipo: anticipoNum.toString(),
         saldo: saldoNum.toString(),
-        estado: "PENDIENTE",
+        estado: t.estado || "PENDIENTE",
         checkIn: (t as any).checkIn ?? null,
         tokenPublico,
         fotosIngreso,
