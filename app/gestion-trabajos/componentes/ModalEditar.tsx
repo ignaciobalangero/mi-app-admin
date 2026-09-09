@@ -722,6 +722,7 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
                 <span className="text-[#7f8c8d] text-xs">Estado:</span>
                 <div className={`font-bold text-sm mt-1 px-2 py-1 rounded text-center ${
                   (trabajo as any).esGarantia || trabajo.estado === "GARANTIA" ? "bg-[#C2185B] text-white" :
+                  (trabajo as any).sinReparacion || trabajo.estado === "SIN REPARACION" ? "bg-[#546E7A] text-white" :
                   trabajo.estado === "PAGADO" ? "bg-[#1565C0] text-white" :
                   trabajo.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white" :
                   trabajo.estado === "REPARADO" ? "bg-[#D84315] text-white" :
@@ -729,7 +730,9 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
                 }`}>
                   {(trabajo as any).esGarantia && trabajo.estado !== "GARANTIA"
                     ? `${trabajo.estado} · GAR`
-                    : trabajo.estado}
+                    : (trabajo as any).sinReparacion && trabajo.estado !== "SIN REPARACION"
+                      ? `${trabajo.estado} · SIN REP`
+                      : trabajo.estado}
                 </div>
               </div>
               <div className="bg-[#ecf0f1] p-3 rounded-lg">

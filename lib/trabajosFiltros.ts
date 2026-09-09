@@ -13,22 +13,68 @@ export function trabajoSinPrecio(t: { precio?: unknown }): boolean {
   return montoTrabajoVacio(t.precio);
 }
 
+export type MarcasEstadoTrabajo = {
+  estado?: string;
+  esGarantia?: boolean;
+  sinReparacion?: boolean;
+};
+
 /** Ingresó / marcó como garantía (sigue valiendo aunque el estado pase a ENTREGADO, etc.). */
-export function trabajoEsGarantia(t: { estado?: string; esGarantia?: boolean }): boolean {
+export function trabajoEsGarantia(t: MarcasEstadoTrabajo): boolean {
   if (t.esGarantia === true) return true;
   return String(t.estado || "").trim().toUpperCase() === "GARANTIA";
 }
 
-/** Al cambiar estado: si pasa a GARANTIA, marca el flag; si ya era garantía, no lo borra. */
-export function payloadEsGarantiaAlCambiarEstado(
-  trabajo: { estado?: string; esGarantia?: boolean },
+/** Marcó sin reparación (sigue pintado así aunque pase a ENTREGADO). */
+export function trabajoSinReparacion(t: MarcasEstadoTrabajo): boolean {
+  if (t.sinReparacion === true) return true;
+  return String(t.estado || "").trim().toUpperCase() === "SIN REPARACION";
+}
+
+/**
+ * Flags al cambiar estado:
+ * - GARANTIA / SIN REPARACION activan su marca (y anulan la otra).
+ * - PENDIENTE limpia ambas (sirve para deshacer un error).
+ * - Otros estados (ENTREGADO, etc.) conservan la marca previa.
+ */
+export function payloadMarcasEstadoAlCambiar(
+  trabajo: MarcasEstadoTrabajo,
   nuevoEstado: string
-): { esGarantia?: boolean } {
-  if (String(nuevoEstado || "").trim().toUpperCase() === "GARANTIA") {
-    return { esGarantia: true };
+): { esGarantia: boolean; sinReparacion: boolean } {
+  const n = String(nuevoEstado || "").trim().toUpperCase();
+
+  if (n === "PENDIENTE") {
+    return { esGarantia: false, sinReparacion: false };
   }
-  if (trabajoEsGarantia(trabajo)) {
-    return { esGarantia: true };
+  if (n === "GARANTIA") {
+    return { esGarantia: true, sinReparacion: false };
   }
-  return {};
+  if (n === "SIN REPARACION") {
+    return { esGarantia: false, sinReparacion: true };
+  }
+
+  return {
+    esGarantia: trabajoEsGarantia(trabajo),
+    sinReparacion: trabajoSinReparacion(trabajo) && !trabajoEsGarantia(trabajo),
+  };
+}
+
+/** @deprecated usar payloadMarcasEstadoAlCambiar */
+export function payloadEsGarantiaAlCambiarEstado(
+  trabajo: MarcasEstadoTrabajo,
+  nuevoEstado: string
+): { esGarantia: boolean; sinReparacion: boolean } {
+  return payloadMarcasEstadoAlCambiar(trabajo, nuevoEstado);
+}
+
+/** Texto de badge: ENTREGADO · GAR / ENTREGADO · SIN REP */
+export function etiquetaEstadoTabla(t: MarcasEstadoTrabajo & { estado?: string }): string {
+  const estado = String(t.estado || "").trim() || "—";
+  if (trabajoEsGarantia(t) && estado.toUpperCase() !== "GARANTIA") {
+    return `${estado} · GAR`;
+  }
+  if (trabajoSinReparacion(t) && estado.toUpperCase() !== "SIN REPARACION") {
+    return `${estado} · SIN REP`;
+  }
+  return estado;
 }

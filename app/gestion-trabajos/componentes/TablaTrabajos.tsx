@@ -13,8 +13,10 @@ import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarE
 import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 import { PatronViewer } from "@/app/components/PatronDesbloqueo";
 import {
-  payloadEsGarantiaAlCambiarEstado,
+  etiquetaEstadoTabla,
+  payloadMarcasEstadoAlCambiar,
   trabajoEsGarantia,
+  trabajoSinReparacion,
 } from "@/lib/trabajosFiltros";
 
 interface Trabajo {
@@ -40,6 +42,8 @@ interface Trabajo {
   estado: string;
   /** Queda true si alguna vez fue garantía (aunque el estado cambie a ENTREGADO, etc.). */
   esGarantia?: boolean;
+  /** Queda true si marcó sin reparación (aunque pase a ENTREGADO). */
+  sinReparacion?: boolean;
   precarga?: boolean;
   precargaCreadaPorUid?: string | null;
   precargaAceptadaEn?: any;
@@ -71,6 +75,7 @@ export default function TablaTrabajos({
 }: TablaProps) {
   const obtenerClaseEstado = (trabajo: Trabajo) => {
     if (trabajoEsGarantia(trabajo)) return "bg-fuchsia-100 border-l-4 border-[#C2185B]";
+    if (trabajoSinReparacion(trabajo)) return "bg-slate-200 border-l-4 border-[#455A64]";
     const est = trabajo.estado?.toString().trim().toUpperCase();
     if (est === "PAGADO") return "bg-blue-100 border-l-4 border-[#1565C0]";
     if (est === "ENTREGADO") return "bg-green-100 border-l-4 border-[#1B5E20]";
@@ -183,7 +188,7 @@ export default function TablaTrabajos({
     const updates: any = {
       fechaModificacion,
       estado: nuevoEstado,
-      ...payloadEsGarantiaAlCambiarEstado(trabajo, nuevoEstado),
+      ...payloadMarcasEstadoAlCambiar(trabajo, nuevoEstado),
     };
     if (imeiToSave) updates.imei = imeiToSave;
 
@@ -289,7 +294,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
       const ref = doc(db, `negocios/${negocioID}/trabajos/${trabajoAConfirmarPago.firebaseId}`);
       await updateDoc(ref, {
         estado: "PAGADO",
-        ...payloadEsGarantiaAlCambiarEstado(trabajoAConfirmarPago, "PAGADO"),
+        ...payloadMarcasEstadoAlCambiar(trabajoAConfirmarPago, "PAGADO"),
       });
       await notificarWhatsappTrabajoSiConfigurado(
         negocioID,
@@ -573,6 +578,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
                       <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
                         trabajoEsGarantia(t) ? "bg-[#C2185B] text-white border-2 border-[#880E4F]" :
+                        trabajoSinReparacion(t) ? "bg-[#546E7A] text-white border-2 border-[#37474F]" :
                         t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                         t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                         t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
@@ -582,15 +588,14 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                       }`}>
                         <span className="sm:hidden">
                           {trabajoEsGarantia(t) ? "🛡️" :
+                           trabajoSinReparacion(t) ? "🚫" :
                            t.estado === "PAGADO" ? "💰" : 
                            t.estado === "ENTREGADO" ? "📦" :
                            t.estado === "REPARADO" ? "🔧" :
                            esPendienteAceptacion(t.estado) ? "🕓" : "⏳"}
                         </span>
                         <span className="hidden sm:inline text-xs">
-                          {trabajoEsGarantia(t) && t.estado !== "GARANTIA"
-                            ? `${t.estado} · GAR`
-                            : t.estado}
+                          {etiquetaEstadoTabla(t)}
                         </span>
                       </span>
                     </td>
@@ -641,6 +646,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                           )}
                           <option value="PENDIENTE">⏳ Pendiente</option>
                           <option value="GARANTIA">🛡️ Garantía</option>
+                          <option value="SIN REPARACION">🚫 Sin reparación</option>
                           <option value="REPARADO">🔧 Reparado</option>
                           <option value="ENTREGADO">📦 Entregado</option>
                           <option value="PAGADO">💰 Pagado</option>

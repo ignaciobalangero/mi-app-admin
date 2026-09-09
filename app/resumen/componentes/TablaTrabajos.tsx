@@ -12,8 +12,10 @@ import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 import { PatronViewer } from "@/app/components/PatronDesbloqueo";
 import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarEstadoTrabajoCliente";
 import {
-  payloadEsGarantiaAlCambiarEstado,
+  etiquetaEstadoTabla,
+  payloadMarcasEstadoAlCambiar,
   trabajoEsGarantia,
+  trabajoSinReparacion,
 } from "@/lib/trabajosFiltros";
 
 interface Trabajo {
@@ -32,6 +34,8 @@ interface Trabajo {
   estado: string;
   /** Queda true si alguna vez fue garantía (aunque el estado cambie a ENTREGADO, etc.). */
   esGarantia?: boolean;
+  /** Queda true si marcó sin reparación (aunque pase a ENTREGADO). */
+  sinReparacion?: boolean;
   estadoCuentaCorriente?: string;
   anticipo?: number;
   saldo?: number;
@@ -215,7 +219,7 @@ export default function TablaTrabajos({
     const payloadTrabajo: any = {
       estado: nuevoEstado,
       fechaModificacion,
-      ...payloadEsGarantiaAlCambiarEstado(trabajo, nuevoEstado),
+      ...payloadMarcasEstadoAlCambiar(trabajo, nuevoEstado),
     };
     if (imeiToSave) payloadTrabajo.imei = imeiToSave;
 
@@ -713,6 +717,7 @@ const eliminarTrabajo = async () => {
 
                 let bgClass = "";
                 if (trabajoEsGarantia(t)) bgClass = "bg-fuchsia-100 border-l-4 border-[#C2185B]";
+                else if (trabajoSinReparacion(t)) bgClass = "bg-slate-200 border-l-4 border-[#455A64]";
                 else if (t.estado === "PAGADO") bgClass = "bg-blue-100 border-l-4 border-[#1565C0]";
                 else if (t.estado === "ENTREGADO") bgClass = "bg-green-100 border-l-4 border-[#1B5E20]";
                 else if (t.estado === "REPARADO") bgClass = "bg-orange-100 border-l-4 border-[#D84315]";
@@ -817,6 +822,7 @@ const eliminarTrabajo = async () => {
                     <td className="p-1 sm:p-2 md:p-3 border border-black">
                       <span className={`inline-flex items-center justify-center px-1 py-1 rounded text-xs font-bold w-full ${
                         trabajoEsGarantia(t) ? "bg-[#C2185B] text-white border-2 border-[#880E4F]" :
+                        trabajoSinReparacion(t) ? "bg-[#546E7A] text-white border-2 border-[#37474F]" :
                         t.estado === "PAGADO" ? "bg-[#1565C0] text-white border-2 border-[#0D47A1]" :
                         t.estado === "ENTREGADO" ? "bg-[#1B5E20] text-white border-2 border-[#0D3711]" :
                         t.estado === "REPARADO" ? "bg-[#D84315] text-white border-2 border-[#BF360C]" :
@@ -826,6 +832,7 @@ const eliminarTrabajo = async () => {
                       }`}>
                         <span className="sm:hidden">
                           {trabajoEsGarantia(t) ? "🛡️" :
+                           trabajoSinReparacion(t) ? "🚫" :
                            t.estado === "PAGADO" ? "💰" :
                            t.estado === "ENTREGADO" ? "📦" :
                            t.estado === "REPARADO" ? "🔧" :
@@ -833,9 +840,7 @@ const eliminarTrabajo = async () => {
                            t.estado === "PENDIENTE" ? "⏳" : "❓"}
                         </span>
                         <span className="hidden sm:inline">
-                          {trabajoEsGarantia(t) && t.estado !== "GARANTIA"
-                            ? `${t.estado} · GAR`
-                            : t.estado}
+                          {etiquetaEstadoTabla(t)}
                         </span>
                       </span>
                     </td>
@@ -944,6 +949,7 @@ const eliminarTrabajo = async () => {
                           )}
                           <option value="PENDIENTE">⏳ Pendiente</option>
                           <option value="GARANTIA">🛡️ Garantía</option>
+                          <option value="SIN REPARACION">🚫 Sin reparación</option>
                           <option value="REPARADO">🔧 Reparado</option>
                           <option value="ENTREGADO">📦 Entregado</option>
                           <option value="PAGADO">💰 Pagado</option>
@@ -1268,6 +1274,8 @@ const eliminarTrabajo = async () => {
                     className={`px-2 py-1 rounded-lg text-xs font-bold inline-block ${
                       trabajoEsGarantia(trabajoDetalle)
                         ? "bg-[#C2185B] text-white"
+                        : trabajoSinReparacion(trabajoDetalle)
+                        ? "bg-[#546E7A] text-white"
                         : trabajoDetalle.estado === "PAGADO"
                         ? "bg-[#1565C0] text-white"
                         : trabajoDetalle.estado === "ENTREGADO"
@@ -1277,9 +1285,7 @@ const eliminarTrabajo = async () => {
                         : "bg-[#B71C1C] text-white"
                     }`}
                   >
-                    {trabajoEsGarantia(trabajoDetalle) && trabajoDetalle.estado !== "GARANTIA"
-                      ? `${trabajoDetalle.estado} · GAR`
-                      : trabajoDetalle.estado}
+                    {etiquetaEstadoTabla(trabajoDetalle)}
                   </span>
                 </div>
 

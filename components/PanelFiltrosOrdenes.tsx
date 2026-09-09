@@ -7,6 +7,7 @@ export type EstadoFiltroOrdenes =
   | "PENDIENTE ACEPTACION"
   | "PENDIENTE"
   | "GARANTIA"
+  | "SIN REPARACION"
   | "REPARADO"
   | "ENTREGADO"
   | "PAGADO"
@@ -224,6 +225,8 @@ export default function PanelFiltrosOrdenes({
                   ? "bg-amber-600 text-white shadow-sm shadow-amber-600/25"
                   : e.valor === "GARANTIA"
                     ? "bg-fuchsia-700 text-white shadow-sm shadow-fuchsia-700/25"
+                    : e.valor === "SIN REPARACION"
+                      ? "bg-slate-600 text-white shadow-sm shadow-slate-600/25"
                     : "bg-sky-600 text-white shadow-sm shadow-sky-600/25";
               return (
                 <button
@@ -251,6 +254,7 @@ export const ESTADOS_GESTION: EstadoChip[] = [
   { valor: "PENDIENTE ACEPTACION", label: "Pend. aceptación", labelCorto: "Acept." },
   { valor: "PENDIENTE", label: "Pendiente", labelCorto: "Pend." },
   { valor: "GARANTIA", label: "Garantía", labelCorto: "Gar." },
+  { valor: "SIN REPARACION", label: "Sin reparación", labelCorto: "S/rep." },
   { valor: "REPARADO", label: "Reparado", labelCorto: "Rep." },
   { valor: "ENTREGADO", label: "Entregado", labelCorto: "Ent." },
   { valor: "PAGADO", label: "Pagado", labelCorto: "Pag." },
@@ -262,6 +266,7 @@ export const ESTADOS_RESUMEN: EstadoChip[] = [
   { valor: "TODOS", label: "Todos", labelCorto: "Todos" },
   { valor: "PENDIENTE", label: "Pendientes", labelCorto: "Pend." },
   { valor: "GARANTIA", label: "Garantía", labelCorto: "Gar." },
+  { valor: "SIN REPARACION", label: "Sin reparación", labelCorto: "S/rep." },
   { valor: "REPARADO", label: "Reparados", labelCorto: "Rep." },
   { valor: "ENTREGADO", label: "Entregados", labelCorto: "Ent." },
   { valor: "PAGADO", label: "Pagados", labelCorto: "Pag." },
