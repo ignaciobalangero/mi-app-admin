@@ -25,6 +25,8 @@ const RUTAS_PUBLICAS_EXACTAS_O_PREFIJO = [
   "/cliente",
   "/estado-trabajo",
   "/firmar-trabajo",
+  "/zingueria",
+  "/loguinz",
 ] as const;
 
 /** true = no pide sesión, no sidebar admin, no pantalla de cuenta vencida. */

@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Si las reglas de GestiOne viven en la consola, MERGE este bloque al desplegar. No borrar reglas existentes.
+    // Este archivo NO está referenciado en firebase.json a propósito, para evitar wipe de reglas de GestiOne.
+    // Ver también: lib/zingueria/FIRESTORE_RULES_SNIPPET.md
+
+    // === ZINGUERIA (módulo aislado) ===
+    // Path: Zingueria/app/{users|clientes|trabajos|materiales}/...
+
+    function hasZingueriaAccess() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/Zingueria/app/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/Zingueria/app/users/$(request.auth.uid)).data.activo == true;
+    }
+
+    match /Zingueria/app/users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.ownerUid == uid
+        && request.resource.data.activo == true;
+      allow update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    match /Zingueria/app/clientes/{id} {
+      allow read: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+      allow create: if hasZingueriaAccess() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /Zingueria/app/trabajos/{id} {
+      allow read: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+      allow create: if hasZingueriaAccess() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+
+      match /medidas/{medidaId} {
+        allow read, write: if hasZingueriaAccess()
+          && get(/databases/$(database)/documents/Zingueria/app/trabajos/$(id)).data.ownerUid == request.auth.uid;
+      }
+      match /fotos/{fotoId} {
+        allow read, write: if hasZingueriaAccess()
+          && get(/databases/$(database)/documents/Zingueria/app/trabajos/$(id)).data.ownerUid == request.auth.uid;
+      }
+      match /pagos/{pagoId} {
+        allow read, write: if hasZingueriaAccess()
+          && get(/databases/$(database)/documents/Zingueria/app/trabajos/$(id)).data.ownerUid == request.auth.uid;
+      }
+    }
+
+    match /Zingueria/app/materiales/{id} {
+      allow read: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+      allow create: if hasZingueriaAccess() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+
+      match /movimientos/{movId} {
+        allow read, write: if hasZingueriaAccess()
+          && get(/databases/$(database)/documents/Zingueria/app/materiales/$(id)).data.ownerUid == request.auth.uid;
+      }
+    }
+
+    // === RESTO: mantener reglas de GestiOne de la consola al mergear ===
+    // Si este archivo se despliega solo, el resto del sistema quedaría denegado.
+    // Por seguridad: NO desplegar este archivo sin mergear antes las reglas existentes de GestiOne.
+  }
+}

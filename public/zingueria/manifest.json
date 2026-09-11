@@ -1,0 +1,19 @@
+{
+  "name": "Zinguería",
+  "short_name": "Zinguería",
+  "description": "Gestión de trabajos de zinguería",
+  "start_url": "/zingueria/app",
+  "scope": "/zingueria/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "es-AR",
+  "icons": [
+    {
+      "src": "/zingueria/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
