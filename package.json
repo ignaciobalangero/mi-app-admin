@@ -6,7 +6,8 @@
     "dev": "NODE_OPTIONS='--openssl-legacy-provider' next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:zingueria": "npx --yes tsx lib/zingueria/costeo.selftest.ts"
   },
   "dependencies": {
     "@afipsdk/afip.js": "^1.2.3",

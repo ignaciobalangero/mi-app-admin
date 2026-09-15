@@ -14,6 +14,7 @@ import {
   where,
   increment,
 } from "firebase/firestore";
+import LineasTrabajoBlock from "@/components/zingueria/LineasTrabajoBlock";
 import { useZingueriaSession } from "@/lib/zingueria/auth";
 import {
   deudaTrabajo,
@@ -61,6 +62,7 @@ export default function TrabajoDetallePage() {
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [open, setOpen] = useState({
+    lineas: true,
     medidas: true,
     fotos: true,
     pagos: true,
@@ -295,6 +297,18 @@ export default function TrabajoDetallePage() {
           <Tot label="Deuda" value={formatMoney(totales.deuda)} accent />
         </div>
       </div>
+
+      <Section
+        title="Líneas de presupuesto"
+        open={open.lineas}
+        onToggle={() => setOpen((o) => ({ ...o, lineas: !o.lineas }))}
+      >
+        <LineasTrabajoBlock
+          trabajoId={id}
+          uid={user!.uid}
+          listaPrecios={trabajo.listaPrecios || "publico"}
+        />
+      </Section>
 
       <Section
         title={`Medidas (${medidas.length})`}

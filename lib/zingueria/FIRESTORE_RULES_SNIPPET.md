@@ -32,7 +32,7 @@ Tu archivo debe terminar así:
 
 ```
     // ========== ZINGUERÍA (módulo aislado) ==========
-    // Path: Zingueria/app/{users|clientes|trabajos|materiales}/...
+    // Path: Zingueria/app/{users|clientes|trabajos|materiales|chapas|planchuelas|config}/...
 
     function hasZingueriaAccess() {
       return request.auth != null
@@ -73,6 +73,34 @@ Tu archivo debe terminar así:
         allow read, write: if hasZingueriaAccess()
           && get(/databases/$(database)/documents/Zingueria/app/trabajos/$(id)).data.ownerUid == request.auth.uid;
       }
+      match /lineas/{lineaId} {
+        allow read, write: if hasZingueriaAccess()
+          && get(/databases/$(database)/documents/Zingueria/app/trabajos/$(id)).data.ownerUid == request.auth.uid;
+      }
+    }
+
+    match /Zingueria/app/chapas/{id} {
+      allow read: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+      allow create: if hasZingueriaAccess() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+
+      match /historial/{histId} {
+        allow read, write: if hasZingueriaAccess()
+          && get(/databases/$(database)/documents/Zingueria/app/chapas/$(id)).data.ownerUid == request.auth.uid;
+      }
+    }
+
+    match /Zingueria/app/planchuelas/{id} {
+      allow read: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+      allow create: if hasZingueriaAccess() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if hasZingueriaAccess() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /Zingueria/app/config/{uid} {
+      allow read: if hasZingueriaAccess() && request.auth.uid == uid;
+      allow create: if hasZingueriaAccess() && request.auth.uid == uid
+        && request.resource.data.ownerUid == uid;
+      allow update, delete: if hasZingueriaAccess() && request.auth.uid == uid;
     }
 
     match /Zingueria/app/materiales/{id} {

@@ -27,8 +27,11 @@ const TABS = [
   { href: "/zingueria/app/trabajos", label: "Trabajos" },
   { href: "/zingueria/app/clientes", label: "Clientes" },
   { href: "/zingueria/app/cronograma", label: "Agenda" },
+  { href: "/zingueria/app/chapas", label: "Chapas" },
+  { href: "/zingueria/app/materiales-cat", label: "Materiales" },
   { href: "/zingueria/app/stock", label: "Stock" },
   { href: "/zingueria/app/resumen", label: "Resumen" },
+  { href: "/zingueria/app/ajustes", label: "Ajustes" },
 ] as const;
 
 const NOTIF_KEY = "zingueria-notif-seen";

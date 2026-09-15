@@ -38,6 +38,8 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
+    "**/*.selftest.ts",
+    "**/*.test.ts",
     "node_modules"
   ]
 }
