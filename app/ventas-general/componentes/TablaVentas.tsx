@@ -37,6 +37,7 @@ import {
   ajustarSaldoPorEdicionVenta,
   actualizarSaldoClienteNegocioDetalle,
   eliminarPagosAsociadosAVenta,
+  listarPagosDeVenta,
   revertirSaldoPorEliminarVenta,
 } from "@/lib/actualizarSaldoCliente";
 import { modeloDistintoDeProducto } from "@/lib/impresionVentaGeneral";
@@ -220,30 +221,27 @@ export default function TablaVentas({ refrescar }: Props) {
     setMostrarConfirmarEliminar(true);
     const esTelefono =
       venta?.tipo === "telefono" ||
-      venta?.productos?.some((p: any) => p.categoria === "Teléfono");
-    const nro = String(venta?.nroVenta ?? "").trim();
-    if (!rol?.negocioID || !esTelefono || !nro) {
+      venta?.productos?.some(
+        (p: any) => String(p.categoria || "").toLowerCase().includes("tel")
+      );
+    if (!rol?.negocioID || !esTelefono) {
       setPagosVinculados({ hay: false, ars: 0, usd: 0 });
       return;
     }
     try {
-      const snap = await getDocs(
-        query(collection(db, `negocios/${rol.negocioID}/pagos`), where("nroVenta", "==", nro))
+      const pagos = await listarPagosDeVenta(
+        rol.negocioID,
+        venta?.nroVenta,
+        venta?.cliente,
+        venta?.id
       );
-      const cliente = String(venta?.cliente ?? "").trim();
-      let ars = 0;
-      let usd = 0;
-      let hay = false;
-      for (const d of snap.docs) {
-        const data = d.data();
-        if (cliente && String(data.cliente ?? "").trim() !== cliente) continue;
-        hay = true;
-        ars += Number(data.monto ?? 0);
-        usd += Number(data.montoUSD ?? 0);
-      }
-      setPagosVinculados({ hay, ars, usd });
+      setPagosVinculados({
+        hay: true,
+        ars: pagos.reduce((acc, p) => acc + p.monto, 0),
+        usd: pagos.reduce((acc, p) => acc + p.montoUSD, 0),
+      });
     } catch {
-      setPagosVinculados({ hay: false, ars: 0, usd: 0 });
+      setPagosVinculados({ hay: true, ars: 0, usd: 0 });
     }
   };
 
@@ -438,29 +436,24 @@ export default function TablaVentas({ refrescar }: Props) {
     if (eliminarPago && esVentaTelefono) {
       const nro = String(ventaData.nroVenta ?? "").trim();
       const cliente = String(ventaData.cliente ?? "").trim();
-      if (nro) {
-        const pagoSnap = await getDocs(
-          query(collection(db, `negocios/${rol.negocioID}/pagos`), where("nroVenta", "==", nro))
+      const pagos = await listarPagosDeVenta(
+        rol.negocioID,
+        nro,
+        cliente,
+        venta.id
+      );
+      const ars = pagos.reduce((acc, p) => acc + p.monto, 0);
+      const usd = pagos.reduce((acc, p) => acc + p.montoUSD, 0);
+      if (ars || usd) {
+        await actualizarSaldoClienteNegocioDetalle(
+          rol.negocioID,
+          cliente,
+          ars,
+          usd,
+          String(ventaData.clienteId ?? "")
         );
-        let ars = 0;
-        let usd = 0;
-        for (const d of pagoSnap.docs) {
-          const data = d.data();
-          if (cliente && String(data.cliente ?? "").trim() !== cliente) continue;
-          ars += Number(data.monto ?? 0);
-          usd += Number(data.montoUSD ?? 0);
-        }
-        if (ars || usd) {
-          await actualizarSaldoClienteNegocioDetalle(
-            rol.negocioID,
-            cliente,
-            ars,
-            usd,
-            String(ventaData.clienteId ?? "")
-          );
-        }
-        await eliminarPagosAsociadosAVenta(rol.negocioID, nro, cliente);
       }
+      await eliminarPagosAsociadosAVenta(rol.negocioID, nro, cliente, venta.id);
     }
 
     console.log("🔧 Reponiendo stock al eliminar venta:", {

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteDoc, doc, getDocs, collection, getDoc, addDoc, query, where } from "firebase/firestore";
+import { deleteDoc, doc, getDocs, collection, getDoc, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import { Timestamp } from "firebase/firestore";
 import {
   actualizarSaldoClienteNegocioDetalle,
   eliminarPagosAsociadosAVenta,
+  listarPagosDeVenta,
   revertirSaldoPorEliminarVenta,
 } from "@/lib/actualizarSaldoCliente";
 
@@ -107,27 +108,22 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
   const pedirEliminar = async (venta: any) => {
     setVentaAEliminar(venta);
     setPagosVinculados(null);
-    const nro = String(venta?.nroVenta ?? "").trim();
-    if (!negocioID || !nro) {
+    if (!negocioID) {
       setPagosVinculados({ hay: false, ars: 0, usd: 0 });
       return;
     }
     try {
-      const snap = await getDocs(
-        query(collection(db, `negocios/${negocioID}/pagos`), where("nroVenta", "==", nro))
+      const pagos = await listarPagosDeVenta(
+        negocioID,
+        venta?.nroVenta,
+        venta?.cliente,
+        venta?.id
       );
-      const cliente = String(venta?.cliente ?? "").trim();
-      let ars = 0;
-      let usd = 0;
-      let hay = false;
-      for (const d of snap.docs) {
-        const data = d.data();
-        if (cliente && String(data.cliente ?? "").trim() !== cliente) continue;
-        hay = true;
-        ars += Number(data.monto ?? 0);
-        usd += Number(data.montoUSD ?? 0);
-      }
-      setPagosVinculados({ hay, ars, usd });
+      setPagosVinculados({
+        hay: pagos.length > 0,
+        ars: pagos.reduce((acc, p) => acc + p.monto, 0),
+        usd: pagos.reduce((acc, p) => acc + p.montoUSD, 0),
+      });
     } catch {
       setPagosVinculados({ hay: false, ars: 0, usd: 0 });
     }
@@ -199,28 +195,18 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
             moneda: g.moneda,
           });
         }
-        if (nro) {
-          const pagoSnap = await getDocs(
-            query(collection(db, `negocios/${negocioID}/pagos`), where("nroVenta", "==", nro))
-          );
-          let ars = 0;
-          let usd = 0;
-          for (const d of pagoSnap.docs) {
-            const data = d.data();
-            if (cliente && String(data.cliente ?? "").trim() !== cliente) continue;
-            ars += Number(data.monto ?? 0);
-            usd += Number(data.montoUSD ?? 0);
-          }
-          if (ars || usd) {
-            await actualizarSaldoClienteNegocioDetalle(
-              negocioID,
-              cliente,
-              ars,
-              usd
-            );
-          }
-          await eliminarPagosAsociadosAVenta(negocioID, nro, cliente);
+        const pagos = await listarPagosDeVenta(
+          negocioID,
+          nro,
+          cliente,
+          ventaAEliminar.id
+        );
+        const ars = pagos.reduce((acc, p) => acc + p.monto, 0);
+        const usd = pagos.reduce((acc, p) => acc + p.montoUSD, 0);
+        if (ars || usd) {
+          await actualizarSaldoClienteNegocioDetalle(negocioID, cliente, ars, usd);
         }
+        await eliminarPagosAsociadosAVenta(negocioID, nro, cliente, ventaAEliminar.id);
       }
 
       // 🧨 Eliminamos de ventasGeneral también
@@ -507,18 +493,19 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                     <strong className="text-[#2c3e50]">Modelo:</strong> {ventaAEliminar.modelo}
                   </div>
                 </div>
-                {pagosVinculados?.hay && (
-                  <p className="text-sm text-[#2c3e50] mt-3 font-medium">
-                    Esta venta tiene un pago registrado
-                    {pagosVinculados.ars > 0
-                      ? ` · $${pagosVinculados.ars.toLocaleString("es-AR")}`
-                      : ""}
-                    {pagosVinculados.usd > 0
-                      ? ` · USD ${pagosVinculados.usd.toLocaleString("es-AR")}`
-                      : ""}
-                    . ¿Deseás eliminar el pago que se realizó?
-                  </p>
-                )}
+                <p className="text-sm text-[#2c3e50] mt-3 font-medium">
+                  {pagosVinculados?.hay
+                    ? `Esta venta tiene un pago registrado${
+                        pagosVinculados.ars > 0
+                          ? ` · $${pagosVinculados.ars.toLocaleString("es-AR")}`
+                          : ""
+                      }${
+                        pagosVinculados.usd > 0
+                          ? ` · USD ${pagosVinculados.usd.toLocaleString("es-AR")}`
+                          : ""
+                      }. ¿Deseás eliminar el pago que se realizó?`
+                    : "¿Deseás eliminar también el pago de esta venta, si se registró?"}
+                </p>
               </div>
               
               <div className="flex gap-3 justify-end">
@@ -531,30 +518,18 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                 >
                   Cancelar
                 </button>
-                {pagosVinculados?.hay ? (
-                  <>
-                    <button
-                      onClick={() => confirmarEliminacion(false)}
-                      className="px-4 py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 text-sm"
-                    >
-                      No, solo la venta
-                    </button>
-                    <button
-                      onClick={() => confirmarEliminacion(true)}
-                      className="px-4 py-3 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-lg font-medium transition-all duration-200 text-sm"
-                    >
-                      Sí, eliminar el pago
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => confirmarEliminacion(false)}
-                    disabled={pagosVinculados === null}
-                    className="px-6 py-3 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg disabled:opacity-60"
-                  >
-                    {pagosVinculados === null ? "Revisando pago…" : "Sí, eliminar"}
-                  </button>
-                )}
+                <button
+                  onClick={() => confirmarEliminacion(false)}
+                  className="px-4 py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 text-sm"
+                >
+                  No, solo la venta
+                </button>
+                <button
+                  onClick={() => confirmarEliminacion(true)}
+                  className="px-4 py-3 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-lg font-medium transition-all duration-200 text-sm"
+                >
+                  Sí, eliminar el pago
+                </button>
               </div>
             </div>
           </div>

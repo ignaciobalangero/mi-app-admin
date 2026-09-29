@@ -347,23 +347,72 @@ export async function revertirSaldoPorEliminarVenta(
   );
 }
 
+function mismoClientePago(docCliente: unknown, nombreCliente?: string): boolean {
+  const esperado = limpiarNombreClienteExacto(nombreCliente ?? "").toLowerCase();
+  if (!esperado) return true;
+  const actual = limpiarNombreClienteExacto(String(docCliente ?? "")).toLowerCase();
+  if (!actual) return true;
+  return actual === esperado;
+}
+
+function clavesNroVenta(raw: unknown): Array<string | number> {
+  const texto = String(raw ?? "").trim();
+  if (!texto) return [];
+  const claves = new Set<string | number>([texto]);
+  const n = Number(texto);
+  if (!Number.isNaN(n)) {
+    claves.add(n);
+    claves.add(String(n));
+    claves.add(String(n).padStart(5, "0"));
+  }
+  return Array.from(claves);
+}
+
+/** Pagos de la venta: por nro (texto o número) y, si existe, por ventaId. */
+export async function listarPagosDeVenta(
+  negocioID: string,
+  nroVenta: unknown,
+  nombreCliente?: string,
+  ventaId?: string
+): Promise<{ id: string; ref: DocumentReference; monto: number; montoUSD: number }[]> {
+  if (!negocioID) return [];
+  const encontrados = new Map<
+    string,
+    { id: string; ref: DocumentReference; monto: number; montoUSD: number }
+  >();
+
+  const guardar = (id: string, ref: DocumentReference, data: DocumentData) => {
+    if (!mismoClientePago(data.cliente, nombreCliente)) return;
+    encontrados.set(id, {
+      id,
+      ref,
+      monto: Number(data.monto ?? 0) || 0,
+      montoUSD: Number(data.montoUSD ?? 0) || 0,
+    });
+  };
+
+  const col = collection(db, `negocios/${negocioID}/pagos`);
+  for (const clave of clavesNroVenta(nroVenta)) {
+    const snap = await getDocs(query(col, where("nroVenta", "==", clave)));
+    snap.docs.forEach((d) => guardar(d.id, d.ref, d.data()));
+  }
+
+  const idVenta = String(ventaId ?? "").trim();
+  if (idVenta) {
+    const snap = await getDocs(query(col, where("ventaId", "==", idVenta)));
+    snap.docs.forEach((d) => guardar(d.id, d.ref, d.data()));
+  }
+
+  return Array.from(encontrados.values());
+}
+
 /** Borra documentos en `pagos` asociados a la venta (después de revertir saldo). */
 export async function eliminarPagosAsociadosAVenta(
   negocioID: string,
   nroVenta: string,
-  nombreCliente?: string
+  nombreCliente?: string,
+  ventaId?: string
 ): Promise<void> {
-  const nro = String(nroVenta ?? "").trim();
-  if (!negocioID || !nro) return;
-
-  const snap = await getDocs(
-    query(collection(db, `negocios/${negocioID}/pagos`), where("nroVenta", "==", nro))
-  );
-
-  const cliente = String(nombreCliente ?? "").trim();
-  await Promise.all(
-    snap.docs
-      .filter((d) => !cliente || String(d.data().cliente ?? "").trim() === cliente)
-      .map((d) => deleteDoc(d.ref))
-  );
+  const pagos = await listarPagosDeVenta(negocioID, nroVenta, nombreCliente, ventaId);
+  await Promise.all(pagos.map((p) => deleteDoc(p.ref)));
 }
