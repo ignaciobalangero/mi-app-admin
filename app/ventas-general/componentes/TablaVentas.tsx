@@ -236,12 +236,12 @@ export default function TablaVentas({ refrescar }: Props) {
         venta?.id
       );
       setPagosVinculados({
-        hay: true,
+        hay: pagos.length > 0,
         ars: pagos.reduce((acc, p) => acc + p.monto, 0),
         usd: pagos.reduce((acc, p) => acc + p.montoUSD, 0),
       });
     } catch {
-      setPagosVinculados({ hay: true, ars: 0, usd: 0 });
+      setPagosVinculados({ hay: false, ars: 0, usd: 0 });
     }
   };
 

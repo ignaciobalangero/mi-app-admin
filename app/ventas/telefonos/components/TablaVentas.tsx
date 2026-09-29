@@ -113,9 +113,22 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
       return;
     }
     try {
+      let nro = venta?.nroVenta;
+      if ((nro == null || String(nro).trim() === "") && venta?.id) {
+        const ventaSnap = await getDoc(
+          doc(db, `negocios/${negocioID}/ventaTelefonos/${venta.id}`)
+        );
+        nro = ventaSnap.data()?.nroVenta;
+        if (nro == null || String(nro).trim() === "") {
+          const generalSnap = await getDoc(
+            doc(db, `negocios/${negocioID}/ventasGeneral/${venta.id}`)
+          );
+          nro = generalSnap.data()?.nroVenta;
+        }
+      }
       const pagos = await listarPagosDeVenta(
         negocioID,
-        venta?.nroVenta,
+        nro,
         venta?.cliente,
         venta?.id
       );
@@ -493,19 +506,18 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                     <strong className="text-[#2c3e50]">Modelo:</strong> {ventaAEliminar.modelo}
                   </div>
                 </div>
-                <p className="text-sm text-[#2c3e50] mt-3 font-medium">
-                  {pagosVinculados?.hay
-                    ? `Esta venta tiene un pago registrado${
-                        pagosVinculados.ars > 0
-                          ? ` · $${pagosVinculados.ars.toLocaleString("es-AR")}`
-                          : ""
-                      }${
-                        pagosVinculados.usd > 0
-                          ? ` · USD ${pagosVinculados.usd.toLocaleString("es-AR")}`
-                          : ""
-                      }. ¿Deseás eliminar el pago que se realizó?`
-                    : "¿Deseás eliminar también el pago de esta venta, si se registró?"}
-                </p>
+                {pagosVinculados?.hay && (
+                  <p className="text-sm text-[#2c3e50] mt-3 font-medium">
+                    Esta venta tiene un pago registrado
+                    {pagosVinculados.ars > 0
+                      ? ` · $${pagosVinculados.ars.toLocaleString("es-AR")}`
+                      : ""}
+                    {pagosVinculados.usd > 0
+                      ? ` · USD ${pagosVinculados.usd.toLocaleString("es-AR")}`
+                      : ""}
+                    . ¿Deseás eliminar el pago que se realizó?
+                  </p>
+                )}
               </div>
               
               <div className="flex gap-3 justify-end">
@@ -518,18 +530,30 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                 >
                   Cancelar
                 </button>
-                <button
-                  onClick={() => confirmarEliminacion(false)}
-                  className="px-4 py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 text-sm"
-                >
-                  No, solo la venta
-                </button>
-                <button
-                  onClick={() => confirmarEliminacion(true)}
-                  className="px-4 py-3 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-lg font-medium transition-all duration-200 text-sm"
-                >
-                  Sí, eliminar el pago
-                </button>
+                {pagosVinculados?.hay ? (
+                  <>
+                    <button
+                      onClick={() => confirmarEliminacion(false)}
+                      className="px-4 py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 text-sm"
+                    >
+                      No, solo la venta
+                    </button>
+                    <button
+                      onClick={() => confirmarEliminacion(true)}
+                      className="px-4 py-3 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] text-white rounded-lg font-medium transition-all duration-200 text-sm"
+                    >
+                      Sí, eliminar el pago
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => confirmarEliminacion(false)}
+                    disabled={pagosVinculados === null}
+                    className="px-6 py-3 bg-gradient-to-r from-[#e74c3c] to-[#c0392b] hover:from-[#c0392b] hover:to-[#a93226] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg disabled:opacity-60"
+                  >
+                    {pagosVinculados === null ? "Revisando…" : "Sí, eliminar"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
