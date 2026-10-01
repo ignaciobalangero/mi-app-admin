@@ -14,6 +14,7 @@ import ModalEnviarServicio from "./servicios/ModalEnviarServicio";
 import ModalRetornarServicio from "./servicios/ModalRetornarServicio";
 import ModalVerServicioActual from "./servicios/ModalVerServicioActual";
 import ModalHistorialServicios from "./servicios/ModalHistorialServicio";
+import { estadoPideCondicion, etiquetaEstado } from "@/lib/stockTelefonos/estados";
 
 interface Props {
   negocioID: string;
@@ -162,7 +163,8 @@ export default function TablaStockTelefonos({
       Modelo: t.modelo,
       Marca: t.marca,
       Estado: t.estado,
-      Bateria: t.estado?.toLowerCase() === "usado" ? `${t.bateria || 0}%` : "-",
+      Bateria: estadoPideCondicion(t.estado) ? `${t.bateria || 0}%` : "-",
+      CiclosCarga: estadoPideCondicion(t.estado) && t.ciclosCarga ? t.ciclosCarga : "-",
       Almacenamiento: t.gb,
       Color: t.color,
       IMEI: t.imei,
@@ -580,13 +582,14 @@ export default function TablaStockTelefonos({
                             ? 'bg-orange-100 text-orange-700' 
                             : obtenerEstadoColor(t.estado)
                         }`}>
-                          {t.enServicio ? '🔧 En Servicio' : (t.estado || "-")}
+                          {t.enServicio ? '🔧 En Servicio' : (etiquetaEstado(t.estado) || "-")}
                         </span>
                       </td>
                       <td className="p-2 border border-gray-300 text-center" style={{minWidth: '60px'}}>
-                        {t.estado?.toLowerCase() === "usado" ? (
+                        {estadoPideCondicion(t.estado) ? (
                           <span className="text-xs font-medium text-yellow-700">
-                            {t.bateria}%
+                            {t.bateria ? `${t.bateria}%` : "-"}
+                            {t.ciclosCarga ? ` · ${t.ciclosCarga} c.` : ""}
                           </span>
                         ) : (
                           <span className="text-xs text-gray-400">-</span>

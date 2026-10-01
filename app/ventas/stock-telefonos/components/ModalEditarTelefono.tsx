@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { doc, updateDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import CamposEstadoTelefono from "./CamposEstadoTelefono";
+import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
 
 interface Telefono {
   id: string;
@@ -10,8 +12,9 @@ interface Telefono {
   proveedor: string;
   modelo: string;
   marca: string;
-  estado: "nuevo" | "usado";
+  estado: string;
   bateria: string;
+  ciclosCarga?: string;
   gb: string;
   color: string;
   imei: string;
@@ -64,7 +67,8 @@ export default function ModalEditarTelefono({
       precioCompra: telefono.precioCompra || 0,
       precioVenta: telefono.precioVenta || 0,
       precioMayorista: telefono.precioMayorista || 0,
-      bateria: telefono.bateria || "",
+      bateria: telefono.bateria != null ? String(telefono.bateria) : "",
+      ciclosCarga: telefono.ciclosCarga != null ? String(telefono.ciclosCarga) : "",
       gb: telefono.gb || "",
       observaciones: telefono.observaciones || "",
     });
@@ -101,7 +105,9 @@ export default function ModalEditarTelefono({
       const telefonoActualizado = {
         ...formulario,
         fechaIngreso: Timestamp.fromDate(fechaFormateada),
-        estado: formulario.estado.toLowerCase(),
+        estado: normalizarEstado(formulario.estado) || "nuevo",
+        bateria: estadoPideCondicion(formulario.estado) ? formulario.bateria || "" : "",
+        ciclosCarga: estadoPideCondicion(formulario.estado) ? formulario.ciclosCarga || "" : "",
         ultimaActualizacion: new Date()
       };
 
@@ -225,39 +231,15 @@ export default function ModalEditarTelefono({
               />
             </div>
 
-            {/* Estado */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-[#2c3e50]">
-                ⚡ Estado
-              </label>
-              <select
-                name="estado"
-                value={formulario.estado || "nuevo"}
-                onChange={manejarCambio}
-                className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm appearance-none cursor-pointer"
-              >
-                <option value="nuevo">🆕 Nuevo</option>
-                <option value="usado">♻️ Usado</option>
-              </select>
-            </div>
-
-            {/* Batería (solo si es usado) */}
-            {formulario.estado === "usado" && (
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#f39c12]">
-                  🔋 Batería (%)
-                </label>
-                <input
-                  type="number"
-                  name="bateria"
-                  value={formulario.bateria || ""}
-                  onChange={manejarCambio}
-                  min="0"
-                  max="100"
-                  className="w-full p-3 border-2 border-[#f39c12] rounded-xl focus:ring-4 focus:ring-[#f39c12]/20 focus:border-[#f39c12] transition-all duration-300 text-[#2c3e50] bg-gradient-to-r from-white to-[#fef9e7] shadow-sm"
-                />
-              </div>
-            )}
+            <CamposEstadoTelefono
+              negocioID={negocioID}
+              estado={formulario.estado || "nuevo"}
+              bateria={formulario.bateria || ""}
+              ciclosCarga={formulario.ciclosCarga || ""}
+              onChange={(campo, valor) =>
+                setFormulario((prev: any) => ({ ...prev, [campo]: valor }))
+              }
+            />
 
             {/* Almacenamiento */}
             <div className="space-y-2">

@@ -6,6 +6,8 @@ import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 // ✅ Correcto
 import { ImpresionGestione } from "../../../configuraciones/impresion/utils/impresionEspecifica";
+import CamposEstadoTelefono from "./CamposEstadoTelefono";
+import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
 
 interface Props {
   negocioID: string;
@@ -22,8 +24,9 @@ interface Telefono {
   proveedor: string;
   modelo: string; 
   marca: string;
-  estado: "nuevo" | "usado";
+  estado: string;
   bateria: string;
+  ciclosCarga: string;
   gb: string;
   color: string;
   imei: string;
@@ -42,6 +45,7 @@ const inicial: Telefono = {
   marca: "",
   estado: "nuevo",
   bateria: "",
+  ciclosCarga: "",
   gb: "",
   color: "",
   imei: "",
@@ -91,7 +95,10 @@ export default function FormularioStock({
     }    
   
     setForm({
+      ...inicial,
       ...datosIniciales,
+      ciclosCarga: datosIniciales.ciclosCarga != null ? String(datosIniciales.ciclosCarga) : "",
+      bateria: datosIniciales.bateria != null ? String(datosIniciales.bateria) : "",
       fechaIngreso: fechaIngresoFormateada,
     });
   
@@ -131,7 +138,9 @@ export default function FormularioStock({
     const data = {
       ...form,
       tipo: TIPO_STOCK,
-      estado: form.estado.toLowerCase(),
+      estado: normalizarEstado(form.estado) || "nuevo",
+      bateria: estadoPideCondicion(form.estado) ? form.bateria : "",
+      ciclosCarga: estadoPideCondicion(form.estado) ? form.ciclosCarga : "",
       fechaIngreso: Timestamp.fromDate(fechaFormateada),
       creadoEn: Timestamp.now(),
       proveedor: form.proveedor || (clienteRecibido ? `Recibido de ${clienteRecibido}` : ""),
@@ -219,25 +228,16 @@ export default function FormularioStock({
             placeholder="Marca"
             className="p-2 border rounded"
           />
-          <select
-            name="estado"
-            value={form.estado}
-            onChange={handleChange}
-            className="p-2 border rounded"
-          >
-            <option value="nuevo">Nuevo</option>
-            <option value="usado">Usado</option>
-          </select>
-          {form.estado === "usado" && (
-            <input
-              type="number"
-              name="bateria"
-              value={form.bateria}
-              onChange={handleChange}
-              placeholder="% Batería"
-              className="p-2 border rounded"
-            />
-          )}
+          <CamposEstadoTelefono
+            negocioID={negocioID}
+            estado={form.estado}
+            bateria={form.bateria}
+            ciclosCarga={form.ciclosCarga}
+            compacto
+            onChange={(campo, valor) =>
+              setForm((prev) => ({ ...prev, [campo]: valor }))
+            }
+          />
           
           <input
             type="number"

@@ -22,7 +22,9 @@ export default function StockTelefonosPage() {
     usd: 0, 
     ars: 0,
     mayoristaUSD: 0,
-    mayoristaARS: 0
+    mayoristaARS: 0,
+    ventaUSD: 0,
+    ventaARS: 0,
   });
   const { rol } = useRol();
 
@@ -48,17 +50,22 @@ export default function StockTelefonosPage() {
       let totalARS = 0;
       let mayoristaUSD = 0;
       let mayoristaARS = 0;
+      let ventaUSD = 0;
+      let ventaARS = 0;
       
       telefonos.forEach((d) => {
         const valorCompra = Number(d.precioCompra) || 0;
         const valorMayorista = Number(d.precioMayorista) || 0;
+        const valorVenta = Number(d.precioVenta) || 0;
         
         if (d.moneda === "USD") {
           totalUSD += valorCompra;
           mayoristaUSD += valorMayorista;
+          ventaUSD += valorVenta;
         } else {
           totalARS += valorCompra;
           mayoristaARS += valorMayorista;
+          ventaARS += valorVenta;
         }
       });
       
@@ -66,7 +73,9 @@ export default function StockTelefonosPage() {
         usd: totalUSD, 
         ars: totalARS,
         mayoristaUSD,
-        mayoristaARS
+        mayoristaARS,
+        ventaUSD,
+        ventaARS,
       });
     };
     
@@ -113,7 +122,7 @@ export default function StockTelefonosPage() {
             <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                 <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-600">Total USD</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Costo USD</p>
                 <p className="text-sm sm:text-lg md:text-2xl font-bold text-green-700">
                     {formatearPrecio(resumen.usd)}
                   </p>
@@ -130,7 +139,7 @@ export default function StockTelefonosPage() {
             <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
                 <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600">Total ARS</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Costo ARS</p>
                   <p className="text-sm sm:text-lg md:text-2xl font-bold text-blue-700 truncate">
                     {formatearPrecio(resumen.ars)}
                   </p>
@@ -191,6 +200,38 @@ export default function StockTelefonosPage() {
                 </div>
                 <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
                   <span className="text-2xl">🏪</span>
+                </div>
+              </div>
+            </div>
+            )}
+
+            {rol?.tipo === "admin" && (
+            <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+                 <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Venta USD</p>
+                  <p className="text-sm sm:text-lg md:text-2xl font-bold text-emerald-700 truncate">
+                    {formatearPrecio(resumen.ventaUSD)}
+                  </p>
+                </div>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm sm:text-lg md:text-2xl">💵</span>
+                </div>
+              </div>
+            </div>
+            )}
+
+            {rol?.tipo === "admin" && (
+            <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl p-2 sm:p-4 md:p-6 shadow-lg md:shadow-xl border border-gray-200 transform transition-all duration-300 hover:scale-105">
+                 <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Venta ARS</p>
+                  <p className="text-sm sm:text-lg md:text-2xl font-bold text-teal-700 truncate">
+                    {formatearPrecio(resumen.ventaARS)}
+                  </p>
+                </div>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-teal-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm sm:text-lg md:text-2xl">💵</span>
                 </div>
               </div>
             </div>
@@ -285,7 +326,7 @@ export default function StockTelefonosPage() {
               {rol?.tipo === "admin" && (
               <div className="text-center space-y-4">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-800">📊 Resumen del Inventario</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 text-sm">
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
                     <p className="text-green-700 font-medium">Valor total de compra</p>
                     <p className="text-xl font-bold text-green-800">
@@ -296,6 +337,12 @@ export default function StockTelefonosPage() {
                     <p className="text-orange-700 font-medium">Valor total mayorista</p>
                     <p className="text-xl font-bold text-orange-800">
                       USD {formatearPrecio(resumen.mayoristaUSD)} + ARS {formatearPrecio(resumen.mayoristaARS)}
+                    </p>
+                  </div>
+                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-4">
+                    <p className="text-emerald-700 font-medium">Valor total de venta</p>
+                    <p className="text-xl font-bold text-emerald-800">
+                      USD {formatearPrecio(resumen.ventaUSD)} + ARS {formatearPrecio(resumen.ventaARS)}
                     </p>
                   </div>
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
