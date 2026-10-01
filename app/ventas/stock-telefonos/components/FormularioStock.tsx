@@ -196,7 +196,7 @@ export default function FormularioStock({
       </div>
 
       {mostrarFormulario && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded shadow">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start bg-white p-4 rounded shadow">
           <input
             type="date"
             name="fechaIngreso"
