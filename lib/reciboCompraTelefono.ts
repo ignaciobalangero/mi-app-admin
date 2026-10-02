@@ -84,7 +84,7 @@ function textoTotal(lineas: LineaReciboCompra[]): string {
     porMoneda.set(moneda, (porMoneda.get(moneda) || 0) + (Number(l.precio) || 0));
   }
   if (porMoneda.size === 0) return "Importe Total: —";
-  const partes = [...porMoneda.entries()].map(([m, n]) => `${m} ${fmtMonto(n)}`);
+  const partes = Array.from(porMoneda.entries()).map(([m, n]) => `${m} ${fmtMonto(n)}`);
   return `Importe Total: ${partes.join(" + ")}`;
 }
 
