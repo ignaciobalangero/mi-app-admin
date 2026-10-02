@@ -3113,7 +3113,18 @@ export default function TablaProductos({
             onClose={() => setModalIngreso(null)}
             onActualizado={(producto) => {
               setProductos((prev) =>
-                prev.map((p) => (p.id === producto.id ? { ...p, ...producto } : p))
+                prev.map((p) =>
+                  p.id === producto.id
+                    ? {
+                        ...p,
+                        cantidad: producto.cantidad,
+                        precioCosto: producto.precioCosto,
+                        ...(producto.precioCostoPesos != null
+                          ? { precioCostoPesos: producto.precioCostoPesos }
+                          : {}),
+                      }
+                    : p
+                )
               );
               setModalIngreso(null);
             }}

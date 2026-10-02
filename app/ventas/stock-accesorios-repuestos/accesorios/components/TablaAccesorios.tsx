@@ -715,10 +715,22 @@ export default function TablaAccesorios({
           onClose={() => setModalIngreso(null)}
           onActualizado={(producto) => {
             setProductos((prev) =>
-              prev.map((p) => (p.id === producto.id ? { ...p, ...producto } : p))
+              prev.map((p) =>
+                p.id === producto.id
+                  ? {
+                      ...p,
+                      cantidad: producto.cantidad,
+                      precioCosto: producto.precioCosto,
+                    }
+                  : p
+              )
             );
             if (onProductoActualizado) {
-              onProductoActualizado(producto as Producto);
+              onProductoActualizado({
+                ...modalIngreso,
+                cantidad: producto.cantidad,
+                precioCosto: producto.precioCosto,
+              });
             }
             setModalIngreso(null);
           }}
