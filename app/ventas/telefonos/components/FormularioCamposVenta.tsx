@@ -2,6 +2,30 @@ import SelectorTelefonoStock from "./SelectorTelefonoStock";
 import { Combobox } from "@headlessui/react";
 import { useState } from "react";
 
+/** DD/MM/YYYY (o similar) → YYYY-MM-DD para input type="date". */
+function fechaAInputDate(fecha: string): string {
+  const raw = String(fecha || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const partes = raw.split(/[\/\-]/);
+  if (partes.length === 3) {
+    const [dd, mm, yyyy] = partes;
+    if (yyyy?.length === 4) {
+      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    }
+  }
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = String(hoy.getMonth() + 1).padStart(2, "0");
+  const d = String(hoy.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** YYYY-MM-DD → DD/MM/YYYY (formato que guarda la venta). */
+function inputDateAFecha(value: string): string {
+  const [yyyy, mm, dd] = String(value || "").split("-");
+  if (!yyyy || !mm || !dd) return value;
+  return `${dd}/${mm}/${yyyy}`;
+}
 
 interface Props {
   form: any;
@@ -30,11 +54,13 @@ export default function FormularioCamposVenta({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
       <input
-        type="text"
+        type="date"
         name="fecha"
-        value={form.fecha}
-        onChange={handleChange}
-        placeholder="Fecha"
+        value={fechaAInputDate(form.fecha)}
+        onChange={(e) => {
+          const fecha = inputDateAFecha(e.target.value);
+          setForm((prev: any) => ({ ...prev, fecha }));
+        }}
         className="p-2 border rounded w-full"
       />
       <input

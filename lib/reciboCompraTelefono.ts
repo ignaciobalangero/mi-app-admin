@@ -403,15 +403,43 @@ export function esVentaTelefonoParaRecibo(venta: any): boolean {
   );
 }
 
-function lineaDesdeProducto(p: any): LineaReciboCompra {
+function esProductoTelefono(p: any): boolean {
+  return (
+    String(p?.tipo || "").toLowerCase() === "telefono" ||
+    String(p?.origenStock || "") === "stockTelefonos" ||
+    String(p?.categoria || "").toLowerCase().includes("tel")
+  );
+}
+
+function nombreProductoRecibo(p: any): string {
   const completo = p?.datosTelefonoCompletos || {};
-  return {
-    nombre: nombreLineaTelefono({
+  if (esProductoTelefono(p) || completo.modelo || completo.marca) {
+    return nombreLineaTelefono({
       marca: p?.marca || completo.marca,
       modelo: p?.modelo || completo.modelo || p?.producto || p?.descripcion,
-    }),
-    imei: String(p?.imei || completo.imei || ""),
-    precio: Number(p?.precioUnitario ?? p?.precioVenta ?? completo.precioVenta ?? 0) || 0,
+    });
+  }
+  const marca = String(p?.marca || "").trim();
+  const producto = String(p?.producto || p?.descripcion || p?.modelo || "").trim();
+  if (marca && producto && !producto.toLowerCase().includes(marca.toLowerCase())) {
+    return `${marca} ${producto}`;
+  }
+  return producto || marca || "Ítem";
+}
+
+function lineaDesdeProducto(p: any): LineaReciboCompra {
+  const completo = p?.datosTelefonoCompletos || {};
+  const cant = Math.max(1, Number(p?.cantidad) || 1);
+  let nombre = nombreProductoRecibo(p);
+  if (cant > 1) nombre = `${nombre} ×${cant}`;
+  const unitario =
+    Number(p?.precioUnitario ?? p?.precioVenta ?? completo.precioVenta ?? 0) || 0;
+  return {
+    nombre,
+    imei: esProductoTelefono(p)
+      ? String(p?.imei || completo.imei || "")
+      : String(p?.imei || ""),
+    precio: unitario * cant,
     moneda: String(p?.moneda || completo.moneda || "USD"),
   };
 }
@@ -423,6 +451,26 @@ function lineaDesdeEquipoRecibido(t: any): LineaReciboCompra {
     precio: Number(t?.precioCompra ?? t?.precioEstimado ?? t?.valorPago ?? 0) || 0,
     moneda: String(t?.moneda || "USD"),
   };
+}
+
+function enriquecerImeiConGrupo(
+  lineas: LineaReciboCompra[],
+  grupo: any[]
+): LineaReciboCompra[] {
+  if (!grupo.length) return lineas;
+  const usados = new Set<number>();
+  return lineas.map((linea) => {
+    if (String(linea.imei || "").trim()) return linea;
+    const idx = grupo.findIndex((t, i) => {
+      if (usados.has(i)) return false;
+      const modelo = String(t?.modelo || "").trim().toLowerCase();
+      const nombre = linea.nombre.toLowerCase();
+      return modelo && nombre.includes(modelo);
+    });
+    if (idx < 0) return linea;
+    usados.add(idx);
+    return { ...linea, imei: String(grupo[idx].imei || "") };
+  });
 }
 
 /** Arma e imprime el recibo de compra de una venta de teléfono (ventaTelefonos o ventasGeneral). */
@@ -477,6 +525,33 @@ export async function imprimirReciboCompraDesdeVenta(
   const base = grupo[0] || venta;
   const nombreCliente = String(base.cliente || venta.cliente || "").trim();
 
+  // ventasGeneral trae TODOS los ítems (teléfono + accesorios/repuestos/extra)
+  let ventaGeneral: any = Array.isArray(venta?.productos) && venta.productos.length
+    ? venta
+    : null;
+  if (!ventaGeneral) {
+    const idsPosibles = [venta?.id, base?.id].filter(Boolean).map(String);
+    for (const id of idsPosibles) {
+      const gSnap = await getDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${id}`));
+      if (gSnap.exists()) {
+        ventaGeneral = { id: gSnap.id, ...gSnap.data() };
+        break;
+      }
+    }
+  }
+  if (!ventaGeneral && nro) {
+    const gSnap = await getDocs(
+      query(
+        collection(db, `negocios/${negocioID}/ventasGeneral`),
+        where("nroVenta", "==", nro)
+      )
+    );
+    if (!gSnap.empty) {
+      const docu = gSnap.docs[0];
+      ventaGeneral = { id: docu.id, ...docu.data() };
+    }
+  }
+
   const cfgSnap = await getDoc(doc(db, `negocios/${negocioID}/configuracion/datos`));
   const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
   const recibo = cfg.reciboCompra || {};
@@ -500,43 +575,41 @@ export async function imprimirReciboCompraDesdeVenta(
   }
 
   let lineas: LineaReciboCompra[] = [];
-  if (grupo.length > 0 && (grupo[0].precioVenta != null || grupo[0].imei != null || grupo[0].modelo)) {
+  const productosGeneral = Array.isArray(ventaGeneral?.productos)
+    ? ventaGeneral.productos
+    : [];
+  if (productosGeneral.length > 0) {
+    // Todos los ítems de la venta (teléfonos, accesorios, etc.)
+    lineas = enriquecerImeiConGrupo(
+      productosGeneral.map(lineaDesdeProducto),
+      grupo
+    );
+  } else if (grupo.length > 0) {
     lineas = grupo.map((t) => ({
       nombre: nombreLineaTelefono(t),
       imei: String(t.imei || ""),
       precio: Number(t.precioVenta) || 0,
       moneda: String(t.moneda || "USD"),
     }));
-  } else {
-    lineas = (venta.productos || [])
-      .filter(
-        (p: any) =>
-          String(p.tipo || "").toLowerCase() === "telefono" ||
-          String(p.categoria || "").toLowerCase().includes("tel") ||
-          String(p.origenStock || "") === "stockTelefonos" ||
-          !venta.productos?.some((x: any) =>
-            String(x.tipo || "").toLowerCase() === "telefono"
-          )
-      )
-      .map(lineaDesdeProducto);
-    if (!lineas.length && venta.productos?.length) {
-      lineas = venta.productos.map(lineaDesdeProducto);
-    }
   }
 
   const recibidosRaw = Array.isArray(base.telefonosRecibidos)
     ? base.telefonosRecibidos
     : base.telefonoRecibido
       ? [base.telefonoRecibido]
-      : Array.isArray(venta.telefonosComoPago)
-        ? venta.telefonosComoPago
-        : venta.telefonoComoPago
-          ? [venta.telefonoComoPago]
-          : Array.isArray(venta.telefonosRecibidos)
-            ? venta.telefonosRecibidos
-            : venta.telefonoRecibido
-              ? [venta.telefonoRecibido]
-              : [];
+      : Array.isArray(ventaGeneral?.telefonosComoPago)
+        ? ventaGeneral.telefonosComoPago
+        : Array.isArray(venta.telefonosComoPago)
+          ? venta.telefonosComoPago
+          : ventaGeneral?.telefonoComoPago
+            ? [ventaGeneral.telefonoComoPago]
+            : venta.telefonoComoPago
+              ? [venta.telefonoComoPago]
+              : Array.isArray(venta.telefonosRecibidos)
+                ? venta.telefonosRecibidos
+                : venta.telefonoRecibido
+                  ? [venta.telefonoRecibido]
+                  : [];
 
   const partePago = recibidosRaw
     .map(lineaDesdeEquipoRecibido)
@@ -544,9 +617,9 @@ export async function imprimirReciboCompraDesdeVenta(
 
   const pagosVinculados = await listarPagosDeVenta(
     negocioID,
-    base.nroVenta || venta.nroVenta || nro,
+    base.nroVenta || ventaGeneral?.nroVenta || venta.nroVenta || nro,
     nombreCliente,
-    base.id || venta.id
+    base.id || ventaGeneral?.id || venta.id
   );
   const pagos = pagosVinculados
     .filter((p) => {
@@ -565,7 +638,7 @@ export async function imprimirReciboCompraDesdeVenta(
     }));
 
   const html = htmlReciboCompraTelefono({
-    fecha: String(base.fecha || venta.fecha || ""),
+    fecha: String(base.fecha || ventaGeneral?.fecha || venta.fecha || ""),
     cliente: nombreCliente,
     dni,
     telefonoCliente,

@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import ModalVerPrecios from "./ModalVerPrecios";
 import ModalEditarAccesorio from "./ModalEditarAccesorios";
+import ModalIngresoStock from "./ModalIngresoStock";
 
 // 🎧 Tabla de productos – Sección ACCESORIOS COMPLETAMENTE OPTIMIZADA CON PAGINACIÓN Y FILTROS INTELIGENTES
 
@@ -73,6 +74,7 @@ export default function TablaAccesorios({
   // 🆕 ESTADOS PARA LOS MODALES
   const [modalVerPrecios, setModalVerPrecios] = useState<Producto | null>(null);
   const [modalEditar, setModalEditar] = useState<Producto | null>(null);
+  const [modalIngreso, setModalIngreso] = useState<Producto | null>(null);
   const [modalEliminar, setModalEliminar] = useState<string | null>(null);
   
   // 🔍 ESTADOS PARA FILTROS
@@ -587,6 +589,13 @@ export default function TablaAccesorios({
                             👁️
                           </button>
                           <button
+                            onClick={() => setModalIngreso(p)}
+                            className="bg-[#16a085] hover:bg-[#138d75] text-white px-1 py-1 rounded text-xs transition-all duration-200"
+                            title="Ingresar stock (promedio ponderado)"
+                          >
+                            📥
+                          </button>
+                          <button
                             onClick={() => setModalEditar(p)}
                             className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs transition-all duration-200"
                             title="Editar"
@@ -695,6 +704,24 @@ export default function TablaAccesorios({
             setModalEditar(null);
           }}
           onClose={() => setModalEditar(null)}
+        />
+      )}
+
+      {modalIngreso && rol?.negocioID && (
+        <ModalIngresoStock
+          producto={modalIngreso}
+          negocioID={rol.negocioID}
+          coleccion="stockAccesorios"
+          onClose={() => setModalIngreso(null)}
+          onActualizado={(producto) => {
+            setProductos((prev) =>
+              prev.map((p) => (p.id === producto.id ? { ...p, ...producto } : p))
+            );
+            if (onProductoActualizado) {
+              onProductoActualizado(producto as Producto);
+            }
+            setModalIngreso(null);
+          }}
         />
       )}
 

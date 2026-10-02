@@ -23,6 +23,7 @@ import {
 import { Store, Package, Tag } from "lucide-react";
 import CampoFotoRepuesto from "./CampoFotoRepuesto";
 import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
+import ModalIngresoStock from "../../components/ModalIngresoStock";
 
 // 📦 Tabla de productos – Sección REPUESTOS OPTIMIZADA CON PAGINACIÓN
 
@@ -118,6 +119,7 @@ export default function TablaProductos({
   // 🆕 ESTADOS PARA LOS MODALES
   const [modalAbierto, setModalAbierto] = useState(false);
   const [modalEliminar, setModalEliminar] = useState<string | null>(null);
+  const [modalIngreso, setModalIngreso] = useState<Producto | null>(null);
   const [modalEliminarMasivo, setModalEliminarMasivo] = useState(false);
   const [modoSeleccion, setModoSeleccion] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(() => new Set());
@@ -1924,6 +1926,13 @@ export default function TablaProductos({
                             <Tag className="h-4 w-4" aria-hidden />
                           </button>
                           <button
+                            onClick={() => setModalIngreso(p)}
+                            className="bg-[#16a085] hover:bg-[#138d75] text-white px-1 py-1 rounded text-xs transition-all duration-200"
+                            title="Ingresar stock (promedio ponderado)"
+                          >
+                            📥
+                          </button>
+                          <button
                             onClick={() => abrirModal(p)}
                             className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs transition-all duration-200"
                             title="Editar"
@@ -3094,7 +3103,24 @@ export default function TablaProductos({
         )}
 
       {mounted &&
-        modalEliminar &&
+        modalIngreso &&
+        rol?.negocioID && (
+          <ModalIngresoStock
+            producto={modalIngreso}
+            negocioID={rol.negocioID}
+            coleccion="stockRepuestos"
+            cotizacion={cotizacionSegura}
+            onClose={() => setModalIngreso(null)}
+            onActualizado={(producto) => {
+              setProductos((prev) =>
+                prev.map((p) => (p.id === producto.id ? { ...p, ...producto } : p))
+              );
+              setModalIngreso(null);
+            }}
+          />
+        )}
+
+        {modalEliminar &&
         createPortal(
           <div className="fixed inset-0 z-[100]" role="alertdialog" aria-modal="true" aria-labelledby="modal-eliminar-repuesto-titulo">
             <button
