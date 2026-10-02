@@ -368,18 +368,41 @@ function clavesNroVenta(raw: unknown): Array<string | number> {
   return Array.from(claves);
 }
 
+export type PagoDeVenta = {
+  id: string;
+  ref: DocumentReference;
+  monto: number;
+  montoUSD: number;
+  forma: string;
+  moneda: string;
+  fecha: string;
+  observaciones: string;
+  tipoPago: string;
+};
+
+function fechaPagoTexto(fecha: unknown): string {
+  if (typeof fecha === "string") return fecha;
+  if (
+    fecha &&
+    typeof fecha === "object" &&
+    "toDate" in fecha &&
+    typeof (fecha as { toDate: () => Date }).toDate === "function"
+  ) {
+    const d = (fecha as { toDate: () => Date }).toDate();
+    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString("es-AR");
+  }
+  return "";
+}
+
 /** Pagos de la venta: por nro (texto o número) y, si existe, por ventaId. */
 export async function listarPagosDeVenta(
   negocioID: string,
   nroVenta: unknown,
   nombreCliente?: string,
   ventaId?: string
-): Promise<{ id: string; ref: DocumentReference; monto: number; montoUSD: number }[]> {
+): Promise<PagoDeVenta[]> {
   if (!negocioID) return [];
-  const encontrados = new Map<
-    string,
-    { id: string; ref: DocumentReference; monto: number; montoUSD: number }
-  >();
+  const encontrados = new Map<string, PagoDeVenta>();
 
   const guardar = (id: string, ref: DocumentReference, data: DocumentData) => {
     if (!mismoClientePago(data.cliente, nombreCliente)) return;
@@ -388,6 +411,11 @@ export async function listarPagosDeVenta(
       ref,
       monto: Number(data.monto ?? 0) || 0,
       montoUSD: Number(data.montoUSD ?? 0) || 0,
+      forma: String(data.forma || data.formaPago || ""),
+      moneda: String(data.moneda || ""),
+      fecha: fechaPagoTexto(data.fecha),
+      observaciones: String(data.observaciones || ""),
+      tipoPago: String(data.tipoPago || ""),
     });
   };
 

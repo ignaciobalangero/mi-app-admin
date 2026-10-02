@@ -11,6 +11,10 @@ import {
   listarPagosDeVenta,
   revertirSaldoPorEliminarVenta,
 } from "@/lib/actualizarSaldoCliente";
+import {
+  abrirVentanaReciboPendiente,
+  imprimirReciboCompraDesdeVenta,
+} from "@/lib/reciboCompraTelefono";
 
 interface Props {
   negocioID: string;
@@ -104,6 +108,30 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
 
   // 📊 Ventas procesadas (filtradas y ordenadas)
   const ventasProcesadas = ordenarVentasPorFecha(filtrarVentas(ventas));
+
+  const imprimirRecibo = async (venta: any) => {
+    if (!negocioID) return;
+    const ventana = abrirVentanaReciboPendiente();
+    try {
+      const nro = String(venta?.nroVenta || "").trim();
+      const grupo = nro
+        ? ventas
+            .filter((v) => String(v?.nroVenta || "").trim() === nro)
+            .sort((a, b) => Number(a.indiceEnVenta || 0) - Number(b.indiceEnVenta || 0))
+        : [venta];
+      const ok = await imprimirReciboCompraDesdeVenta(negocioID, venta, {
+        ventasMismoNro: grupo,
+        ventana,
+      });
+      if (!ok) {
+        alert("No se pudo abrir el recibo. Si el navegador bloqueó la ventana, permití emergentes para este sitio.");
+      }
+    } catch (error) {
+      console.error(error);
+      if (ventana && !ventana.closed) ventana.close();
+      alert("No se pudo generar el recibo.");
+    }
+  };
 
   const pedirEliminar = async (venta: any) => {
     setVentaAEliminar(venta);
@@ -827,6 +855,13 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                       </td>
                       <td className="p-4 text-center">
                         <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => imprimirRecibo(v)}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-[#2c3e50] text-white hover:bg-[#1a252f] transition-all duration-200 transform hover:scale-105 shadow-md"
+                            title="Imprimir recibo de compra"
+                          >
+                            🧾 Recibo
+                          </button>
                           <button 
                             onClick={() => setVentaDetalle(v)} 
                             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-[#3498db] text-white hover:bg-[#2980b9] transition-all duration-200 transform hover:scale-105 shadow-md"
@@ -899,6 +934,13 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    <button
+                      onClick={() => imprimirRecibo(v)}
+                      className="w-8 h-8 bg-[#2c3e50] hover:bg-[#1a252f] text-white rounded-lg flex items-center justify-center transition-all duration-200 transform hover:scale-105 text-sm"
+                      title="Imprimir recibo de compra"
+                    >
+                      🧾
+                    </button>
                     <button 
                       onClick={() => setVentaDetalle(v)} 
                       className="w-8 h-8 bg-[#3498db] hover:bg-[#2980b9] text-white rounded-lg flex items-center justify-center transition-all duration-200 transform hover:scale-105 text-sm"

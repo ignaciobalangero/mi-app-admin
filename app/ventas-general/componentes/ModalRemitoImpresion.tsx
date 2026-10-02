@@ -9,6 +9,13 @@ import {
   type TipoImpresionVenta,
   type VentaImpresion,
 } from "@/lib/impresionVentaGeneral";
+import {
+  esVentaTelefonoParaRecibo,
+  imprimirReciboCompraDesdeVenta,
+  abrirVentanaReciboPendiente,
+} from "@/lib/reciboCompraTelefono";
+
+type TipoModalImpresion = TipoImpresionVenta | "recibo";
 
 interface ModalRemitoProps {
   mostrar: boolean;
@@ -46,15 +53,18 @@ export default function ModalRemitoImpresion({
   nombreNegocio = "",
   direccionNegocio = "",
   telefonoNegocio = "",
+  negocioID = "",
 }: ModalRemitoProps) {
-  const [tipo, setTipo] = useState<TipoImpresionVenta | null>(null);
+  const [tipo, setTipo] = useState<TipoModalImpresion | null>(null);
   const [enviandoRemito, setEnviandoRemito] = useState(false);
   const [remitoListo, setRemitoListo] = useState(false);
+  const [generandoRecibo, setGenerandoRecibo] = useState(false);
   const remitoRef = useRef<HTMLDivElement>(null);
 
   const cerrar = () => {
     setTipo(null);
     setRemitoListo(false);
+    setGenerandoRecibo(false);
     onClose();
   };
 
@@ -65,10 +75,31 @@ export default function ModalRemitoImpresion({
   };
 
   const handleImprimir = () => {
-    if (!venta || !tipo) return;
+    if (!venta || !tipo || tipo === "recibo") return;
     const html = htmlImpresionVenta(venta, tipo, negocio);
     if (!imprimirHtmlVenta(html)) {
       alert("No se pudo abrir la ventana de impresión. Revisá el bloqueador de ventanas emergentes.");
+    }
+  };
+
+  const handleImprimirRecibo = async () => {
+    if (!venta || !negocioID) {
+      alert("No se pudo identificar el negocio para el recibo.");
+      return;
+    }
+    const ventana = abrirVentanaReciboPendiente();
+    setGenerandoRecibo(true);
+    try {
+      const ok = await imprimirReciboCompraDesdeVenta(negocioID, venta, { ventana });
+      if (!ok) {
+        alert("No se pudo abrir el recibo. Si el navegador bloqueó la ventana, permití emergentes para este sitio.");
+      }
+    } catch (e) {
+      console.error(e);
+      if (ventana && !ventana.closed) ventana.close();
+      alert("No se pudo generar el recibo de compra.");
+    } finally {
+      setGenerandoRecibo(false);
     }
   };
 
@@ -125,7 +156,8 @@ export default function ModalRemitoImpresion({
   const cantItems =
     venta.productos?.reduce((a, p) => a + Number(p.cantidad || 0), 0) || 0;
 
-  const elegirTipo = (t: TipoImpresionVenta) => setTipo(t);
+  const elegirTipo = (t: TipoModalImpresion) => setTipo(t);
+  const esTelefono = esVentaTelefonoParaRecibo(venta);
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
@@ -138,14 +170,22 @@ export default function ModalRemitoImpresion({
             </div>
             <div>
               <h2 className="text-lg font-bold">
-                {!tipo ? "Tipo de impresión" : tipo === "formal" ? "Remito — cliente final" : "Checklist — preparación"}
+                {!tipo
+                  ? "Tipo de impresión"
+                  : tipo === "formal"
+                    ? "Remito — cliente final"
+                    : tipo === "checklist"
+                      ? "Checklist — preparación"
+                      : "Recibo de compra"}
               </h2>
               <p className="text-blue-100 text-xs">
                 {!tipo
                   ? "Elegí el formato según el destino del documento"
                   : tipo === "formal"
                     ? "Vista previa · imprimir o enviar imagen del remito"
-                    : "Vista previa · listo para imprimir"}
+                    : tipo === "checklist"
+                      ? "Vista previa · listo para imprimir"
+                      : "Comprobante con garantía, IMEI y pagos de la venta"}
               </p>
             </div>
           </div>
@@ -175,10 +215,11 @@ export default function ModalRemitoImpresion({
                 )}
                 <button
                   type="button"
-                  onClick={handleImprimir}
-                  className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] px-4 py-2 rounded-lg font-medium text-sm"
+                  onClick={tipo === "recibo" ? handleImprimirRecibo : handleImprimir}
+                  disabled={tipo === "recibo" && generandoRecibo}
+                  className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
                 >
-                  🖨️ Imprimir
+                  {tipo === "recibo" && generandoRecibo ? "Generando…" : "🖨️ Imprimir"}
                 </button>
               </>
             )}
@@ -194,7 +235,11 @@ export default function ModalRemitoImpresion({
 
         <div className="overflow-y-auto p-6 bg-white flex-1">
           {!tipo ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto py-4">
+            <div
+              className={`grid grid-cols-1 gap-4 max-w-3xl mx-auto py-4 ${
+                esTelefono ? "md:grid-cols-3" : "md:grid-cols-2"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => elegirTipo("formal")}
@@ -221,9 +266,44 @@ export default function ModalRemitoImpresion({
                   Lista compacta con casilla, precios y total. Una línea por producto para preparar pedidos de repuestos.
                 </p>
               </button>
-              <p className="md:col-span-2 text-center text-xs text-[#95a5a6]">
+              {esTelefono && (
+                <button
+                  type="button"
+                  onClick={() => elegirTipo("recibo")}
+                  className="text-left p-6 rounded-xl border-2 border-[#2c3e50] hover:bg-[#ecf0f1] transition-colors group"
+                >
+                  <div className="text-3xl mb-3">🧾</div>
+                  <h3 className="font-bold text-[#2c3e50] text-lg mb-2 group-hover:text-[#1a252f]">
+                    Recibo de compra
+                  </h3>
+                  <p className="text-sm text-[#7f8c8d]">
+                    Recibo con logo, garantía, IMEI, parte de pago y pagos de la venta de teléfono.
+                  </p>
+                </button>
+              )}
+              <p className={`${esTelefono ? "md:col-span-3" : "md:col-span-2"} text-center text-xs text-[#95a5a6]`}>
                 Pedido {venta.nroVenta || venta.id?.slice(-6)} · {venta.cliente} · {cantItems} ítems
               </p>
+            </div>
+          ) : tipo === "recibo" ? (
+            <div className="max-w-xl mx-auto py-8 text-center space-y-4">
+              <div className="text-5xl">🧾</div>
+              <h3 className="text-xl font-bold text-[#2c3e50]">Recibo de compra</h3>
+              <p className="text-sm text-[#7f8c8d]">
+                Se genera el comprobante de la venta de teléfono con los datos del negocio,
+                el cliente, los equipos, la parte de pago y los pagos cargados.
+              </p>
+              <p className="text-xs text-[#95a5a6]">
+                Pedido {venta.nroVenta || venta.id?.slice(-6)} · {venta.cliente}
+              </p>
+              <button
+                type="button"
+                onClick={handleImprimirRecibo}
+                disabled={generandoRecibo}
+                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+              >
+                {generandoRecibo ? "Generando…" : "🖨️ Imprimir recibo"}
+              </button>
             </div>
           ) : tipo === "checklist" ? (
             <div className="max-w-2xl mx-auto">

@@ -40,6 +40,11 @@ export default function Configuraciones() {
   const [nombreNegocio, setNombreNegocio] = useState("");           // ✅ NUEVO
   const [textoGarantiaServicio, setTextoGarantiaServicio] = useState("");
   const [textoGarantiaTelefonos, setTextoGarantiaTelefonos] = useState("");
+  const [reciboDomicilio, setReciboDomicilio] = useState("");
+  const [reciboTelefono, setReciboTelefono] = useState("");
+  const [reciboInicioActividad, setReciboInicioActividad] = useState("");
+  const [reciboLeyenda, setReciboLeyenda] = useState("");
+  const [reciboConformidad, setReciboConformidad] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [nuevoLogo, setNuevoLogo] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -85,6 +90,12 @@ export default function Configuraciones() {
             setNombreNegocio(data.nombreNegocio || "");             // ✅ NUEVO
             setTextoGarantiaServicio(data.textoGarantia || "");
             setTextoGarantiaTelefonos(data.textoGarantiaTelefonos || "");
+            const recibo = data.reciboCompra || {};
+            setReciboDomicilio(recibo.domicilioComercial || "");
+            setReciboTelefono(recibo.telefonoEmpresarial || "");
+            setReciboInicioActividad(recibo.fechaInicioActividad || "");
+            setReciboLeyenda(recibo.leyendaComprobante || "");
+            setReciboConformidad(recibo.textoConformidad || "");
             setLogoUrl(data.logoUrl || "");
             setTiendaPublica(tiendaPublicaDesdeFirestore(data.tiendaPublica));
             setFacturacionElectronicaHabilitada(!!data.facturacionElectronicaHabilitada);
@@ -147,6 +158,13 @@ export default function Configuraciones() {
         textoGarantia: textoGarantiaServicio,
         textoGarantiaTelefonos: textoGarantiaTelefonos,
         logoUrl: finalLogoUrl,
+        reciboCompra: {
+          domicilioComercial: reciboDomicilio.trim(),
+          telefonoEmpresarial: reciboTelefono.trim(),
+          fechaInicioActividad: reciboInicioActividad.trim(),
+          leyendaComprobante: reciboLeyenda.trim(),
+          textoConformidad: reciboConformidad.trim(),
+        },
       };
 
       if (esSuperAdmin) {
@@ -767,9 +785,71 @@ export default function Configuraciones() {
                     <textarea
                       value={textoGarantiaTelefonos}
                       onChange={(e) => setTextoGarantiaTelefonos(e.target.value)}
-                      className="w-full h-32 p-4 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e67e22] focus:border-[#e67e22] transition-all text-[#2c3e50] text-sm"
-                      placeholder="Políticas de garantía para venta de teléfonos que aparecerán en el remito..."
+                      className="w-full h-40 p-4 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#e67e22] focus:border-[#e67e22] transition-all text-[#2c3e50] text-sm"
+                      placeholder={"Ejemplo:\nEquipos nuevos: 12 meses de garantía.\nEquipos usados: 30 días de garantía.\nNo cubre golpes, humedad ni fallas por mal uso."}
                     />
+                    <p className="text-xs text-[#7f8c8d] mt-2">
+                      Este texto sale en el recibo de compra, debajo de la conformidad del cliente.
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-[#2c3e50] rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm">🧾</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-[#2c3e50]">Recibo de compra</h3>
+                    </div>
+                    <p className="text-sm text-[#7f8c8d] mb-4">
+                      El logo y el nombre del negocio son los de la pestaña General. El resto del encabezado se configura acá.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Domicilio comercial</label>
+                        <input
+                          value={reciboDomicilio}
+                          onChange={(e) => setReciboDomicilio(e.target.value)}
+                          placeholder="Ej: Av. San Martín 123, Ciudad"
+                          className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg text-sm text-[#2c3e50]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Teléfono empresarial</label>
+                        <input
+                          value={reciboTelefono}
+                          onChange={(e) => setReciboTelefono(e.target.value)}
+                          placeholder="Ej: 351 555-1234"
+                          className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg text-sm text-[#2c3e50]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Fecha de inicio de actividad</label>
+                        <input
+                          value={reciboInicioActividad}
+                          onChange={(e) => setReciboInicioActividad(e.target.value)}
+                          placeholder="Ej: 01/01/2020"
+                          className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg text-sm text-[#2c3e50]"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Leyenda del comprobante</label>
+                        <input
+                          value={reciboLeyenda}
+                          onChange={(e) => setReciboLeyenda(e.target.value)}
+                          placeholder="Ej: Documento interno — no válido como factura"
+                          className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg text-sm text-[#2c3e50]"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Texto de conformidad</label>
+                        <textarea
+                          value={reciboConformidad}
+                          onChange={(e) => setReciboConformidad(e.target.value)}
+                          className="w-full h-24 p-3 border-2 border-[#bdc3c7] rounded-lg text-sm text-[#2c3e50]"
+                          placeholder="Ej: El cliente declara haber recibido el equipo a su entera satisfacción."
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="bg-gradient-to-r from-[#ecf0f1] to-[#d5dbdb] rounded-xl p-4 border border-[#bdc3c7]">
@@ -778,7 +858,7 @@ export default function Configuraciones() {
                         <span className="text-white text-sm">💡</span>
                       </div>
                       <p className="text-sm font-medium flex-1">
-                        <strong>Tip:</strong> Las garantías aparecerán automáticamente en los documentos correspondientes: servicio técnico en tickets y teléfonos en remitos de venta.
+                        <strong>Tip:</strong> El logo se carga en General. La garantía de teléfonos y los datos del encabezado salen en el recibo de compra de cada venta.
                       </p>
                     </div>
                   </div>
