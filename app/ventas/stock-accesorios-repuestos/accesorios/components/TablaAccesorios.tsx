@@ -20,12 +20,16 @@ import {
 import ModalVerPrecios from "./ModalVerPrecios";
 import ModalEditarAccesorio from "./ModalEditarAccesorios";
 import ModalIngresoStock from "./ModalIngresoStock";
+import ModalElegirTipoEtiqueta from "@/components/ModalElegirTipoEtiqueta";
+import { itemEtiquetaDesdeProducto } from "@/lib/imprimirEtiquetaRepuesto";
+import type { ItemEtiquetaStock } from "@/lib/imprimirEtiquetaRepuesto";
 
 // 🎧 Tabla de productos – Sección ACCESORIOS COMPLETAMENTE OPTIMIZADA CON PAGINACIÓN Y FILTROS INTELIGENTES
 
 interface Producto {
   id: string;
   codigo: string;
+  codigoBarras?: string;
   categoria: string;
   producto: string;
   marca: string;
@@ -78,6 +82,7 @@ export default function TablaAccesorios({
   const [modalVerPrecios, setModalVerPrecios] = useState<Producto | null>(null);
   const [modalEditar, setModalEditar] = useState<Producto | null>(null);
   const [modalIngreso, setModalIngreso] = useState<Producto | null>(null);
+  const [itemsEtiquetaPendiente, setItemsEtiquetaPendiente] = useState<ItemEtiquetaStock[] | null>(null);
   const [modalEliminar, setModalEliminar] = useState<string | null>(null);
   
   // 🔍 ESTADOS PARA FILTROS
@@ -297,6 +302,7 @@ export default function TablaAccesorios({
     if (!rol?.negocioID || !stockCargadoUnaVez || deepLinkAplicadoRef.current) return;
     const idParam = searchParams.get("id")?.trim() || "";
     const qParam = searchParams.get("q")?.trim() || "";
+    const abrirIngreso = searchParams.get("ingreso") === "1";
     if (!idParam && !qParam) return;
 
     deepLinkAplicadoRef.current = true;
@@ -316,6 +322,9 @@ export default function TablaAccesorios({
             });
             if (!qParam && prod.codigo) setFiltroBusqueda(String(prod.codigo));
             setProductoDestacadoId(prod.id);
+            if (abrirIngreso) {
+              setModalIngreso(prod);
+            }
             setTimeout(() => {
               document
                 .querySelector(`[data-producto-id="${prod.id}"]`)
@@ -649,6 +658,23 @@ export default function TablaAccesorios({
                             📥
                           </button>
                           <button
+                            onClick={() => {
+                              setItemsEtiquetaPendiente([
+                                itemEtiquetaDesdeProducto({
+                                  id: p.id,
+                                  tipo: "accesorio",
+                                  producto: p.producto || p.codigo || "Accesorio",
+                                  codigo: p.codigo,
+                                  codigoBarras: p.codigoBarras,
+                                }),
+                              ]);
+                            }}
+                            className="bg-[#2c3e50] hover:bg-[#1a252f] text-white px-1 py-1 rounded text-xs transition-all duration-200"
+                            title="Imprimir etiqueta QR / código de barras"
+                          >
+                            🏷️
+                          </button>
+                          <button
                             onClick={() => setModalEditar(p)}
                             className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs transition-all duration-200"
                             title="Editar"
@@ -789,6 +815,15 @@ export default function TablaAccesorios({
           }}
         />
       )}
+
+      {itemsEtiquetaPendiente && rol?.negocioID ? (
+        <ModalElegirTipoEtiqueta
+          abierto
+          negocioID={rol.negocioID}
+          items={itemsEtiquetaPendiente}
+          onClose={() => setItemsEtiquetaPendiente(null)}
+        />
+      ) : null}
 
       {/* 🗑️ MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
       {modalEliminar && (

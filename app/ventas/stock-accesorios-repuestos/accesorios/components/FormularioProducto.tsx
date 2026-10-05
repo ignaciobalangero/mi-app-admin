@@ -17,6 +17,8 @@ interface Props {
   setModelo: (val: string) => void;
   color: string;
   setColor: (val: string) => void;
+  codigoBarras: string;
+  setCodigoBarras: (val: string) => void;
   precioCosto: number;  
   setPrecioCosto: (val: number) => void;
   precio1: number;
@@ -54,6 +56,8 @@ export default function FormularioProducto({
   setModelo,
   color,
   setColor,
+  codigoBarras,
+  setCodigoBarras,
   precioCosto,
   setPrecioCosto,
   precio1,
@@ -108,6 +112,17 @@ export default function FormularioProducto({
             value={codigo} 
             onChange={(e) => setCodigo(e.target.value)} 
             className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]" 
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+            📷 Código de barras / QR
+          </label>
+          <input
+            value={codigoBarras}
+            onChange={(e) => setCodigoBarras(e.target.value)}
+            placeholder="Opcional — del packaging o etiqueta"
+            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
           />
         </div>
         <div>

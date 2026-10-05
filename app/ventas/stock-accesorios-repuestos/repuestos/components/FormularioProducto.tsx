@@ -25,6 +25,8 @@ interface Props {
   setMarca: (val: string) => void;
   color: string;
   setColor: (val: string) => void;
+  codigoBarras: string;
+  setCodigoBarras: (val: string) => void;
   precioCosto: number;
   setPrecioCosto: (val: number) => void;
   moneda: "ARS" | "USD";
@@ -75,6 +77,8 @@ export default function FormularioProducto({
   setMarca,
   color,
   setColor,
+  codigoBarras,
+  setCodigoBarras,
   precioCosto,
   setPrecioCosto,
   moneda,
@@ -259,6 +263,20 @@ export default function FormularioProducto({
               Si no ingresás código, se asigna uno automático único (ej. REP042).
             </p>
           )}
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
+            📷 Código de barras / QR
+          </label>
+          <input
+            value={codigoBarras}
+            onChange={(e) => setCodigoBarras(e.target.value)}
+            placeholder="Opcional — del packaging o etiqueta"
+            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
+          />
+          <p className="text-[10px] text-[#7f8c8d] mt-1">
+            Si está vacío, la etiqueta usa un QR interno del producto.
+          </p>
         </div>
         <div>
           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">

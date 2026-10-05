@@ -63,6 +63,7 @@ export default function RepuestosPage() {
   
   // ✅ ESTADOS BÁSICOS DEL FORMULARIO
   const [codigo, setCodigo] = useState("");
+  const [codigoBarras, setCodigoBarras] = useState("");
   const [proveedor, setProveedor] = useState("");
   const [producto, setProducto] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -206,6 +207,7 @@ export default function RepuestosPage() {
 
     const data = {
       codigo,
+      codigoBarras: String(codigoBarras || "").trim(),
       proveedor,
       producto,
       categoria,
@@ -288,6 +290,7 @@ export default function RepuestosPage() {
 
   const resetFormulario = () => {
     setCodigo("");
+    setCodigoBarras("");
     setProveedor("");
     setProducto("");
     setCategoria("");
@@ -327,6 +330,7 @@ export default function RepuestosPage() {
 
   const editarProducto = (prod: any) => {
     setCodigo(prod.codigo || uuidv4().slice(0, 8));
+    setCodigoBarras(prod.codigoBarras || "");
     setProveedor(prod.proveedor || "");
     setProducto(prod.producto || "");
     setCategoria(prod.categoria || "");
@@ -382,6 +386,7 @@ export default function RepuestosPage() {
       const productRef = doc(db, `negocios/${currentNegocioID}/stockRepuestos`, producto.id);
       await updateDoc(productRef, {
         codigo: cod,
+        codigoBarras: String(producto.codigoBarras || "").trim(),
         categoria: producto.categoria,
         producto: producto.producto,
         marca: producto.marca,
@@ -519,6 +524,8 @@ export default function RepuestosPage() {
               setMarca={setMarca}
               color={color}
               setColor={setColor}
+              codigoBarras={codigoBarras}
+              setCodigoBarras={setCodigoBarras}
               precioCosto={precioCosto}
               setPrecioCosto={setPrecioCosto}
               moneda={moneda}

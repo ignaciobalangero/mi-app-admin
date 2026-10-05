@@ -15,6 +15,7 @@ import { db } from "../lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import RecordatoriosInicio from "./components/RecordatoriosInicio";
 import BuscadorStockInicio from "./components/BuscadorStockInicio";
+import BotonEscanerStock from "@/components/BotonEscanerStock";
 
 function Home() {
   const { rol } = useRol();
@@ -171,6 +172,7 @@ function Home() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-3">
+                  <BotonEscanerStock label="Leer código stock" variante="inicio" />
                   <Link
                     href="/buscador-precios"
                     className="flex-shrink-0 inline-flex items-center gap-2 bg-white/25 hover:bg-white/40 backdrop-blur-sm text-white font-semibold px-5 py-3 rounded-xl shadow-lg border border-white/30 transition-all duration-200 hover:scale-105 hover:shadow-xl"

@@ -12,6 +12,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import Link from "next/link";
+import BotonEscanerStock from "@/components/BotonEscanerStock";
 
 export default function StockAccesoriosRepuestos() {
   const [user] = useAuthState(auth);
@@ -69,18 +70,25 @@ export default function StockAccesoriosRepuestos() {
           
           {/* Header de la página - Estilo GestiOne */}
           <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] rounded-2xl p-6 mb-6 shadow-lg border border-[#ecf0f1]"> {/* p-8 → p-6, mb-8 → mb-6 */}
-            <div className="flex items-center gap-4"> {/* gap-6 → gap-4 */}
-              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center"> {/* w-16 h-16 → w-12 h-12 */}
-                <span className="text-3xl">📦</span> {/* text-4xl → text-3xl */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4"> {/* gap-6 → gap-4 */}
+                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center"> {/* w-16 h-16 → w-12 h-12 */}
+                  <span className="text-3xl">📦</span> {/* text-4xl → text-3xl */}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1"> {/* text-4xl → text-2xl, mb-2 → mb-1 */}
+                    Stock de Accesorios y Repuestos
+                  </h2>
+                  <p className="text-blue-100 text-sm"> {/* text-lg → text-sm */}
+                    Gestión completa de inventario de accesorios y repuestos
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1"> {/* text-4xl → text-2xl, mb-2 → mb-1 */}
-                  Stock de Accesorios y Repuestos
-                </h2>
-                <p className="text-blue-100 text-sm"> {/* text-lg → text-sm */}
-                  Gestión completa de inventario de accesorios y repuestos
-                </p>
-              </div>
+              <BotonEscanerStock
+                label="Leer código / QR"
+                variante="inicio"
+                className="self-start sm:self-center"
+              />
             </div>
           </div>
 

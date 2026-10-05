@@ -55,13 +55,15 @@ import {
   normalizarCodigoRepuesto,
 } from "@/lib/codigoRepuestoUnico";
 import {
-  imprimirEtiquetaRepuesto,
-  imprimirEtiquetasRepuestos,
+  itemEtiquetaDesdeProducto,
+  type ItemEtiquetaStock,
 } from "@/lib/imprimirEtiquetaRepuesto";
+import ModalElegirTipoEtiqueta from "@/components/ModalElegirTipoEtiqueta";
 
 interface Producto {
   id: string;
   codigo: string;
+  codigoBarras?: string;
   categoria: string;
   producto: string;
   marca: string;
@@ -121,6 +123,7 @@ export default function TablaProductos({
   const [modalAbierto, setModalAbierto] = useState(false);
   const [modalEliminar, setModalEliminar] = useState<string | null>(null);
   const [modalIngreso, setModalIngreso] = useState<Producto | null>(null);
+  const [itemsEtiquetaPendiente, setItemsEtiquetaPendiente] = useState<ItemEtiquetaStock[] | null>(null);
   const [modalEliminarMasivo, setModalEliminarMasivo] = useState(false);
   const [modoSeleccion, setModoSeleccion] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(() => new Set());
@@ -434,6 +437,7 @@ export default function TablaProductos({
   const [formulario, setFormulario] = useState<Producto>({
     id: "",
     codigo: "",
+    codigoBarras: "",
     categoria: "",
     producto: "",
     marca: "",
@@ -692,6 +696,7 @@ export default function TablaProductos({
   
       await updateDoc(ref, {
         codigo: cod,
+        codigoBarras: String(formulario.codigoBarras || "").trim(),
         categoria: formulario.categoria,
         categoriaKey: normalizarCategoriaKey(formulario.categoria),
         producto: formulario.producto,
@@ -723,6 +728,7 @@ export default function TablaProductos({
             ? {
                 ...p,
                 codigo: cod,
+                codigoBarras: String(formulario.codigoBarras || "").trim(),
                 categoria: formulario.categoria,
                 producto: formulario.producto,
                 marca: formulario.marca,
@@ -778,23 +784,35 @@ export default function TablaProductos({
 
   const imprimirEtiquetaProducto = async (p: Producto) => {
     if (!rol?.negocioID) return;
-    try {
-      await imprimirEtiquetaRepuesto(rol.negocioID, p.producto || p.codigo || "Repuesto");
-    } catch (e) {
-      console.error("[etiqueta repuesto]", e);
-      alert(e instanceof Error ? e.message : "No se pudo imprimir la etiqueta.");
-    }
+    setItemsEtiquetaPendiente([
+      itemEtiquetaDesdeProducto({
+        id: p.id,
+        tipo: "repuesto",
+        producto: p.producto || p.codigo || "Repuesto",
+        codigo: p.codigo,
+        codigoBarras: p.codigoBarras,
+      }),
+    ]);
   };
 
   const imprimirEtiquetasSeleccionadas = async () => {
     if (!rol?.negocioID || seleccionados.size === 0) return;
-    const items = productosFiltrados.filter((p) => seleccionados.has(p.id));
-    try {
-      await imprimirEtiquetasRepuestos(rol.negocioID, items);
-    } catch (e) {
-      console.error("[etiquetas repuesto]", e);
-      alert(e instanceof Error ? e.message : "No se pudieron imprimir las etiquetas.");
+    const items = productosFiltrados
+      .filter((p) => seleccionados.has(p.id))
+      .map((p) =>
+        itemEtiquetaDesdeProducto({
+          id: p.id,
+          tipo: "repuesto",
+          producto: p.producto || p.codigo || "Repuesto",
+          codigo: p.codigo,
+          codigoBarras: p.codigoBarras,
+        })
+      );
+    if (items.length === 0) {
+      alert("No hay productos para imprimir.");
+      return;
     }
+    setItemsEtiquetaPendiente(items);
   };
 
   const toggleSeleccion = (id: string) => {
@@ -1293,11 +1311,12 @@ export default function TablaProductos({
     }
   }, [rol?.negocioID, refrescar]);
 
-  // Deep-link desde buscador del inicio: ?id=...&q=... (después de la 1ª carga)
+  // Deep-link desde buscador / QR: ?id=...&q=...&ingreso=1
   useEffect(() => {
     if (!rol?.negocioID || !stockCargadoUnaVez || deepLinkAplicadoRef.current) return;
     const idParam = searchParams.get("id")?.trim() || "";
     const qParam = searchParams.get("q")?.trim() || "";
+    const abrirIngreso = searchParams.get("ingreso") === "1";
     if (!idParam && !qParam) return;
 
     deepLinkAplicadoRef.current = true;
@@ -1317,6 +1336,9 @@ export default function TablaProductos({
             });
             if (!qParam && prod.codigo) setFiltroBusqueda(String(prod.codigo));
             setProductoDestacadoId(prod.id);
+            if (abrirIngreso) {
+              setModalIngreso(prod);
+            }
             setTimeout(() => {
               document
                 .querySelector(`[data-producto-id="${prod.id}"]`)
@@ -2149,6 +2171,21 @@ export default function TablaProductos({
                   {errorCodigo && (
                     <p className="text-xs text-[#c0392b] font-medium">{errorCodigo}</p>
                   )}
+                </div>
+
+                {/* Código de barras */}
+                <div className="space-y-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-[#2c3e50]">
+                    📷 Código de barras / QR
+                  </label>
+                  <input
+                    type="text"
+                    name="codigoBarras"
+                    value={formulario.codigoBarras || ""}
+                    onChange={manejarCambio}
+                    placeholder="Opcional — packaging o etiqueta"
+                    className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm"
+                  />
                 </div>
 
                 {/* Categoría */}
@@ -3183,6 +3220,15 @@ export default function TablaProductos({
             }}
           />
         )}
+
+      {itemsEtiquetaPendiente && rol?.negocioID ? (
+        <ModalElegirTipoEtiqueta
+          abierto
+          negocioID={rol.negocioID}
+          items={itemsEtiquetaPendiente}
+          onClose={() => setItemsEtiquetaPendiente(null)}
+        />
+      ) : null}
 
         {modalEliminar &&
         createPortal(

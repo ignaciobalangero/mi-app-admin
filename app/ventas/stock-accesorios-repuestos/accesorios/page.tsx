@@ -33,6 +33,7 @@ export default function StockProductosPage() {
   
   const [negocioID, setNegocioID] = useState("");
   const [codigo, setCodigo] = useState("");
+  const [codigoBarras, setCodigoBarras] = useState("");
   const [proveedor, setProveedor] = useState("");
   const [producto, setProducto] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -109,6 +110,7 @@ export default function StockProductosPage() {
 
     const data = {
       codigo,
+      codigoBarras: String(codigoBarras || "").trim(),
       proveedor,
       producto,
       categoria,
@@ -158,6 +160,7 @@ export default function StockProductosPage() {
 
   const resetFormulario = () => {
     setCodigo("");
+    setCodigoBarras("");
     setProveedor("");
     setProducto("");
     setCategoria("");
@@ -190,6 +193,7 @@ export default function StockProductosPage() {
 
   const editarProducto = (prod: any) => {
     setCodigo(prod.codigo || uuidv4().slice(0, 8));
+    setCodigoBarras(prod.codigoBarras || "");
     setProveedor(prod.proveedor || "");
     setProducto(prod.producto || "");
     setCategoria(prod.categoria || "");
@@ -222,6 +226,7 @@ export default function StockProductosPage() {
       const productRef = doc(db, `negocios/${currentNegocioID}/stockAccesorios`, producto.id);
       await updateDoc(productRef, {
         codigo: producto.codigo,
+        codigoBarras: String(producto.codigoBarras || "").trim(),
         categoria: producto.categoria,
         producto: producto.producto,
         marca: producto.marca,
@@ -347,6 +352,8 @@ export default function StockProductosPage() {
               setModelo={setModelo}
               color={color}
               setColor={setColor}
+              codigoBarras={codigoBarras}
+              setCodigoBarras={setCodigoBarras}
               precioCosto={precioCosto}
               setPrecioCosto={setPrecioCosto}
               precio1={precio1}

@@ -14,6 +14,8 @@ import { extraerImei } from "@/lib/extraerImei";
 type Props = {
   abierto: boolean;
   titulo?: string;
+  /** imei = solo 15 dígitos (teléfonos); codigo = cualquier barras/QR de stock */
+  modo?: "imei" | "codigo";
   onDetectado: (codigo: string) => void;
   onCerrar: () => void;
 };
@@ -22,6 +24,7 @@ function crearLector(): MultiFormatReader {
   const hints = new Map();
   hints.set(DecodeHintType.TRY_HARDER, true);
   hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.QR_CODE,
     BarcodeFormat.CODE_128,
     BarcodeFormat.CODE_39,
     BarcodeFormat.CODE_93,
@@ -127,10 +130,11 @@ async function leerImeiConOcr(
   return extraerImei(data.text || "");
 }
 
-/** Escáner de IMEI: cámara trasera, código de barras y OCR de 15 dígitos. */
+/** Escáner: IMEI (teléfonos) o código de barras/QR libre (stock). */
 export default function EscanerCodigoBarras({
   abierto,
   titulo = "Escanear código",
+  modo = "imei",
   onDetectado,
   onCerrar,
 }: Props) {
@@ -143,14 +147,20 @@ export default function EscanerCodigoBarras({
   const ocrWorkerRef = useRef<Awaited<ReturnType<typeof crearWorkerOcr>> | null>(null);
   const onDetectadoRef = useRef(onDetectado);
   const onCerrarRef = useRef(onCerrar);
+  const modoRef = useRef(modo);
   const [error, setError] = useState("");
   const [iniciando, setIniciando] = useState(false);
-  const [estado, setEstado] = useState("Apuntá al código de barras o al número IMEI");
+  const [estado, setEstado] = useState(
+    modo === "codigo"
+      ? "Apuntá al código de barras o QR del producto"
+      : "Apuntá al código de barras o al número IMEI"
+  );
 
   useEffect(() => {
     onDetectadoRef.current = onDetectado;
     onCerrarRef.current = onCerrar;
-  }, [onDetectado, onCerrar]);
+    modoRef.current = modo;
+  }, [onDetectado, onCerrar, modo]);
 
   const detenerStream = useCallback(() => {
     if (rafRef.current != null) {
@@ -167,10 +177,21 @@ export default function EscanerCodigoBarras({
 
   const emitir = useCallback(
     (raw: string) => {
-      const imei = extraerImei(raw);
-      if (!imei) return false;
+      const texto = String(raw || "").trim();
+      if (!texto) return false;
+
+      if (modoRef.current === "imei") {
+        const imei = extraerImei(texto);
+        if (!imei) return false;
+        detenerStream();
+        onDetectadoRef.current(imei);
+        onCerrarRef.current();
+        return true;
+      }
+
+      // Modo stock: aceptar cualquier código leído (barras / QR)
       detenerStream();
-      onDetectadoRef.current(imei);
+      onDetectadoRef.current(texto);
       onCerrarRef.current();
       return true;
     },
@@ -182,7 +203,11 @@ export default function EscanerCodigoBarras({
       detenerStream();
       setError("");
       setIniciando(false);
-      setEstado("Apuntá al código de barras o al número IMEI");
+      setEstado(
+        modo === "codigo"
+          ? "Apuntá al código de barras o QR del producto"
+          : "Apuntá al código de barras o al número IMEI"
+      );
       return;
     }
 
@@ -250,8 +275,12 @@ export default function EscanerCodigoBarras({
         }
       }
 
-      // OCR cada ~1.6s si el código de barras no aparece (número impreso).
-      if (!ocrBusy.current && ts - ocrLast.current >= 1600) {
+      // OCR solo en modo IMEI (número impreso de 15 dígitos).
+      if (
+        modoRef.current === "imei" &&
+        !ocrBusy.current &&
+        ts - ocrLast.current >= 1600
+      ) {
         ocrLast.current = ts;
         ocrBusy.current = true;
         setEstado("Leyendo número IMEI (15 dígitos)…");
@@ -271,6 +300,9 @@ export default function EscanerCodigoBarras({
             ocrBusy.current = false;
           }
         })();
+      } else if (modoRef.current === "codigo" && ts - ocrLast.current >= 2000) {
+        ocrLast.current = ts;
+        setEstado("Apuntá al código de barras o QR del producto");
       }
 
       rafRef.current = requestAnimationFrame(loop);
@@ -294,7 +326,11 @@ export default function EscanerCodigoBarras({
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-5 py-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="font-bold text-lg">📷 {titulo}</h3>
-            <p className="text-xs text-white/80">Solo cámara trasera. Código de barras o IMEI de 15 dígitos.</p>
+            <p className="text-xs text-white/80">
+              {modo === "codigo"
+                ? "Cámara trasera · código de barras o QR de stock"
+                : "Cámara trasera · código de barras o IMEI de 15 dígitos"}
+            </p>
           </div>
           <button
             type="button"

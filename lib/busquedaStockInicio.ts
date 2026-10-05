@@ -128,7 +128,13 @@ export async function cargarItemsBusquedaStockInicio(
         .join(" · "),
       cantidad: data.cantidad,
       precioTexto: formatearPrecio(Number(data.precio1) || 0, moneda),
-      extraBusqueda: [data.marca, data.modelo, data.categoria, data.color],
+      extraBusqueda: [
+        data.marca,
+        data.modelo,
+        data.categoria,
+        data.color,
+        data.codigoBarras,
+      ],
     });
   });
 
@@ -164,6 +170,7 @@ export async function cargarItemsBusquedaStockInicio(
         data.categoria,
         data.proveedor,
         data.observacion,
+        data.codigoBarras,
       ],
     });
   });

@@ -7,6 +7,7 @@ import { useState } from "react";
 interface Producto {
   id: string;
   codigo: string;
+  codigoBarras?: string;
   categoria: string;
   producto: string;
   marca: string;
@@ -139,6 +140,21 @@ export default function ModalEditarAccesorio({
                 name="codigo"
                 value={formulario.codigo}
                 onChange={manejarCambio}
+                className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm"
+              />
+            </div>
+
+            {/* Código de barras */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-[#2c3e50]">
+                📷 Código de barras / QR
+              </label>
+              <input
+                type="text"
+                name="codigoBarras"
+                value={formulario.codigoBarras || ""}
+                onChange={manejarCambio}
+                placeholder="Opcional"
                 className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm"
               />
             </div>
