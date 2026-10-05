@@ -7,11 +7,10 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   deleteDoc,
   doc,
   updateDoc,
-  query,
-  where,
   serverTimestamp,
 } from "firebase/firestore";
 import axios from "axios";
@@ -22,6 +21,8 @@ import Link from "next/link";
 import FormularioVentaAccesorios from "./components/FormularioVentaAccesorios";
 import TablaVentasAccesorios from "./components/TablaVentasAccesorios";
 import { descontarAccesorioDelStock } from "./components/descontarAccesorioDelStock";
+import { reponerAccesorioEnStock } from "./components/reponerAccesorioEnStock";
+import { actualizarSaldoClienteNegocioDetalle } from "@/lib/actualizarSaldoCliente";
 
 export default function VentaAccesorios() {
   const [fecha, setFecha] = useState("");
@@ -100,6 +101,9 @@ export default function VentaAccesorios() {
   }) => {
     if (!cliente || !producto || cantidad <= 0 || precio <= 0) return;
 
+    const totalARS = moneda === "ARS" ? precio * cantidad : 0;
+    const totalUSD = moneda === "USD" ? precio * cantidad : 0;
+
     const nuevaVenta = {
       fecha,
       cliente,
@@ -109,6 +113,12 @@ export default function VentaAccesorios() {
       moneda,
       cotizacion: moneda === "USD" ? cotizacion : null,
       total,
+      totalARS,
+      totalUSD,
+      codigo: codigo || "",
+      marca: marca || "",
+      categoria: categoria || "",
+      color: color || "",
     };
 
     try {
@@ -121,14 +131,30 @@ export default function VentaAccesorios() {
         );
         setEditandoId(null);
       } else {
-        const docRef = await addDoc(
-          collection(db, `negocios/${negocioID}/ventaAccesorios`),
-          nuevaVenta
-        );
-        ventaId = docRef.id;
-
         if (codigo) {
           await descontarAccesorioDelStock(negocioID, codigo, cantidad);
+        }
+        try {
+          const docRef = await addDoc(
+            collection(db, `negocios/${negocioID}/ventaAccesorios`),
+            nuevaVenta
+          );
+          ventaId = docRef.id;
+        } catch (errGuardar) {
+          if (codigo) {
+            await reponerAccesorioEnStock(negocioID, codigo, cantidad);
+          }
+          throw errGuardar;
+        }
+
+        // Deuda en cuenta corriente (misma lógica que ventas-general)
+        if (cliente && (totalARS > 0 || totalUSD > 0)) {
+          await actualizarSaldoClienteNegocioDetalle(
+            negocioID,
+            cliente,
+            totalARS,
+            totalUSD
+          );
         }
       }
 
@@ -151,6 +177,18 @@ export default function VentaAccesorios() {
         );
 
         await updateDoc(docRef, { id: docRef.id });
+
+        // Restar pago del saldo
+        const pagoARS = pago.monedaPago === "ARS" ? pago.montoAbonado : 0;
+        const pagoUSD = pago.monedaPago === "USD" ? pago.montoAbonado : 0;
+        if (pagoARS || pagoUSD) {
+          await actualizarSaldoClienteNegocioDetalle(
+            negocioID,
+            cliente,
+            -pagoARS,
+            -pagoUSD
+          );
+        }
       }
 
       setCliente("");
@@ -158,15 +196,54 @@ export default function VentaAccesorios() {
       setCantidad(1);
       setPrecio(0);
       setMoneda("ARS");
+      setCodigo("");
       obtenerVentas();
     } catch (error) {
       console.error("Error al guardar:", error);
+      alert(error instanceof Error ? error.message : "Error al guardar la venta.");
     }
   };
 
   const eliminarVenta = async (id: string) => {
-    await deleteDoc(doc(db, `negocios/${negocioID}/ventaAccesorios`, id));
-    obtenerVentas();
+    if (!negocioID || !id) return;
+    try {
+      const ref = doc(db, `negocios/${negocioID}/ventaAccesorios`, id);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        obtenerVentas();
+        return;
+      }
+      const data = snap.data();
+      const cod = String(data.codigo || "").trim();
+      const cant = Number(data.cantidad) || 0;
+      const totalARS = Number(data.totalARS) || (data.moneda === "ARS" ? Number(data.total) || 0 : 0);
+      const totalUSD =
+        Number(data.totalUSD) ||
+        (data.moneda === "USD" ? Number(data.precioUnitario || 0) * cant : 0);
+      const nombreCliente = String(data.cliente || "").trim();
+
+      if (cod && cant > 0) {
+        await reponerAccesorioEnStock(negocioID, cod, cant);
+      }
+
+      // Solo se revierte la DEUDA de la venta (como en ventas-general).
+      // Si había pago, NO se borra ni se modifica: queda como crédito / a favor.
+      // Cuenta corriente sin pago: solo baja la deuda.
+      if (nombreCliente && (totalARS > 0 || totalUSD > 0)) {
+        await actualizarSaldoClienteNegocioDetalle(
+          negocioID,
+          nombreCliente,
+          -totalARS,
+          -totalUSD
+        );
+      }
+
+      await deleteDoc(ref);
+      obtenerVentas();
+    } catch (error) {
+      console.error("Error al eliminar venta accesorios:", error);
+      alert("No se pudo eliminar la venta.");
+    }
   };
 
   const editarVenta = (venta: any) => {

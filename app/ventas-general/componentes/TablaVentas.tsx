@@ -40,6 +40,10 @@ import {
   listarPagosDeVenta,
   revertirSaldoPorEliminarVenta,
 } from "@/lib/actualizarSaldoCliente";
+import {
+  deltasSaldoAlAnularPagos,
+  reponerYBorrarGrupoVentaTelefonos,
+} from "@/lib/ventas/eliminarVentaHelpers";
 import { modeloDistintoDeProducto } from "@/lib/impresionVentaGeneral";
 
 interface Props {
@@ -362,55 +366,18 @@ export default function TablaVentas({ refrescar }: Props) {
       console.log("✅ Equipo recibido como parte de pago liberado al stock (disponible):", d.id);
     }
 
-    // 🔥 PASO 1: PRIMERO ELIMINAR DE ventaTelefonos Y REPONER TELÉFONO
-    const telefono = ventaData.productos?.find((p: any) => p.categoria === "Teléfono");
+    // PASO 1: reponer TODOS los teléfonos del mismo nroVenta (ventas multi-equipo)
+    const esVentaTelefono =
+      ventaData.tipo === "telefono" ||
+      ventaData.productos?.some((p: any) => p.categoria === "Teléfono");
 
-    if (telefono) {
-      console.log('📱 Eliminando teléfono de ventaTelefonos:', venta.id);
-      const refTelefono = doc(db, `negocios/${rol.negocioID}/ventaTelefonos/${venta.id}`);
-      const snap = await getDoc(refTelefono);
-
-      if (snap.exists()) {
-        const data = snap.data();
-        console.log('📱 Datos del teléfono encontrados:', data);
-
-        // Verificar si ya existe en stock (el teléfono VENDIDO; no contar el recibido como parte de pago de esta venta)
-        const stockSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockTelefonos`));
-        const yaExiste = stockSnap.docs.some((d) => {
-          const tel = d.data();
-          if (tel.ventaId === venta.id) return false; // es el equipo parte de pago de esta venta, no el vendido
-          return tel.modelo === data.modelo && tel.imei === data.imei;
-        });
-
-        if (!yaExiste) {
-          console.log('📱 Reponiendo teléfono al stock...');
-          await addDoc(collection(db, `negocios/${rol.negocioID}/stockTelefonos`), {
-            fechaIngreso: data.fechaIngreso,
-            proveedor: data.proveedor || "—",
-            modelo: data.modelo,
-            marca: data.marca || "—",
-            estado: data.estado,
-            bateria: data.bateria || "",
-            gb: data.gb || "",
-            color: data.color || "—",
-            imei: data.imei || "",
-            serial: data.serie || "",
-            precioCompra: data.precioCosto,
-            precioVenta: data.precioVenta,
-            moneda: data.moneda || "ARS",
-            observaciones: data.observaciones || "",
-          });
-          console.log('✅ Teléfono repuesto al stock');
-        } else {
-          console.log('⚠️ Teléfono ya existe en stock, no se repone');
-        }
-
-        // 🔥 ELIMINAR DE ventaTelefonos
-        await deleteDoc(refTelefono);
-        console.log('✅ Teléfono eliminado de ventaTelefonos');
-      } else {
-        console.log('❌ No se encontró el teléfono en ventaTelefonos');
-      }
+    if (esVentaTelefono) {
+      const grupo = await reponerYBorrarGrupoVentaTelefonos(rol.negocioID, {
+        nroVenta: ventaData.nroVenta,
+        ventaTelefonosId: venta.id,
+        ventaIdIgnorarPartePago: venta.id,
+      });
+      console.log("📱 Grupo ventaTelefonos repuesto/borrado:", grupo);
     }
 
     const negocioStock = negocioIdStockDeVenta(ventaData, rol.negocioID);
@@ -430,9 +397,6 @@ export default function TablaVentas({ refrescar }: Props) {
     });
     console.log("✅ Cuenta corriente ajustada por eliminación de venta");
 
-    const esVentaTelefono =
-      ventaData.tipo === "telefono" ||
-      ventaData.productos?.some((p: any) => p.categoria === "Teléfono");
     if (eliminarPago && esVentaTelefono) {
       const nro = String(ventaData.nroVenta ?? "").trim();
       const cliente = String(ventaData.cliente ?? "").trim();
@@ -442,8 +406,8 @@ export default function TablaVentas({ refrescar }: Props) {
         cliente,
         venta.id
       );
-      const ars = pagos.reduce((acc, p) => acc + p.monto, 0);
-      const usd = pagos.reduce((acc, p) => acc + p.montoUSD, 0);
+      // ARS→USD: anular crédito en USD equivalente (no el monto en pesos)
+      const { ars, usd } = deltasSaldoAlAnularPagos(pagos);
       if (ars || usd) {
         await actualizarSaldoClienteNegocioDetalle(
           rol.negocioID,

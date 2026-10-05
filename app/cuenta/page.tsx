@@ -11,6 +11,7 @@ import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
 import html2canvas from 'html2canvas';
 import ModalPago from "./componentes/ModalPago";
+import { esSuperAdminUsuario } from "@/lib/superAdminConstants";
 
 interface Trabajo {
   firebaseId?: string;
@@ -61,17 +62,25 @@ export default function CuentaCorrientePage() {
     }
   }, [rol]);
 
-  // ⭐ NUEVO: Verificar si el botón de recálculo debe mostrarse
+  // Verificar botón de recálculo. La config global solo la puede leer el superadmin;
+  // usuarios de negocio no tienen permiso → no consultamos (evita error en consola).
   useEffect(() => {
     const verificarBotonRecalculo = async () => {
-      if (!negocioID) return;
+      if (!negocioID || !user) {
+        setBotonRecalculoVisible(false);
+        return;
+      }
+
+      if (!esSuperAdminUsuario(user)) {
+        setBotonRecalculoVisible(false);
+        return;
+      }
 
       try {
-        // 1. Verificar si está habilitado globalmente
         const configGlobalRef = doc(db, "configuracionGlobal/sistema");
         const configGlobalSnap = await getDoc(configGlobalRef);
-        
-        const habilitadoGlobal = configGlobalSnap.exists() 
+
+        const habilitadoGlobal = configGlobalSnap.exists()
           ? configGlobalSnap.data().habilitarRecalculoSaldos || false
           : false;
 
@@ -80,25 +89,28 @@ export default function CuentaCorrientePage() {
           return;
         }
 
-        // 2. Verificar si este negocio ya lo usó
         const configNegocioRef = doc(db, `negocios/${negocioID}/configuracion/datos`);
         const configNegocioSnap = await getDoc(configNegocioRef);
-        
+
         const yaLoUso = configNegocioSnap.exists()
           ? configNegocioSnap.data().recalculoUsado || false
           : false;
 
-        // 3. Mostrar botón solo si está habilitado y NO lo usó
         setBotonRecalculoVisible(habilitadoGlobal && !yaLoUso);
-
-      } catch (error) {
-        console.error("Error verificando configuración de recálculo:", error);
+      } catch (error: unknown) {
+        const code =
+          error && typeof error === "object" && "code" in error
+            ? String((error as { code?: string }).code)
+            : "";
+        if (code !== "permission-denied") {
+          console.warn("No se pudo verificar recálculo de saldos:", error);
+        }
         setBotonRecalculoVisible(false);
       }
     };
 
     verificarBotonRecalculo();
-  }, [negocioID]);
+  }, [negocioID, user]);
 
   const cargarCuentas = async () => {
     if (!negocioID) return;

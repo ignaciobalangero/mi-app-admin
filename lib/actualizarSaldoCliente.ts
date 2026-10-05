@@ -378,6 +378,12 @@ export type PagoDeVenta = {
   fecha: string;
   observaciones: string;
   tipoPago: string;
+  excluirDeCaja: boolean;
+  detallesPago: {
+    tipo?: string;
+    montoUSDEquivalente?: number;
+    [key: string]: unknown;
+  } | null;
 };
 
 function fechaPagoTexto(fecha: unknown): string {
@@ -406,6 +412,10 @@ export async function listarPagosDeVenta(
 
   const guardar = (id: string, ref: DocumentReference, data: DocumentData) => {
     if (!mismoClientePago(data.cliente, nombreCliente)) return;
+    const det =
+      data.detallesPago && typeof data.detallesPago === "object"
+        ? (data.detallesPago as PagoDeVenta["detallesPago"])
+        : null;
     encontrados.set(id, {
       id,
       ref,
@@ -416,6 +426,8 @@ export async function listarPagosDeVenta(
       fecha: fechaPagoTexto(data.fecha),
       observaciones: String(data.observaciones || ""),
       tipoPago: String(data.tipoPago || ""),
+      excluirDeCaja: Boolean(data.excluirDeCaja),
+      detallesPago: det,
     });
   };
 

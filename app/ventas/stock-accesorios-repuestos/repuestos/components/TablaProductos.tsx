@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import {
@@ -159,6 +160,12 @@ export default function TablaProductos({
   /** Evita hidratar portal en SSR y asegura que modales vivan bajo document.body (menos errores removeChild con React 19). */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [productoDestacadoId, setProductoDestacadoId] = useState<string | null>(null);
+  const [stockCargadoUnaVez, setStockCargadoUnaVez] = useState(false);
+  const deepLinkAplicadoRef = useRef(false);
   
   // 🔍 ESTADOS PARA FILTROS
   const [filtroProveedor, setFiltroProveedor] = useState("");
@@ -311,6 +318,7 @@ export default function TablaProductos({
       console.error("❌ Error cargando repuestos:", error);
     } finally {
       setCargando(false);
+      if (esNuevaCarga) setStockCargadoUnaVez(true);
     }
   };
 
@@ -1285,6 +1293,48 @@ export default function TablaProductos({
     }
   }, [rol?.negocioID, refrescar]);
 
+  // Deep-link desde buscador del inicio: ?id=...&q=... (después de la 1ª carga)
+  useEffect(() => {
+    if (!rol?.negocioID || !stockCargadoUnaVez || deepLinkAplicadoRef.current) return;
+    const idParam = searchParams.get("id")?.trim() || "";
+    const qParam = searchParams.get("q")?.trim() || "";
+    if (!idParam && !qParam) return;
+
+    deepLinkAplicadoRef.current = true;
+    if (qParam) setFiltroBusqueda(qParam);
+
+    const aplicar = async () => {
+      if (idParam) {
+        try {
+          const snap = await getDoc(
+            doc(db, `negocios/${rol.negocioID}/stockRepuestos/${idParam}`)
+          );
+          if (snap.exists()) {
+            const prod = { id: snap.id, ...snap.data() } as Producto;
+            setProductos((prev) => {
+              if (prev.some((p) => p.id === prod.id)) return prev;
+              return [prod, ...prev];
+            });
+            if (!qParam && prod.codigo) setFiltroBusqueda(String(prod.codigo));
+            setProductoDestacadoId(prod.id);
+            setTimeout(() => {
+              document
+                .querySelector(`[data-producto-id="${prod.id}"]`)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 350);
+            setTimeout(() => setProductoDestacadoId(null), 6000);
+          }
+        } catch (e) {
+          console.error("Error abriendo repuesto desde buscador:", e);
+        }
+      }
+
+      router.replace("/ventas/stock-accesorios-repuestos/repuestos", { scroll: false });
+    };
+
+    void aplicar();
+  }, [rol?.negocioID, stockCargadoUnaVez, searchParams, router]);
+
   useEffect(() => {
     if (rol?.negocioID) {
       const timer = setTimeout(() => {
@@ -1762,8 +1812,11 @@ export default function TablaProductos({
                   return (
                     <tr
                       key={p.id}
+                      data-producto-id={p.id}
                       className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
-                        marcado
+                        productoDestacadoId === p.id
+                          ? "bg-[#d6eaf8] ring-2 ring-inset ring-[#3498db]"
+                          : marcado
                           ? "bg-[#fdebd0] ring-1 ring-inset ring-[#f39c12]"
                           : (p.cantidad || 0) === 0
                           ? "bg-red-50"

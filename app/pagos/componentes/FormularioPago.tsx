@@ -15,6 +15,7 @@ import {
  where,
  limit,
 } from "firebase/firestore";
+import { deltasSaldoAlAnularPagos } from "@/lib/ventas/eliminarVentaHelpers";
 
 interface Props {
  negocioID: string;
@@ -388,12 +389,22 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
 
     // 4. Actualizar la lista de pagos
     const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
-    // ⭐ NUEVO: Devolver el pago al saldo del cliente (porque se eliminó)
+    // Devolver crédito al saldo (ARS→USD: equivalente en USD, no pesos brutos)
     if (pagoData) {
-      const montoARS = pagoData.moneda === "ARS" ? Number(pagoData.monto ?? 0) : 0;
-      const montoUSD = pagoData.moneda === "USD" ? Number(pagoData.montoUSD ?? pagoData.monto ?? 0) : 0;
-      await actualizarSaldoCliente(cliente, montoARS, montoUSD);
-      console.log('💳 Saldo actualizado por eliminación de pago');
+      const { ars, usd } = deltasSaldoAlAnularPagos([
+        {
+          monto: Number(pagoData.monto ?? 0) || 0,
+          montoUSD: Number(pagoData.montoUSD ?? 0) || 0,
+          moneda: String(pagoData.moneda || ""),
+          tipoPago: String(pagoData.tipoPago || ""),
+          excluirDeCaja: Boolean(pagoData.excluirDeCaja),
+          detallesPago: pagoData.detallesPago ?? null,
+        },
+      ]);
+      if (ars !== 0 || usd !== 0) {
+        await actualizarSaldoCliente(cliente, ars, usd);
+        console.log("💳 Saldo actualizado por eliminación de pago:", { ars, usd });
+      }
     }
     const pagosActualizados = snap.docs.map((doc) => ({
       id: doc.id,

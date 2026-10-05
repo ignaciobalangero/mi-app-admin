@@ -15,7 +15,7 @@ export async function descontarAccesorioDelStock(negocioID: string, codigo: stri
 
     const datos = snap.data();
     const cantidadActual = datos.cantidad || 0;
-    const nuevaCantidad = cantidadActual - cantidadVendida;
+    const nuevaCantidad = Math.max(0, cantidadActual - cantidadVendida);
 
     await updateDoc(ref, { cantidad: nuevaCantidad });
     console.log("✅ Stock actualizado en accesorios, nueva cantidad:", nuevaCantidad);

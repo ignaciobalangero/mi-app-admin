@@ -15,6 +15,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { deltasSaldoAlAnularPagos } from "@/lib/ventas/eliminarVentaHelpers";
 import type { PagoConOrigen } from "../page";
 
 interface TablaPagosProps {
@@ -164,17 +165,23 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         }
       }
 
-      // 4. ⭐ Devolver el pago al saldo del cliente (sumar porque se eliminó)
+      // 4. Devolver el crédito al saldo (ARS→USD usa equivalente en USD, no pesos brutos)
       if (pagoData && pagoData.cliente) {
-        const montoARS = pagoData.monto || 0;
-        const montoUSD = pagoData.montoUSD || 0;
-        
-        await actualizarSaldoCliente(
-          pagoData.cliente,
-          montoARS,  // Sumar (devolver) porque se eliminó el pago
-          montoUSD
-        );
-        console.log('💳 Saldo actualizado por eliminación de pago');
+        const { ars, usd } = deltasSaldoAlAnularPagos([
+          {
+            monto: Number(pagoData.monto ?? 0) || 0,
+            montoUSD: Number(pagoData.montoUSD ?? 0) || 0,
+            moneda: String(pagoData.moneda || ""),
+            tipoPago: String(pagoData.tipoPago || ""),
+            excluirDeCaja: Boolean(pagoData.excluirDeCaja),
+            detallesPago: pagoData.detallesPago ?? null,
+          },
+        ]);
+
+        if (ars !== 0 || usd !== 0) {
+          await actualizarSaldoCliente(pagoData.cliente, ars, usd);
+          console.log("💳 Saldo actualizado por eliminación de pago:", { ars, usd });
+        }
       }
   
       setMensaje("✅ Pago eliminado completamente");
@@ -256,18 +263,23 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
 
       // 3. ⭐ AJUSTAR SALDOS SEGÚN LOS CAMBIOS
 
-      // PASO 3.1: Devolver el pago original al cliente original
+      // PASO 3.1: Devolver el pago original (ARS→USD usa equivalente USD)
       const clienteOriginal = datosOriginales.cliente;
-      const montoOriginalARS = datosOriginales.monto || 0;
-      const montoOriginalUSD = datosOriginales.montoUSD || 0;
-
       if (clienteOriginal) {
-        await actualizarSaldoCliente(
-          clienteOriginal,
-          montoOriginalARS,  // Devolver (sumar) el pago original
-          montoOriginalUSD
-        );
-        console.log(`✅ Devuelto pago original a ${clienteOriginal}: ARS ${montoOriginalARS} | USD ${montoOriginalUSD}`);
+        const orig = deltasSaldoAlAnularPagos([
+          {
+            monto: Number(datosOriginales.monto ?? 0) || 0,
+            montoUSD: Number(datosOriginales.montoUSD ?? 0) || 0,
+            moneda: String(datosOriginales.moneda || ""),
+            tipoPago: String(datosOriginales.tipoPago || ""),
+            excluirDeCaja: Boolean(datosOriginales.excluirDeCaja),
+            detallesPago: datosOriginales.detallesPago ?? null,
+          },
+        ]);
+        if (orig.ars !== 0 || orig.usd !== 0) {
+          await actualizarSaldoCliente(clienteOriginal, orig.ars, orig.usd);
+          console.log(`✅ Devuelto pago original a ${clienteOriginal}:`, orig);
+        }
       }
 
       // PASO 3.2: Restar el nuevo pago al cliente nuevo (puede ser el mismo)
@@ -278,7 +290,7 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       if (clienteNuevo) {
         await actualizarSaldoCliente(
           clienteNuevo,
-          -montoNuevoARS,  // Restar el nuevo pago
+          -montoNuevoARS,
           -montoNuevoUSD
         );
         console.log(`✅ Restado nuevo pago a ${clienteNuevo}: ARS ${montoNuevoARS} | USD ${montoNuevoUSD}`);

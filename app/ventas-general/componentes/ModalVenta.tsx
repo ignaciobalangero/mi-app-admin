@@ -19,7 +19,7 @@ import {
   STORAGE_PEDIDO_TIENDA_ACTIVO,
 } from "@/lib/usePedidosTiendaPendientesVenta";
 import type { PedidoTienda } from "@/lib/tiendaClienteTypes";
-import { calcularSaldosVenta } from "@/lib/ventas/pagoDualHelpers";
+import { calcularSaldosVenta, cotizacionEfectiva } from "@/lib/ventas/pagoDualHelpers";
 import {
   normalizarVentaTelefonoPendiente,
   parsearTelefonosComoPagoLS,
@@ -140,18 +140,64 @@ export default function ModalVenta({
     formaPago: "",
     destino: "",
     observaciones: "",
+    lineas: [] as { moneda: "ARS" | "USD"; monto: number }[],
+    cotizacionPago: undefined as number | undefined,
   };
 
   const pagoInicialCompleto = pagoInicial || pagoVacio;
 
   const [pago, setPago] = useState(pagoInicialCompleto);
 
+  const sincronizarLineasConMontos = (
+    prev: any,
+    patch: { monto?: string; montoUSD?: string }
+  ) => {
+    const monto = patch.monto !== undefined ? patch.monto : prev.monto;
+    const montoUSD = patch.montoUSD !== undefined ? patch.montoUSD : prev.montoUSD;
+    const ars = Number(monto || 0);
+    const usd = Number(montoUSD || 0);
+    const lineas: { moneda: "ARS" | "USD"; monto: number }[] = [];
+    if (ars > 0) lineas.push({ moneda: "ARS", monto: ars });
+    if (usd > 0) lineas.push({ moneda: "USD", monto: usd });
+    return { monto, montoUSD, lineas };
+  };
+
   const quitarPagoARS = () => {
-    setPago((prev) => ({ ...prev, monto: "" }));
+    setPago((prev: any) => ({
+      ...prev,
+      ...sincronizarLineasConMontos(prev, { monto: "" }),
+      cotizacionPago: undefined,
+      pagoARSAplicadoAUSD: false,
+    }));
   };
 
   const quitarPagoUSD = () => {
-    setPago((prev) => ({ ...prev, montoUSD: "" }));
+    setPago((prev: any) => ({
+      ...prev,
+      ...sincronizarLineasConMontos(prev, { montoUSD: "" }),
+    }));
+  };
+
+  const quitarLineaPago = (index: number) => {
+    setPago((prev: any) => {
+      const lineasPrev: { moneda: "ARS" | "USD"; monto: number }[] = Array.isArray(prev.lineas)
+        ? prev.lineas
+        : [];
+      const lineas =
+        lineasPrev.length > 0
+          ? lineasPrev.filter((_: any, i: number) => i !== index)
+          : [];
+      const ars = lineas.filter((l) => l.moneda === "ARS").reduce((a, l) => a + l.monto, 0);
+      const usd = lineas.filter((l) => l.moneda === "USD").reduce((a, l) => a + l.monto, 0);
+      return {
+        ...prev,
+        lineas,
+        monto: ars > 0 ? String(ars) : "",
+        montoUSD: usd > 0 ? String(usd) : "",
+        cotizacionPago: ars > 0 ? prev.cotizacionPago : undefined,
+        pagoARSAplicadoAUSD: ars > 0 ? prev.pagoARSAplicadoAUSD : false,
+      };
+    });
   };
 
   const quitarTelefonoPago = (index: number) => {
@@ -411,20 +457,33 @@ export default function ModalVenta({
     .filter((t) => String(t.moneda).toUpperCase() === "USD")
     .reduce((acc, t) => acc + t.valorPago, 0);
 
+  // Cotización del cobro (modal de pago) si existe; si no, la del remito
+  const cotizacionParaSaldos = cotizacionEfectiva(
+    Number((pago as any)?.cotizacionPago) || 0,
+    cotizacionManual
+  );
+
   const {
     saldoARS,
     saldoUSD,
+    creditoUSD,
     totalAproximado: totalAproximadoARS,
     pagoAproximado: pagoAproximadoARS,
     saldoAproximado: saldoAproximadoARS,
+    ventaSoloUSD,
   } = calcularSaldosVenta({
     totalARS,
     totalUSD,
     pagoARS,
     pagoUSD,
-    cotizacion: cotizacionManual,
+    cotizacion: cotizacionParaSaldos,
     telefonosPago: telefonosPagoInput,
   });
+
+  const usdDesdePagoARS =
+    ventaSoloUSD && pagoARS > 0 && cotizacionParaSaldos > 0
+      ? pagoARS / cotizacionParaSaldos
+      : 0;
 
   console.log('💰 DEBUG CÁLCULOS DUALES:', {
     totalARS,
@@ -433,7 +492,9 @@ export default function ModalVenta({
     pagoUSD,
     saldoARS,
     saldoUSD,
-    cotizacionManual
+    cotizacionManual,
+    cotizacionPago: (pago as any)?.cotizacionPago,
+    cotizacionParaSaldos,
   });
 
   return (
@@ -936,7 +997,7 @@ export default function ModalVenta({
             </div>
 
             {/* Sección de Pagos y Descuentos - Sistema dual */}
-            {((pago.monto && pago.monto > 0) || (pago.montoUSD && pago.montoUSD > 0) || telefonosComoPago.length > 0) && (
+            {(pagoARS > 0 || pagoUSD > 0 || telefonosComoPago.length > 0) && (
               <div className="bg-gradient-to-r from-[#ecf0f1] to-white rounded-lg border border-[#3498db] p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 sm:mb-3">
                   <h3 className="text-sm sm:text-base font-semibold text-[#2c3e50] flex items-center gap-2">
@@ -952,60 +1013,82 @@ export default function ModalVenta({
                   </button>
                 </div>
                 <div className="space-y-2">
-                  {pago.monto && pago.monto > 0 && (
-                    <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
-                      <div className="flex justify-between items-center gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#27ae60] rounded-full flex items-center justify-center text-white text-xs shrink-0">💰</span>
-                          <div className="min-w-0">
-                            <p className="font-medium text-[#2c3e50] text-sm">Pago ARS en {pago.formaPago}</p>
-                            <p className="text-xs text-[#7f8c8d] truncate">{pago.observaciones}</p>
+                  {(() => {
+                    const lineasPago: { moneda: "ARS" | "USD"; monto: number }[] =
+                      Array.isArray((pago as any).lineas) && (pago as any).lineas.length > 0
+                        ? (pago as any).lineas
+                        : [
+                            ...(pagoARS > 0
+                              ? [{ moneda: "ARS" as const, monto: pagoARS }]
+                              : []),
+                            ...(pagoUSD > 0
+                              ? [{ moneda: "USD" as const, monto: pagoUSD }]
+                              : []),
+                          ];
+
+                    return lineasPago.map((linea, index) => {
+                      const esARS = linea.moneda === "ARS";
+                      const cotPago = Number((pago as any).cotizacionPago) || 0;
+                      return (
+                        <div
+                          key={`pago-linea-${index}-${linea.moneda}`}
+                          className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm"
+                        >
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-white text-xs shrink-0 ${
+                                  esARS ? "bg-[#27ae60]" : "bg-[#3498db]"
+                                }`}
+                              >
+                                {esARS ? "💰" : "💵"}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="font-medium text-[#2c3e50] text-sm">
+                                  Pago {esARS ? "ARS" : "USD"}
+                                  {pago.formaPago ? ` · ${pago.formaPago}` : ""}
+                                </p>
+                                <p className="text-xs text-[#7f8c8d] truncate">
+                                  {esARS &&
+                                  cotPago > 0 &&
+                                  totalUSD > 0 &&
+                                  totalARS === 0
+                                    ? `cot. $${cotPago.toLocaleString("es-AR")} → USD ${(
+                                        linea.monto / cotPago
+                                      ).toFixed(2)}`
+                                    : !esARS
+                                      ? `≈ $${(
+                                          linea.monto * cotizacionParaSaldos
+                                        ).toLocaleString("es-AR")} ARS`
+                                      : pago.observaciones || ""}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span
+                                className={`text-sm sm:text-base font-bold ${
+                                  esARS ? "text-[#27ae60]" : "text-[#3498db]"
+                                }`}
+                              >
+                                {esARS
+                                  ? `$${linea.monto.toLocaleString("es-AR")} ARS`
+                                  : `USD $${linea.monto.toLocaleString("es-AR")}`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => quitarLineaPago(index)}
+                                title={`Quitar pago ${linea.moneda}`}
+                                className="w-7 h-7 rounded-md bg-[#fdecea] hover:bg-[#fadbd8] text-[#e74c3c] flex items-center justify-center text-sm transition-colors"
+                              >
+                                ✕
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-sm sm:text-base font-bold text-[#27ae60]">
-                            ${Number(pago.monto).toLocaleString("es-AR")} ARS
-                          </span>
-                          <button
-                            type="button"
-                            onClick={quitarPagoARS}
-                            title="Quitar pago ARS"
-                            className="w-7 h-7 rounded-md bg-[#fdecea] hover:bg-[#fadbd8] text-[#e74c3c] flex items-center justify-center text-sm transition-colors"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {pago.montoUSD && pago.montoUSD > 0 && (
-                    <div className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
-                      <div className="flex justify-between items-center gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-[#3498db] rounded-full flex items-center justify-center text-white text-xs shrink-0">💵</span>
-                          <div className="min-w-0">
-                            <p className="font-medium text-[#2c3e50] text-sm">Pago USD en {pago.formaPago}</p>
-                            <p className="text-xs text-[#7f8c8d] truncate">{pago.observaciones} (≈ ${(pagoUSD * cotizacionManual).toLocaleString("es-AR")} ARS)</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-sm sm:text-base font-bold text-[#3498db]">
-                            USD ${Number(pago.montoUSD).toLocaleString("es-AR")}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={quitarPagoUSD}
-                            title="Quitar pago USD"
-                            className="w-7 h-7 rounded-md bg-[#fdecea] hover:bg-[#fadbd8] text-[#e74c3c] flex items-center justify-center text-sm transition-colors"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
+                      );
+                    });
+                  })()}
+
                   {telefonosComoPago.map((tel, index) => (
                     <div key={`tp-${index}`} className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm">
                       <div className="flex justify-between items-center gap-2">
@@ -1121,12 +1204,44 @@ export default function ModalVenta({
                       </div>
                     </div>
                     
-                    {(pagoUSD > 0 || descuentoTelefonoPagoUSD > 0) && (
+                    {(pagoUSD > 0 ||
+                      descuentoTelefonoPagoUSD > 0 ||
+                      (ventaSoloUSD && pagoARS > 0)) && (
                       <div className="border-t border-blue-300 pt-3 space-y-2">
                         {pagoUSD > 0 && (
                           <div className="flex justify-between text-sm text-blue-700">
-                            <span>💵 Pagado:</span>
-                            <span className="font-semibold">-USD ${pagoUSD.toLocaleString("es-AR")}</span>
+                            <span>💵 Pagado USD:</span>
+                            <span className="font-semibold">
+                              -USD ${pagoUSD.toLocaleString("es-AR")}
+                            </span>
+                          </div>
+                        )}
+
+                        {ventaSoloUSD && pagoARS > 0 && (
+                          <div className="flex justify-between text-sm text-green-700 gap-2">
+                            <span className="shrink-0">💰 Pagado en pesos:</span>
+                            <span className="font-semibold text-right">
+                              -${pagoARS.toLocaleString("es-AR")} ARS
+                              {usdDesdePagoARS > 0 && (
+                                <span className="block text-xs font-medium text-blue-700">
+                                  ≈ USD {usdDesdePagoARS.toFixed(2)}
+                                  {Number((pago as any).cotizacionPago) > 0
+                                    ? ` (cot. $${Number(
+                                        (pago as any).cotizacionPago
+                                      ).toLocaleString("es-AR")})`
+                                    : ""}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+
+                        {ventaSoloUSD && creditoUSD > 0 && pagoARS > 0 && pagoUSD > 0 && (
+                          <div className="flex justify-between text-xs text-blue-800">
+                            <span>Total aplicado a deuda USD:</span>
+                            <span className="font-semibold">
+                              USD ${creditoUSD.toFixed(2)}
+                            </span>
                           </div>
                         )}
                         
@@ -1268,12 +1383,44 @@ export default function ModalVenta({
   onGuardarPago={(nuevoPago) => {
     console.log('💰 Pago recibido del ModalPago:', nuevoPago);
 
+    const cotDelPago = Number(nuevoPago.cotizacionPago);
+    const cotizacionPagoValida =
+      Number.isFinite(cotDelPago) && cotDelPago > 0 ? cotDelPago : null;
+
+    const montoStr =
+      nuevoPago.monto != null && Number(nuevoPago.monto) > 0 ? String(nuevoPago.monto) : "";
+    const montoUSDStr =
+      nuevoPago.montoUSD != null && Number(nuevoPago.montoUSD) > 0
+        ? String(nuevoPago.montoUSD)
+        : "";
+
+    const lineasDesdeModal: { moneda: "ARS" | "USD"; monto: number }[] = Array.isArray(
+      nuevoPago.lineas
+    )
+      ? nuevoPago.lineas.filter(
+          (l: any) =>
+            (l.moneda === "ARS" || l.moneda === "USD") && Number(l.monto) > 0
+        )
+      : [];
+
+    // Si no vinieron líneas, armarlas desde los totales (pago dual)
+    const lineas =
+      lineasDesdeModal.length > 0
+        ? lineasDesdeModal
+        : [
+            ...(Number(montoStr) > 0
+              ? [{ moneda: "ARS" as const, monto: Number(montoStr) }]
+              : []),
+            ...(Number(montoUSDStr) > 0
+              ? [{ moneda: "USD" as const, monto: Number(montoUSDStr) }]
+              : []),
+          ];
+
     setPago((prev: any) => {
-      // Conservar cotización manual del pago y ARS→USD (antes se perdían al armar el objeto)
       const pagoConvertido = {
         ...prev,
-        monto: nuevoPago.monto != null ? String(nuevoPago.monto) : "",
-        montoUSD: nuevoPago.montoUSD != null ? String(nuevoPago.montoUSD) : "",
+        monto: montoStr,
+        montoUSD: montoUSDStr,
         moneda: nuevoPago.moneda || "ARS",
         formaPago: nuevoPago.formaPago || "",
         destino: nuevoPago.destino || "",
@@ -1282,10 +1429,10 @@ export default function ModalVenta({
         proveedorDestino: nuevoPago.proveedorDestino ?? null,
         destinoLibre: nuevoPago.destinoLibre ?? prev.destinoLibre,
         cotizacionPago:
-          typeof nuevoPago.cotizacionPago === "number" && nuevoPago.cotizacionPago > 0
-            ? nuevoPago.cotizacionPago
-            : prev.cotizacionPago,
+          cotizacionPagoValida ??
+          (Number(prev.cotizacionPago) > 0 ? Number(prev.cotizacionPago) : undefined),
         pagoARSAplicadoAUSD: Boolean(nuevoPago.pagoARSAplicadoAUSD),
+        lineas,
       };
       console.log('✅ Pago actualizado en ModalVenta. Nuevo estado:', pagoConvertido);
       return pagoConvertido;

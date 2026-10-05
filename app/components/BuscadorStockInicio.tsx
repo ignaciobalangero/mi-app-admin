@@ -192,7 +192,7 @@ export default function BuscadorStockInicio() {
             {catalogoCargado && resultados.length > 0 && (
               <div className="border-t border-[#ecf0f1] px-4 py-2 text-xs text-[#95a5a6] text-center">
                 {resultados.length} resultado
-                {resultados.length !== 1 ? "s" : ""} · click para ir al módulo
+                {resultados.length !== 1 ? "s" : ""} · click para abrir el producto
               </div>
             )}
           </div>

@@ -49,6 +49,19 @@ function formatearPrecio(valor: number, moneda: "ARS" | "USD"): string {
   return `${simbolo}${valor.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 }
 
+function hrefConProducto(
+  baseHref: string,
+  id: string,
+  codigo?: string,
+  nombre?: string
+): string {
+  const params = new URLSearchParams();
+  params.set("id", id);
+  const q = String(codigo || nombre || "").trim();
+  if (q) params.set("q", q);
+  return `${baseHref}?${params.toString()}`;
+}
+
 function armarItem(
   origen: OrigenStockInicio,
   id: string,
@@ -78,7 +91,7 @@ function armarItem(
     id,
     origen,
     labelOrigen: meta.label,
-    href: meta.href,
+    href: hrefConProducto(meta.href, id, campos.codigo, campos.nombre),
     codigo: campos.codigo ?? id,
     nombre: campos.nombre,
     subtitulo: campos.subtitulo ?? "",

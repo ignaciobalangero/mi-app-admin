@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import {
   collection,
+  doc,
+  getDoc,
   getDocs,
   query,
   orderBy,
@@ -82,6 +85,12 @@ export default function TablaAccesorios({
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
   const [filtroStock, setFiltroStock] = useState<"todos" | "disponible" | "bajo" | "agotado">("todos");
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [productoDestacadoId, setProductoDestacadoId] = useState<string | null>(null);
+  const [stockCargadoUnaVez, setStockCargadoUnaVez] = useState(false);
+  const deepLinkAplicadoRef = useRef(false);
   
   // 🚀 ESTADOS PARA PAGINACIÓN OPTIMIZADA
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -178,6 +187,7 @@ export default function TablaAccesorios({
       console.error("❌ Error cargando accesorios:", error);
     } finally {
       setCargando(false);
+      if (esNuevaCarga) setStockCargadoUnaVez(true);
     }
   };
 
@@ -282,6 +292,46 @@ export default function TablaAccesorios({
       cargarProductosPaginados(true);
     }
   }, [rol?.negocioID, refrescar]);
+
+  useEffect(() => {
+    if (!rol?.negocioID || !stockCargadoUnaVez || deepLinkAplicadoRef.current) return;
+    const idParam = searchParams.get("id")?.trim() || "";
+    const qParam = searchParams.get("q")?.trim() || "";
+    if (!idParam && !qParam) return;
+
+    deepLinkAplicadoRef.current = true;
+    if (qParam) setFiltroBusqueda(qParam);
+
+    const aplicar = async () => {
+      if (idParam) {
+        try {
+          const snap = await getDoc(
+            doc(db, `negocios/${rol.negocioID}/stockAccesorios/${idParam}`)
+          );
+          if (snap.exists()) {
+            const prod = { id: snap.id, ...snap.data() } as Producto;
+            setProductos((prev) => {
+              if (prev.some((p) => p.id === prod.id)) return prev;
+              return [prod, ...prev];
+            });
+            if (!qParam && prod.codigo) setFiltroBusqueda(String(prod.codigo));
+            setProductoDestacadoId(prod.id);
+            setTimeout(() => {
+              document
+                .querySelector(`[data-producto-id="${prod.id}"]`)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 350);
+            setTimeout(() => setProductoDestacadoId(null), 6000);
+          }
+        } catch (e) {
+          console.error("Error abriendo accesorio desde buscador:", e);
+        }
+      }
+      router.replace("/ventas/stock-accesorios-repuestos/accesorios", { scroll: false });
+    };
+
+    void aplicar();
+  }, [rol?.negocioID, stockCargadoUnaVez, searchParams, router]);
 
   useEffect(() => {
     if (rol?.negocioID) {
@@ -497,8 +547,11 @@ export default function TablaAccesorios({
                   return (
                     <tr
                       key={p.id}
+                      data-producto-id={p.id}
                       className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
-                        (p.cantidad || 0) === 0
+                        productoDestacadoId === p.id
+                          ? "bg-[#d6eaf8] ring-2 ring-inset ring-[#3498db]"
+                          : (p.cantidad || 0) === 0
                           ? "bg-red-50"
                           : (p.cantidad || 0) <= (p.stockBajo ?? 3)
                           ? "bg-yellow-50"

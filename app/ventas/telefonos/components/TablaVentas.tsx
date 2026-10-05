@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteDoc, doc, getDocs, collection, getDoc, addDoc } from "firebase/firestore";
+import {
+  deleteDoc,
+  doc,
+  getDocs,
+  collection,
+  getDoc,
+  updateDoc,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import { Timestamp } from "firebase/firestore";
@@ -11,6 +20,11 @@ import {
   listarPagosDeVenta,
   revertirSaldoPorEliminarVenta,
 } from "@/lib/actualizarSaldoCliente";
+import {
+  deltasSaldoAlAnularPagos,
+  reponerYBorrarGrupoVentaTelefonos,
+  resolverVentaGeneralTelefono,
+} from "@/lib/ventas/eliminarVentaHelpers";
 import {
   abrirVentanaReciboPendiente,
   imprimirReciboCompraDesdeVenta,
@@ -172,92 +186,80 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
 
   const confirmarEliminacion = async (eliminarPago: boolean) => {
     if (!ventaAEliminar) return;
-  
+
     try {
-      // 🔁 Buscamos ventaTelefonos primero
-      const ref = doc(db, `negocios/${negocioID}/ventaTelefonos/${ventaAEliminar.id}`);
-      const snap = await getDoc(ref);
-  
-      if (snap.exists()) {
-        const data = snap.data();
-  
-        // 🔄 Verificamos si el stock ya lo tiene
-        const stockSnap = await getDocs(collection(db, `negocios/${negocioID}/stockTelefonos`));
-        const yaExiste = stockSnap.docs.some((docu) => {
-          const d = docu.data();
-          return d.modelo === data.modelo && d.imei === data.imei;
-        });
-  
-        if (!yaExiste) {
-          await addDoc(collection(db, `negocios/${negocioID}/stockTelefonos`), {
-            proveedor: data.proveedor || "Sin proveedor",
-            modelo: data.modelo,
-            marca: data.marca || "",
-            estado: data.estado,
-            bateria: data.bateria,
-            color: data.color,
-            gb: data.gb ?? data.productos?.[0]?.gb ?? "",
-            imei: data.imei,
-            serial: data.serie,
-            precioCompra: data.precioCosto,
-            precioVenta: data.precioVenta,
-            moneda: data.moneda,
-            observaciones: data.observaciones || "",
-            fechaIngreso: data.fechaIngreso || new Date().toISOString().split("T")[0],
-          });
-        }
-  
-        await deleteDoc(ref);
-      }
-  
-      if (eliminarPago) {
-        const nro = String(
-          (snap.exists() ? snap.data()?.nroVenta : null) ?? ventaAEliminar.nroVenta ?? ""
-        ).trim();
-        const cliente = String(
-          (snap.exists() ? snap.data()?.cliente : null) ?? ventaAEliminar.cliente ?? ""
-        ).trim();
-        const generalRef = doc(
-          db,
-          `negocios/${negocioID}/ventasGeneral/${ventaAEliminar.id}`
+      const nroInicial = String(ventaAEliminar.nroVenta ?? "").trim();
+
+      // Repone TODOS los equipos del mismo nroVenta (multi-teléfono)
+      const grupo = await reponerYBorrarGrupoVentaTelefonos(negocioID, {
+        nroVenta: nroInicial || undefined,
+        ventaTelefonosId: ventaAEliminar.id,
+        ventaIdIgnorarPartePago: ventaAEliminar.id,
+      });
+
+      const nro = grupo.nroVenta || nroInicial;
+      const ventaGeneral = await resolverVentaGeneralTelefono(negocioID, {
+        ventaId: grupo.ventaGeneralId || ventaAEliminar.id,
+        nroVenta: nro,
+      });
+
+      const cliente = String(
+        ventaGeneral?.data?.cliente ?? ventaAEliminar.cliente ?? ""
+      ).trim();
+      const clienteId = String(ventaGeneral?.data?.clienteId ?? "").trim();
+
+      // Liberar equipos parte de pago vinculados a ventasGeneral
+      if (ventaGeneral?.id) {
+        const partePagoSnap = await getDocs(
+          query(
+            collection(db, `negocios/${negocioID}/stockTelefonos`),
+            where("ventaId", "==", ventaGeneral.id)
+          )
         );
-        const generalSnap = await getDoc(generalRef);
-        if (generalSnap.exists()) {
-          const g = generalSnap.data();
-          await revertirSaldoPorEliminarVenta(negocioID, {
-            cliente: g.cliente || cliente,
-            clienteId: g.clienteId,
-            nroVenta: g.nroVenta || nro,
-            pago: g.pago,
-            productos: g.productos,
-            total: g.total,
-            totalARS: g.totalARS,
-            totalUSD: g.totalUSD,
-            moneda: g.moneda,
-          });
+        for (const d of partePagoSnap.docs) {
+          await updateDoc(d.ref, { ventaId: null });
         }
-        const pagos = await listarPagosDeVenta(
-          negocioID,
-          nro,
-          cliente,
-          ventaAEliminar.id
-        );
-        const ars = pagos.reduce((acc, p) => acc + p.monto, 0);
-        const usd = pagos.reduce((acc, p) => acc + p.montoUSD, 0);
-        if (ars || usd) {
-          await actualizarSaldoClienteNegocioDetalle(negocioID, cliente, ars, usd);
-        }
-        await eliminarPagosAsociadosAVenta(negocioID, nro, cliente, ventaAEliminar.id);
       }
 
-      // 🧨 Eliminamos de ventasGeneral también
-      await deleteDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${ventaAEliminar.id}`));
-  
-      // 🔁 Recargamos ventas actualizadas
+      // Siempre revertir deuda (alineado con ventas-general)
+      if (ventaGeneral) {
+        const g = ventaGeneral.data;
+        await revertirSaldoPorEliminarVenta(negocioID, {
+          cliente: g.cliente || cliente,
+          clienteId: g.clienteId || clienteId,
+          nroVenta: g.nroVenta || nro,
+          pago: g.pago,
+          productos: g.productos,
+          total: g.total,
+          totalARS: g.totalARS,
+          totalUSD: g.totalUSD,
+          moneda: g.moneda,
+        });
+      }
+
+      if (eliminarPago) {
+        const ventaIdPagos = ventaGeneral?.id || ventaAEliminar.id;
+        const pagos = await listarPagosDeVenta(negocioID, nro, cliente, ventaIdPagos);
+        const { ars, usd } = deltasSaldoAlAnularPagos(pagos);
+        if (ars || usd) {
+          await actualizarSaldoClienteNegocioDetalle(
+            negocioID,
+            cliente,
+            ars,
+            usd,
+            clienteId
+          );
+        }
+        await eliminarPagosAsociadosAVenta(negocioID, nro, cliente, ventaIdPagos);
+      }
+
+      if (ventaGeneral?.id) {
+        await deleteDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${ventaGeneral.id}`));
+      }
+
       const snapshot = await getDocs(collection(db, `negocios/${negocioID}/ventaTelefonos`));
-      const nuevasVentas = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setVentas(nuevasVentas);
-  
+      setVentas(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+
       setMensaje(
         eliminarPago
           ? "✅ Venta y pago eliminados"

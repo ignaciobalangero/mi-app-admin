@@ -520,6 +520,31 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 
     if (!ventaTelefonosRef) return;
 
+    const creditoUSDTelDoc = ventaTelSoloUSD
+      ? creditoUSDVentaSoloUSD(pagoARS_TelPreview, pagoUSD_TelPreview, cotTelPreview)
+      : Math.max(0, pagoUSD_TelPreview);
+
+    const pagoTelFirestore =
+      pagoARS_TelPreview > 0 || pagoUSD_TelPreview > 0
+        ? {
+            monto: pagoARS_TelPreview > 0 ? pagoARS_TelPreview : null,
+            montoUSD: pagoUSD_TelPreview > 0 ? pagoUSD_TelPreview : null,
+            montoUSDTotalAplicado: creditoUSDTelDoc > 0 ? creditoUSDTelDoc : null,
+            moneda:
+              pagoARS_TelPreview > 0 && pagoUSD_TelPreview > 0
+                ? ("DUAL" as const)
+                : pagoUSD_TelPreview > 0
+                  ? ("USD" as const)
+                  : ("ARS" as const),
+            forma: pagoTelefono.formaPago || "Efectivo",
+            destino: "ventaTelefonos",
+            observaciones: pagoTelefono.observaciones || observaciones || "",
+            cotizacion: cotTelPreview,
+            cotizacionPago: cotTelPreview,
+            pagoARSAplicadoAUSD: ventaTelSoloUSD && pagoARS_TelPreview > 0,
+          }
+        : null;
+
     await setDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaTelefonosRef.id}`), {
       fecha,
       cliente,
@@ -541,6 +566,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       saldoPendiente: saldoAPagar,
       saldoPendienteARS: Math.max(0, saldosTel.saldoARS),
       saldoPendienteUSD: Math.max(0, saldosTel.saldoUSD),
+      ...(pagoTelFirestore ? { pago: pagoTelFirestore } : {}),
+      cotizacionUsada: cotTelPreview,
     });
 
     await actualizarSaldoCliente(cliente, totalARS, totalUSD);
@@ -717,6 +744,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 
     await actualizarStockVentaViaApi(negocioStock, productosConCodigo, "descontar");
 
+    try {
     for (const producto of productosConCodigo) {
       const codigo = String(producto.codigo ?? producto.id ?? "").trim();
       if (!codigo || !esProductoRepuestoOGeneral(producto)) continue;
@@ -777,16 +805,19 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       : "pendiente";
 
     const notasPago: string[] = [];
-    if (ventaSoloUSD && pagoARS > 0) {
-      notasPago.push(
-        notaConversionARSaUSD(
+    const obsExistente = String(pago?.observaciones || "");
+    const notaConv = ventaSoloUSD && pagoARS > 0
+      ? notaConversionARSaUSD(
           pagoARS,
           calcularUsdDesdeARS(pagoARS, cotParaConversion),
           cotParaConversion
         )
-      );
+      : "";
+    // Evitar duplicar la nota si el modal de pago ya la escribió con la misma cotización
+    if (notaConv && !obsExistente.includes("cotización $1 USD")) {
+      notasPago.push(notaConv);
     }
-    if (pago?.observaciones) notasPago.push(String(pago.observaciones));
+    if (obsExistente) notasPago.push(obsExistente);
 
     const pagoVentaFirestore = ventaSoloUSD
       ? {
@@ -807,7 +838,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
               : pago?.formaPago || "Efectivo",
           destino: pago?.destino || "",
           observaciones: notasPago.filter(Boolean).join(" • "),
-          cotizacion,
+          // Misma cotización del modal de pago (no la del sistema/remito)
+          cotizacion: cotParaConversion,
           cotizacionPago: cotParaConversion,
           pagoARSAplicadoAUSD: pagoARS > 0,
         }
@@ -824,7 +856,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
                 : pago?.formaPago || "Efectivo",
           destino: pago?.destino || "",
           observaciones: pago?.observaciones || "",
-          cotizacion,
+          cotizacion: cotParaConversion,
           cotizacionPago: cotParaConversion,
           pagoARSAplicadoAUSD: false,
         };
@@ -991,6 +1023,16 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
   }
 }
     return ventaRef.id;
+    } catch (errTrasStock) {
+      // Compensar: el stock ya se descontó; si falla el guardado, reponer
+      try {
+        await actualizarStockVentaViaApi(negocioStock, productosConCodigo, "reponer");
+        console.warn("♻️ Stock repuesto tras fallo al guardar venta");
+      } catch (reponerErr) {
+        console.error("❌ No se pudo reponer stock tras fallo al guardar:", reponerErr);
+      }
+      throw errTrasStock;
+    }
   };
 
   const guardarVenta = async () => {
@@ -1015,18 +1057,25 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
         
         // Guardar venta de teléfono
         const telefonoID = await guardarVentaTelefono(datosVentaTelefono, pagoTelefono);
+
+        // Evitar reintento duplicado: limpiar pendiente TANTO BIEN la parte teléfono
+        localStorage.removeItem("ventaTelefonoPendiente");
+        localStorage.removeItem("pagoTelefonoPendiente");
+        localStorage.removeItem("telefonosComoPago");
+        localStorage.removeItem("telefonoComoPago");
+        localStorage.removeItem("clienteDesdeTelefono");
         
-        // Si hay otros productos, agregarlos
+        // Si hay otros productos, agregarlos (si falla, la venta teléfono ya quedó; no re-crear)
         if (otrosProductos.length > 0) {
           const otrosProductosConDatos = await obtenerDatosRespetandoMonedas(otrosProductos);
           
-          // Descontar del stock
           const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
           const snap = await getDoc(configRef);
           const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
           
           await actualizarStockVentaViaApi(rol.negocioID, otrosProductosConDatos, "descontar");
 
+          try {
           for (const producto of otrosProductosConDatos) {
             const codigo = String(producto.codigo ?? producto.id ?? "").trim();
             if (!codigo || !esProductoRepuestoOGeneral(producto)) continue;
@@ -1048,7 +1097,6 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
             }
           }
           
-          // Actualizar venta existente
           const ventaExistente = await getDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${telefonoID}`));
           if (ventaExistente.exists()) {
             const datosExistentes = ventaExistente.data();
@@ -1083,45 +1131,43 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
               }))
             ];
             
-            // ✅ RECALCULAR TOTALES SEPARADOS
             const { totalARS: nuevoTotalARS, totalUSD: nuevoTotalUSD } = calcularTotalesSeparados(productosCompletos);
             const nuevaGananciaTotal = productosCompletos.reduce((acc, p) => acc + p.ganancia, 0);
             const nuevoTotalAproximado = nuevoTotalARS + (nuevoTotalUSD * cotizacion);
             
-            // ✅ CALCULAR SALDO PENDIENTE CONSIDERANDO TELÉFONO ENTREGADO
             const valorTelefonoEntregado = datosExistentes.valorTelefonoEntregado || 0;
             const saldoPendiente = nuevoTotalAproximado - valorTelefonoEntregado;
             
             await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${telefonoID}`), {
               productos: productosCompletos,
               totalARS: nuevoTotalARS,
-              totalUSD: nuevoTotalUSD,           // ✅ Totales separados
-              total: nuevoTotalAproximado,      // ✅ Total aproximado
+              totalUSD: nuevoTotalUSD,
+              total: nuevoTotalAproximado,
               gananciaTotal: nuevaGananciaTotal,
-              moneda: nuevoTotalUSD > 0 && nuevoTotalARS > 0 ? "DUAL" : nuevoTotalUSD > 0 ? "USD" : "ARS", // ✅ Detectar tipo
+              moneda: nuevoTotalUSD > 0 && nuevoTotalARS > 0 ? "DUAL" : nuevoTotalUSD > 0 ? "USD" : "ARS",
               saldoPendiente: saldoPendiente,
               estado: saldoPendiente > 0 ? "pendiente" : "pagado",
             });
 
-            // Ajustar cuenta corriente por accesorios/repuestos/stock extra agregados a la venta de teléfono
             const deltaARS = nuevoTotalARS - Number(datosExistentes.totalARS ?? 0);
             const deltaUSD = nuevoTotalUSD - Number(datosExistentes.totalUSD ?? 0);
             if (deltaARS !== 0 || deltaUSD !== 0) {
               await actualizarSaldoCliente(cliente, deltaARS, deltaUSD);
-              console.log("💳 Saldo actualizado por ítems adicionales en venta mixta:", {
-                deltaARS,
-                deltaUSD,
-              });
             }
           }
+          } catch (extrasErr) {
+            try {
+              await actualizarStockVentaViaApi(rol.negocioID, otrosProductosConDatos, "reponer");
+            } catch (reponerExtras) {
+              console.error("No se pudo reponer extras tras fallo:", reponerExtras);
+            }
+            throw new Error(
+              `La venta del teléfono se guardó, pero falló al agregar accesorios/repuestos: ${
+                extrasErr instanceof Error ? extrasErr.message : "error desconocido"
+              }. No reintentes la venta del teléfono; agregá los ítems en otra venta o editá esta.`
+            );
+          }
         }
-        
-        // Limpiar localStorage
-        localStorage.removeItem("ventaTelefonoPendiente");
-        localStorage.removeItem("pagoTelefonoPendiente");
-        localStorage.removeItem("telefonosComoPago");
-        localStorage.removeItem("telefonoComoPago");
-        localStorage.removeItem("clienteDesdeTelefono");
       } else {
         const ventaId = await guardarVentaNormal();
         await vincularPedidoTienda(ventaId);
