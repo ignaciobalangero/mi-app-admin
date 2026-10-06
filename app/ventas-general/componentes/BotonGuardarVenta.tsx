@@ -28,7 +28,7 @@ import {
   esProductoRepuestoOGeneral,
 } from "@/lib/ventasStockProducto";
 import { actualizarStockVentaViaApi } from "@/lib/actualizarStockVentaApi";
-import { actualizarSaldoClienteNegocioDetalle } from "@/lib/actualizarSaldoCliente";
+import { actualizarSaldoClienteNegocioDetalle, limpiarNombreClienteExacto } from "@/lib/actualizarSaldoCliente";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 import {
   calcularSaldosVenta,
@@ -76,6 +76,18 @@ export default function BotonGuardarVenta({
   const [guardando, setGuardando] = useState(false);
   const guardandoRef = useRef(false);
   const clienteDeBase = Boolean(String(clienteId || "").trim());
+  /** Nombre e ID canónicos resueltos al guardar (ficha Clientes). */
+  const clienteCanonRef = useRef<{ nombre: string; id: string }>({
+    nombre: "",
+    id: "",
+  });
+
+  const clienteParaGuardar = () => {
+    const canon = clienteCanonRef.current;
+    const nombre = limpiarNombreClienteExacto(canon.nombre || cliente);
+    const id = String(canon.id || clienteId || "").trim();
+    return { nombre, id };
+  };
 
   const leerMetaPedidoTienda = () => {
     const raw = localStorage.getItem(STORAGE_PEDIDO_TIENDA_ACTIVO);
@@ -116,7 +128,7 @@ export default function BotonGuardarVenta({
     }
   };
 
-  // Actualizar saldo del cliente (por ID si hay, si no por nombre exacto)
+  // Actualizar saldo del cliente (siempre por ID canónico + nombre de ficha)
   const actualizarSaldoCliente = async (
     nombreCliente: string,
     sumarARS: number,
@@ -125,19 +137,22 @@ export default function BotonGuardarVenta({
     if (!rol?.negocioID) return;
     if (sumarARS === 0 && sumarUSD === 0) return;
 
+    const { nombre, id } = clienteParaGuardar();
+    const nombreUsar = nombre || limpiarNombreClienteExacto(nombreCliente);
+
     const r = await actualizarSaldoClienteNegocioDetalle(
       rol.negocioID,
-      nombreCliente,
+      nombreUsar,
       sumarARS,
       sumarUSD,
-      clienteId
+      id || undefined
     );
     if (r.ok) return;
 
     const detalle =
       r.motivo === "no_encontrado"
-        ? `No se encontró "${nombreCliente}" en Clientes. El saldo NO se actualizó. Elegí el cliente de la lista (no lo escribas a mano) o revisá el nombre en Clientes.`
-        : `No se pudo actualizar el saldo de "${nombreCliente}": ${r.detalle || "error"}.`;
+        ? `No se encontró "${nombreUsar}" en Clientes. El saldo NO se actualizó. Elegí el cliente de la lista (no lo escribas a mano) o revisá el nombre en Clientes.`
+        : `No se pudo actualizar el saldo de "${nombreUsar}": ${r.detalle || "error"}.`;
     console.warn("[venta → saldo]", detalle, r);
     alert(`⚠️ ${detalle}`);
   };
@@ -389,6 +404,11 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
   const guardarVentaTelefono = async (datosVentaTelefono: any, pagoTelefono: any) => {
     if (!rol?.negocioID) return;
 
+    const { nombre: clienteNombre, id: clienteIdOk } = clienteParaGuardar();
+    if (!clienteNombre || !clienteIdOk) {
+      throw new Error("Cliente no vinculado a la lista de Clientes.");
+    }
+
     const { telefonos, telefonosRecibidos } = normalizarVentaTelefonoPendiente(datosVentaTelefono);
     if (telefonos.length === 0) return;
 
@@ -487,8 +507,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         fecha: tel.fecha,
         fechaIngreso: tel.fechaIngreso || tel.fecha,
         proveedor: tel.proveedor || "",
-        cliente,
-        ...(clienteId ? { clienteId } : {}),
+        cliente: clienteNombre,
+        clienteId: clienteIdOk,
         modelo: tel.modelo,
         marca: tel.marca || "",
         color: tel.color || "",
@@ -551,8 +571,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 
     await setDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${ventaTelefonosRef.id}`), {
       fecha,
-      cliente,
-      ...(clienteId ? { clienteId } : {}),
+      cliente: clienteNombre,
+      clienteId: clienteIdOk,
       productos: productosTel,
       total: totalAproximado,
       totalARS,
@@ -574,7 +594,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       cotizacionUsada: cotTelPreview,
     });
 
-    await actualizarSaldoCliente(cliente, totalARS, totalUSD);
+    await actualizarSaldoCliente(clienteNombre, totalARS, totalUSD);
 
     for (let i = 0; i < telefonosRecibidosFinal.length; i++) {
       const tr = telefonosRecibidosFinal[i];
@@ -585,7 +605,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       const stockParteDePago = {
         fechaIngreso: Timestamp.now(),
         creadoEn: Timestamp.now(),
-        proveedor: `Parte de pago - ${cliente}`,
+        proveedor: `Parte de pago - ${clienteNombre}`,
         modelo: String(tr.modelo ?? "").trim(),
         marca: String(tr.marca ?? "").trim(),
         estado: String(tr.estado ?? "usado").toLowerCase() === "nuevo" ? "nuevo" : "usado",
@@ -610,8 +630,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
         fecha,
-        cliente,
-        ...(clienteId ? { clienteId } : {}),
+        cliente: clienteNombre,
+        clienteId: clienteIdOk,
         monto: monedaTel === "ARS" ? valorPago : null,
         montoUSD: monedaTel === "USD" ? valorPago : null,
         forma: "Entrega equipo",
@@ -633,7 +653,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       });
 
       await actualizarSaldoCliente(
-        cliente,
+        clienteNombre,
         monedaTel === "ARS" ? -valorPago : 0,
         monedaTel === "USD" ? -valorPago : 0
       );
@@ -652,8 +672,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 
     const basePagoTel = {
       fecha,
-      cliente,
-      ...(clienteId ? { clienteId } : {}),
+      cliente: clienteNombre,
+      clienteId: clienteIdOk,
       destino: "ventaTelefonos",
       cotizacion: cotTel,
       observaciones: pagoTelefono.observaciones || "",
@@ -703,7 +723,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         }
       }
       if (creditoUSDTel > 0) {
-        await actualizarSaldoCliente(cliente, 0, -creditoUSDTel);
+        await actualizarSaldoCliente(clienteNombre, 0, -creditoUSDTel);
       }
     } else {
       for (const linea of lineasPagoTel) {
@@ -715,7 +735,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
             moneda: "ARS",
             forma: formaPagoDocumento(linea.formaPago, "ARS"),
           });
-          await actualizarSaldoCliente(cliente, -linea.monto, 0);
+          await actualizarSaldoCliente(clienteNombre, -linea.monto, 0);
         }
         if (linea.moneda === "USD" && linea.monto > 0) {
           await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
@@ -725,7 +745,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
             moneda: "USD",
             forma: formaPagoDocumento(linea.formaPago, "USD"),
           });
-          await actualizarSaldoCliente(cliente, 0, -linea.monto);
+          await actualizarSaldoCliente(clienteNombre, 0, -linea.monto);
         }
       }
     }
@@ -735,6 +755,11 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 
   const guardarVentaNormal = async () => {
     if (!rol?.negocioID) return;
+
+    const { nombre: clienteNombre, id: clienteIdOk } = clienteParaGuardar();
+    if (!clienteNombre || !clienteIdOk) {
+      throw new Error("Cliente no vinculado a la lista de Clientes.");
+    }
 
     console.log('🔍 Guardando venta normal con monedas separadas:', {
       productos: productos.length,
@@ -909,8 +934,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         precioVentaARS: p.moneda === "ARS" ? p.precioVenta : null,
         cotizacionUsada: p.cotizacionUsada ?? null,
       })),
-      cliente,
-      ...(clienteId ? { clienteId } : {}),
+      cliente: clienteNombre,
+      clienteId: clienteIdOk,
       fecha,
       observaciones,
       pago: pagoVentaFirestore,
@@ -934,15 +959,15 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         : {}),
     });
 // ⭐ NUEVO: Actualizar saldo del cliente por la venta
-await actualizarSaldoCliente(cliente, totalARS, totalUSD);
+await actualizarSaldoCliente(clienteNombre, totalARS, totalUSD);
 console.log('💳 Saldo actualizado por venta normal');
     // ✅ Pagos en colección `pagos`: un doc por ítem (moneda + medio) para caja correcta
     const lineasPago = resolverLineasPago(pago);
     const esPagoProveedor =
       pago?.tipoDestino === "proveedor" && Boolean(pago?.proveedorDestino);
     const basePagoDoc = {
-      cliente,
-      ...(clienteId ? { clienteId } : {}),
+      cliente: clienteNombre,
+      clienteId: clienteIdOk,
       fecha,
       destino: pago?.destino || "",
       timestamp: serverTimestamp(),
@@ -994,7 +1019,7 @@ console.log('💳 Saldo actualizado por venta normal');
         }
       }
       if (creditoUSD > 0) {
-        await actualizarSaldoCliente(cliente, 0, -creditoUSD);
+        await actualizarSaldoCliente(clienteNombre, 0, -creditoUSD);
       }
       console.log("✅ Pagos venta solo USD:", { pagoARS, pagoUSD, creditoUSD, cotParaConversion, lineasPago });
     } else {
@@ -1010,7 +1035,7 @@ console.log('💳 Saldo actualizado por venta normal');
             cotizacion: cotizacion,
           });
           console.log("✅ Pago ARS guardado:", linea.monto, linea.formaPago);
-          await actualizarSaldoCliente(cliente, -linea.monto, 0);
+          await actualizarSaldoCliente(clienteNombre, -linea.monto, 0);
         }
         if (linea.moneda === "USD" && linea.monto > 0) {
           await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
@@ -1023,7 +1048,7 @@ console.log('💳 Saldo actualizado por venta normal');
             cotizacion: cotizacion,
           });
           console.log("✅ Pago USD guardado:", linea.monto, linea.formaPago);
-          await actualizarSaldoCliente(cliente, 0, -linea.monto);
+          await actualizarSaldoCliente(clienteNombre, 0, -linea.monto);
         }
       }
     }
@@ -1044,7 +1069,7 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
       montoUSD: montoProvUSD,
       forma: pago?.formaPago || "Efectivo",
       referencia: `Pago desde venta general #${nroVenta}`,
-      notas: `Cliente: ${cliente}${pago?.observaciones ? ` - ${pago.observaciones}` : ''}`,
+      notas: `Cliente: ${clienteNombre}${pago?.observaciones ? ` - ${pago.observaciones}` : ''}`,
       fechaCreacion: new Date().toISOString(),
     };
     
@@ -1067,9 +1092,10 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
 
   const guardarVenta = async () => {
     if (!rol?.negocioID || productos.length === 0 || !cliente) return;
-    if (!String(clienteId || "").trim()) {
+    const idSel = String(clienteId || "").trim();
+    if (!idSel) {
       alert(
-        "Seleccioná el cliente de la lista antes de guardar. Así el saldo se actualiza sin confusiones de nombre."
+        "Seleccioná el cliente de la lista antes de guardar. Así la venta queda vinculada a su ficha."
       );
       return;
     }
@@ -1078,6 +1104,23 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
     setGuardando(true);
 
     try {
+      // Nombre canónico desde la ficha (evita espacios/typo del input)
+      const clienteSnap = await getDoc(
+        doc(db, `negocios/${rol.negocioID}/clientes/${idSel}`)
+      );
+      if (!clienteSnap.exists()) {
+        throw new Error(
+          "El cliente seleccionado ya no existe en Clientes. Volvé a elegirlo de la lista."
+        );
+      }
+      const nombreCanon = limpiarNombreClienteExacto(
+        String(clienteSnap.data()?.nombre ?? "")
+      );
+      if (!nombreCanon) {
+        throw new Error("El cliente no tiene un nombre válido en su ficha.");
+      }
+      clienteCanonRef.current = { nombre: nombreCanon, id: idSel };
+
       const ventaTelefonoPendiente = localStorage.getItem("ventaTelefonoPendiente");
 
       if (ventaTelefonoPendiente && desdeTelefono) {
@@ -1177,12 +1220,18 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
               moneda: nuevoTotalUSD > 0 && nuevoTotalARS > 0 ? "DUAL" : nuevoTotalUSD > 0 ? "USD" : "ARS",
               saldoPendiente: saldoPendiente,
               estado: saldoPendiente > 0 ? "pendiente" : "pagado",
+              cliente: clienteCanonRef.current.nombre,
+              clienteId: clienteCanonRef.current.id,
             });
 
             const deltaARS = nuevoTotalARS - Number(datosExistentes.totalARS ?? 0);
             const deltaUSD = nuevoTotalUSD - Number(datosExistentes.totalUSD ?? 0);
             if (deltaARS !== 0 || deltaUSD !== 0) {
-              await actualizarSaldoCliente(cliente, deltaARS, deltaUSD);
+              await actualizarSaldoCliente(
+                clienteCanonRef.current.nombre,
+                deltaARS,
+                deltaUSD
+              );
             }
           }
           } catch (extrasErr) {

@@ -6,7 +6,6 @@ import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
 import Header from "@/app/Header";
-import { nombresClienteEquivalentes } from "@/lib/actualizarSaldoCliente";
 
 interface ClienteSaldo {
   id: string;
@@ -72,7 +71,6 @@ export default function RecalcularSaldosPage() {
       for (const clienteDoc of clientesSnap.docs) {
         const datosCliente = clienteDoc.data();
         const nombreCliente = datosCliente.nombre;
-        const clienteId = clienteDoc.id;
 
         const saldoActualARS = datosCliente.saldoARS || 0;
         const saldoActualUSD = datosCliente.saldoUSD || 0;
@@ -81,18 +79,9 @@ export default function RecalcularSaldosPage() {
         let deudaTrabajosARS = 0;
         let deudaTrabajosUSD = 0;
 
-        const perteneceAlCliente = (data: {
-          cliente?: string;
-          clienteId?: string;
-        }) => {
-          const id = String(data.clienteId ?? "").trim();
-          if (id && id === clienteId) return true;
-          return nombresClienteEquivalentes(String(data.cliente ?? ""), nombreCliente);
-        };
-
         trabajosSnap.docs.forEach(doc => {
           const trabajo = doc.data();
-          if (perteneceAlCliente(trabajo) && 
+          if (trabajo.cliente === nombreCliente && 
               (trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") &&
               trabajo.precio) {
             const precio = Number(trabajo.precio);
@@ -113,7 +102,7 @@ let deudaVentasUSD = 0;
 
 ventasSnap.docs.forEach(doc => {
   const venta = doc.data();
-  if (perteneceAlCliente(venta)) {
+  if (venta.cliente === nombreCliente) {
     console.log(`🛍️ Venta: tipo=${venta.tipo}, fecha=${venta.fecha}`);
     
     // ⭐ SIEMPRE calcular desde productos si existen
@@ -160,7 +149,7 @@ let pagosUSD = 0;
 
 pagosSnap.docs.forEach(doc => {
   const pago = doc.data();
-  if (perteneceAlCliente(pago)) {
+  if (pago.cliente === nombreCliente) {
     console.log(`💳 Pago: moneda=${pago.moneda}, monto=${pago.monto}, montoUSD=${pago.montoUSD}`);
     
     // Si tiene montoUSD, es un pago USD
