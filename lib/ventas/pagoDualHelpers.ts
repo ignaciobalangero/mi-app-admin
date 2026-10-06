@@ -143,3 +143,48 @@ export type DetallesPagoFirestore =
       /** Compatibilidad con registros anteriores */
       montoARSOriginal?: number;
     };
+
+export type LineaPagoVenta = {
+  moneda: "ARS" | "USD";
+  monto: number;
+  formaPago?: string;
+};
+
+/** Normaliza líneas de pago (con medio por ítem) o cae a montos agregados legacy. */
+export function resolverLineasPago(pago: {
+  monto?: string | number | null;
+  montoUSD?: string | number | null;
+  formaPago?: string;
+  lineas?: LineaPagoVenta[];
+} | null | undefined): LineaPagoVenta[] {
+  if (!pago) return [];
+  const guardadas = Array.isArray(pago.lineas) ? pago.lineas : [];
+  const validas = guardadas
+    .filter((l) => (l.moneda === "ARS" || l.moneda === "USD") && Number(l.monto) > 0)
+    .map((l) => ({
+      moneda: l.moneda as "ARS" | "USD",
+      monto: Number(l.monto),
+      formaPago:
+        String(l.formaPago || pago.formaPago || "Efectivo").trim() || "Efectivo",
+    }));
+  if (validas.length > 0) return validas;
+
+  const ars = Number(pago.monto || 0);
+  const usd = Number(pago.montoUSD || 0);
+  const forma = String(pago.formaPago || "Efectivo").trim() || "Efectivo";
+  const out: LineaPagoVenta[] = [];
+  if (ars > 0) out.push({ moneda: "ARS", monto: ars, formaPago: forma });
+  if (usd > 0) out.push({ moneda: "USD", monto: usd, formaPago: forma });
+  return out;
+}
+
+export function formaPagoDocumento(
+  forma: string | undefined,
+  moneda: "ARS" | "USD"
+): string {
+  const base = String(forma || "Efectivo").trim() || "Efectivo";
+  if (moneda === "USD") {
+    return /\bUSD\b/i.test(base) ? base : `${base} USD`;
+  }
+  return base;
+}

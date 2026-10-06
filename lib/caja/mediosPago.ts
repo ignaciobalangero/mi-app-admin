@@ -90,7 +90,7 @@ export function normalizarMedioPago(raw: string | undefined | null): MedioPagoCa
   if (t.includes("mercado") || t.includes("modo") || t.includes("qr")) return "mercado_pago";
   if (t.includes("usd") || t.includes("dolar") || t.includes("dólar")) return "usd_billete";
   if (t.includes("efectivo") || t.includes("cash")) return "efectivo_ars";
-  if (t.includes("crypto")) return "otro";
+  if (t.includes("crypto") || t.includes("cripto")) return "otro";
   return "otro";
 }
 

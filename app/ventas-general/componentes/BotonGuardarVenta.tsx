@@ -36,7 +36,9 @@ import {
   cotizacionEfectiva,
   creditoUSDVentaSoloUSD,
   esVentaSoloUSD,
+  formaPagoDocumento,
   notaConversionARSaUSD,
+  resolverLineasPago,
   ventaEstaPagada,
 } from "@/lib/ventas/pagoDualHelpers";
 import {
@@ -542,6 +544,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
             cotizacion: cotTelPreview,
             cotizacionPago: cotTelPreview,
             pagoARSAplicadoAUSD: ventaTelSoloUSD && pagoARS_TelPreview > 0,
+            lineas: resolverLineasPago(pagoTelefono),
           }
         : null;
 
@@ -640,6 +643,10 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     const creditoUSDTel = ventaTelSoloUSD
       ? creditoUSDVentaSoloUSD(pagoARS_Tel, pagoUSD_Tel, cotTel)
       : Math.max(0, pagoUSD_Tel);
+    const lineasPagoTel = resolverLineasPago(pagoTelefono);
+    const esPagoProveedorTel =
+      pagoTelefono?.tipoDestino === "proveedor" &&
+      Boolean(pagoTelefono?.proveedorDestino);
 
     const basePagoTel = {
       fecha,
@@ -649,68 +656,74 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       observaciones: pagoTelefono.observaciones || "",
       timestamp: serverTimestamp(),
       nroVenta,
+      ...(esPagoProveedorTel
+        ? {
+            tipoDestino: "proveedor" as const,
+            proveedorDestino: pagoTelefono.proveedorDestino,
+          }
+        : {}),
     };
 
     if (ventaTelSoloUSD) {
-      if (pagoUSD_Tel > 0) {
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          ...basePagoTel,
-          monto: null,
-          montoUSD: pagoUSD_Tel,
-          moneda: "USD",
-          forma: pagoTelefono.formaPago
-            ? `${pagoTelefono.formaPago} USD`.replace(/\s+USD USD/i, " USD")
-            : "Efectivo USD",
-          detallesPago: { tipo: "USD" },
-        });
-      }
-      if (pagoARS_Tel > 0) {
-        const usdEquiv = calcularUsdDesdeARS(pagoARS_Tel, cotTel);
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          ...basePagoTel,
-          monto: pagoARS_Tel,
-          montoUSD: null,
-          moneda: "ARS",
-          forma: pagoTelefono.formaPago || "Efectivo",
-          observaciones: [
-            pagoTelefono.observaciones || "",
-            notaConversionARSaUSD(pagoARS_Tel, usdEquiv, cotTel),
-          ]
-            .filter(Boolean)
-            .join(" • "),
-          detallesPago: {
-            tipo: "ARS_a_USD",
-            montoUSDEquivalente: usdEquiv,
-            montoARSOriginal: pagoARS_Tel,
-            cotizacionPago: cotTel,
-          },
-        });
+      for (const linea of lineasPagoTel) {
+        if (linea.moneda === "USD" && linea.monto > 0) {
+          await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+            ...basePagoTel,
+            monto: null,
+            montoUSD: linea.monto,
+            moneda: "USD",
+            forma: formaPagoDocumento(linea.formaPago, "USD"),
+            detallesPago: { tipo: "USD" },
+          });
+        }
+        if (linea.moneda === "ARS" && linea.monto > 0) {
+          const usdEquiv = calcularUsdDesdeARS(linea.monto, cotTel);
+          await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+            ...basePagoTel,
+            monto: linea.monto,
+            montoUSD: null,
+            moneda: "ARS",
+            forma: formaPagoDocumento(linea.formaPago, "ARS"),
+            observaciones: [
+              pagoTelefono.observaciones || "",
+              notaConversionARSaUSD(linea.monto, usdEquiv, cotTel),
+            ]
+              .filter(Boolean)
+              .join(" • "),
+            detallesPago: {
+              tipo: "ARS_a_USD",
+              montoUSDEquivalente: usdEquiv,
+              montoARSOriginal: linea.monto,
+              cotizacionPago: cotTel,
+            },
+          });
+        }
       }
       if (creditoUSDTel > 0) {
         await actualizarSaldoCliente(cliente, 0, -creditoUSDTel);
       }
     } else {
-      if (pagoARS_Tel > 0) {
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          ...basePagoTel,
-          monto: pagoARS_Tel,
-          montoUSD: null,
-          moneda: "ARS",
-          forma: pagoTelefono.formaPago || "Efectivo",
-        });
-        await actualizarSaldoCliente(cliente, -pagoARS_Tel, 0);
-      }
-      if (pagoUSD_Tel > 0) {
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          ...basePagoTel,
-          monto: null,
-          montoUSD: pagoUSD_Tel,
-          moneda: "USD",
-          forma: pagoTelefono.formaPago
-            ? `${pagoTelefono.formaPago} USD`.replace(/\s+USD USD/i, " USD")
-            : "Efectivo USD",
-        });
-        await actualizarSaldoCliente(cliente, 0, -pagoUSD_Tel);
+      for (const linea of lineasPagoTel) {
+        if (linea.moneda === "ARS" && linea.monto > 0) {
+          await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+            ...basePagoTel,
+            monto: linea.monto,
+            montoUSD: null,
+            moneda: "ARS",
+            forma: formaPagoDocumento(linea.formaPago, "ARS"),
+          });
+          await actualizarSaldoCliente(cliente, -linea.monto, 0);
+        }
+        if (linea.moneda === "USD" && linea.monto > 0) {
+          await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+            ...basePagoTel,
+            monto: null,
+            montoUSD: linea.monto,
+            moneda: "USD",
+            forma: formaPagoDocumento(linea.formaPago, "USD"),
+          });
+          await actualizarSaldoCliente(cliente, 0, -linea.monto);
+        }
       }
     }
 
@@ -819,6 +832,8 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     }
     if (obsExistente) notasPago.push(obsExistente);
 
+    const lineasPagoEmbed = resolverLineasPago(pago);
+
     const pagoVentaFirestore = ventaSoloUSD
       ? {
           monto: pagoARS > 0 ? pagoARS : null,
@@ -832,33 +847,26 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
                 : pagoARS > 0
                   ? ("ARS" as const)
                   : ("USD" as const),
-          forma:
-            pagoUSD > 0 && pagoARS > 0
-              ? "Efectivo ARS + USD"
-              : pago?.formaPago || "Efectivo",
+          forma: pago?.formaPago || "Efectivo",
           destino: pago?.destino || "",
           observaciones: notasPago.filter(Boolean).join(" • "),
-          // Misma cotización del modal de pago (no la del sistema/remito)
           cotizacion: cotParaConversion,
           cotizacionPago: cotParaConversion,
           pagoARSAplicadoAUSD: pagoARS > 0,
+          lineas: lineasPagoEmbed,
         }
       : {
           monto: pagoARS || null,
           montoUSD: pagoUSD || null,
           moneda:
             pagoUSD > 0 && pagoARS > 0 ? "DUAL" : pagoUSD > 0 ? "USD" : "ARS",
-          forma:
-            pagoUSD > 0 && pagoARS > 0
-              ? "Efectivo ARS + USD"
-              : pagoUSD > 0
-                ? "Efectivo USD"
-                : pago?.formaPago || "Efectivo",
+          forma: pago?.formaPago || "Efectivo",
           destino: pago?.destino || "",
           observaciones: pago?.observaciones || "",
           cotizacion: cotParaConversion,
           cotizacionPago: cotParaConversion,
           pagoARSAplicadoAUSD: false,
+          lineas: lineasPagoEmbed,
         };
 
     // Crear la venta
@@ -925,76 +933,94 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 // ⭐ NUEVO: Actualizar saldo del cliente por la venta
 await actualizarSaldoCliente(cliente, totalARS, totalUSD);
 console.log('💳 Saldo actualizado por venta normal');
-    // ✅ Pagos en colección `pagos`: efectivo físico por moneda; venta solo USD resta crédito total en USD
+    // ✅ Pagos en colección `pagos`: un doc por ítem (moneda + medio) para caja correcta
+    const lineasPago = resolverLineasPago(pago);
+    const esPagoProveedor =
+      pago?.tipoDestino === "proveedor" && Boolean(pago?.proveedorDestino);
     const basePagoDoc = {
       cliente,
       fecha,
-      forma: pago?.formaPago || "Efectivo",
       destino: pago?.destino || "",
       timestamp: serverTimestamp(),
       nroVenta,
+      ...(esPagoProveedor
+        ? {
+            tipoDestino: "proveedor" as const,
+            proveedorDestino: pago.proveedorDestino,
+          }
+        : {}),
     };
 
     if (ventaSoloUSD) {
-      if (pagoUSD > 0) {
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          ...basePagoDoc,
-          monto: null,
-          montoUSD: pagoUSD,
-          moneda: "USD",
-          cotizacion: cotParaConversion,
-          observaciones: pago?.observaciones || "",
-          detallesPago: { tipo: "USD" },
-        });
-      }
-      if (pagoARS > 0) {
-        const usdEquiv = calcularUsdDesdeARS(pagoARS, cotParaConversion);
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          ...basePagoDoc,
-          monto: pagoARS,
-          montoUSD: null,
-          moneda: "ARS",
-          cotizacion: cotParaConversion,
-          observaciones: notasPago.filter(Boolean).join(" • "),
-          detallesPago: {
-            tipo: "ARS_a_USD",
-            montoUSDEquivalente: usdEquiv,
-            montoARSOriginal: pagoARS,
-            cotizacionPago: cotParaConversion,
-          },
-        });
+      for (const linea of lineasPago) {
+        if (linea.moneda === "USD" && linea.monto > 0) {
+          await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+            ...basePagoDoc,
+            monto: null,
+            montoUSD: linea.monto,
+            moneda: "USD",
+            forma: formaPagoDocumento(linea.formaPago, "USD"),
+            cotizacion: cotParaConversion,
+            observaciones: pago?.observaciones || "",
+            detallesPago: { tipo: "USD" },
+          });
+        }
+        if (linea.moneda === "ARS" && linea.monto > 0) {
+          const usdEquiv = calcularUsdDesdeARS(linea.monto, cotParaConversion);
+          await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+            ...basePagoDoc,
+            monto: linea.monto,
+            montoUSD: null,
+            moneda: "ARS",
+            forma: formaPagoDocumento(linea.formaPago, "ARS"),
+            cotizacion: cotParaConversion,
+            observaciones: [
+              pago?.observaciones || "",
+              notaConversionARSaUSD(linea.monto, usdEquiv, cotParaConversion),
+            ]
+              .filter(Boolean)
+              .join(" • "),
+            detallesPago: {
+              tipo: "ARS_a_USD",
+              montoUSDEquivalente: usdEquiv,
+              montoARSOriginal: linea.monto,
+              cotizacionPago: cotParaConversion,
+            },
+          });
+        }
       }
       if (creditoUSD > 0) {
         await actualizarSaldoCliente(cliente, 0, -creditoUSD);
       }
-      console.log("✅ Pagos venta solo USD:", { pagoARS, pagoUSD, creditoUSD, cotParaConversion });
+      console.log("✅ Pagos venta solo USD:", { pagoARS, pagoUSD, creditoUSD, cotParaConversion, lineasPago });
     } else {
-      if (pagoARS > 0) {
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          ...basePagoDoc,
-          monto: pagoARS,
-          montoUSD: null,
-          moneda: "ARS",
-          observaciones: pago?.observaciones || "",
-          cotizacion: cotizacion,
-        });
-        console.log("✅ Pago ARS guardado:", pagoARS);
-        await actualizarSaldoCliente(cliente, -pagoARS, 0);
-      }
-      if (pagoUSD > 0) {
-        await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          ...basePagoDoc,
-          monto: null,
-          montoUSD: pagoUSD,
-          moneda: "USD",
-          forma: pago?.formaPago
-            ? `${pago.formaPago} USD`.replace(/\s+USD USD/i, " USD")
-            : "Efectivo USD",
-          observaciones: pago?.observaciones || "",
-          cotizacion: cotizacion,
-        });
-        console.log("✅ Pago USD guardado:", pagoUSD);
-        await actualizarSaldoCliente(cliente, 0, -pagoUSD);
+      for (const linea of lineasPago) {
+        if (linea.moneda === "ARS" && linea.monto > 0) {
+          await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+            ...basePagoDoc,
+            monto: linea.monto,
+            montoUSD: null,
+            moneda: "ARS",
+            forma: formaPagoDocumento(linea.formaPago, "ARS"),
+            observaciones: pago?.observaciones || "",
+            cotizacion: cotizacion,
+          });
+          console.log("✅ Pago ARS guardado:", linea.monto, linea.formaPago);
+          await actualizarSaldoCliente(cliente, -linea.monto, 0);
+        }
+        if (linea.moneda === "USD" && linea.monto > 0) {
+          await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
+            ...basePagoDoc,
+            monto: null,
+            montoUSD: linea.monto,
+            moneda: "USD",
+            forma: formaPagoDocumento(linea.formaPago, "USD"),
+            observaciones: pago?.observaciones || "",
+            cotizacion: cotizacion,
+          });
+          console.log("✅ Pago USD guardado:", linea.monto, linea.formaPago);
+          await actualizarSaldoCliente(cliente, 0, -linea.monto);
+        }
       }
     }
     // ✅ 4. SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores

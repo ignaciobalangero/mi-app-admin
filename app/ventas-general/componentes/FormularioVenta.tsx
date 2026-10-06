@@ -18,6 +18,7 @@ import { descontarAccesorioDelStock } from "./descontarAccesorioDelStock"; // aj
 import { useRouter } from "next/navigation";
 import { descontarRepuestoDelStock } from "./descontarRepuestoDelStock";
 import { Combobox } from "@headlessui/react";
+import { formatearFechaCaja } from "@/lib/caja/fechaCaja";
 
 interface ProductoVenta {
   categoria: "Teléfono" | "Accesorio" | "Repuesto";
@@ -165,15 +166,20 @@ export default function FormularioVenta({ onVentaGuardada, cerrarModal }: Props)
   
       // Guardar pago si lo hay
       if (pago.monto && Number(pago.monto) > 0) {
+        const fechaPagoCaja = formatearFechaCaja(new Date());
+        const montoNum = Number(pago.monto);
+        const esUSD = String(pago.moneda || "ARS").toUpperCase() === "USD";
         await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
-          fecha,
+          fecha: fechaPagoCaja,
           cliente,
-          monto: Number(pago.monto),
-          moneda: pago.moneda,
-          forma: pago.formaPago,
-          destino: pago.destino,
-          observaciones: pago.observaciones,
+          monto: esUSD ? null : montoNum,
+          montoUSD: esUSD ? montoNum : null,
+          moneda: pago.moneda || "ARS",
+          forma: pago.formaPago || "Efectivo",
+          destino: pago.destino || "",
+          observaciones: pago.observaciones || "",
           origen: "ventasGeneral",
+          ventaId: ventaRef.id,
           idVenta: ventaRef.id,
           timestamp: serverTimestamp(),
         });

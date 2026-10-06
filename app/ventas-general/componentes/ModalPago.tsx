@@ -13,9 +13,16 @@ import {
 
 type MonedaLinea = "ARS" | "USD";
 
-type LineaPago = {
-  id: string;
+export type ItemPagoLinea = {
+  moneda: MonedaLinea;
+  monto: number;
+  formaPago: string;
+};
+
+type BorradorPago = {
   moneda: MonedaLinea | "";
+  formaPago: string;
+  formaLibre: string;
   monto: string;
 };
 
@@ -32,7 +39,7 @@ interface Props {
     proveedorSeleccionado?: string;
     destinoLibre?: string;
     cotizacionPago?: number;
-    lineas?: { moneda: "ARS" | "USD"; monto: number }[];
+    lineas?: ItemPagoLinea[];
   } | null;
   totalesVenta?: {
     totalARS: number;
@@ -60,26 +67,51 @@ interface Props {
   guardadoConExito: boolean;
 }
 
-function crearLinea(id: string, moneda: MonedaLinea | "" = "", monto = ""): LineaPago {
-  return { id, moneda, monto };
-}
+const FORMAS_PAGO = [
+  "Efectivo",
+  "Transferencia",
+  "Tarjeta",
+  "MercadoPago",
+  "Cripto",
+  "Otros",
+] as const;
 
-function lineasDesdePago(pago: Props["pago"], idPrefix: string): LineaPago[] {
-  const guardadas = Array.isArray((pago as any)?.lineas) ? (pago as any).lineas : [];
+function itemsDesdePago(pago: Props["pago"]): ItemPagoLinea[] {
+  const guardadas = Array.isArray(pago?.lineas) ? pago!.lineas : [];
   if (guardadas.length > 0) {
     return guardadas
-      .filter((l: any) => (l.moneda === "ARS" || l.moneda === "USD") && Number(l.monto) > 0)
-      .map((l: any, i: number) =>
-        crearLinea(`${idPrefix}-g-${i}`, l.moneda, String(l.monto))
-      );
+      .filter(
+        (l) =>
+          (l.moneda === "ARS" || l.moneda === "USD") &&
+          Number(l.monto) > 0
+      )
+      .map((l) => ({
+        moneda: l.moneda,
+        monto: Number(l.monto) || 0,
+        formaPago: String(l.formaPago || pago?.formaPago || "Efectivo").trim() || "Efectivo",
+      }));
   }
   const ars = parseFloat(pago?.monto || "") || 0;
   const usd = parseFloat(pago?.montoUSD || "") || 0;
-  const lineas: LineaPago[] = [];
-  if (ars > 0) lineas.push(crearLinea(`${idPrefix}-ars`, "ARS", String(pago?.monto || "")));
-  if (usd > 0) lineas.push(crearLinea(`${idPrefix}-usd`, "USD", String(pago?.montoUSD || "")));
-  if (lineas.length === 0) lineas.push(crearLinea(`${idPrefix}-1`));
-  return lineas;
+  const forma = String(pago?.formaPago || "Efectivo").trim() || "Efectivo";
+  const items: ItemPagoLinea[] = [];
+  if (ars > 0) items.push({ moneda: "ARS", monto: ars, formaPago: forma });
+  if (usd > 0) items.push({ moneda: "USD", monto: usd, formaPago: forma });
+  return items;
+}
+
+const borradorVacio = (): BorradorPago => ({
+  moneda: "",
+  formaPago: "",
+  formaLibre: "",
+  monto: "",
+});
+
+function formaEfectiva(b: BorradorPago): string {
+  if (b.formaPago === "Otros") {
+    return b.formaLibre.trim() || "Otros";
+  }
+  return b.formaPago.trim();
 }
 
 export default function ModalPago({
@@ -96,7 +128,9 @@ export default function ModalPago({
 }: Props) {
   const idPrefix = useId();
   const [proveedores, setProveedores] = useState<any[]>([]);
-  const [lineas, setLineas] = useState<LineaPago[]>(() => lineasDesdePago(pago, idPrefix));
+  const [items, setItems] = useState<ItemPagoLinea[]>(() => itemsDesdePago(pago));
+  const [borrador, setBorrador] = useState<BorradorPago>(borradorVacio);
+  const [editandoIndex, setEditandoIndex] = useState<number | null>(null);
 
   const cotizacionInicial = () => {
     const delPago = Number(pago?.cotizacionPago);
@@ -108,7 +142,9 @@ export default function ModalPago({
 
   useEffect(() => {
     if (!mostrar) return;
-    setLineas(lineasDesdePago(pago, `${idPrefix}-${Date.now()}`));
+    setItems(itemsDesdePago(pago));
+    setBorrador(borradorVacio());
+    setEditandoIndex(null);
     const delPago = Number(pago?.cotizacionPago);
     if (Number.isFinite(delPago) && delPago > 0) {
       setCotizacionPago(delPago);
@@ -151,14 +187,14 @@ export default function ModalPago({
     destinoLibre: pago.destinoLibre || "",
   };
 
-  const pagoARS = lineas
+  const pagoARS = items
     .filter((l) => l.moneda === "ARS")
-    .reduce((acc, l) => acc + (parseFloat(l.monto) || 0), 0);
-  const pagoUSD = lineas
+    .reduce((acc, l) => acc + (Number(l.monto) || 0), 0);
+  const pagoUSD = items
     .filter((l) => l.moneda === "USD")
-    .reduce((acc, l) => acc + (parseFloat(l.monto) || 0), 0);
+    .reduce((acc, l) => acc + (Number(l.monto) || 0), 0);
   const cotizacionUsada = cotizacionPago > 0 ? cotizacionPago : totalesVenta?.cotizacion || 1000;
-  const hayLineaPesos = lineas.some((l) => l.moneda === "ARS");
+  const hayPesos = items.some((l) => l.moneda === "ARS") || borrador.moneda === "ARS";
 
   const ventaSoloUSD = totalesVenta
     ? esVentaSoloUSD(totalesVenta.totalARS, totalesVenta.totalUSD)
@@ -215,68 +251,126 @@ export default function ModalPago({
     return pagoSeguro.destinoLibre;
   };
 
-  const actualizarLinea = (id: string, patch: Partial<LineaPago>) => {
-    setLineas((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-  };
-
-  const agregarLinea = () => {
-    setLineas((prev) => [...prev, crearLinea(`${idPrefix}-${Date.now()}-${prev.length}`)]);
-  };
-
-  const quitarLinea = (id: string) => {
-    setLineas((prev) => {
-      if (prev.length <= 1) return [crearLinea(`${idPrefix}-reset`)];
-      return prev.filter((l) => l.id !== id);
-    });
-  };
-
   const handleCampo = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     handlePagoChange(e);
   };
 
+  const montoBorrador = parseFloat(borrador.monto) || 0;
+  const formaBorrador = formaEfectiva(borrador);
+  const borradorCompleto =
+    (borrador.moneda === "ARS" || borrador.moneda === "USD") &&
+    formaBorrador !== "" &&
+    montoBorrador > 0;
+
+  const preguardarBorrador = () => {
+    if (!borradorCompleto || !borrador.moneda) return;
+    const nuevo: ItemPagoLinea = {
+      moneda: borrador.moneda,
+      monto: montoBorrador,
+      formaPago: formaBorrador,
+    };
+    if (editandoIndex != null) {
+      setItems((prev) => prev.map((it, i) => (i === editandoIndex ? nuevo : it)));
+      setEditandoIndex(null);
+    } else {
+      setItems((prev) => [...prev, nuevo]);
+    }
+    setBorrador(borradorVacio());
+  };
+
+  const editarItem = (index: number) => {
+    const it = items[index];
+    if (!it) return;
+    const esPreset = (FORMAS_PAGO as readonly string[]).includes(it.formaPago);
+    setBorrador({
+      moneda: it.moneda,
+      formaPago: esPreset ? it.formaPago : "Otros",
+      formaLibre: esPreset ? "" : it.formaPago,
+      monto: String(it.monto),
+    });
+    setEditandoIndex(index);
+  };
+
+  const quitarItem = (index: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+    if (editandoIndex === index) {
+      setEditandoIndex(null);
+      setBorrador(borradorVacio());
+    } else if (editandoIndex != null && editandoIndex > index) {
+      setEditandoIndex(editandoIndex - 1);
+    }
+  };
+
+  const iniciarOtroPago = () => {
+    setEditandoIndex(null);
+    setBorrador(borradorVacio());
+  };
+
   const handleGuardarPago = () => {
-    const usdEquiv = ventaSoloUSD ? calcularUsdDesdeARS(pagoARS, cotizacionUsada) : 0;
+    // Si hay borrador completo sin preguardar, lo incluye
+    let itemsFinal = [...items];
+    if (borradorCompleto && borrador.moneda) {
+      const nuevo: ItemPagoLinea = {
+        moneda: borrador.moneda,
+        monto: montoBorrador,
+        formaPago: formaBorrador,
+      };
+      if (editandoIndex != null) {
+        itemsFinal = itemsFinal.map((it, i) => (i === editandoIndex ? nuevo : it));
+      } else {
+        itemsFinal = [...itemsFinal, nuevo];
+      }
+    }
+
+    const ars = itemsFinal
+      .filter((l) => l.moneda === "ARS")
+      .reduce((a, l) => a + l.monto, 0);
+    const usd = itemsFinal
+      .filter((l) => l.moneda === "USD")
+      .reduce((a, l) => a + l.monto, 0);
+
+    if (ars <= 0 && usd <= 0) return;
+
+    const usdEquiv = ventaSoloUSD ? calcularUsdDesdeARS(ars, cotizacionUsada) : 0;
     const creditoTotalUSD = ventaSoloUSD
-      ? creditoUSDVentaSoloUSD(pagoARS, pagoUSD, cotizacionUsada)
-      : pagoUSD;
+      ? creditoUSDVentaSoloUSD(ars, usd, cotizacionUsada)
+      : usd;
     const notaConversion =
-      ventaSoloUSD && pagoARS > 0 && cotizacionUsada > 0
-        ? notaConversionARSaUSD(pagoARS, usdEquiv, cotizacionUsada)
+      ventaSoloUSD && ars > 0 && cotizacionUsada > 0
+        ? notaConversionARSaUSD(ars, usdEquiv, cotizacionUsada)
         : "";
 
-    const lineasGuardadas = lineas
-      .filter((l) => l.moneda && (parseFloat(l.monto) || 0) > 0)
-      .map((l) => ({
-        moneda: l.moneda as MonedaLinea,
-        monto: parseFloat(l.monto) || 0,
-      }));
+    const formasUnicas = Array.from(
+      new Set(itemsFinal.map((l) => l.formaPago).filter(Boolean))
+    );
 
     const pagoFormateado = {
-      monto: pagoARS > 0 ? String(pagoARS) : "",
-      montoUSD: pagoUSD > 0 ? String(pagoUSD) : "",
+      monto: ars > 0 ? String(ars) : "",
+      montoUSD: usd > 0 ? String(usd) : "",
       moneda:
-        pagoUSD > 0 && pagoARS > 0
+        usd > 0 && ars > 0
           ? "DUAL"
-          : pagoUSD > 0 || (ventaSoloUSD && creditoTotalUSD > 0)
+          : usd > 0 || (ventaSoloUSD && creditoTotalUSD > 0)
             ? "USD"
             : "ARS",
-      formaPago: pagoSeguro.formaPago,
+      formaPago: formasUnicas.join(" + ") || "Efectivo",
       destino: obtenerDestino(),
       tipoDestino: pagoSeguro.tipoDestino,
       proveedorDestino:
         pagoSeguro.tipoDestino === "proveedor" ? pagoSeguro.proveedorSeleccionado : null,
       observaciones: [pagoSeguro.observaciones, notaConversion].filter(Boolean).join(" • "),
       cotizacionPago: cotizacionUsada,
-      pagoARSAplicadoAUSD: ventaSoloUSD && pagoARS > 0,
-      lineas: lineasGuardadas,
+      pagoARSAplicadoAUSD: ventaSoloUSD && ars > 0,
+      lineas: itemsFinal,
     };
 
     onGuardarPago(pagoFormateado);
   };
 
-  const puedeGuardar = (pagoARS > 0 || pagoUSD > 0) && !guardadoConExito;
+  const puedeGuardar =
+    (items.length > 0 || borradorCompleto) && !guardadoConExito;
 
   return (
     <div className="fixed inset-0 z-[10001] bg-black/30 flex items-center justify-center p-2 sm:p-4">
@@ -289,12 +383,12 @@ export default function ModalPago({
             <div>
               <h3 className="text-lg sm:text-2xl font-bold">Registrar pago</h3>
               <p className="text-green-100 text-xs sm:text-sm">
-                Elegí la moneda y cargá el monto
+                Cada cobro con su moneda y medio (caja)
               </p>
             </div>
           </div>
 
-          {totalesVenta && hayLineaPesos && (
+          {totalesVenta && hayPesos && (
             <div className="hidden sm:flex items-center gap-2 bg-white/20 rounded-lg px-3 py-2">
               <span className="text-green-100 text-xs">💱</span>
               <span className="text-white text-sm font-medium">
@@ -485,151 +579,247 @@ export default function ModalPago({
             </div>
           )}
 
-          {/* Líneas de pago: elegir moneda → monto */}
-          <div className="bg-white rounded-xl border-2 border-[#3498db] p-4 sm:p-6 shadow-sm space-y-4">
-            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] flex items-center gap-2 sm:gap-3">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs sm:text-sm">💰</span>
-              </div>
-              <span className="text-sm sm:text-base">Pagos</span>
-            </h4>
-
-            <div className="space-y-3">
-              {lineas.map((linea, index) => {
-                const montoNum = parseFloat(linea.monto) || 0;
-                return (
-                  <div
-                    key={linea.id}
-                    className="rounded-xl border-2 border-[#ecf0f1] bg-[#f8f9fa] p-3 sm:p-4 space-y-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-[#2c3e50]">
-                        Pago {index + 1}
-                      </span>
-                      {lineas.length > 1 && (
+          {/* Lista de pagos preguardados */}
+          {items.length > 0 && (
+            <div className="bg-white rounded-xl border-2 border-[#27ae60] p-4 sm:p-5 shadow-sm space-y-3">
+              <h4 className="text-sm sm:text-base font-semibold text-[#2c3e50] flex items-center gap-2">
+                <span className="w-7 h-7 bg-[#27ae60] rounded-lg flex items-center justify-center text-white text-xs">
+                  ✓
+                </span>
+                Pagos en este cobro
+              </h4>
+              <div className="space-y-2">
+                {items.map((it, index) => {
+                  const esARS = it.moneda === "ARS";
+                  const editando = editandoIndex === index;
+                  return (
+                    <div
+                      key={`${idPrefix}-item-${index}`}
+                      className={`rounded-xl border-2 p-3 flex flex-wrap items-center justify-between gap-2 ${
+                        editando
+                          ? "border-[#f39c12] bg-[#fef9e7]"
+                          : "border-[#ecf0f1] bg-[#f8f9fa]"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-[#2c3e50] text-sm">
+                          {esARS ? "Pesos (ARS)" : "Dólares (USD)"} · {it.formaPago}
+                        </p>
+                        <p className="text-xs text-[#7f8c8d]">
+                          {esARS && ventaSoloUSD && cotizacionUsada > 0
+                            ? `≈ USD ${(it.monto / cotizacionUsada).toFixed(2)} a deuda`
+                            : esARS
+                              ? "Ingreso físico en ARS"
+                              : "Ingreso físico en USD"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`font-bold text-sm ${
+                            esARS ? "text-[#27ae60]" : "text-[#3498db]"
+                          }`}
+                        >
+                          {esARS
+                            ? `$${it.monto.toLocaleString("es-AR")} ARS`
+                            : `USD $${it.monto.toLocaleString("es-AR")}`}
+                        </span>
                         <button
                           type="button"
-                          onClick={() => quitarLinea(linea.id)}
-                          className="text-xs text-[#e74c3c] hover:text-[#c0392b] font-medium"
+                          onClick={() => editarItem(index)}
+                          className="px-2 py-1 rounded-lg text-xs font-semibold bg-[#3498db]/10 text-[#2980b9] hover:bg-[#3498db]/20"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => quitarItem(index)}
+                          className="px-2 py-1 rounded-lg text-xs font-semibold bg-[#e74c3c]/10 text-[#c0392b] hover:bg-[#e74c3c]/20"
                         >
                           Quitar
                         </button>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-[#2c3e50] mb-2">
-                        Moneda
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => actualizarLinea(linea.id, { moneda: "ARS" })}
-                          className={`px-3 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
-                            linea.moneda === "ARS"
-                              ? "bg-green-600 border-green-600 text-white"
-                              : "bg-white border-[#bdc3c7] text-[#2c3e50] hover:border-green-500"
-                          }`}
-                        >
-                          Pesos (ARS)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => actualizarLinea(linea.id, { moneda: "USD" })}
-                          className={`px-3 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
-                            linea.moneda === "USD"
-                              ? "bg-blue-600 border-blue-600 text-white"
-                              : "bg-white border-[#bdc3c7] text-[#2c3e50] hover:border-blue-500"
-                          }`}
-                        >
-                          Dólares (USD)
-                        </button>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-                    {linea.moneda ? (
-                      <div className="space-y-2">
-                        <label className="block text-xs font-semibold text-[#2c3e50]">
-                          Monto en {linea.moneda === "ARS" ? "pesos" : "dólares"}
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={linea.monto}
-                          onChange={(e) => actualizarLinea(linea.id, { monto: e.target.value })}
-                          placeholder={linea.moneda === "ARS" ? "0" : "0.00"}
-                          className={`w-full p-3 border-2 rounded-lg bg-white focus:ring-2 transition-all text-base sm:text-lg font-medium text-[#2c3e50] placeholder-[#7f8c8d] ${
-                            linea.moneda === "ARS"
-                              ? "border-green-300 focus:ring-green-500 focus:border-green-500"
-                              : "border-blue-300 focus:ring-blue-500 focus:border-blue-500"
-                          }`}
-                        />
-                        {montoNum > 0 && (
-                          <div
-                            className={`text-xs font-medium ${
-                              linea.moneda === "ARS" ? "text-green-600" : "text-blue-600"
-                            }`}
-                          >
-                            {linea.moneda === "ARS"
-                              ? `ARS $${montoNum.toLocaleString("es-AR")}`
-                              : `USD $${montoNum.toLocaleString("es-AR", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}`}
-                          </div>
-                        )}
-
-                        {linea.moneda === "ARS" &&
-                          totalesVenta &&
-                          totalesVenta.totalUSD > 0 &&
-                          index === lineas.findIndex((l) => l.moneda === "ARS") && (
-                            <div className="mt-1 bg-[#f1f5ff] border border-blue-200 rounded-lg p-3 space-y-2">
-                              {ventaSoloUSD && (
-                                <p className="text-xs text-blue-900 font-medium">
-                                  Venta en USD: lo que cargues en pesos se imputa a la deuda en USD
-                                  según la cotización de abajo.
-                                </p>
-                              )}
-                              <div>
-                                <div className="text-xs text-blue-800 font-medium mb-1">
-                                  Cotización {ventaSoloUSD ? "para este pago" : "para equivalencias"}
-                                </div>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={cotizacionPago}
-                                  onChange={(e) => setCotizacionPago(Number(e.target.value))}
-                                  className="w-full p-2 border-2 border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm font-medium text-[#2c3e50]"
-                                  placeholder="Ej: 1430"
-                                />
-                              </div>
-                              {pagoARS > 0 && cotizacionUsada > 0 && (
-                                <div className="text-xs text-blue-800">
-                                  ≈ USD {(pagoARS / cotizacionUsada).toFixed(2)} al cambio $
-                                  {cotizacionUsada.toLocaleString()}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-[#7f8c8d]">
-                        Seleccioná pesos o dólares para habilitar el monto.
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+          {/* Borrador: un pago a la vez */}
+          <div className="bg-white rounded-xl border-2 border-[#3498db] p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] flex items-center gap-2 sm:gap-3">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#3498db] rounded-lg flex items-center justify-center">
+                  <span className="text-white text-xs sm:text-sm">💰</span>
+                </div>
+                <span className="text-sm sm:text-base">
+                  {editandoIndex != null ? `Editando pago ${editandoIndex + 1}` : "Nuevo pago"}
+                </span>
+              </h4>
+              {(items.length > 0 || editandoIndex != null) && (
+                <button
+                  type="button"
+                  onClick={iniciarOtroPago}
+                  className="text-xs sm:text-sm font-semibold text-[#2980b9] hover:underline"
+                >
+                  + Agregar otro pago
+                </button>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={agregarLinea}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-lg border-2 border-dashed border-[#3498db] text-[#2980b9] hover:bg-blue-50 font-semibold text-sm transition-colors"
-            >
-              + Agregar pago
-            </button>
+            <div>
+              <label className="block text-xs font-semibold text-[#2c3e50] mb-2">1. Moneda</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBorrador((b) => ({
+                      ...b,
+                      moneda: "ARS",
+                      formaPago: b.formaPago,
+                    }))
+                  }
+                  className={`px-3 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
+                    borrador.moneda === "ARS"
+                      ? "bg-green-600 border-green-600 text-white"
+                      : "bg-white border-[#bdc3c7] text-[#2c3e50] hover:border-green-500"
+                  }`}
+                >
+                  Pesos (ARS)
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBorrador((b) => ({
+                      ...b,
+                      moneda: "USD",
+                      formaPago: b.formaPago,
+                    }))
+                  }
+                  className={`px-3 py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
+                    borrador.moneda === "USD"
+                      ? "bg-blue-600 border-blue-600 text-white"
+                      : "bg-white border-[#bdc3c7] text-[#2c3e50] hover:border-blue-500"
+                  }`}
+                >
+                  Dólares (USD)
+                </button>
+              </div>
+            </div>
+
+            {borrador.moneda ? (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-[#2c3e50] mb-2">
+                    2. Medio de pago
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {FORMAS_PAGO.map((forma) => (
+                      <button
+                        key={forma}
+                        type="button"
+                        onClick={() =>
+                          setBorrador((b) => ({
+                            ...b,
+                            formaPago: forma,
+                            formaLibre: forma === "Otros" ? b.formaLibre : "",
+                          }))
+                        }
+                        className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold border-2 transition-colors ${
+                          borrador.formaPago === forma
+                            ? "bg-[#9b59b6] border-[#9b59b6] text-white"
+                            : "bg-white border-[#bdc3c7] text-[#2c3e50] hover:border-[#9b59b6]"
+                        }`}
+                      >
+                        {forma}
+                      </button>
+                    ))}
+                  </div>
+                  {borrador.formaPago === "Otros" && (
+                    <input
+                      type="text"
+                      value={borrador.formaLibre}
+                      onChange={(e) =>
+                        setBorrador((b) => ({ ...b, formaLibre: e.target.value }))
+                      }
+                      placeholder="Especificá el medio…"
+                      className="mt-2 w-full p-2.5 border-2 border-[#bdc3c7] rounded-lg text-sm"
+                    />
+                  )}
+                </div>
+
+                {formaBorrador !== "" && (
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-[#2c3e50]">
+                      3. Monto en {borrador.moneda === "ARS" ? "pesos" : "dólares"}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={borrador.monto}
+                      onChange={(e) => setBorrador((b) => ({ ...b, monto: e.target.value }))}
+                      placeholder={borrador.moneda === "ARS" ? "0" : "0.00"}
+                      className={`w-full p-3 border-2 rounded-lg bg-white focus:ring-2 transition-all text-base sm:text-lg font-medium text-[#2c3e50] placeholder-[#7f8c8d] ${
+                        borrador.moneda === "ARS"
+                          ? "border-green-300 focus:ring-green-500 focus:border-green-500"
+                          : "border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                      }`}
+                    />
+
+                    {borrador.moneda === "ARS" &&
+                      totalesVenta &&
+                      totalesVenta.totalUSD > 0 && (
+                        <div className="bg-[#f1f5ff] border border-blue-200 rounded-lg p-3 space-y-2">
+                          {ventaSoloUSD && (
+                            <p className="text-xs text-blue-900 font-medium">
+                              Venta en USD: este cobro en pesos se imputa a la deuda en USD (en
+                              caja figura como ARS, no como billetes USD).
+                            </p>
+                          )}
+                          <div>
+                            <div className="text-xs text-blue-800 font-medium mb-1">
+                              Cotización del cobro
+                            </div>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={cotizacionPago}
+                              onChange={(e) => setCotizacionPago(Number(e.target.value))}
+                              className="w-full p-2 border-2 border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm font-medium text-[#2c3e50]"
+                              placeholder="Ej: 1430"
+                            />
+                          </div>
+                          {montoBorrador > 0 && cotizacionUsada > 0 && (
+                            <div className="text-xs text-blue-800">
+                              Este ítem ≈ USD {(montoBorrador / cotizacionUsada).toFixed(2)} al
+                              cambio ${cotizacionUsada.toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  disabled={!borradorCompleto}
+                  onClick={preguardarBorrador}
+                  className={`w-full sm:w-auto px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors ${
+                    borradorCompleto
+                      ? "bg-[#3498db] hover:bg-[#2980b9] text-white"
+                      : "bg-[#bdc3c7] text-white cursor-not-allowed"
+                  }`}
+                >
+                  {editandoIndex != null ? "Actualizar pago" : "Preguardar este pago"}
+                </button>
+              </>
+            ) : (
+              <p className="text-xs text-[#7f8c8d]">
+                Elegí pesos o dólares. Después el medio (efectivo, transferencia, etc.) y el
+                monto.
+              </p>
+            )}
 
             {(pagoARS > 0 || pagoUSD > 0) && (
               <div className="flex flex-wrap gap-3 text-xs sm:text-sm text-[#2c3e50] bg-[#eef6ff] rounded-lg p-3 border border-blue-100">
@@ -640,56 +830,16 @@ export default function ModalPago({
                 )}
                 {pagoUSD > 0 && (
                   <span className="font-medium text-blue-700">
-                    Total dólares: USD ${pagoUSD.toLocaleString("es-AR")}
+                    Total dólares físicos: USD ${pagoUSD.toLocaleString("es-AR")}
                   </span>
                 )}
                 {ventaSoloUSD && pagoARS > 0 && (
                   <span className="font-medium text-blue-800">
-                    ≈ USD {usdDesdeARS.toFixed(2)} a deuda
+                    Pesos ≈ USD {usdDesdeARS.toFixed(2)} a deuda (caja: ARS)
                   </span>
                 )}
               </div>
             )}
-          </div>
-
-          <div className="bg-white rounded-xl border-2 border-[#9b59b6] p-4 sm:p-6 shadow-sm">
-            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#9b59b6] rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs sm:text-sm">🏦</span>
-              </div>
-              <span className="text-sm sm:text-base">Método de Pago</span>
-            </h4>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#2c3e50]">Forma de pago:</label>
-                <input
-                  type="text"
-                  name="formaPago"
-                  value={pagoSeguro.formaPago}
-                  onChange={handleCampo}
-                  placeholder="Ej: Efectivo, Transferencia..."
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="text-xs text-gray-600 w-full mb-1">Formas comunes:</span>
-              {["Efectivo", "Transferencia", "Tarjeta", "MercadoPago"].map((forma) => (
-                <button
-                  key={forma}
-                  type="button"
-                  onClick={() =>
-                    handleCampo({
-                      target: { name: "formaPago", value: forma },
-                    } as any)
-                  }
-                  className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200 transition-colors"
-                >
-                  {forma}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="bg-white rounded-xl border-2 border-[#e74c3c] p-4 sm:p-6 shadow-sm">
@@ -831,7 +981,7 @@ export default function ModalPago({
                   : "bg-[#27ae60] hover:bg-[#229954] hover:scale-105"
               }`}
             >
-              Guardar pago
+              Guardar pagos
             </button>
           </div>
         </div>

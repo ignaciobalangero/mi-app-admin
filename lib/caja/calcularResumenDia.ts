@@ -18,7 +18,7 @@ import {
   montoEnARS,
   normalizarMedioPago,
 } from "@/lib/caja/mediosPago";
-import { fechaCajaHoy } from "@/lib/caja/fechaCaja";
+import { fechaCajaHoy, variantesFechaCaja } from "@/lib/caja/fechaCaja";
 
 function ingresosVacios(): ResumenIngresosCaja {
   return {
@@ -240,9 +240,10 @@ function acumularEgresoCategoria(eg: ResumenEgresosCaja, cat: CategoriaMovimient
 }
 
 function clasificarPago(p: Record<string, unknown>): CategoriaMovimientoCaja {
-  if (p.trabajoId) return "cobro_trabajo";
-  if (p.nroVenta || p.ventaId) return "cobro_venta";
+  // Proveedor primero: aunque tenga trabajoId/nroVenta, el dinero salió hacia el proveedor
   if (p.tipoDestino === "proveedor" || p.proveedorDestino) return "pago_proveedor";
+  if (p.trabajoId) return "cobro_trabajo";
+  if (p.nroVenta || p.ventaId || p.idVenta) return "cobro_venta";
   return "cobro_cta_cte";
 }
 
@@ -268,6 +269,9 @@ function ventaDePago(
 
 function fallbackSubcategoriaPago(p: Record<string, unknown>): SubcategoriaVentaCaja {
   const destino = String(p.destino ?? "").toLowerCase();
+  if (destino.includes("ventaaccesorio") || destino.includes("venta_accesorio")) {
+    return "venta_accesorio";
+  }
   if (destino.includes("ventatelefono") || destino.includes("venta_telefono")) {
     const monedaPago = String(p.moneda ?? "ARS").toUpperCase();
     const usd = Number(p.montoUSD ?? 0);
@@ -285,19 +289,20 @@ function montosPagoSeparados(p: Record<string, unknown>): {
   const cot = Number(
     p.cotizacionPago ?? detalles?.cotizacionPago ?? p.cotizacion ?? 0
   );
+
+  // ARS aplicado a deuda USD: siempre ingreso físico en pesos (nunca billetes USD)
+  if (detalles?.tipo === "ARS_a_USD") {
+    const arsFisico = Number(p.monto ?? detalles.montoARSOriginal ?? 0);
+    return {
+      ars: arsFisico > 0 ? arsFisico : 0,
+      usd: 0,
+      cot: Number(detalles.cotizacionPago ?? cot) || cot,
+    };
+  }
+
   let ars = Number(p.monto ?? 0);
   const usd = Number(p.montoUSD ?? 0);
   const moneda = String(p.moneda ?? "ARS").toUpperCase();
-
-  // Registros legacy: un solo doc USD con pesos físicos en detallesPago
-  if (
-    ars <= 0 &&
-    detalles?.tipo === "ARS_a_USD" &&
-    Number(detalles.montoARSOriginal ?? 0) > 0
-  ) {
-    ars = Number(detalles.montoARSOriginal);
-    return { ars, usd: 0, cot: Number(detalles.cotizacionPago ?? cot) };
-  }
 
   if (moneda === "USD" && ars <= 0 && usd > 0) {
     return { ars: 0, usd, cot };
@@ -432,6 +437,7 @@ export async function calcularResumenCajaDia(params: {
   cotizacionUSD?: number;
 }): Promise<ResumenCajaDia> {
   const fecha = params.fecha ?? fechaCajaHoy();
+  const fechasMatch = variantesFechaCaja(fecha);
   const cotizacionFallback = params.cotizacionUSD && params.cotizacionUSD > 0 ? params.cotizacionUSD : 0;
   const ingresos = ingresosVacios();
   const egresos = egresosVacios();
@@ -442,10 +448,24 @@ export async function calcularResumenCajaDia(params: {
 
   const ventasPorNro = new Map<number, Record<string, unknown>>();
 
-  const [pagosSnap, ventasSnap, gastosSnap, movsSnap] = await Promise.all([
-    getDocs(query(collection(db, `negocios/${params.negocioId}/pagos`), where("fecha", "==", fecha))),
-    getDocs(query(collection(db, `negocios/${params.negocioId}/ventasGeneral`), where("fecha", "==", fecha))),
-    getDocs(query(collection(db, `negocios/${params.negocioId}/gastos`), where("fecha", "==", fecha))),
+  const [pagosSnaps, ventasSnaps, gastosSnaps, movsSnap] = await Promise.all([
+    Promise.all(
+      fechasMatch.map((f) =>
+        getDocs(query(collection(db, `negocios/${params.negocioId}/pagos`), where("fecha", "==", f)))
+      )
+    ),
+    Promise.all(
+      fechasMatch.map((f) =>
+        getDocs(
+          query(collection(db, `negocios/${params.negocioId}/ventasGeneral`), where("fecha", "==", f))
+        )
+      )
+    ),
+    Promise.all(
+      fechasMatch.map((f) =>
+        getDocs(query(collection(db, `negocios/${params.negocioId}/gastos`), where("fecha", "==", f)))
+      )
+    ),
     params.sesionId
       ? getDocs(
           query(
@@ -456,7 +476,26 @@ export async function calcularResumenCajaDia(params: {
       : Promise.resolve(null),
   ]);
 
-  ventasSnap.docs.forEach((d) => {
+  const pagosVistos = new Set<string>();
+  const pagosDocs = pagosSnaps.flatMap((snap) => snap.docs).filter((d) => {
+    if (pagosVistos.has(d.id)) return false;
+    pagosVistos.add(d.id);
+    return true;
+  });
+  const ventasVistas = new Set<string>();
+  const ventasDocs = ventasSnaps.flatMap((snap) => snap.docs).filter((d) => {
+    if (ventasVistas.has(d.id)) return false;
+    ventasVistas.add(d.id);
+    return true;
+  });
+  const gastosVistos = new Set<string>();
+  const gastosDocs = gastosSnaps.flatMap((snap) => snap.docs).filter((d) => {
+    if (gastosVistos.has(d.id)) return false;
+    gastosVistos.add(d.id);
+    return true;
+  });
+
+  ventasDocs.forEach((d) => {
     const data = d.data();
     const nro = Number(data.nroVenta ?? 0);
     if (nro) ventasPorNro.set(nro, { id: d.id, ...data });
@@ -464,7 +503,7 @@ export async function calcularResumenCajaDia(params: {
 
   const nrosFaltantes: string[] = [];
   const nrosVistos = new Set<string>();
-  pagosSnap.docs.forEach((d) => {
+  pagosDocs.forEach((d) => {
     const raw = d.data().nroVenta;
     if (raw == null || raw === "") return;
     const key = String(raw);
@@ -489,7 +528,7 @@ export async function calcularResumenCajaDia(params: {
     });
   }
 
-  pagosSnap.docs.forEach((d) => {
+  pagosDocs.forEach((d) => {
     const p = { id: d.id, ...d.data() } as Record<string, unknown>;
     acumularPagoEnCaja({
       p,
@@ -503,7 +542,7 @@ export async function calcularResumenCajaDia(params: {
     });
   });
 
-  gastosSnap.docs.forEach((d) => {
+  gastosDocs.forEach((d) => {
     const g = d.data() as Record<string, unknown>;
     const moneda = String(g.moneda ?? "ARS");
     const cotDoc = Number(g.cotizacion ?? 0);

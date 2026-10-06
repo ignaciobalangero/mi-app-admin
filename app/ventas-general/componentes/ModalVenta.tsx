@@ -140,7 +140,7 @@ export default function ModalVenta({
     formaPago: "",
     destino: "",
     observaciones: "",
-    lineas: [] as { moneda: "ARS" | "USD"; monto: number }[],
+    lineas: [] as { moneda: "ARS" | "USD"; monto: number; formaPago?: string }[],
     cotizacionPago: undefined as number | undefined,
   };
 
@@ -156,9 +156,15 @@ export default function ModalVenta({
     const montoUSD = patch.montoUSD !== undefined ? patch.montoUSD : prev.montoUSD;
     const ars = Number(monto || 0);
     const usd = Number(montoUSD || 0);
-    const lineas: { moneda: "ARS" | "USD"; monto: number }[] = [];
-    if (ars > 0) lineas.push({ moneda: "ARS", monto: ars });
-    if (usd > 0) lineas.push({ moneda: "USD", monto: usd });
+    const prevLineas: { moneda: "ARS" | "USD"; monto: number; formaPago?: string }[] =
+      Array.isArray(prev.lineas) ? prev.lineas : [];
+    const formaARS =
+      prevLineas.find((l) => l.moneda === "ARS")?.formaPago || prev.formaPago || "Efectivo";
+    const formaUSD =
+      prevLineas.find((l) => l.moneda === "USD")?.formaPago || prev.formaPago || "Efectivo";
+    const lineas: { moneda: "ARS" | "USD"; monto: number; formaPago?: string }[] = [];
+    if (ars > 0) lineas.push({ moneda: "ARS", monto: ars, formaPago: formaARS });
+    if (usd > 0) lineas.push({ moneda: "USD", monto: usd, formaPago: formaUSD });
     return { monto, montoUSD, lineas };
   };
 
@@ -180,20 +186,23 @@ export default function ModalVenta({
 
   const quitarLineaPago = (index: number) => {
     setPago((prev: any) => {
-      const lineasPrev: { moneda: "ARS" | "USD"; monto: number }[] = Array.isArray(prev.lineas)
-        ? prev.lineas
-        : [];
+      const lineasPrev: { moneda: "ARS" | "USD"; monto: number; formaPago?: string }[] =
+        Array.isArray(prev.lineas) ? prev.lineas : [];
       const lineas =
         lineasPrev.length > 0
           ? lineasPrev.filter((_: any, i: number) => i !== index)
           : [];
       const ars = lineas.filter((l) => l.moneda === "ARS").reduce((a, l) => a + l.monto, 0);
       const usd = lineas.filter((l) => l.moneda === "USD").reduce((a, l) => a + l.monto, 0);
+      const formas = Array.from(
+        new Set(lineas.map((l) => l.formaPago).filter(Boolean))
+      );
       return {
         ...prev,
         lineas,
         monto: ars > 0 ? String(ars) : "",
         montoUSD: usd > 0 ? String(usd) : "",
+        formaPago: formas.join(" + ") || "",
         cotizacionPago: ars > 0 ? prev.cotizacionPago : undefined,
         pagoARSAplicadoAUSD: ars > 0 ? prev.pagoARSAplicadoAUSD : false,
       };
@@ -1014,24 +1023,41 @@ export default function ModalVenta({
                 </div>
                 <div className="space-y-2">
                   {(() => {
-                    const lineasPago: { moneda: "ARS" | "USD"; monto: number }[] =
+                    const lineasPago: {
+                      moneda: "ARS" | "USD";
+                      monto: number;
+                      formaPago?: string;
+                    }[] =
                       Array.isArray((pago as any).lineas) && (pago as any).lineas.length > 0
                         ? (pago as any).lineas
                         : [
                             ...(pagoARS > 0
-                              ? [{ moneda: "ARS" as const, monto: pagoARS }]
+                              ? [
+                                  {
+                                    moneda: "ARS" as const,
+                                    monto: pagoARS,
+                                    formaPago: pago.formaPago,
+                                  },
+                                ]
                               : []),
                             ...(pagoUSD > 0
-                              ? [{ moneda: "USD" as const, monto: pagoUSD }]
+                              ? [
+                                  {
+                                    moneda: "USD" as const,
+                                    monto: pagoUSD,
+                                    formaPago: pago.formaPago,
+                                  },
+                                ]
                               : []),
                           ];
 
                     return lineasPago.map((linea, index) => {
                       const esARS = linea.moneda === "ARS";
                       const cotPago = Number((pago as any).cotizacionPago) || 0;
+                      const medio = linea.formaPago || pago.formaPago || "";
                       return (
                         <div
-                          key={`pago-linea-${index}-${linea.moneda}`}
+                          key={`pago-linea-${index}-${linea.moneda}-${medio}`}
                           className="bg-white rounded-lg p-3 border border-[#ecf0f1] shadow-sm"
                         >
                           <div className="flex justify-between items-center gap-2">
@@ -1046,7 +1072,7 @@ export default function ModalVenta({
                               <div className="min-w-0">
                                 <p className="font-medium text-[#2c3e50] text-sm">
                                   Pago {esARS ? "ARS" : "USD"}
-                                  {pago.formaPago ? ` · ${pago.formaPago}` : ""}
+                                  {medio ? ` · ${medio}` : ""}
                                 </p>
                                 <p className="text-xs text-[#7f8c8d] truncate">
                                   {esARS &&
@@ -1055,11 +1081,11 @@ export default function ModalVenta({
                                   totalARS === 0
                                     ? `cot. $${cotPago.toLocaleString("es-AR")} → USD ${(
                                         linea.monto / cotPago
-                                      ).toFixed(2)}`
+                                      ).toFixed(2)} · caja: ARS`
                                     : !esARS
                                       ? `≈ $${(
                                           linea.monto * cotizacionParaSaldos
-                                        ).toLocaleString("es-AR")} ARS`
+                                        ).toLocaleString("es-AR")} ARS · caja: USD`
                                       : pago.observaciones || ""}
                                 </p>
                               </div>

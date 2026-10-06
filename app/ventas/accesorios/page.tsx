@@ -23,6 +23,7 @@ import TablaVentasAccesorios from "./components/TablaVentasAccesorios";
 import { descontarAccesorioDelStock } from "./components/descontarAccesorioDelStock";
 import { reponerAccesorioEnStock } from "./components/reponerAccesorioEnStock";
 import { actualizarSaldoClienteNegocioDetalle } from "@/lib/actualizarSaldoCliente";
+import { formatearFechaCaja } from "@/lib/caja/fechaCaja";
 
 export default function VentaAccesorios() {
   const [fecha, setFecha] = useState("");
@@ -160,7 +161,7 @@ export default function VentaAccesorios() {
 
       if (pago && pago.montoAbonado > 0 && ventaId) {
         const datosPago = {
-          fecha: serverTimestamp(),
+          fecha: formatearFechaCaja(new Date()),
           cliente,
           monto: pago.monedaPago === "ARS" ? pago.montoAbonado : null,
           montoUSD: pago.monedaPago === "USD" ? pago.montoAbonado : null,
@@ -169,6 +170,7 @@ export default function VentaAccesorios() {
           observaciones: pago.observacionesPago,
           destino: "ventaAccesorios",
           ventaId,
+          timestamp: serverTimestamp(),
         };
 
         const docRef = await addDoc(

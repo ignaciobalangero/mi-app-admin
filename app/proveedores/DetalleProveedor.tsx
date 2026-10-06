@@ -11,6 +11,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import TablaProveedores from "./TablaProveedores";
+import { formatearFechaCaja } from "@/lib/caja/fechaCaja";
 
 interface Proveedor {
   id: string;
@@ -253,7 +254,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
     const nuevoPago = {
       proveedorId: proveedor.id,
       proveedorNombre: proveedor.nombre,
-      fecha: new Date().toLocaleDateString("es-AR"),
+      fecha: formatearFechaCaja(new Date()),
       monto: monedaPago === "ARS" ? montoPago : 0,
       montoUSD: monedaPago === "USD" ? montoUSDPago : 0,
       forma: formaPago,
@@ -264,6 +265,24 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
 
     try {
       await addDoc(collection(db, `negocios/${negocioID}/pagosProveedores`), nuevoPago);
+
+      // Espejo en `pagos` para que la caja diaria lo tome como egreso a proveedor
+      await addDoc(collection(db, `negocios/${negocioID}/pagos`), {
+        fecha: nuevoPago.fecha,
+        cliente: proveedor.nombre,
+        monto: monedaPago === "ARS" ? montoPago : null,
+        montoUSD: monedaPago === "USD" ? montoUSDPago : null,
+        moneda: monedaPago,
+        forma: formaPago,
+        destino: `Proveedor: ${proveedor.nombre}`,
+        tipoDestino: "proveedor",
+        proveedorDestino: proveedor.nombre,
+        observaciones: [referenciaPago.trim(), notasPago.trim()]
+          .filter(Boolean)
+          .join(" · "),
+        timestamp: new Date(),
+      });
+
       setMensaje("✅ Pago registrado");
       limpiarFormPago();
       setMostrarFormPago(false);
