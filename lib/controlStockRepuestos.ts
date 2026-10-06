@@ -6,6 +6,7 @@ export type FiltroTiendaControl = "todos" | "tienda" | "no_tienda";
 export interface ProductoControlStock {
   id: string;
   codigo: string;
+  codigoBarras?: string;
   categoria: string;
   producto: string;
   marca: string;
@@ -72,6 +73,7 @@ export function docAProductoControlStock(
   return {
     id,
     codigo: String(data.codigo ?? id),
+    codigoBarras: data.codigoBarras ? String(data.codigoBarras).trim() : undefined,
     categoria: String(data.categoria ?? "").trim() || "Sin categoría",
     producto: String(data.producto ?? "").trim() || "Sin nombre",
     marca: String(data.marca ?? "").trim(),

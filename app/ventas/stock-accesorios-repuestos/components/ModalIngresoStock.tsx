@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { promedioPonderadoCosto } from "@/lib/stock/promedioPonderado";
@@ -9,10 +10,13 @@ type ProductoStock = {
   id: string;
   producto?: string;
   codigo?: string;
+  codigoBarras?: string;
   cantidad?: number;
   precioCosto?: number;
   precioCostoPesos?: number;
   moneda?: "ARS" | "USD" | string;
+  marca?: string;
+  categoria?: string;
 };
 
 interface Props {
@@ -41,6 +45,7 @@ export default function ModalIngresoStock({
   const stockActual = Number(producto.cantidad) || 0;
   const costoActual = Number(producto.precioCosto) || 0;
   const moneda = String(producto.moneda || "ARS").toUpperCase();
+  const tipoLabel = coleccion === "stockAccesorios" ? "Accesorio" : "Repuesto";
 
   const [cantidadIngreso, setCantidadIngreso] = useState(1);
   const [costoIngreso, setCostoIngreso] = useState(costoActual || 0);
@@ -103,31 +108,34 @@ export default function ModalIngresoStock({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-[#ecf0f1] overflow-hidden">
-        <div className="bg-gradient-to-r from-[#16a085] to-[#1abc9c] text-white p-4 flex justify-between items-start gap-3">
-          <div>
-            <h2 className="text-lg font-bold">Ingresar stock</h2>
-            <p className="text-sm text-white/90 mt-1">
-              {producto.producto || "Producto"}
-              {producto.codigo ? ` · ${producto.codigo}` : ""}
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[2147483001] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md border border-[#ecf0f1] overflow-hidden max-h-[94dvh] flex flex-col">
+        <div className="bg-gradient-to-r from-[#16a085] to-[#1abc9c] text-white p-4 flex justify-between items-start gap-3 flex-shrink-0">
+          <div className="min-w-0">
+            <p className="text-xs text-white/80 font-medium">{tipoLabel} · reponer stock</p>
+            <h2 className="text-lg font-bold truncate">{producto.producto || "Producto"}</h2>
+            <p className="text-sm text-white/90 mt-0.5 truncate">
+              {producto.codigo ? `${producto.codigo}` : ""}
+              {producto.codigoBarras ? ` · 📷 ${producto.codigoBarras}` : ""}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-lg bg-white/20 hover:bg-white/30 font-bold"
+            className="w-9 h-9 rounded-lg bg-white/20 hover:bg-white/30 font-bold flex-shrink-0"
           >
             ×
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-2 gap-3 text-sm bg-[#f8f9fa] rounded-xl p-3 border border-[#ecf0f1]">
             <div>
               <p className="text-[#7f8c8d] text-xs">Stock actual</p>
-              <p className="font-semibold text-[#2c3e50]">{stockActual}</p>
+              <p className="font-semibold text-[#2c3e50] text-lg">{stockActual}</p>
             </div>
             <div>
               <p className="text-[#7f8c8d] text-xs">Costo actual</p>
@@ -135,6 +143,11 @@ export default function ModalIngresoStock({
                 {moneda} ${costoActual.toLocaleString("es-AR")}
               </p>
             </div>
+            {(producto.marca || producto.categoria) && (
+              <div className="col-span-2 text-xs text-[#7f8c8d]">
+                {[producto.marca, producto.categoria].filter(Boolean).join(" · ")}
+              </div>
+            )}
           </div>
 
           <div>
@@ -144,9 +157,11 @@ export default function ModalIngresoStock({
             <input
               type="number"
               min="1"
+              inputMode="numeric"
               value={cantidadIngreso}
               onChange={(e) => setCantidadIngreso(Math.max(0, Number(e.target.value) || 0))}
-              className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl text-[#2c3e50]"
+              className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl text-[#2c3e50] text-lg"
+              autoFocus
             />
           </div>
 
@@ -158,9 +173,10 @@ export default function ModalIngresoStock({
               type="number"
               min="0"
               step="0.01"
+              inputMode="decimal"
               value={costoIngreso}
               onChange={(e) => setCostoIngreso(Number(e.target.value) || 0)}
-              className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl text-[#2c3e50]"
+              className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl text-[#2c3e50] text-lg"
             />
           </div>
 
@@ -176,15 +192,15 @@ export default function ModalIngresoStock({
               </strong>
             </p>
             <p className="text-xs text-[#7f8c8d] mt-1">
-              Ejemplo: 50 × 18 + 50 × 14 = promedio 16. Los precios de venta no se modifican.
+              Los precios de venta no se modifican.
             </p>
           </div>
 
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl bg-[#ecf0f1] text-[#2c3e50] font-semibold"
+              className="flex-1 py-3 rounded-xl bg-[#ecf0f1] text-[#2c3e50] font-semibold"
             >
               Cancelar
             </button>
@@ -192,13 +208,14 @@ export default function ModalIngresoStock({
               type="button"
               disabled={!puedeGuardar || guardando}
               onClick={confirmar}
-              className="flex-1 py-2.5 rounded-xl bg-[#16a085] hover:bg-[#138d75] text-white font-semibold disabled:opacity-50"
+              className="flex-1 py-3 rounded-xl bg-[#16a085] hover:bg-[#138d75] text-white font-semibold disabled:opacity-50"
             >
               {guardando ? "Guardando…" : "Confirmar ingreso"}
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

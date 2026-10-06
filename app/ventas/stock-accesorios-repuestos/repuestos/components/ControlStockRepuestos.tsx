@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { collection, getDocs, writeBatch, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
+import {
+  normalizarCodigoEscaneado,
+  parsearUrlProductoStock,
+} from "@/lib/buscarProductoPorCodigoBarras";
 import {
   fusionarCategoriasUnicas,
   fusionarValoresUnicos,
@@ -60,6 +65,16 @@ export default function ControlStockRepuestos({
   const [busquedaConteo, setBusquedaConteo] = useState("");
   const [diferencias, setDiferencias] = useState<DiferenciaConteoStock[]>([]);
   const [diferenciasPrecio, setDiferenciasPrecio] = useState<DiferenciaPrecioStock[]>([]);
+  const [escannerAbierto, setEscannerAbierto] = useState(false);
+  const [productoDestacadoId, setProductoDestacadoId] = useState<string | null>(null);
+  const [ultimoEscaneoMsg, setUltimoEscaneoMsg] = useState<string | null>(null);
+  const [escaneoCantidad, setEscaneoCantidad] = useState<{
+    productoId: string;
+    codigo: string;
+    nombre: string;
+    stockSistema: number;
+    cantidad: string;
+  } | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -206,6 +221,87 @@ export default function ControlStockRepuestos({
         l.producto.id === id ? { ...l, stockReal: valor } : l
       )
     );
+  };
+
+  const aplicarEscaneoControl = useCallback(
+    (raw: string) => {
+      const codigo = normalizarCodigoEscaneado(raw);
+      if (!codigo) return;
+
+      const desdeUrl = parsearUrlProductoStock(codigo);
+      const c = codigo.toLowerCase();
+
+      const idx = lineas.findIndex((l) => {
+        const p = l.producto;
+        if (desdeUrl?.id && p.id === desdeUrl.id) return true;
+        if (p.id.toLowerCase() === c) return true;
+        if (p.codigo.toLowerCase() === c) return true;
+        if (p.codigoBarras && p.codigoBarras.toLowerCase() === c) return true;
+        return false;
+      });
+
+      if (idx < 0) {
+        setUltimoEscaneoMsg(`No está en este conteo: ${codigo}`);
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          navigator.vibrate?.(80);
+        }
+        return;
+      }
+
+      const linea = lineas[idx];
+      const cantidadInicial = linea.contado
+        ? String(parseStockReal(linea.stockReal, linea.producto.cantidad))
+        : "";
+
+      setEscannerAbierto(false);
+      setEscaneoCantidad({
+        productoId: linea.producto.id,
+        codigo: linea.producto.codigo,
+        nombre: linea.producto.producto,
+        stockSistema: linea.producto.cantidad,
+        cantidad: cantidadInicial,
+      });
+      setBusquedaConteo(linea.producto.codigo || "");
+      setProductoDestacadoId(linea.producto.id);
+      setUltimoEscaneoMsg(`Encontrado: ${linea.producto.producto}`);
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate?.(30);
+      }
+    },
+    [lineas]
+  );
+
+  const confirmarCantidadEscaneada = (yEscanearOtro = false) => {
+    if (!escaneoCantidad) return;
+    const n = parseStockReal(escaneoCantidad.cantidad, NaN);
+    if (!Number.isFinite(n) || n < 0) {
+      alert("Ingresá una cantidad válida (0 o más).");
+      return;
+    }
+    const id = escaneoCantidad.productoId;
+    const nombre = escaneoCantidad.nombre;
+    const sist = escaneoCantidad.stockSistema;
+
+    setLineas((prev) =>
+      prev.map((l) =>
+        l.producto.id === id
+          ? { ...l, contado: true, stockReal: String(n) }
+          : l
+      )
+    );
+    setUltimoEscaneoMsg(
+      `${nombre}: contado ${n} (sist. ${sist}${n !== sist ? ` · diff ${n - sist > 0 ? "+" : ""}${n - sist}` : ""})`
+    );
+    setEscaneoCantidad(null);
+    setTimeout(() => {
+      document
+        .querySelector(`[data-control-id="${id}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    setTimeout(() => setProductoDestacadoId(null), 2500);
+    if (yEscanearOtro) {
+      setTimeout(() => setEscannerAbierto(true), 80);
+    }
   };
 
   const actualizarPrecio = (
@@ -476,12 +572,24 @@ export default function ControlStockRepuestos({
               />
               <button
                 type="button"
+                onClick={() => setEscannerAbierto(true)}
+                className="rounded-xl bg-gradient-to-r from-[#2c3e50] to-[#34495e] px-3 py-2 text-sm font-semibold text-white shadow"
+              >
+                📷 Escanear
+              </button>
+              <button
+                type="button"
                 onClick={marcarTodosContados}
                 className="rounded-xl border border-[#27ae60] bg-[#d5f4e6] px-3 py-2 text-sm font-semibold text-[#229954]"
               >
                 Marcar todos
               </button>
             </div>
+            {ultimoEscaneoMsg ? (
+              <p className="mx-auto mt-2 max-w-4xl text-xs font-medium text-[#2c3e50] bg-[#eef6ff] border border-blue-100 rounded-lg px-3 py-1.5">
+                {ultimoEscaneoMsg}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex-1 overflow-y-auto px-2 py-2 sm:px-4">
@@ -504,8 +612,11 @@ export default function ControlStockRepuestos({
                 return (
                   <li
                     key={linea.producto.id}
+                    data-control-id={linea.producto.id}
                     className={`rounded-2xl border-2 bg-white p-3 sm:p-4 transition-colors ${
-                      linea.contado
+                      productoDestacadoId === linea.producto.id
+                        ? "border-[#3498db] ring-2 ring-[#3498db]/40 bg-[#ebf5fb]"
+                        : linea.contado
                         ? hayDiff || hayDiffPrecio
                           ? "border-[#e67e22] bg-[#fef9f3]"
                           : "border-[#27ae60] bg-[#f8fdf9]"
@@ -873,6 +984,105 @@ export default function ControlStockRepuestos({
           </div>
         </div>
       )}
+
+      <EscanerCodigoBarras
+        abierto={escannerAbierto}
+        titulo="Control de stock · escanear producto"
+        modo="codigo"
+        onDetectado={aplicarEscaneoControl}
+        onCerrar={() => setEscannerAbierto(false)}
+      />
+
+      {escaneoCantidad ? (
+        <div className="fixed inset-0 z-[2147483002] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
+          <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#2c3e50] to-[#34495e] px-4 py-3 text-white">
+              <h3 className="font-bold text-base">Cantidad contada</h3>
+              <p className="text-xs text-white/80">
+                Escaneaste el producto · ingresá cuántos hay
+              </p>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <p className="font-mono text-xs text-[#7f8c8d]">
+                  {escaneoCantidad.codigo}
+                </p>
+                <p className="font-semibold text-[#2c3e50] leading-snug">
+                  {escaneoCantidad.nombre}
+                </p>
+                <p className="text-sm text-[#7f8c8d] mt-1">
+                  Stock sistema:{" "}
+                  <span className="font-bold text-[#2c3e50]">
+                    {escaneoCantidad.stockSistema}
+                  </span>
+                </p>
+              </div>
+              <label className="block">
+                <span className="text-sm font-medium text-[#2c3e50]">
+                  Cantidad real
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  autoFocus
+                  value={escaneoCantidad.cantidad}
+                  onChange={(e) =>
+                    setEscaneoCantidad((prev) =>
+                      prev ? { ...prev, cantidad: e.target.value } : prev
+                    )
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") confirmarCantidadEscaneada(false);
+                  }}
+                  placeholder="Ej: 12"
+                  className="mt-1 w-full rounded-xl border-2 border-[#3498db] px-4 py-3 text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-[#3498db]/40"
+                />
+              </label>
+              <div className="flex gap-2">
+                {[0, escaneoCantidad.stockSistema].map((n) => (
+                  <button
+                    key={String(n)}
+                    type="button"
+                    onClick={() =>
+                      setEscaneoCantidad((prev) =>
+                        prev ? { ...prev, cantidad: String(n) } : prev
+                      )
+                    }
+                    className="flex-1 rounded-lg border border-[#ecf0f1] bg-[#f8f9fa] py-2 text-sm font-semibold text-[#2c3e50]"
+                  >
+                    {n === 0 ? "0 (sin stock)" : `= sistema (${n})`}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEscaneoCantidad(null)}
+                  className="rounded-xl border-2 border-[#ecf0f1] px-4 py-3 font-semibold text-[#7f8c8d]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => confirmarCantidadEscaneada(false)}
+                  className="flex-1 rounded-xl bg-[#27ae60] px-4 py-3 font-bold text-white"
+                >
+                  Confirmar
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => confirmarCantidadEscaneada(true)}
+                disabled={escaneoCantidad.cantidad.trim() === ""}
+                className="w-full rounded-xl border-2 border-[#2c3e50] px-4 py-3 font-semibold text-[#2c3e50] disabled:opacity-40"
+              >
+                Confirmar y escanear otro
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>,
     document.body
   );

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
 import ModalIngresoStock from "@/app/ventas/stock-accesorios-repuestos/components/ModalIngresoStock";
+import ModalAsignarCodigoBarras from "@/components/ModalAsignarCodigoBarras";
 import { useRol } from "@/lib/useRol";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import {
@@ -11,9 +12,7 @@ import {
 } from "@/lib/buscarProductoPorCodigoBarras";
 
 type Props = {
-  /** Clase extra del botón */
   className?: string;
-  /** Variante visual */
   variante?: "inicio" | "stock";
   label?: string;
 };
@@ -30,6 +29,7 @@ export default function BotonEscanerStock({
   const [escannerAbierto, setEscannerAbierto] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [producto, setProducto] = useState<ProductoCodigoBarras | null>(null);
+  const [codigoSinAsignar, setCodigoSinAsignar] = useState<string | null>(null);
 
   const onDetectado = useCallback(
     async (codigo: string) => {
@@ -41,7 +41,7 @@ export default function BotonEscanerStock({
       try {
         const encontrado = await buscarProductoPorCodigoBarras(negocioID, codigo);
         if (!encontrado) {
-          alert(`No se encontró un accesorio o repuesto con el código:\n${codigo}`);
+          setCodigoSinAsignar(codigo);
           return;
         }
         setProducto(encontrado);
@@ -89,6 +89,37 @@ export default function BotonEscanerStock({
           cotizacion={cotizacion}
           onClose={() => setProducto(null)}
           onActualizado={() => setProducto(null)}
+        />
+      ) : null}
+
+      {codigoSinAsignar && negocioID ? (
+        <ModalAsignarCodigoBarras
+          abierto
+          negocioID={negocioID}
+          codigoLeido={codigoSinAsignar}
+          onClose={() => setCodigoSinAsignar(null)}
+          onAsignado={(item) => {
+            const codigo = codigoSinAsignar;
+            setCodigoSinAsignar(null);
+            void (async () => {
+              const encontrado = await buscarProductoPorCodigoBarras(negocioID, codigo);
+              if (encontrado) {
+                setProducto(encontrado);
+                return;
+              }
+              setProducto({
+                id: item.id,
+                coleccion: item.coleccion,
+                tipo: item.tipo,
+                codigo: item.codigo,
+                codigoBarras: item.codigoBarras,
+                producto: item.producto,
+                cantidad: item.cantidad,
+                precioCosto: 0,
+                moneda: "ARS",
+              });
+            })();
+          }}
         />
       ) : null}
     </>

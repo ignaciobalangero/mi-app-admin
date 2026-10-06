@@ -12,6 +12,8 @@ export type ProductoCodigoBarras = {
   precioCosto: number;
   precioCostoPesos?: number;
   moneda?: "ARS" | "USD" | string;
+  marca?: string;
+  categoria?: string;
 };
 
 const PREFIJO_ACC = "G1:ACC:";
@@ -120,6 +122,8 @@ function mapDoc(
     precioCostoPesos:
       data.precioCostoPesos != null ? Number(data.precioCostoPesos) : undefined,
     moneda: (data.moneda as string) || "ARS",
+    marca: data.marca ? String(data.marca) : undefined,
+    categoria: data.categoria ? String(data.categoria) : undefined,
   };
 }
 
