@@ -142,30 +142,44 @@ ventasSnap.docs.forEach(doc => {
 
 console.log(`✅ ${nombreCliente}: Total ventas ARS=${deudaVentasARS}, USD=${deudaVentasUSD}`);
 
-        // ⚡ Filtrar pagos en memoria - ⭐ CORREGIDO
-      // ⚡ Filtrar pagos en memoria - ⭐ CON LOGS
-let pagosARS = 0;
-let pagosUSD = 0;
+        // ⚡ Filtrar pagos en memoria
+        // Misma regla que cuenta corriente / anular pagos:
+        // ARS_a_USD → cuenta como crédito USD (no como pesos brutos).
+        let pagosARS = 0;
+        let pagosUSD = 0;
 
-pagosSnap.docs.forEach(doc => {
-  const pago = doc.data();
-  if (pago.cliente === nombreCliente) {
-    console.log(`💳 Pago: moneda=${pago.moneda}, monto=${pago.monto}, montoUSD=${pago.montoUSD}`);
-    
-    // Si tiene montoUSD, es un pago USD
-    if (pago.montoUSD && pago.montoUSD > 0) {
-      console.log(`  → Sumando USD: ${pago.montoUSD}`);
-      pagosUSD += Number(pago.montoUSD);
-    } 
-    // Si tiene monto, es un pago ARS
-    else if (pago.monto && pago.monto > 0) {
-      console.log(`  → Sumando ARS: ${pago.monto}`);
-      pagosARS += Number(pago.monto);
-    }
-  }
-});
+        pagosSnap.docs.forEach((docSnap) => {
+          const pago = docSnap.data();
+          if (pago.cliente !== nombreCliente) return;
 
-console.log(`✅ ${nombreCliente}: Total pagos ARS=${pagosARS}, USD=${pagosUSD}`);
+          const det = pago.detallesPago as
+            | { tipo?: string; montoUSDEquivalente?: number }
+            | undefined;
+
+          if (det?.tipo === "ARS_a_USD") {
+            const eq = Number(det.montoUSDEquivalente) || 0;
+            if (eq > 0) {
+              pagosUSD += eq;
+              console.log(`  → ARS→USD: +${eq} USD (no suma ARS bruto)`);
+            }
+            return;
+          }
+
+          const montoUSD = Number(pago.montoUSD) || 0;
+          const montoARS = Number(pago.monto) || 0;
+          if (montoUSD > 0) {
+            pagosUSD += montoUSD;
+            console.log(`  → Sumando USD: ${montoUSD}`);
+          }
+          if (montoARS > 0) {
+            pagosARS += montoARS;
+            console.log(`  → Sumando ARS: ${montoARS}`);
+          }
+        });
+
+        console.log(
+          `✅ ${nombreCliente}: Total pagos ARS=${pagosARS}, USD=${pagosUSD}`
+        );
 
         // Calcular saldo correcto
         const saldoCalculadoARS = Math.round((deudaTrabajosARS + deudaVentasARS - pagosARS) * 100) / 100;

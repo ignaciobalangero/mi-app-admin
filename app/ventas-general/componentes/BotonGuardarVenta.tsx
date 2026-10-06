@@ -401,7 +401,14 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     });
   };
 
-  const guardarVentaTelefono = async (datosVentaTelefono: any, pagoTelefono: any) => {
+  const guardarVentaTelefono = async (
+    datosVentaTelefono: any,
+    pagoTelefono: any,
+    /** Totales de accesorios/repuestos que se suman a la misma venta (después del teléfono).
+     *  Deben incluirse al decidir ARS→USD y al aplicar el pago; si no, un teléfono USD puro
+     *  convierte pesos a crédito USD y luego el accesorio deja deuda ARS. */
+    totalesExtrasParaPago?: { totalARS: number; totalUSD: number }
+  ) => {
     if (!rol?.negocioID) return;
 
     const { nombre: clienteNombre, id: clienteIdOk } = clienteParaGuardar();
@@ -433,6 +440,11 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 
     const nroVenta = await obtenerYSumarNumeroVenta(rol.negocioID);
     const { totalARS, totalUSD } = totalesTelefonosVenta(telefonos);
+    // Totales con los que el modal cobró (teléfono + extras de la misma operación).
+    const totalARSParaPago =
+      totalARS + Math.max(0, Number(totalesExtrasParaPago?.totalARS || 0));
+    const totalUSDParaPago =
+      totalUSD + Math.max(0, Number(totalesExtrasParaPago?.totalUSD || 0));
 
     const productosTel = telefonos.map((tel) => {
       const precioCosto = Number(tel.precioCosto || 0);
@@ -458,6 +470,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     });
 
     const gananciaTotal = productosTel.reduce((acc, p) => acc + p.ganancia, 0);
+    // Doc inicial: solo teléfonos (los extras actualizan totales después).
     const totalAproximado = totalARS + totalUSD * cotizacion;
 
     const telefonosPagoInput = telefonosRecibidosFinal
@@ -477,11 +490,12 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       Number(pagoTelefono.cotizacionPago) || 0,
       cotizacion
     );
-    const ventaTelSoloUSD = esVentaSoloUSD(totalARS, totalUSD);
+    // Misma regla que el modal: si hay accesorio ARS en la misma venta, NO convertir ARS→USD.
+    const ventaTelSoloUSD = esVentaSoloUSD(totalARSParaPago, totalUSDParaPago);
 
     const saldosTel = calcularSaldosVenta({
-      totalARS,
-      totalUSD,
+      totalARS: totalARSParaPago,
+      totalUSD: totalUSDParaPago,
       pagoARS: pagoARS_TelPreview,
       pagoUSD: pagoUSD_TelPreview,
       cotizacion: cotTelPreview,
@@ -492,6 +506,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       ? "pagado"
       : "pendiente";
 
+    // Moneda del doc: con extras se corrige al mergear; acá solo teléfonos.
     const monedaVenta =
       totalUSD > 0 && totalARS > 0 ? "DUAL" : totalUSD > 0 ? "USD" : "ARS";
 
@@ -1127,9 +1142,21 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
         const datosVentaTelefono = JSON.parse(ventaTelefonoPendiente);
         const pagoTelefono = pago || {};
         const otrosProductos = productos.filter(p => p.categoria !== "Teléfono");
-        
-        // Guardar venta de teléfono
-        const telefonoID = await guardarVentaTelefono(datosVentaTelefono, pagoTelefono);
+
+        // Resolver extras ANTES del teléfono para que el pago no trate la venta como "solo USD"
+        // (si no, los pesos se convierten a crédito USD y el accesorio ARS queda como deuda).
+        let otrosProductosConDatos: any[] = [];
+        let totalesExtrasParaPago: { totalARS: number; totalUSD: number } | undefined;
+        if (otrosProductos.length > 0) {
+          otrosProductosConDatos = await obtenerDatosRespetandoMonedas(otrosProductos);
+          totalesExtrasParaPago = calcularTotalesSeparados(otrosProductosConDatos);
+        }
+
+        const telefonoID = await guardarVentaTelefono(
+          datosVentaTelefono,
+          pagoTelefono,
+          totalesExtrasParaPago
+        );
 
         // Evitar reintento duplicado: limpiar pendiente TANTO BIEN la parte teléfono
         localStorage.removeItem("ventaTelefonoPendiente");
@@ -1140,8 +1167,6 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
         
         // Si hay otros productos, agregarlos (si falla, la venta teléfono ya quedó; no re-crear)
         if (otrosProductos.length > 0) {
-          const otrosProductosConDatos = await obtenerDatosRespetandoMonedas(otrosProductos);
-          
           const configRef = doc(db, `negocios/${rol.negocioID}/configuracion/datos`);
           const snap = await getDoc(configRef);
           const sheets: any[] = snap.exists() ? snap.data().googleSheets || [] : [];
@@ -1207,9 +1232,24 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
             const { totalARS: nuevoTotalARS, totalUSD: nuevoTotalUSD } = calcularTotalesSeparados(productosCompletos);
             const nuevaGananciaTotal = productosCompletos.reduce((acc, p) => acc + p.ganancia, 0);
             const nuevoTotalAproximado = nuevoTotalARS + (nuevoTotalUSD * cotizacion);
-            
-            const valorTelefonoEntregado = datosExistentes.valorTelefonoEntregado || 0;
-            const saldoPendiente = nuevoTotalAproximado - valorTelefonoEntregado;
+
+            const cotMerge = cotizacionEfectiva(
+              Number(pagoTelefono?.cotizacionPago) || 0,
+              cotizacion
+            );
+            const telefonosPagoMerge = Array.isArray(datosExistentes.telefonosComoPago)
+              ? datosExistentes.telefonosComoPago
+              : datosExistentes.telefonoComoPago
+                ? [datosExistentes.telefonoComoPago]
+                : [];
+            const saldosMerge = calcularSaldosVenta({
+              totalARS: nuevoTotalARS,
+              totalUSD: nuevoTotalUSD,
+              pagoARS: Number(pagoTelefono?.monto || 0),
+              pagoUSD: Number(pagoTelefono?.montoUSD || 0),
+              cotizacion: cotMerge,
+              telefonosPago: telefonosPagoMerge,
+            });
             
             await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${telefonoID}`), {
               productos: productosCompletos,
@@ -1218,8 +1258,12 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
               total: nuevoTotalAproximado,
               gananciaTotal: nuevaGananciaTotal,
               moneda: nuevoTotalUSD > 0 && nuevoTotalARS > 0 ? "DUAL" : nuevoTotalUSD > 0 ? "USD" : "ARS",
-              saldoPendiente: saldoPendiente,
-              estado: saldoPendiente > 0 ? "pendiente" : "pagado",
+              saldoPendiente: Math.max(0, saldosMerge.saldoAproximado),
+              saldoPendienteARS: Math.max(0, saldosMerge.saldoARS),
+              saldoPendienteUSD: Math.max(0, saldosMerge.saldoUSD),
+              estado: ventaEstaPagada(saldosMerge.saldoARS, saldosMerge.saldoUSD)
+                ? "pagado"
+                : "pendiente",
               cliente: clienteCanonRef.current.nombre,
               clienteId: clienteCanonRef.current.id,
             });

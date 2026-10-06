@@ -7,6 +7,12 @@ export type TelefonoComoPagoInput = {
   moneda: string;
 } | null;
 
+/**
+ * True solo si la venta completa (todos los ítems de la operación) es USD.
+ * Importante: en teléfono+accesorio hay que pasar totalARS/totalUSD de la venta
+ * combinada. Si se mira solo el teléfono, un accesorio ARS haría convertir el
+ * pago en pesos a crédito USD y dejaría la deuda ARS sin cancelar.
+ */
 export function esVentaSoloUSD(totalARS: number, totalUSD: number): boolean {
   return totalARS === 0 && totalUSD > 0;
 }
