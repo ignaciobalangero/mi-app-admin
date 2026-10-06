@@ -252,10 +252,6 @@ export default function ModalEditarVenta({
         );
       }
 
-      alert(
-        `Venta #${venta.nroVenta || venta.id.slice(-6)} vinculada a "${nombreCanonico}".\n\nAbrí de nuevo Clientes / Recalcular saldos.`
-      );
-
       onVentaActualizada();
       onClose();
     } catch (error) {
