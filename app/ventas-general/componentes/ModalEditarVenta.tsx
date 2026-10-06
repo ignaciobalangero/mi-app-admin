@@ -139,7 +139,8 @@ export default function ModalEditarVenta({
 
   const guardarCambios = async () => {
     if (!venta || !negocioID) return;
-    if (!clienteDeBase) {
+    const idSel = String(clienteId || "").trim();
+    if (!idSel) {
       alert(
         "Seleccioná el cliente de la lista antes de guardar. Así la venta queda vinculada a su ficha."
       );
@@ -148,6 +149,20 @@ export default function ModalEditarVenta({
 
     setGuardando(true);
     try {
+      // Nombre EXACTO de la ficha (el mismo que usa recalcular saldos)
+      const clienteSnap = await getDoc(
+        doc(db, `negocios/${negocioID}/clientes/${idSel}`)
+      );
+      if (!clienteSnap.exists()) {
+        throw new Error(
+          "El cliente elegido ya no existe en Clientes. Volvé a seleccionarlo."
+        );
+      }
+      const nombreCanonico = String(clienteSnap.data()?.nombre ?? "");
+      if (!nombreCanonico.trim()) {
+        throw new Error("La ficha del cliente no tiene nombre.");
+      }
+
       const cot = cotizacionEdicion > 0 ? cotizacionEdicion : cotizacion;
       const productosParaGuardar = productos.map((p) =>
         productoEdicionAGuardar(p, cot)
@@ -155,13 +170,10 @@ export default function ModalEditarVenta({
       const { totalARS, totalUSD, total, gananciaTotal, moneda } =
         totalesVentaGeneralEditada(productosParaGuardar, cot);
 
-      const nombreCanonico =
-        listaClientes.find((c) => c.id === clienteId)?.nombre ||
-        limpiarNombreClienteExacto(cliente);
-
-      await updateDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${venta.id}`), {
+      const ventaRef = doc(db, `negocios/${negocioID}/ventasGeneral/${venta.id}`);
+      await updateDoc(ventaRef, {
         cliente: nombreCanonico,
-        clienteId,
+        clienteId: idSel,
         fecha,
         productos: productosParaGuardar,
         total,
@@ -171,26 +183,39 @@ export default function ModalEditarVenta({
         moneda,
       });
 
-      await ajustarSaldoPorEdicionVenta(
-        negocioID,
-        venta.cliente || "",
-        nombreCanonico,
-        {
-          productos: venta.productos,
-          total: venta.total,
-          totalARS: venta.totalARS,
-          totalUSD: venta.totalUSD,
-          moneda: venta.moneda,
-        },
-        productosParaGuardar,
-        String(venta.clienteId || "").trim() || undefined,
-        clienteId
-      );
+      // Verificar que quedó grabado igual que en Clientes
+      const verif = await getDoc(ventaRef);
+      const clienteGrabado = String(verif.data()?.cliente ?? "");
+      if (clienteGrabado !== nombreCanonico) {
+        throw new Error(
+          `No se pudo fijar el cliente en la venta (quedó "${clienteGrabado}"). Probá de nuevo.`
+        );
+      }
+
+      try {
+        await ajustarSaldoPorEdicionVenta(
+          negocioID,
+          venta.cliente || "",
+          nombreCanonico,
+          {
+            productos: venta.productos,
+            total: venta.total,
+            totalARS: venta.totalARS,
+            totalUSD: venta.totalUSD,
+            moneda: venta.moneda,
+          },
+          productosParaGuardar,
+          String(venta.clienteId || "").trim() || undefined,
+          idSel
+        );
+      } catch (saldoErr) {
+        // La venta YA quedó vinculada; el saldo se puede recalcular después
+        console.warn("Venta vinculada; fallo al ajustar saldo incremental:", saldoErr);
+      }
 
       const nro = String(venta.nroVenta ?? "").trim();
-      const patchCliente = { cliente: nombreCanonico, clienteId };
+      const patchCliente = { cliente: nombreCanonico, clienteId: idSel };
 
-      // Teléfonos del mismo grupo / mismo id
       const telefono = productosParaGuardar.find((p) => p.categoria === "Teléfono");
       if (telefono) {
         const telefonoRef = doc(db, `negocios/${negocioID}/ventaTelefonos/${venta.id}`);
@@ -216,7 +241,6 @@ export default function ModalEditarVenta({
           telSnap.docs.map((d) => updateDoc(d.ref, patchCliente))
         );
 
-        // Pagos ligados a la venta: mismo cliente canónico
         const pagosSnap = await getDocs(
           query(
             collection(db, `negocios/${negocioID}/pagos`),
@@ -227,6 +251,10 @@ export default function ModalEditarVenta({
           pagosSnap.docs.map((d) => updateDoc(d.ref, patchCliente))
         );
       }
+
+      alert(
+        `Venta #${venta.nroVenta || venta.id.slice(-6)} vinculada a "${nombreCanonico}".\n\nAbrí de nuevo Clientes / Recalcular saldos.`
+      );
 
       onVentaActualizada();
       onClose();

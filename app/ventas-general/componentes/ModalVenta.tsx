@@ -245,6 +245,7 @@ export default function ModalVenta({
     localStorage.removeItem("ventaTelefonoPendiente");
     localStorage.removeItem("pagoTelefonoPendiente");
     localStorage.removeItem("clienteDesdeTelefono");
+    localStorage.removeItem("clienteIdDesdeTelefono");
     localStorage.removeItem("telefonosComoPago");
     localStorage.removeItem("telefonoComoPago");
     localStorage.removeItem("productoDesdeTelefono");
@@ -259,9 +260,14 @@ export default function ModalVenta({
 
   useEffect(() => {
     const clienteDesdeTelefono = localStorage.getItem("clienteDesdeTelefono");
+    const clienteIdDesdeTelefono = localStorage.getItem("clienteIdDesdeTelefono");
     if (clienteDesdeTelefono) {
       setCliente(clienteDesdeTelefono);
       localStorage.removeItem("clienteDesdeTelefono");
+    }
+    if (clienteIdDesdeTelefono) {
+      setClienteId(clienteIdDesdeTelefono);
+      localStorage.removeItem("clienteIdDesdeTelefono");
     }
   }, []);
 
@@ -270,6 +276,7 @@ export default function ModalVenta({
     const ventaTelefonoPendiente = localStorage.getItem("ventaTelefonoPendiente");
     const pagoTelefonoPendiente = localStorage.getItem("pagoTelefonoPendiente");
     const clienteDesdeTelefono = localStorage.getItem("clienteDesdeTelefono");
+    const clienteIdDesdeTelefono = localStorage.getItem("clienteIdDesdeTelefono");
     
     const itemsPago = parsearTelefonosComoPagoLS();
     if (itemsPago.length > 0) {
@@ -297,10 +304,20 @@ export default function ModalVenta({
           imei: t.imei || "",
         })));
       }
+
+      const idPendiente = String(parsed?.clienteId || clienteIdDesdeTelefono || "").trim();
+      const nombrePendiente = String(
+        parsed?.cliente || clienteDesdeTelefono || ""
+      ).trim();
+      if (nombrePendiente) setCliente(nombrePendiente);
+      if (idPendiente) setClienteId(idPendiente);
     }
     
     if (clienteDesdeTelefono) {
       setCliente(clienteDesdeTelefono);
+    }
+    if (clienteIdDesdeTelefono) {
+      setClienteId(clienteIdDesdeTelefono);
     }
     
     if (pagoTelefonoPendiente) {

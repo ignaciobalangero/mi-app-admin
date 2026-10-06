@@ -43,6 +43,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     
     proveedor: "",
     cliente: "",
+    clienteId: "",
     modelo: "",
     marca: "",
     color: "",
@@ -427,6 +428,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       telefonos,
       telefonosRecibidos,
       cliente: form.cliente,
+      clienteId: form.clienteId || "",
     };
 
     const pagoTelefono = {
@@ -437,9 +439,15 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       destino: "ventaTelefonos",
     };
 
+    if (!String(form.clienteId || "").trim()) {
+      setMensajeForm("⚠️ Elegí el cliente de la lista antes de continuar.");
+      return;
+    }
+
     localStorage.setItem("ventaTelefonoPendiente", JSON.stringify(payload));
     localStorage.setItem("pagoTelefonoPendiente", JSON.stringify(pagoTelefono));
     localStorage.setItem("clienteDesdeTelefono", form.cliente);
+    localStorage.setItem("clienteIdDesdeTelefono", String(form.clienteId));
 
     if (telefonosRecibidos.length > 0) {
       const itemsPago = telefonosRecibidos.map((t) => datosStockAPagoItem(t));
@@ -460,6 +468,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       }),
       proveedor: "",
       cliente: "",
+      clienteId: "",
       ...camposDispositivoVacios,
     });
 

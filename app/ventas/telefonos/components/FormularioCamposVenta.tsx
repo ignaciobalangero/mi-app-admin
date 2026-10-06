@@ -74,13 +74,46 @@ export default function FormularioCamposVenta({
 
       <div className="flex items-start gap-2 min-w-0">
         <div className="flex-1 min-w-0">
-          <Combobox value={form.cliente} onChange={(value) => setForm((prev) => ({ ...prev, cliente: value }))}>
+          <Combobox
+            value={
+              clientes.find((c) => c.id === form.clienteId) ??
+              (form.cliente
+                ? ({ id: form.clienteId || "", nombre: form.cliente } as {
+                    id: string;
+                    nombre: string;
+                  })
+                : null)
+            }
+            onChange={(c: { id: string; nombre: string } | null) => {
+              if (c) {
+                setForm((prev) => ({
+                  ...prev,
+                  cliente: c.nombre,
+                  clienteId: c.id,
+                }));
+              } else {
+                setForm((prev) => ({ ...prev, cliente: "", clienteId: "" }));
+              }
+              setQueryCliente("");
+            }}
+          >
             <div className="relative">
               <Combobox.Input
-                className="p-2 border rounded w-full"
-                onChange={(e) => setQueryCliente(e.target.value)}
-                displayValue={(cliente: string) => cliente}
-                placeholder="Buscar cliente..."
+                className={`p-2 border rounded w-full ${
+                  form.cliente && !form.clienteId
+                    ? "border-orange-400"
+                    : "border-gray-400"
+                }`}
+                onChange={(e) => {
+                  setQueryCliente(e.target.value);
+                  setForm((prev) => ({
+                    ...prev,
+                    cliente: e.target.value,
+                    clienteId: "",
+                  }));
+                }}
+                displayValue={() => form.cliente || ""}
+                placeholder="Buscar cliente de la lista..."
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
@@ -93,7 +126,7 @@ export default function FormularioCamposVenta({
                   .map((c) => (
                     <Combobox.Option
                       key={c.id}
-                      value={c.nombre}
+                      value={c}
                       className={({ active }) =>
                         `px-4 py-2 cursor-pointer ${active ? "bg-blue-600 text-white" : "text-black"}`
                       }
@@ -104,6 +137,11 @@ export default function FormularioCamposVenta({
               </Combobox.Options>
             </div>
           </Combobox>
+          {form.cliente && !form.clienteId ? (
+            <p className="mt-1 text-xs text-orange-600">
+              Elegí el cliente de la lista (no solo escribir el nombre).
+            </p>
+          ) : null}
         </div>
         <button
           onClick={onAgregarCliente}

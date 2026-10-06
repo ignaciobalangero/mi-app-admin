@@ -9,7 +9,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRol } from "@/lib/useRol";
 import GeneradorPDF from "./GeneradorPDF";
-import { deudaVentaPorMoneda, nombresClienteEquivalentes } from "@/lib/actualizarSaldoCliente";
+import { deudaVentaPorMoneda } from "@/lib/actualizarSaldoCliente";
 import { monedaLineaProducto, totalesVentasPorMoneda } from "./ventasMonedaHelpers";
 
 /** Nombre usable para la fila (ignora placeholders "—" / "---" de modelo vacío). */
@@ -68,6 +68,7 @@ export default function ClienteDetalle() {
         return;
       }
 
+      // Misma regla que recalcular saldos: nombre exacto de la ficha, o clienteId
       let clienteId = "";
       try {
         const clientesSnap = await getDocs(
@@ -78,32 +79,22 @@ export default function ClienteDetalle() {
         );
         if (!clientesSnap.empty) {
           clienteId = clientesSnap.docs[0].id;
-        } else {
-          const todos = await getDocs(
-            collection(db, `negocios/${negocioID}/clientes`)
-          );
-          const hit = todos.docs.find((d) =>
-            nombresClienteEquivalentes(String(d.data()?.nombre ?? ""), nombreCliente)
-          );
-          if (hit) clienteId = hit.id;
         }
       } catch (e) {
         console.warn("No se pudo resolver clienteId:", e);
       }
 
-      // Traer todo y filtrar en memoria: evita ventas “huérfanas” por mayúsculas/espacios
-      // o solo ligadas por clienteId (cantidades típicas: cientos de docs).
+      const pertenece = (data: { cliente?: unknown; clienteId?: unknown }) => {
+        const id = String(data.clienteId ?? "").trim();
+        if (clienteId && id && id === clienteId) return true;
+        return String(data.cliente ?? "") === nombreCliente;
+      };
+
       const [trabajosSnap, pagosSnap, ventasSnap] = await Promise.all([
         getDocs(collection(db, `negocios/${negocioID}/trabajos`)),
         getDocs(collection(db, `negocios/${negocioID}/pagos`)),
         getDocs(collection(db, `negocios/${negocioID}/ventasGeneral`)),
       ]);
-
-      const pertenece = (data: { cliente?: unknown; clienteId?: unknown }) => {
-        const id = String(data.clienteId ?? "").trim();
-        if (clienteId && id && id === clienteId) return true;
-        return nombresClienteEquivalentes(String(data.cliente ?? ""), nombreCliente);
-      };
 
       const mapDoc = (d: { id: string; data: () => Record<string, unknown> }) => ({
         id: d.id,
@@ -122,7 +113,6 @@ export default function ClienteDetalle() {
         .map(mapDoc)
         .filter((v) => pertenece(v as { cliente?: unknown; clienteId?: unknown })) as any[];
 
-      // Ordenar por fecha
       const ordenarPorFechaDesc = (a: any, b: any) => {
         const [diaA, mesA, añoA] = String(a.fecha || "").split('/');
         const [diaB, mesB, añoB] = String(b.fecha || "").split('/');
