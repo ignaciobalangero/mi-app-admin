@@ -91,6 +91,10 @@ export default function StockTelefonosPage() {
     total: telefonos.length,
     nuevos: telefonos.filter(t => t.estado?.toLowerCase() === 'nuevo').length,
     usados: telefonos.filter(t => t.estado?.toLowerCase() === 'usado').length,
+    sellados: telefonos.filter(t => {
+      const e = t.estado?.toLowerCase();
+      return e === 'sellado' || e === 'sellados';
+    }).length,
     reparacion: telefonos.filter(t => t.estado?.toLowerCase() === 'reparacion').length,
   };
 
@@ -172,16 +176,20 @@ export default function StockTelefonosPage() {
                 <p className="text-sm font-medium text-gray-600">Por Estado</p>
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-green-600">✓ Nuevos</span>
-                    <span className="text-sm font-semibold text-green-700">{estadisticas.nuevos}</span>
+                    <span className="text-xs text-emerald-600">✓ Nuevos</span>
+                    <span className="text-sm font-semibold text-emerald-700">{estadisticas.nuevos}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-blue-600">⚡ Usados</span>
-                    <span className="text-sm font-semibold text-blue-700">{estadisticas.usados}</span>
+                    <span className="text-xs text-sky-600">⚡ Usados</span>
+                    <span className="text-sm font-semibold text-sky-700">{estadisticas.usados}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-yellow-600">🔧 Reparación</span>
-                    <span className="text-sm font-semibold text-yellow-700">{estadisticas.reparacion}</span>
+                    <span className="text-xs text-violet-600">📦 Sellados</span>
+                    <span className="text-sm font-semibold text-violet-700">{estadisticas.sellados}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-amber-600">🔧 Reparación</span>
+                    <span className="text-sm font-semibold text-amber-700">{estadisticas.reparacion}</span>
                   </div>
                 </div>
               </div>

@@ -49,7 +49,14 @@ export default function CamposEstadoTelefono({
 
   async function agregarEstado() {
     const value = normalizarEstado(nuevo);
-    if (!value || value === "nuevo" || value === "usado" || extras.includes(value)) {
+    if (
+      !value ||
+      value === "nuevo" ||
+      value === "usado" ||
+      value === "sellado" ||
+      value === "sellados" ||
+      extras.includes(value)
+    ) {
       setNuevo("");
       return;
     }

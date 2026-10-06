@@ -45,6 +45,8 @@ interface DatosMes {
   ventasUSD: number;
   totalTrabajos: number;
   totalVentas: number;
+  telefonosVendidos: number;
+  accesoriosVendidos: number;
   generalesVendidos?: number;
   gananciaGeneralesARS?: number;
   gananciaGeneralesUSD?: number;
@@ -87,6 +89,8 @@ export default function ResumenSimplificado() {
             ventasARS: data.gananciaVentasARS || 0,
             ventasUSD: data.gananciaVentasUSD || 0,
             totalTrabajos: data.trabajosReparados || 0,
+            telefonosVendidos: data.telefonosVendidos || 0,
+            accesoriosVendidos: data.accesoriosVendidos || 0,
             totalVentas: (data.accesoriosVendidos || 0) + (data.telefonosVendidos || 0),
             generalesVendidos: data.generalesVendidos || 0,
             gananciaGeneralesARS: data.gananciaGeneralesARS || 0,
@@ -190,6 +194,8 @@ export default function ResumenSimplificado() {
       "Ganancia Repuestos ARS (stock extra)": item.gananciaGeneralesARS || 0,
       "Ganancia Repuestos USD (stock extra)": item.gananciaGeneralesUSD || 0,
       "Total Trabajos": item.totalTrabajos,
+      "Teléfonos Vendidos": item.telefonosVendidos,
+      "Accesorios/Repuestos Vendidos": item.accesoriosVendidos,
       "Total Ventas": item.totalVentas,
     }));
     
@@ -346,10 +352,18 @@ export default function ResumenSimplificado() {
                     <h2 className="text-xl font-bold text-gray-900 mb-4">
                       📊 Resumen de {mesSeleccionado}
                     </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 text-sm">
                       <div className="bg-slate-100 p-4 rounded-lg border-2 border-slate-300 shadow-sm">
                         <span className="font-bold text-slate-900 text-base">Trabajos:</span>
                         <div className="font-bold text-slate-800 text-lg">{mesActual.totalTrabajos}</div>
+                      </div>
+                      <div className="bg-orange-100 p-4 rounded-lg border-2 border-orange-400 shadow-sm">
+                        <span className="font-bold text-orange-900 text-base">Teléfonos vendidos:</span>
+                        <div className="font-bold text-orange-800 text-lg">{mesActual.telefonosVendidos}</div>
+                      </div>
+                      <div className="bg-violet-100 p-4 rounded-lg border-2 border-violet-400 shadow-sm">
+                        <span className="font-bold text-violet-900 text-base">Accesorios/repuestos:</span>
+                        <div className="font-bold text-violet-800 text-lg">{mesActual.accesoriosVendidos}</div>
                       </div>
                       <div className="bg-emerald-100 p-4 rounded-lg border-2 border-emerald-400 shadow-sm">
                         <span className="font-bold text-emerald-900 text-base">Ganancia Trabajos:</span>
@@ -386,6 +400,24 @@ export default function ResumenSimplificado() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Teléfonos vendidos (unidades) */}
+                    <div className="bg-white rounded-2xl p-6 border-4 border-orange-300 shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-base font-bold text-orange-900 mb-2 uppercase tracking-wide">📱 Teléfonos</p>
+                          <p className="text-3xl font-black text-orange-800">
+                            {mesActual.telefonosVendidos}
+                          </p>
+                          <p className="text-sm text-orange-700 font-semibold mt-1">
+                            Unidades vendidas este mes
+                          </p>
+                        </div>
+                        <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
+                          <span className="text-2xl">📱</span>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Trabajos */}
                     <div className="bg-white rounded-2xl p-6 border-4 border-emerald-300 shadow-xl">
                       <div className="flex items-center justify-between">

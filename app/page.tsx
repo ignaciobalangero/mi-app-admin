@@ -10,7 +10,7 @@ import { useRol } from "../lib/useRol";
 import { calcularResumenCajaDia } from "@/lib/caja/calcularResumenDia";
 import { fechaCajaHoy } from "@/lib/caja/fechaCaja";
 import { obtenerSesionAbierta, obtenerSesionDelDia } from "@/lib/caja/sesionCaja";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import RecordatoriosInicio from "./components/RecordatoriosInicio";
@@ -31,20 +31,22 @@ function Home() {
   const [user] = useAuthState(auth);
 
   // ==========================================
-  // CARGAR ESTADÍSTICAS DEL MES ACTUAL
+  // ESTADÍSTICAS DEL MES ACTUAL (live)
   // ==========================================
   useEffect(() => {
-    const cargarEstadisticasDelMes = async () => {
-      if (!rol?.negocioID) return;
+    if (!rol?.negocioID) return;
 
-      const hoy = new Date();
-      const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
-      const anioActual = hoy.getFullYear().toString();
-      const mesAnioActual = `${mesActual}-${anioActual}`;
+    const hoy = new Date();
+    const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
+    const anioActual = hoy.getFullYear().toString();
+    const mesAnioActual = `${mesActual}-${anioActual}`;
 
-      const estadisticasRef = doc(db, `negocios/${rol.negocioID}/estadisticas/${mesAnioActual}`);
-      const estadisticasSnap = await getDoc(estadisticasRef);
+    const estadisticasRef = doc(
+      db,
+      `negocios/${rol.negocioID}/estadisticas/${mesAnioActual}`
+    );
 
+    const unsub = onSnapshot(estadisticasRef, (estadisticasSnap) => {
       if (estadisticasSnap.exists()) {
         const data = estadisticasSnap.data();
         setTrabajosReparados(data.trabajosReparados || 0);
@@ -55,7 +57,9 @@ function Home() {
         setAccesoriosVendidos(0);
         setTelefonosVendidos(0);
       }
+    });
 
+    const cargarCajaHoy = async () => {
       const hoyCaja = fechaCajaHoy();
       let sesion = await obtenerSesionAbierta(rol.negocioID);
       if (!sesion) sesion = await obtenerSesionDelDia(rol.negocioID, hoyCaja);
@@ -70,7 +74,9 @@ function Home() {
       setTotalCajaHoy(resumen.ingresos.total);
     };
 
-    cargarEstadisticasDelMes();
+    void cargarCajaHoy();
+
+    return () => unsub();
   }, [rol]);
 
   // ==========================================

@@ -107,7 +107,11 @@ export const actualizarEstadisticas = onDocumentWritten(
     if (collection === "trabajos") {
       const estadoAntes = antes?.estado;
       const estadoDespues = despues?.estado;
-      const fechaDespues = despues?.fechaModificacion || "";
+      // En delete `despues` es null → usar fecha del doc borrado
+      const fechaRef =
+        despues?.fechaModificacion ||
+        antes?.fechaModificacion ||
+        "";
 
       // ✅ Detectar si cambió precio/costo sin cambio de estado
       const cambioPrecios =
@@ -116,8 +120,8 @@ export const actualizarEstadisticas = onDocumentWritten(
         (antes.precio !== despues.precio || antes.costo !== despues.costo) &&
         ["REPARADO", "ENTREGADO", "PAGADO"].includes(estadoDespues);
 
-      if (fechaDespues) {
-        const partesFecha = fechaDespues.split("/");
+      if (fechaRef) {
+        const partesFecha = String(fechaRef).split("/");
         if (partesFecha.length === 3) {
           const mesVenta = String(partesFecha[1]).padStart(2, "0");
           const anioVenta = partesFecha[2];
@@ -150,22 +154,20 @@ export const actualizarEstadisticas = onDocumentWritten(
             const costoDespues = Number(despues?.costo || 0);
             const gananciaDespues = precioDespues - costoDespues;
 
-            // Trabajo cambió a REPARADO/ENTREGADO/PAGADO
-            if (
-              ["REPARADO", "ENTREGADO", "PAGADO"].includes(estadoDespues) &&
-              !["REPARADO", "ENTREGADO", "PAGADO"].includes(estadoAntes)
-            ) {
+            const estadosOk = ["REPARADO", "ENTREGADO", "PAGADO"];
+            const antesOk = estadosOk.includes(estadoAntes);
+            const despuesOk = estadosOk.includes(estadoDespues);
+
+            // Alta / pasó a estado válido
+            if (despuesOk && !antesOk) {
               stats.trabajosReparados = (stats.trabajosReparados || 0) + 1;
               stats.gananciaTrabajos = (stats.gananciaTrabajos || 0) + gananciaDespues;
             }
 
-            // Trabajo cambió de REPARADO/ENTREGADO/PAGADO a otro estado
-            if (
-              ["REPARADO", "ENTREGADO", "PAGADO"].includes(estadoAntes) &&
-              !["REPARADO", "ENTREGADO", "PAGADO"].includes(estadoDespues)
-            ) {
+            // Baja / salió de estado válido (incluye delete)
+            if (antesOk && !despuesOk) {
               stats.trabajosReparados = Math.max(0, (stats.trabajosReparados || 0) - 1);
-              stats.gananciaTrabajos = Math.max(0, (stats.gananciaTrabajos || 0) - gananciaAntes);
+              stats.gananciaTrabajos = (stats.gananciaTrabajos || 0) - gananciaAntes;
             }
 
             // Trabajo en estado válido y cambió precio/costo
@@ -182,103 +184,143 @@ export const actualizarEstadisticas = onDocumentWritten(
       }
     }
 
-    // ✅ PROCESAR VENTAS CON fecha
+    // ✅ PROCESAR VENTAS CON fecha (create / update / delete)
     if (collection === "ventasGeneral") {
-      const fechaDespues = despues?.fecha || "";
-      const productosDespues = despues?.productos || [];
-      const productosAntes = antes?.productos || [];
+      const fechaAntes = String(antes?.fecha || "").trim();
+      const fechaDespues = String(despues?.fecha || "").trim();
+      const productosAntes = Array.isArray(antes?.productos) ? antes.productos : [];
+      const productosDespues = Array.isArray(despues?.productos) ? despues.productos : [];
 
-      const parteFecha = fechaDespues.split("/");
-      if (parteFecha.length === 3) {
-        const mesVenta = String(parteFecha[1]).padStart(2, "0");
-        const anioVenta = parteFecha[2];
-        const mesAnioVenta = `${mesVenta}-${anioVenta}`;
+      const mesAnioDeFecha = (fecha: string): string | null => {
+        const partes = fecha.split("/");
+        if (partes.length !== 3) return null;
+        return `${String(partes[1]).padStart(2, "0")}-${partes[2]}`;
+      };
 
+      const statsVacios = (mesAnio: string) => ({
+        mes: mesAnio,
+        trabajosReparados: 0,
+        telefonosVendidos: 0,
+        accesoriosVendidos: 0,
+        generalesVendidos: 0,
+        gananciaTrabajos: 0,
+        gananciaVentasARS: 0,
+        gananciaVentasUSD: 0,
+        gananciaGeneralesARS: 0,
+        gananciaGeneralesUSD: 0,
+        cajaDelDia: {} as Record<string, number>,
+      });
+
+      const aplicarProductos = (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        stats: any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        productos: any[],
+        signo: 1 | -1,
+        fechaCaja: string
+      ) => {
+        productos.forEach((p: any) => {
+          const ganancia = Number(p.ganancia || 0) * signo;
+          const cantidad = Number(p.cantidad || 1);
+
+          if (p.tipo === "telefono") {
+            stats.telefonosVendidos = Math.max(
+              0,
+              (stats.telefonosVendidos || 0) + signo * 1
+            );
+            if (p.moneda === "USD") {
+              stats.gananciaVentasUSD = (stats.gananciaVentasUSD || 0) + ganancia;
+            } else {
+              stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
+            }
+          } else if (p.tipo === "accesorio" || p.tipo === "repuesto") {
+            stats.accesoriosVendidos = Math.max(
+              0,
+              (stats.accesoriosVendidos || 0) + signo * cantidad
+            );
+            if (p.moneda === "USD") {
+              stats.gananciaVentasUSD = (stats.gananciaVentasUSD || 0) + ganancia;
+            } else {
+              stats.gananciaVentasARS = (stats.gananciaVentasARS || 0) + ganancia;
+            }
+          } else if (p.tipo === "general" || p.tipo === "stockExtra") {
+            stats.generalesVendidos = Math.max(
+              0,
+              (stats.generalesVendidos || 0) + signo * cantidad
+            );
+            if (p.moneda === "USD") {
+              stats.gananciaGeneralesUSD = (stats.gananciaGeneralesUSD || 0) + ganancia;
+            } else {
+              stats.gananciaGeneralesARS = (stats.gananciaGeneralesARS || 0) + ganancia;
+            }
+          }
+
+          if (fechaCaja && fechaCaja === diaActual) {
+            const total = Number(p.total || 0) * signo;
+            stats.cajaDelDia = stats.cajaDelDia || {};
+            stats.cajaDelDia[fechaCaja] = (stats.cajaDelDia[fechaCaja] || 0) + total;
+          }
+        });
+      };
+
+      const actualizarMes = async (
+        mesAnio: string,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        productosSuma: any[],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        productosResta: any[],
+        fechaCajaSuma: string,
+        fechaCajaResta: string
+      ) => {
         const estadisticasRef = db
           .collection(`negocios/${negocioID}/estadisticas`)
-          .doc(mesAnioVenta);
-
+          .doc(mesAnio);
         try {
           const estadisticasDoc = await estadisticasRef.get();
-
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const stats: any = estadisticasDoc.exists ? estadisticasDoc.data() : {
-            mes: mesAnioVenta,
-            trabajosReparados: 0,
-            telefonosVendidos: 0,
-            accesoriosVendidos: 0,
-            generalesVendidos: 0,
-            gananciaTrabajos: 0,
-            gananciaVentasARS: 0,
-            gananciaVentasUSD: 0,
-            gananciaGeneralesARS: 0,
-            gananciaGeneralesUSD: 0,
-            cajaDelDia: {},
-          };
+          let stats: any;
+          if (estadisticasDoc.exists) {
+            stats = estadisticasDoc.data();
+          } else {
+            stats = statsVacios(mesAnio);
+          }
 
-          // PRODUCTOS DESPUÉS (SUMA)
-          productosDespues.forEach((p: any) => {
-            const ganancia = Number(p.ganancia || 0);
-            const cantidad = Number(p.cantidad || 1);
-
-            if (p.tipo === "telefono") {
-              stats.telefonosVendidos += 1;
-              p.moneda === "USD" ?
-                stats.gananciaVentasUSD += ganancia :
-                stats.gananciaVentasARS += ganancia;
-            } else if (p.tipo === "accesorio" || p.tipo === "repuesto") {
-              stats.accesoriosVendidos += cantidad;
-              p.moneda === "USD" ?
-                stats.gananciaVentasUSD += ganancia :
-                stats.gananciaVentasARS += ganancia;
-            } else if (p.tipo === "general" || p.tipo === "stockExtra") {
-              stats.generalesVendidos += cantidad;
-              p.moneda === "USD" ?
-                stats.gananciaGeneralesUSD += ganancia :
-                stats.gananciaGeneralesARS += ganancia;
-            }
-
-            // Caja del día
-            if (fechaDespues === diaActual) {
-              const total = Number(p.total || 0);
-              stats.cajaDelDia = stats.cajaDelDia || {};
-              stats.cajaDelDia[diaActual] = (stats.cajaDelDia[diaActual] || 0) + total;
-            }
-          });
-
-          // PRODUCTOS ANTES (RESTA)
-          productosAntes.forEach((p: any) => {
-            const ganancia = Number(p.ganancia || 0);
-            const cantidad = Number(p.cantidad || 1);
-
-            if (p.tipo === "telefono") {
-              stats.telefonosVendidos = Math.max(0, stats.telefonosVendidos - 1);
-              if (p.moneda === "USD") {
-                stats.gananciaVentasUSD -= ganancia;
-              } else {
-                stats.gananciaVentasARS -= ganancia;
-              }
-            } else if (p.tipo === "accesorio" || p.tipo === "repuesto") {
-              stats.accesoriosVendidos = Math.max(0, stats.accesoriosVendidos - cantidad);
-              if (p.moneda === "USD") {
-                stats.gananciaVentasUSD -= ganancia;
-              } else {
-                stats.gananciaVentasARS -= ganancia;
-              }
-            } else if (p.tipo === "general" || p.tipo === "stockExtra") {
-              stats.generalesVendidos = Math.max(0, stats.generalesVendidos - cantidad);
-              if (p.moneda === "USD") {
-                stats.gananciaGeneralesUSD -= ganancia;
-              } else {
-                stats.gananciaGeneralesARS -= ganancia;
-              }
-            }
-          });
+          aplicarProductos(stats, productosSuma, 1, fechaCajaSuma);
+          aplicarProductos(stats, productosResta, -1, fechaCajaResta);
 
           await estadisticasRef.set(stats, {merge: true});
-          console.log(`✅ Estadísticas de ventas actualizadas para ${mesAnioVenta}`);
+          console.log(`✅ Estadísticas de ventas actualizadas para ${mesAnio}`);
         } catch (error) {
           console.error("❌ Error actualizando estadísticas de ventas:", error);
+        }
+      };
+
+      const mesAntes = mesAnioDeFecha(fechaAntes);
+      const mesDespues = mesAnioDeFecha(fechaDespues);
+
+      if (!antes && despues && mesDespues) {
+        // Alta
+        await actualizarMes(mesDespues, productosDespues, [], fechaDespues, "");
+      } else if (antes && !despues && mesAntes) {
+        // Baja (delete) — acá estaba el bug: no restaba porque no había fechaDespues
+        await actualizarMes(mesAntes, [], productosAntes, "", fechaAntes);
+      } else if (antes && despues) {
+        // Update: si cambió de mes, restar en el viejo y sumar en el nuevo
+        if (mesAntes && mesDespues && mesAntes === mesDespues) {
+          await actualizarMes(
+            mesDespues,
+            productosDespues,
+            productosAntes,
+            fechaDespues,
+            fechaAntes
+          );
+        } else {
+          if (mesAntes) {
+            await actualizarMes(mesAntes, [], productosAntes, "", fechaAntes);
+          }
+          if (mesDespues) {
+            await actualizarMes(mesDespues, productosDespues, [], fechaDespues, "");
+          }
         }
       }
     }

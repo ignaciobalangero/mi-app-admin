@@ -14,7 +14,7 @@ import ModalEnviarServicio from "./servicios/ModalEnviarServicio";
 import ModalRetornarServicio from "./servicios/ModalRetornarServicio";
 import ModalVerServicioActual from "./servicios/ModalVerServicioActual";
 import ModalHistorialServicios from "./servicios/ModalHistorialServicio";
-import { estadoPideCondicion, etiquetaEstado } from "@/lib/stockTelefonos/estados";
+import { estadoPideCondicion, etiquetaEstado, estiloBadgeEstado, estiloFilaEstado } from "@/lib/stockTelefonos/estados";
 
 interface Props {
   negocioID: string;
@@ -289,19 +289,6 @@ export default function TablaStockTelefonos({
     return precio ? `$${Number(precio).toLocaleString("es-AR")}` : "-";
   };
 
-  const obtenerEstadoColor = (estado: string) => {
-    switch (estado?.toLowerCase()) {
-      case 'nuevo':
-        return 'bg-green-100 text-green-700';
-      case 'usado':
-        return 'bg-blue-100 text-blue-700';
-      case 'reparacion':
-        return 'bg-yellow-100 text-yellow-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
   return (
     <div className="space-y-6">
       {mensaje && (
@@ -548,17 +535,11 @@ export default function TablaStockTelefonos({
                   </td>
                 </tr>
               ) : (
-                filtrados.map((t, index) => {
-                  const isEven = index % 2 === 0;
-                  
+                filtrados.map((t) => {
                   return (
                     <tr 
                       key={`stock-${t.id || ""}-${t.imei || Math.random()}`} 
-                      className={`transition-colors duration-200 ${
-                        t.enServicio 
-                          ? 'bg-gray-200 opacity-75' 
-                          : isEven ? 'bg-white hover:bg-purple-50' : 'bg-gray-50 hover:bg-purple-50'
-                      }`}
+                      className={`transition-colors duration-200 ${estiloFilaEstado(t.estado, t.enServicio)}`}
                     >
                       <td className="p-1 sm:p-2 border border-gray-300 text-xs" style={{minWidth: '60px', maxWidth: '80px'}}>
                         <span className="font-medium text-gray-800">
@@ -579,8 +560,8 @@ export default function TablaStockTelefonos({
                       <td className="p-2 border border-gray-300 text-center" style={{minWidth: '100px'}}>
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
                           t.enServicio 
-                            ? 'bg-orange-100 text-orange-700' 
-                            : obtenerEstadoColor(t.estado)
+                            ? 'bg-orange-100 text-orange-800' 
+                            : estiloBadgeEstado(t.estado)
                         }`}>
                           {t.enServicio ? '🔧 En Servicio' : (etiquetaEstado(t.estado) || "-")}
                         </span>
