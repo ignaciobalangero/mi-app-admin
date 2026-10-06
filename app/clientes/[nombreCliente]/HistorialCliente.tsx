@@ -9,7 +9,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRol } from "@/lib/useRol";
 import GeneradorPDF from "./GeneradorPDF";
-import { deudaVentaPorMoneda } from "@/lib/actualizarSaldoCliente";
+import { deudaVentaPorMoneda, nombresClienteEquivalentes } from "@/lib/actualizarSaldoCliente";
 import { monedaLineaProducto, totalesVentasPorMoneda } from "./ventasMonedaHelpers";
 
 /** Nombre usable para la fila (ignora placeholders "—" / "---" de modelo vacío). */
@@ -68,56 +68,72 @@ export default function ClienteDetalle() {
         return;
       }
 
-      const trabajosQuery = query(
-        collection(db, `negocios/${negocioID}/trabajos`),
-        where("cliente", "==", nombreCliente)
-      );
-      const pagosQuery = query(
-        collection(db, `negocios/${negocioID}/pagos`),
-        where("cliente", "==", nombreCliente)
-      );
-      const ventasQuery = query(
-        collection(db, `negocios/${negocioID}/ventasGeneral`),
-        where("cliente", "==", nombreCliente)
-      );
+      let clienteId = "";
+      try {
+        const clientesSnap = await getDocs(
+          query(
+            collection(db, `negocios/${negocioID}/clientes`),
+            where("nombre", "==", nombreCliente)
+          )
+        );
+        if (!clientesSnap.empty) {
+          clienteId = clientesSnap.docs[0].id;
+        } else {
+          const todos = await getDocs(
+            collection(db, `negocios/${negocioID}/clientes`)
+          );
+          const hit = todos.docs.find((d) =>
+            nombresClienteEquivalentes(String(d.data()?.nombre ?? ""), nombreCliente)
+          );
+          if (hit) clienteId = hit.id;
+        }
+      } catch (e) {
+        console.warn("No se pudo resolver clienteId:", e);
+      }
 
+      // Traer todo y filtrar en memoria: evita ventas “huérfanas” por mayúsculas/espacios
+      // o solo ligadas por clienteId (cantidades típicas: cientos de docs).
       const [trabajosSnap, pagosSnap, ventasSnap] = await Promise.all([
-        getDocs(trabajosQuery),
-        getDocs(pagosQuery),
-        getDocs(ventasQuery),
+        getDocs(collection(db, `negocios/${negocioID}/trabajos`)),
+        getDocs(collection(db, `negocios/${negocioID}/pagos`)),
+        getDocs(collection(db, `negocios/${negocioID}/ventasGeneral`)),
       ]);
 
-      const trabajosData = trabajosSnap.docs.map((doc) => doc.data());
-      const pagosData = pagosSnap.docs.map((doc) => doc.data());
-      const ventasData = ventasSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as Record<string, unknown>),
-      })) as any[];
+      const pertenece = (data: { cliente?: unknown; clienteId?: unknown }) => {
+        const id = String(data.clienteId ?? "").trim();
+        if (clienteId && id && id === clienteId) return true;
+        return nombresClienteEquivalentes(String(data.cliente ?? ""), nombreCliente);
+      };
+
+      const mapDoc = (d: { id: string; data: () => Record<string, unknown> }) => ({
+        id: d.id,
+        ...d.data(),
+      });
+
+      const trabajosData = trabajosSnap.docs
+        .map((d) => d.data())
+        .filter((t) => pertenece(t as { cliente?: unknown; clienteId?: unknown }));
+
+      const pagosData = pagosSnap.docs
+        .map(mapDoc)
+        .filter((p) => pertenece(p as { cliente?: unknown; clienteId?: unknown }));
+
+      const ventasData = ventasSnap.docs
+        .map(mapDoc)
+        .filter((v) => pertenece(v as { cliente?: unknown; clienteId?: unknown })) as any[];
 
       // Ordenar por fecha
-      trabajosData.sort((a, b) => {
-        const [diaA, mesA, añoA] = a.fecha.split('/');
-        const [diaB, mesB, añoB] = b.fecha.split('/');
+      const ordenarPorFechaDesc = (a: any, b: any) => {
+        const [diaA, mesA, añoA] = String(a.fecha || "").split('/');
+        const [diaB, mesB, añoB] = String(b.fecha || "").split('/');
         const fechaA = new Date(`${añoA}-${mesA}-${diaA}`);
         const fechaB = new Date(`${añoB}-${mesB}-${diaB}`);
         return fechaB.getTime() - fechaA.getTime();
-      });
+      };
 
-      pagosData.sort((a, b) => {
-        const [diaA, mesA, añoA] = a.fecha.split('/');
-        const [diaB, mesB, añoB] = b.fecha.split('/');
-        const fechaA = new Date(`${añoA}-${mesA}-${diaA}`);
-        const fechaB = new Date(`${añoB}-${mesB}-${diaB}`);
-        return fechaB.getTime() - fechaA.getTime();
-      });
-
-      ventasData.sort((a, b) => {
-        const [diaA, mesA, añoA] = a.fecha.split('/');
-        const [diaB, mesB, añoB] = b.fecha.split('/');
-        const fechaA = new Date(`${añoA}-${mesA}-${diaA}`);
-        const fechaB = new Date(`${añoB}-${mesB}-${diaB}`);
-        return fechaB.getTime() - fechaA.getTime();
-      });
+      trabajosData.sort(ordenarPorFechaDesc);
+      pagosData.sort(ordenarPorFechaDesc);
+      ventasData.sort(ordenarPorFechaDesc);
 
       setTrabajos(trabajosData);
       setPagos(pagosData);

@@ -10,7 +10,7 @@ import { useRol } from "../lib/useRol";
 import { calcularResumenCajaDia } from "@/lib/caja/calcularResumenDia";
 import { fechaCajaHoy } from "@/lib/caja/fechaCaja";
 import { obtenerSesionAbierta, obtenerSesionDelDia } from "@/lib/caja/sesionCaja";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import RecordatoriosInicio from "./components/RecordatoriosInicio";

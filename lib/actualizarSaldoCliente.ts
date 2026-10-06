@@ -32,6 +32,13 @@ export function limpiarNombreClienteExacto(s: string): string {
     .trim();
 }
 
+/** Comparación estable para asociar ventas/pagos a una ficha (ignora mayúsculas y espacios raros). */
+export function nombresClienteEquivalentes(a: string, b: string): boolean {
+  const na = limpiarNombreClienteExacto(a).toLowerCase();
+  const nb = limpiarNombreClienteExacto(b).toLowerCase();
+  return Boolean(na && nb && na === nb);
+}
+
 type ClienteRef = {
   ref: DocumentReference<DocumentData>;
   data: DocumentData;
@@ -76,10 +83,10 @@ async function encontrarClienteParaSaldo(
     return { ref: d.ref, data: d.data() };
   }
 
-  // 3) Mismo nombre con espacios raros en Firestore (sin cambiar mayúsculas/tildes)
+  // 3) Mismo nombre con espacios raros / mayúsculas distintas
   const todosSnap = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
-  const hit = todosSnap.docs.find(
-    (d) => limpiarNombreClienteExacto(String(d.data()?.nombre ?? "")) === nombre
+  const hit = todosSnap.docs.find((d) =>
+    nombresClienteEquivalentes(String(d.data()?.nombre ?? ""), nombre)
   );
   if (!hit) return null;
   return { ref: hit.ref, data: hit.data() };
@@ -186,7 +193,9 @@ export async function ajustarSaldoPorEdicionVenta(
   clienteAnterior: string,
   clienteNuevo: string,
   ventaAnterior: Parameters<typeof deudaVentaPorMoneda>[0],
-  productosNuevos: unknown[]
+  productosNuevos: unknown[],
+  clienteIdAnterior?: string,
+  clienteIdNuevo?: string
 ): Promise<void> {
   const viejo = deudaVentaPorMoneda(ventaAnterior);
   const nuevo = totalesVentasPorMoneda(
@@ -195,10 +204,21 @@ export async function ajustarSaldoPorEdicionVenta(
 
   const ant = limpiarNombreClienteExacto(clienteAnterior);
   const neu = limpiarNombreClienteExacto(clienteNuevo);
+  const idAnt = String(clienteIdAnterior ?? "").trim();
+  const idNeu = String(clienteIdNuevo ?? "").trim();
+  const mismoCliente =
+    (idAnt && idNeu && idAnt === idNeu) || (!!ant && !!neu && ant === neu);
   const deltaARS = nuevo.totalARS - viejo.totalARS;
   const deltaUSD = nuevo.totalUSD - viejo.totalUSD;
 
-  console.log("[editar venta → saldo]", { cliente: neu || ant, viejo, nuevo, deltaARS, deltaUSD });
+  console.log("[editar venta → saldo]", {
+    cliente: neu || ant,
+    idNeu: idNeu || "—",
+    viejo,
+    nuevo,
+    deltaARS,
+    deltaUSD,
+  });
 
   const mensajeFalloSaldo = (nombre: string, r: ResultadoActualizarSaldo) => {
     if (r.motivo === "error") {
@@ -207,30 +227,38 @@ export async function ajustarSaldoPorEdicionVenta(
     return `No se encontró el cliente "${nombre}" en Clientes con ese nombre exacto. Revisá mayúsculas/tildes o renombrá la venta al nombre tal cual está en Clientes.`;
   };
 
-  if (ant === neu) {
+  if (mismoCliente) {
     if (deltaARS === 0 && deltaUSD === 0) return;
-    const r = await actualizarSaldoClienteNegocioDetalle(negocioID, neu, deltaARS, deltaUSD);
-    if (!r.ok) throw new Error(mensajeFalloSaldo(neu, r));
+    const r = await actualizarSaldoClienteNegocioDetalle(
+      negocioID,
+      neu || ant,
+      deltaARS,
+      deltaUSD,
+      idNeu || idAnt || undefined
+    );
+    if (!r.ok) throw new Error(mensajeFalloSaldo(neu || ant, r));
     return;
   }
 
-  if (ant) {
+  if (ant || idAnt) {
     const rAnt = await actualizarSaldoClienteNegocioDetalle(
       negocioID,
       ant,
       -viejo.totalARS,
-      -viejo.totalUSD
+      -viejo.totalUSD,
+      idAnt || undefined
     );
-    if (!rAnt.ok) throw new Error(mensajeFalloSaldo(ant, rAnt));
+    if (!rAnt.ok) throw new Error(mensajeFalloSaldo(ant || idAnt, rAnt));
   }
-  if (neu) {
+  if (neu || idNeu) {
     const rNeu = await actualizarSaldoClienteNegocioDetalle(
       negocioID,
       neu,
       nuevo.totalARS,
-      nuevo.totalUSD
+      nuevo.totalUSD,
+      idNeu || undefined
     );
-    if (!rNeu.ok) throw new Error(mensajeFalloSaldo(neu, rNeu));
+    if (!rNeu.ok) throw new Error(mensajeFalloSaldo(neu || idNeu, rNeu));
   }
 }
 

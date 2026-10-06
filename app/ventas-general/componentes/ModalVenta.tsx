@@ -25,7 +25,7 @@ import {
   parsearTelefonosComoPagoLS,
   telefonoDraftAProducto,
 } from "@/lib/ventas/telefonoVentaHelpers";
-import { limpiarNombreClienteExacto } from "@/lib/actualizarSaldoCliente";
+import { limpiarNombreClienteExacto, nombresClienteEquivalentes } from "@/lib/actualizarSaldoCliente";
 
 export default function ModalVenta({
   clienteInicial = "",
@@ -409,8 +409,8 @@ export default function ModalVenta({
       }
     }
 
-    const hit = listaClientes.find(
-      (c) => limpiarNombreClienteExacto(c.nombre) === nombre
+    const hit = listaClientes.find((c) =>
+      nombresClienteEquivalentes(c.nombre, nombre)
     );
     if (hit) {
       setClienteId(hit.id);

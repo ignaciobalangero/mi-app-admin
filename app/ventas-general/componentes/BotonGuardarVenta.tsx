@@ -488,6 +488,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         fechaIngreso: tel.fechaIngreso || tel.fecha,
         proveedor: tel.proveedor || "",
         cliente,
+        ...(clienteId ? { clienteId } : {}),
         modelo: tel.modelo,
         marca: tel.marca || "",
         color: tel.color || "",
@@ -610,6 +611,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
         fecha,
         cliente,
+        ...(clienteId ? { clienteId } : {}),
         monto: monedaTel === "ARS" ? valorPago : null,
         montoUSD: monedaTel === "USD" ? valorPago : null,
         forma: "Entrega equipo",
@@ -651,6 +653,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     const basePagoTel = {
       fecha,
       cliente,
+      ...(clienteId ? { clienteId } : {}),
       destino: "ventaTelefonos",
       cotizacion: cotTel,
       observaciones: pagoTelefono.observaciones || "",
@@ -939,6 +942,7 @@ console.log('💳 Saldo actualizado por venta normal');
       pago?.tipoDestino === "proveedor" && Boolean(pago?.proveedorDestino);
     const basePagoDoc = {
       cliente,
+      ...(clienteId ? { clienteId } : {}),
       fecha,
       destino: pago?.destino || "",
       timestamp: serverTimestamp(),

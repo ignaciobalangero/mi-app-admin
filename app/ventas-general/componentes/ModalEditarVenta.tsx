@@ -1,9 +1,22 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
+import { Combobox } from "@headlessui/react";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { ajustarSaldoPorEdicionVenta } from "@/lib/actualizarSaldoCliente";
+import {
+  ajustarSaldoPorEdicionVenta,
+  limpiarNombreClienteExacto,
+  nombresClienteEquivalentes,
+} from "@/lib/actualizarSaldoCliente";
 import {
   cotizacionDeVenta,
   importeLineaProducto,
@@ -23,6 +36,8 @@ interface Props {
   cotizacion: number;
 }
 
+type ClienteOpcion = { id: string; nombre: string };
+
 function simboloMoneda(m: "ARS" | "USD") {
   return m === "USD" ? "USD $" : "$";
 }
@@ -36,22 +51,73 @@ export default function ModalEditarVenta({
   cotizacion,
 }: Props) {
   const [cliente, setCliente] = useState("");
+  const [clienteId, setClienteId] = useState("");
+  const [listaClientes, setListaClientes] = useState<ClienteOpcion[]>([]);
+  const [queryCliente, setQueryCliente] = useState("");
   const [fecha, setFecha] = useState("");
   const [productos, setProductos] = useState<any[]>([]);
   const [cotizacionEdicion, setCotizacionEdicion] = useState(0);
   const [guardando, setGuardando] = useState(false);
 
+  const clienteDeBase = Boolean(String(clienteId || "").trim());
+
+  useEffect(() => {
+    if (!mostrar || !negocioID) return;
+    let cancel = false;
+    (async () => {
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
+      if (cancel) return;
+      setListaClientes(
+        snap.docs
+          .map((d) => ({
+            id: d.id,
+            nombre: String(d.data()?.nombre ?? "").trim(),
+          }))
+          .filter((c) => c.nombre)
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+      );
+    })().catch((e) => console.error(e));
+    return () => {
+      cancel = true;
+    };
+  }, [mostrar, negocioID]);
+
   useEffect(() => {
     if (venta && mostrar) {
       const cot = cotizacionDeVenta(venta, cotizacion);
       setCotizacionEdicion(cot);
-      setCliente(venta.cliente || "");
+      setCliente(String(venta.cliente || "").trim());
+      setClienteId(String(venta.clienteId || "").trim());
+      setQueryCliente("");
       setFecha(venta.fecha || "");
       setProductos(
         (venta.productos || []).map((p: any) => prepararProductoParaEdicion(p, cot))
       );
     }
   }, [venta, mostrar, cotizacion]);
+
+  // Vincular nombre (con/sin espacios raros) al ID de Clientes
+  useEffect(() => {
+    if (!mostrar || listaClientes.length === 0) return;
+    const nombre = limpiarNombreClienteExacto(cliente);
+    if (!nombre) return;
+
+    if (clienteId) {
+      const porId = listaClientes.find((c) => c.id === clienteId);
+      if (porId) {
+        if (porId.nombre !== cliente) setCliente(porId.nombre);
+        return;
+      }
+    }
+
+    const hit = listaClientes.find((c) =>
+      nombresClienteEquivalentes(c.nombre, nombre)
+    );
+    if (hit) {
+      setClienteId(hit.id);
+      if (hit.nombre !== cliente) setCliente(hit.nombre);
+    }
+  }, [mostrar, listaClientes, cliente, clienteId]);
 
   const totales = useMemo(
     () => totalesVentaGeneralEditada(productos, cotizacionEdicion),
@@ -73,6 +139,12 @@ export default function ModalEditarVenta({
 
   const guardarCambios = async () => {
     if (!venta || !negocioID) return;
+    if (!clienteDeBase) {
+      alert(
+        "Seleccioná el cliente de la lista antes de guardar. Así la venta queda vinculada a su ficha."
+      );
+      return;
+    }
 
     setGuardando(true);
     try {
@@ -83,8 +155,13 @@ export default function ModalEditarVenta({
       const { totalARS, totalUSD, total, gananciaTotal, moneda } =
         totalesVentaGeneralEditada(productosParaGuardar, cot);
 
+      const nombreCanonico =
+        listaClientes.find((c) => c.id === clienteId)?.nombre ||
+        limpiarNombreClienteExacto(cliente);
+
       await updateDoc(doc(db, `negocios/${negocioID}/ventasGeneral/${venta.id}`), {
-        cliente,
+        cliente: nombreCanonico,
+        clienteId,
         fecha,
         productos: productosParaGuardar,
         total,
@@ -97,7 +174,7 @@ export default function ModalEditarVenta({
       await ajustarSaldoPorEdicionVenta(
         negocioID,
         venta.cliente || "",
-        cliente,
+        nombreCanonico,
         {
           productos: venta.productos,
           total: venta.total,
@@ -105,9 +182,15 @@ export default function ModalEditarVenta({
           totalUSD: venta.totalUSD,
           moneda: venta.moneda,
         },
-        productosParaGuardar
+        productosParaGuardar,
+        String(venta.clienteId || "").trim() || undefined,
+        clienteId
       );
 
+      const nro = String(venta.nroVenta ?? "").trim();
+      const patchCliente = { cliente: nombreCanonico, clienteId };
+
+      // Teléfonos del mismo grupo / mismo id
       const telefono = productosParaGuardar.find((p) => p.categoria === "Teléfono");
       if (telefono) {
         const telefonoRef = doc(db, `negocios/${negocioID}/ventaTelefonos/${venta.id}`);
@@ -117,23 +200,53 @@ export default function ModalEditarVenta({
             precioVenta: telefono.precioVenta,
             precioCosto: telefono.precioCosto,
             ganancia: telefono.ganancia,
-            cliente,
             fecha,
+            ...patchCliente,
           });
         }
+      }
+      if (nro) {
+        const telSnap = await getDocs(
+          query(
+            collection(db, `negocios/${negocioID}/ventaTelefonos`),
+            where("nroVenta", "==", nro)
+          )
+        );
+        await Promise.all(
+          telSnap.docs.map((d) => updateDoc(d.ref, patchCliente))
+        );
+
+        // Pagos ligados a la venta: mismo cliente canónico
+        const pagosSnap = await getDocs(
+          query(
+            collection(db, `negocios/${negocioID}/pagos`),
+            where("nroVenta", "==", nro)
+          )
+        );
+        await Promise.all(
+          pagosSnap.docs.map((d) => updateDoc(d.ref, patchCliente))
+        );
       }
 
       onVentaActualizada();
       onClose();
     } catch (error) {
       console.error("Error al guardar cambios:", error);
-      alert("Error al guardar los cambios");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Error al guardar los cambios"
+      );
     } finally {
       setGuardando(false);
     }
   };
 
   if (!mostrar || !venta) return null;
+
+  const clientesFiltrados = listaClientes.filter((c) =>
+    c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
+  );
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/40 p-0 backdrop-blur-sm sm:p-4">
@@ -159,16 +272,76 @@ export default function ModalEditarVenta({
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
+            <div className="relative z-30">
               <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
                 👤 Cliente
               </label>
-              <input
-                type="text"
-                value={cliente}
-                onChange={(e) => setCliente(e.target.value)}
-                className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12]"
-              />
+              <Combobox
+                value={listaClientes.find((c) => c.id === clienteId) ?? null}
+                onChange={(c: ClienteOpcion | null) => {
+                  if (c) {
+                    setCliente(c.nombre);
+                    setClienteId(c.id);
+                  } else {
+                    setCliente("");
+                    setClienteId("");
+                  }
+                  setQueryCliente("");
+                }}
+              >
+                <div className="relative">
+                  <Combobox.Input
+                    className={`w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] ${
+                      cliente.trim() && !clienteDeBase
+                        ? "border-[#e67e22]"
+                        : "border-[#bdc3c7]"
+                    }`}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setQueryCliente(v);
+                      setCliente(v);
+                      setClienteId("");
+                    }}
+                    displayValue={() => cliente}
+                    placeholder="🔍 Buscá y elegí el cliente de la lista..."
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <Combobox.Options className="absolute left-0 right-0 top-full mt-1 z-50 max-h-60 w-full overflow-y-auto rounded-lg border border-[#bdc3c7] bg-white shadow-2xl">
+                    {clientesFiltrados.map((c) => (
+                      <Combobox.Option
+                        key={c.id}
+                        value={c}
+                        className={({ active }) =>
+                          `cursor-pointer px-3 py-2 text-sm ${
+                            active
+                              ? "bg-[#f39c12] text-white"
+                              : "text-[#2c3e50] hover:bg-[#fef5e7]"
+                          }`
+                        }
+                      >
+                        {c.nombre}
+                      </Combobox.Option>
+                    ))}
+                    {clientesFiltrados.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-[#7f8c8d]">
+                        Sin coincidencias
+                      </div>
+                    )}
+                  </Combobox.Options>
+                </div>
+              </Combobox>
+              {cliente.trim() && !clienteDeBase ? (
+                <p className="mt-1 text-xs text-[#e67e22]">
+                  Elegí el cliente de la lista (no alcanza con escribir el nombre) para
+                  poder guardar y que figure en su cuenta.
+                </p>
+              ) : clienteDeBase ? (
+                <p className="mt-1 text-xs text-[#27ae60]">
+                  Vinculado a ficha de Clientes ✓
+                </p>
+              ) : null}
             </div>
             <div>
               <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
@@ -453,8 +626,13 @@ export default function ModalEditarVenta({
           <button
             type="button"
             onClick={guardarCambios}
-            disabled={guardando}
+            disabled={guardando || !clienteDeBase}
             className="px-8 py-3 bg-[#f39c12] hover:bg-[#e67e22] disabled:bg-[#bdc3c7] text-white rounded-lg font-medium flex items-center gap-2"
+            title={
+              !clienteDeBase
+                ? "Seleccioná el cliente de la lista"
+                : undefined
+            }
           >
             {guardando ? (
               <>
