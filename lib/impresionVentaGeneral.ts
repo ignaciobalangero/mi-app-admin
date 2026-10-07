@@ -26,6 +26,8 @@ export type VentaImpresion = {
     modelo?: string;
     valorPago?: number;
   };
+  /** Firma digital del cliente para el recibo de compra. */
+  firmaClienteUrl?: string;
 };
 
 function esc(s: string): string {

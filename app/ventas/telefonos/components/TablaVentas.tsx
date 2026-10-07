@@ -28,7 +28,12 @@ import {
 import {
   abrirVentanaReciboPendiente,
   imprimirReciboCompraDesdeVenta,
+  armarHtmlReciboCompraDesdeVenta,
+  generarPngReciboDesdeHtml,
+  descargarArchivoRecibo,
+  enviarReciboPorWhatsApp,
 } from "@/lib/reciboCompraTelefono";
+import ModalFirmarRecibo from "@/app/ventas-general/componentes/ModalFirmarRecibo";
 
 interface Props {
   negocioID: string;
@@ -47,6 +52,10 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
   const [ventaDetalle, setVentaDetalle] = useState<any | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [filtro, setFiltro] = useState("");
+  const [ventaAFirmar, setVentaAFirmar] = useState<any | null>(null);
+  const [ventaIdFirma, setVentaIdFirma] = useState<string>("");
+  const [abriendoFirma, setAbriendoFirma] = useState(false);
+  const [procesandoReciboId, setProcesandoReciboId] = useState<string>("");
   const { rol } = useRol();
 
   // 🔄 Función para ordenar ventas por fecha (más recientes primero)
@@ -127,14 +136,8 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
     if (!negocioID) return;
     const ventana = abrirVentanaReciboPendiente();
     try {
-      const nro = String(venta?.nroVenta || "").trim();
-      const grupo = nro
-        ? ventas
-            .filter((v) => String(v?.nroVenta || "").trim() === nro)
-            .sort((a, b) => Number(a.indiceEnVenta || 0) - Number(b.indiceEnVenta || 0))
-        : [venta];
       const ok = await imprimirReciboCompraDesdeVenta(negocioID, venta, {
-        ventasMismoNro: grupo,
+        ventasMismoNro: grupoVenta(venta),
         ventana,
       });
       if (!ok) {
@@ -144,6 +147,104 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
       console.error(error);
       if (ventana && !ventana.closed) ventana.close();
       alert("No se pudo generar el recibo.");
+    }
+  };
+
+  const grupoVenta = (venta: any) => {
+    const nro = String(venta?.nroVenta || "").trim();
+    return nro
+      ? ventas
+          .filter((v) => String(v?.nroVenta || "").trim() === nro)
+          .sort((a, b) => Number(a.indiceEnVenta || 0) - Number(b.indiceEnVenta || 0))
+      : [venta];
+  };
+
+  const generarArchivoReciboVenta = async (venta: any): Promise<File | null> => {
+    const armado = await armarHtmlReciboCompraDesdeVenta(negocioID, venta, {
+      ventasMismoNro: grupoVenta(venta),
+    });
+    if (!armado) return null;
+    const nro = armado.nro || venta.nroVenta || venta.id?.slice(-6) || "recibo";
+    return generarPngReciboDesdeHtml(armado.html, `recibo-${nro}.png`);
+  };
+
+  const enviarReciboWhatsApp = async (venta: any) => {
+    if (!negocioID) return;
+    const id = String(venta?.id || "");
+    setProcesandoReciboId(id);
+    try {
+      const file = await generarArchivoReciboVenta(venta);
+      if (!file) {
+        alert("No se pudo generar el recibo.");
+        return;
+      }
+      const nro = venta.nroVenta || "";
+      const resultado = await enviarReciboPorWhatsApp(
+        file,
+        `Recibo de compra${nro ? ` #${nro}` : ""}`
+      );
+      if (resultado === "downloaded") {
+        alert(
+          "Se descargó la imagen del recibo.\nAbrí WhatsApp y adjuntá esa imagen en el chat del cliente."
+        );
+      } else {
+        setMensaje("✅ Recibo listo para enviar");
+        setTimeout(() => setMensaje(""), 2000);
+      }
+    } catch (e) {
+      console.error(e);
+      if (e instanceof Error && e.name === "AbortError") return;
+      alert("No se pudo enviar el recibo.");
+    } finally {
+      setProcesandoReciboId("");
+    }
+  };
+
+  const descargarRecibo = async (venta: any) => {
+    if (!negocioID) return;
+    const id = String(venta?.id || "");
+    setProcesandoReciboId(id);
+    try {
+      const file = await generarArchivoReciboVenta(venta);
+      if (!file) {
+        alert("No se pudo generar el recibo.");
+        return;
+      }
+      descargarArchivoRecibo(file);
+      setMensaje("✅ Recibo descargado");
+      setTimeout(() => setMensaje(""), 2000);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo descargar el recibo.");
+    } finally {
+      setProcesandoReciboId("");
+    }
+  };
+
+  const abrirFirmarRecibo = async (venta: any) => {
+    if (!negocioID || !venta) return;
+    setAbriendoFirma(true);
+    try {
+      const general = await resolverVentaGeneralTelefono(negocioID, {
+        ventaId: venta.id,
+        nroVenta: venta.nroVenta,
+      });
+      const idFirma = String(general?.id || venta.id || "").trim();
+      if (!idFirma) {
+        alert("No se encontró la venta para firmar.");
+        return;
+      }
+      setVentaIdFirma(idFirma);
+      setVentaAFirmar({
+        ...venta,
+        firmaClienteUrl:
+          general?.data?.firmaClienteUrl || venta.firmaClienteUrl || "",
+      });
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo abrir la firma.");
+    } finally {
+      setAbriendoFirma(false);
     }
   };
 
@@ -856,13 +957,41 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                         </span>
                       </td>
                       <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
                           <button
                             onClick={() => imprimirRecibo(v)}
-                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-[#2c3e50] text-white hover:bg-[#1a252f] transition-all duration-200 transform hover:scale-105 shadow-md"
+                            disabled={Boolean(procesandoReciboId)}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-[#2c3e50] text-white hover:bg-[#1a252f] transition-all duration-200 transform hover:scale-105 shadow-md disabled:opacity-50"
                             title="Imprimir recibo de compra"
                           >
                             🧾 Recibo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void enviarReciboWhatsApp(v)}
+                            disabled={Boolean(procesandoReciboId)}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-[#25D366] text-white hover:bg-[#1ebe57] transition-all duration-200 transform hover:scale-105 shadow-md disabled:opacity-50"
+                            title="Enviar recibo por WhatsApp"
+                          >
+                            {procesandoReciboId === String(v.id) ? "…" : "📤"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void descargarRecibo(v)}
+                            disabled={Boolean(procesandoReciboId)}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-[#8e44ad] text-white hover:bg-[#7d3c98] transition-all duration-200 transform hover:scale-105 shadow-md disabled:opacity-50"
+                            title="Descargar recibo PNG"
+                          >
+                            ⬇️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void abrirFirmarRecibo(v)}
+                            disabled={abriendoFirma || Boolean(procesandoReciboId)}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-[#9b59b6] text-white hover:bg-[#8e44ad] transition-all duration-200 transform hover:scale-105 shadow-md disabled:opacity-50"
+                            title="Firma de conformidad del recibo"
+                          >
+                            {v.firmaClienteUrl ? "✏️ Firma" : "✍️ Firmar"}
                           </button>
                           <button 
                             onClick={() => setVentaDetalle(v)} 
@@ -938,10 +1067,38 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
                   <div className="flex gap-2">
                     <button
                       onClick={() => imprimirRecibo(v)}
-                      className="w-8 h-8 bg-[#2c3e50] hover:bg-[#1a252f] text-white rounded-lg flex items-center justify-center transition-all duration-200 transform hover:scale-105 text-sm"
+                      disabled={Boolean(procesandoReciboId)}
+                      className="w-8 h-8 bg-[#2c3e50] hover:bg-[#1a252f] text-white rounded-lg flex items-center justify-center transition-all duration-200 transform hover:scale-105 text-sm disabled:opacity-50"
                       title="Imprimir recibo de compra"
                     >
                       🧾
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void enviarReciboWhatsApp(v)}
+                      disabled={Boolean(procesandoReciboId)}
+                      className="w-8 h-8 bg-[#25D366] hover:bg-[#1ebe57] text-white rounded-lg flex items-center justify-center transition-all duration-200 transform hover:scale-105 text-sm disabled:opacity-50"
+                      title="Enviar por WhatsApp"
+                    >
+                      📤
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void descargarRecibo(v)}
+                      disabled={Boolean(procesandoReciboId)}
+                      className="w-8 h-8 bg-[#8e44ad] hover:bg-[#7d3c98] text-white rounded-lg flex items-center justify-center transition-all duration-200 transform hover:scale-105 text-sm disabled:opacity-50"
+                      title="Descargar PNG"
+                    >
+                      ⬇️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void abrirFirmarRecibo(v)}
+                      disabled={abriendoFirma || Boolean(procesandoReciboId)}
+                      className="w-8 h-8 bg-[#9b59b6] hover:bg-[#8e44ad] text-white rounded-lg flex items-center justify-center transition-all duration-200 transform hover:scale-105 text-sm disabled:opacity-50"
+                      title="Firma de conformidad"
+                    >
+                      ✍️
                     </button>
                     <button 
                       onClick={() => setVentaDetalle(v)} 
@@ -1035,6 +1192,34 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
           </div>
         )}
       </div>
+
+      {ventaAFirmar && ventaIdFirma ? (
+        <ModalFirmarRecibo
+          abierto
+          negocioID={negocioID}
+          ventaId={ventaIdFirma}
+          nroVenta={ventaAFirmar.nroVenta ? String(ventaAFirmar.nroVenta) : undefined}
+          cliente={ventaAFirmar.cliente}
+          firmaActual={ventaAFirmar.firmaClienteUrl || null}
+          onClose={() => {
+            setVentaAFirmar(null);
+            setVentaIdFirma("");
+          }}
+          onFirmado={(url) => {
+            const nro = String(ventaAFirmar.nroVenta || "").trim();
+            setVentas((prev) =>
+              prev.map((v) => {
+                const mismo =
+                  String(v.id) === String(ventaAFirmar.id) ||
+                  (nro && String(v.nroVenta || "").trim() === nro);
+                return mismo ? { ...v, firmaClienteUrl: url } : v;
+              })
+            );
+            setMensaje("✅ Firma de conformidad guardada");
+            setTimeout(() => setMensaje(""), 2000);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

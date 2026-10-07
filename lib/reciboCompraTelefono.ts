@@ -23,6 +23,11 @@ export type ReciboCompraDatos = {
   lineas: LineaReciboCompra[];
   partePago: LineaReciboCompra[];
   pagos?: PagoReciboCompra[];
+  /** Deuda que queda después de pagos y equipos en parte de pago. */
+  saldoPendienteARS?: number;
+  saldoPendienteUSD?: number;
+  /** URL o data URL de la firma digital del cliente. */
+  firmaClienteUrl?: string;
   negocio: {
     nombre?: string;
     logoUrl?: string;
@@ -123,6 +128,75 @@ function bloquePagos(pagos: PagoReciboCompra[]): string {
   </table>`;
 }
 
+function textoSaldoPendiente(ars: number, usd: number): string {
+  const partes: string[] = [];
+  if (usd > 0.009) partes.push(`USD $${fmtMonto(usd)}`);
+  if (ars > 0.009) partes.push(`ARS $${fmtMonto(ars)}`);
+  if (!partes.length) return "";
+  return `Saldo pendiente: ${partes.join(" + ")}`;
+}
+
+function bloqueSaldoPendiente(ars: number, usd: number): string {
+  const texto = textoSaldoPendiente(ars, usd);
+  if (!texto) return "";
+  return `
+    <div class="total-wrap">
+      <div class="total saldo">${esc(texto)}</div>
+    </div>`;
+}
+
+/** Saldo a mostrar: prioriza campos guardados; si faltan, calcula con ítems − parte de pago − pagos. */
+export function resolverSaldoPendienteRecibo(opts: {
+  lineas: LineaReciboCompra[];
+  partePago: LineaReciboCompra[];
+  pagos: PagoReciboCompra[];
+  saldoPendienteARS?: number;
+  saldoPendienteUSD?: number;
+  saldoPendiente?: number;
+  monedaFallback?: string;
+}): { ars: number; usd: number } {
+  let ars = Math.max(0, Number(opts.saldoPendienteARS) || 0);
+  let usd = Math.max(0, Number(opts.saldoPendienteUSD) || 0);
+
+  if (ars <= 0 && usd <= 0) {
+    const aprox = Math.max(0, Number(opts.saldoPendiente) || 0);
+    if (aprox > 0) {
+      const mon = String(opts.monedaFallback || "USD").toUpperCase();
+      if (mon === "ARS") ars = aprox;
+      else usd = aprox;
+    }
+  }
+
+  if (ars > 0.009 || usd > 0.009) {
+    return {
+      ars: Math.round(ars * 100) / 100,
+      usd: Math.round(usd * 100) / 100,
+    };
+  }
+
+  let totalARS = 0;
+  let totalUSD = 0;
+  for (const l of opts.lineas) {
+    const mon = String(l.moneda || "USD").toUpperCase();
+    if (mon === "ARS") totalARS += Number(l.precio) || 0;
+    else totalUSD += Number(l.precio) || 0;
+  }
+  for (const l of opts.partePago) {
+    const mon = String(l.moneda || "USD").toUpperCase();
+    if (mon === "ARS") totalARS -= Number(l.precio) || 0;
+    else totalUSD -= Number(l.precio) || 0;
+  }
+  for (const p of opts.pagos) {
+    totalARS -= Number(p.monto) || 0;
+    totalUSD -= Number(p.montoUSD) || 0;
+  }
+
+  return {
+    ars: Math.max(0, Math.round(totalARS * 100) / 100),
+    usd: Math.max(0, Math.round(totalUSD * 100) / 100),
+  };
+}
+
 export function nombreLineaTelefono(tel: {
   marca?: string;
   modelo?: string;
@@ -215,6 +289,11 @@ ${esc(garantia)}`
     font-weight: 700;
     padding: 8px 12px;
   }
+  .total.saldo {
+    margin-top: 8px;
+    border-width: 2px;
+    background: #fff8e6;
+  }
   .legal {
     margin-top: 12px;
     border: 1px solid #111;
@@ -222,6 +301,36 @@ ${esc(garantia)}`
     font-size: 10.5px;
     line-height: 1.4;
     white-space: pre-wrap;
+  }
+  .firma-box {
+    margin-top: 14px;
+    border: 1px solid #111;
+    padding: 10px 12px;
+    min-height: 110px;
+  }
+  .firma-box .titulo-firma {
+    font-size: 12px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    text-align: center;
+    letter-spacing: 0.3px;
+  }
+  .firma-box .img-firma {
+    display: block;
+    max-width: 280px;
+    max-height: 90px;
+    margin: 0 auto 6px;
+    object-fit: contain;
+  }
+  .firma-box .linea-firma {
+    margin: 48px auto 4px;
+    width: 55%;
+    border-top: 1px solid #111;
+  }
+  .firma-box .leyenda-firma {
+    text-align: center;
+    font-size: 10px;
+    color: #333;
   }
 
   /* En pantalla: hoja A4 centrada */
@@ -336,7 +445,22 @@ ${esc(garantia)}`
 
     ${bloquePagos(datos.pagos || [])}
 
+    ${bloqueSaldoPendiente(
+      Number(datos.saldoPendienteARS) || 0,
+      Number(datos.saldoPendienteUSD) || 0
+    )}
+
     <div class="legal">${esc(conformidad)}${bloqueGarantia}</div>
+
+    <div class="firma-box">
+      <div class="titulo-firma">FIRMA DE CONFORMIDAD</div>
+      ${
+        String(datos.firmaClienteUrl || "").trim()
+          ? `<img class="img-firma" src="${esc(String(datos.firmaClienteUrl).trim())}" alt="Firma del cliente"/>`
+          : `<div class="linea-firma"></div>`
+      }
+      <div class="leyenda-firma">Firma del cliente</div>
+    </div>
   </div>
   <script>
     window.onload = function () { setTimeout(function () { window.print(); }, 350); };
@@ -473,19 +597,13 @@ function enriquecerImeiConGrupo(
   });
 }
 
-/** Arma e imprime el recibo de compra de una venta de teléfono (ventaTelefonos o ventasGeneral). */
-export async function imprimirReciboCompraDesdeVenta(
+/** Arma el HTML del recibo (sin abrir impresión). */
+export async function armarHtmlReciboCompraDesdeVenta(
   negocioID: string,
   venta: any,
-  opciones?: { ventasMismoNro?: any[]; ventana?: Window | null }
-): Promise<boolean> {
-  if (!negocioID || !venta) return false;
-
-  // Abrir YA (gesto del usuario). Si viene abierta desde afuera, reutilizarla.
-  const ventana =
-    opciones?.ventana && !opciones.ventana.closed
-      ? opciones.ventana
-      : abrirVentanaReciboPendiente();
+  opciones?: { ventasMismoNro?: any[] }
+): Promise<{ html: string; nro: string; cliente: string } | null> {
+  if (!negocioID || !venta) return null;
 
   const { collection, doc, getDoc, getDocs, query, where } = await import(
     "firebase/firestore"
@@ -637,6 +755,36 @@ export async function imprimirReciboCompraDesdeVenta(
       observaciones: p.observaciones,
     }));
 
+  const monedaFallback =
+    lineas.length === 1
+      ? String(lineas[0].moneda || "USD")
+      : String(
+          ventaGeneral?.moneda ||
+            base?.moneda ||
+            venta?.moneda ||
+            "USD"
+        );
+
+  const { ars: saldoARS, usd: saldoUSD } = resolverSaldoPendienteRecibo({
+    lineas,
+    partePago,
+    pagos,
+    saldoPendienteARS:
+      ventaGeneral?.saldoPendienteARS ?? base?.saldoPendienteARS ?? venta?.saldoPendienteARS,
+    saldoPendienteUSD:
+      ventaGeneral?.saldoPendienteUSD ?? base?.saldoPendienteUSD ?? venta?.saldoPendienteUSD,
+    saldoPendiente:
+      ventaGeneral?.saldoPendiente ?? base?.saldoPendiente ?? venta?.saldoPendiente,
+    monedaFallback,
+  });
+
+  const firmaClienteUrl = String(
+    ventaGeneral?.firmaClienteUrl ||
+      base?.firmaClienteUrl ||
+      venta?.firmaClienteUrl ||
+      ""
+  ).trim();
+
   const html = htmlReciboCompraTelefono({
     fecha: String(base.fecha || ventaGeneral?.fecha || venta.fecha || ""),
     cliente: nombreCliente,
@@ -646,6 +794,9 @@ export async function imprimirReciboCompraDesdeVenta(
     lineas,
     partePago,
     pagos,
+    saldoPendienteARS: saldoARS,
+    saldoPendienteUSD: saldoUSD,
+    firmaClienteUrl,
     negocio: {
       nombre: cfg.nombreNegocio || "",
       logoUrl: cfg.logoUrl || cfg.logoURL || "",
@@ -658,5 +809,122 @@ export async function imprimirReciboCompraDesdeVenta(
     },
   });
 
-  return abrirReciboCompra(html, ventana);
+  const nroFinal =
+    nro ||
+    String(ventaGeneral?.nroVenta || base?.nroVenta || venta?.id || "").slice(-6);
+
+  return { html, nro: nroFinal, cliente: nombreCliente };
+}
+
+/** Convierte el HTML del recibo en un PNG (para WhatsApp / descarga). */
+export async function generarPngReciboDesdeHtml(
+  html: string,
+  nombreArchivo: string
+): Promise<File> {
+  const html2canvas = (await import("html2canvas")).default;
+  const sinScripts = html.replace(/<script[\s\S]*?<\/script>/gi, "");
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(sinScripts, "text/html");
+  const estilo = doc.querySelector("style")?.innerHTML || "";
+  const hojaInner = doc.querySelector(".hoja")?.innerHTML || doc.body.innerHTML;
+
+  const host = document.createElement("div");
+  host.setAttribute(
+    "style",
+    "position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;pointer-events:none;"
+  );
+  host.innerHTML = `<style>${estilo}
+    .hoja-captura { width: 794px; background: #fff; padding: 36px; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.35; box-sizing: border-box; }
+  </style><div class="hoja hoja-captura">${hojaInner}</div>`;
+  document.body.appendChild(host);
+
+  const hoja = host.querySelector(".hoja-captura") as HTMLElement;
+  try {
+    const imgs = Array.from(hoja.querySelectorAll("img"));
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete) {
+              resolve();
+              return;
+            }
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          })
+      )
+    );
+
+    const canvas = await html2canvas(hoja, {
+      scale: 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      width: hoja.scrollWidth,
+      height: hoja.scrollHeight,
+    });
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))),
+        "image/png"
+      );
+    });
+    return new File([blob], nombreArchivo, { type: "image/png" });
+  } finally {
+    host.remove();
+  }
+}
+
+export function descargarArchivoRecibo(file: File) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+/** Comparte el PNG (WhatsApp / share sheet) o descarga si no hay share. */
+export async function enviarReciboPorWhatsApp(file: File, titulo: string): Promise<"shared" | "downloaded"> {
+  const shareData: ShareData = {
+    files: [file],
+    title: titulo,
+  };
+  if (typeof navigator.canShare === "function" && navigator.canShare(shareData)) {
+    await navigator.share(shareData);
+    return "shared";
+  }
+  descargarArchivoRecibo(file);
+  return "downloaded";
+}
+
+/** Arma e imprime el recibo de compra de una venta de teléfono (ventaTelefonos o ventasGeneral). */
+export async function imprimirReciboCompraDesdeVenta(
+  negocioID: string,
+  venta: any,
+  opciones?: { ventasMismoNro?: any[]; ventana?: Window | null }
+): Promise<boolean> {
+  if (!negocioID || !venta) return false;
+
+  // Abrir YA (gesto del usuario). Si viene abierta desde afuera, reutilizarla.
+  const ventana =
+    opciones?.ventana && !opciones.ventana.closed
+      ? opciones.ventana
+      : abrirVentanaReciboPendiente();
+
+  try {
+    const armado = await armarHtmlReciboCompraDesdeVenta(negocioID, venta, {
+      ventasMismoNro: opciones?.ventasMismoNro,
+    });
+    if (!armado) {
+      if (ventana && !ventana.closed) ventana.close();
+      return false;
+    }
+    return abrirReciboCompra(armado.html, ventana);
+  } catch (e) {
+    if (ventana && !ventana.closed) ventana.close();
+    throw e;
+  }
 }

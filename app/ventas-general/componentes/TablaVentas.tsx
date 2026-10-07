@@ -1355,6 +1355,13 @@ export default function TablaVentas({ refrescar }: Props) {
           direccionNegocio={datosNegocio.direccion}
           telefonoNegocio={datosNegocio.telefono}
           negocioID={rol?.negocioID || ""}
+          onFirmaGuardada={(ventaId, firmaClienteUrl) => {
+            setVentaParaRemito((prev) =>
+              prev && String(prev.id) === String(ventaId)
+                ? { ...prev, firmaClienteUrl }
+                : prev
+            );
+          }}
         />
       )}
       

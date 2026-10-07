@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import {
   descripcionProductoVenta,
@@ -13,18 +13,27 @@ import {
   esVentaTelefonoParaRecibo,
   imprimirReciboCompraDesdeVenta,
   abrirVentanaReciboPendiente,
+  armarHtmlReciboCompraDesdeVenta,
+  generarPngReciboDesdeHtml,
+  descargarArchivoRecibo,
+  enviarReciboPorWhatsApp,
 } from "@/lib/reciboCompraTelefono";
+import ModalFirmarRecibo from "./ModalFirmarRecibo";
 
 type TipoModalImpresion = TipoImpresionVenta | "recibo";
 
+type VentaConFirma = VentaImpresion & { firmaClienteUrl?: string };
+
 interface ModalRemitoProps {
   mostrar: boolean;
-  venta: VentaImpresion | null;
+  venta: VentaConFirma | null;
   onClose: () => void;
   nombreNegocio?: string;
   direccionNegocio?: string;
   telefonoNegocio?: string;
   negocioID?: string;
+  /** Para actualizar la fila local al grabar la firma. */
+  onFirmaGuardada?: (ventaId: string, firmaClienteUrl: string) => void;
 }
 
 async function canvasAPngFile(canvas: HTMLCanvasElement, nombre: string): Promise<File> {
@@ -54,19 +63,107 @@ export default function ModalRemitoImpresion({
   direccionNegocio = "",
   telefonoNegocio = "",
   negocioID = "",
+  onFirmaGuardada,
 }: ModalRemitoProps) {
   const [tipo, setTipo] = useState<TipoModalImpresion | null>(null);
   const [enviandoRemito, setEnviandoRemito] = useState(false);
   const [remitoListo, setRemitoListo] = useState(false);
   const [generandoRecibo, setGenerandoRecibo] = useState(false);
+  const [enviandoRecibo, setEnviandoRecibo] = useState(false);
+  const [descargandoRecibo, setDescargandoRecibo] = useState(false);
+  const [reciboAccionOk, setReciboAccionOk] = useState<string>("");
+  const [mostrarFirmar, setMostrarFirmar] = useState(false);
+  const [firmaUrl, setFirmaUrl] = useState<string>("");
   const remitoRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!mostrar || !venta) return;
+    setFirmaUrl(String(venta.firmaClienteUrl || "").trim());
+  }, [mostrar, venta]);
 
   const cerrar = () => {
     setTipo(null);
     setRemitoListo(false);
     setGenerandoRecibo(false);
+    setEnviandoRecibo(false);
+    setDescargandoRecibo(false);
+    setReciboAccionOk("");
+    setMostrarFirmar(false);
     onClose();
   };
+
+  const generarArchivoRecibo = async (): Promise<File | null> => {
+    if (!venta || !negocioID) return null;
+    const armado = await armarHtmlReciboCompraDesdeVenta(negocioID, {
+      ...venta,
+      firmaClienteUrl: firmaUrl || venta.firmaClienteUrl,
+    });
+    if (!armado) return null;
+    const nro = armado.nro || venta.nroVenta || venta.id?.slice(-6) || "recibo";
+    return generarPngReciboDesdeHtml(armado.html, `recibo-${nro}.png`);
+  };
+
+  const handleEnviarRecibo = async () => {
+    if (!venta || !negocioID) {
+      alert("No se pudo identificar el negocio para el recibo.");
+      return;
+    }
+    setEnviandoRecibo(true);
+    setReciboAccionOk("");
+    try {
+      const file = await generarArchivoRecibo();
+      if (!file) {
+        alert("No se pudo generar el recibo.");
+        return;
+      }
+      const nro = venta.nroVenta || venta.id?.slice(-6) || "";
+      const resultado = await enviarReciboPorWhatsApp(
+        file,
+        `Recibo de compra${nro ? ` #${nro}` : ""}`
+      );
+      if (resultado === "shared") {
+        setReciboAccionOk("enviado");
+      } else {
+        setReciboAccionOk("descargado");
+        alert(
+          "Se descargó la imagen del recibo.\nAbrí WhatsApp y adjuntá esa imagen en el chat del cliente."
+        );
+      }
+      setTimeout(() => setReciboAccionOk(""), 3000);
+    } catch (e) {
+      console.error(e);
+      if (e instanceof Error && e.name === "AbortError") return;
+      alert("No se pudo enviar el recibo. Probá de nuevo.");
+    } finally {
+      setEnviandoRecibo(false);
+    }
+  };
+
+  const handleDescargarRecibo = async () => {
+    if (!venta || !negocioID) {
+      alert("No se pudo identificar el negocio para el recibo.");
+      return;
+    }
+    setDescargandoRecibo(true);
+    setReciboAccionOk("");
+    try {
+      const file = await generarArchivoRecibo();
+      if (!file) {
+        alert("No se pudo generar el recibo.");
+        return;
+      }
+      descargarArchivoRecibo(file);
+      setReciboAccionOk("descargado");
+      setTimeout(() => setReciboAccionOk(""), 3000);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo descargar el recibo. Probá de nuevo.");
+    } finally {
+      setDescargandoRecibo(false);
+    }
+  };
+
+  const ocupadoRecibo = generandoRecibo || enviandoRecibo || descargandoRecibo;
 
   const negocio = {
     nombre: nombreNegocio,
@@ -213,10 +310,38 @@ export default function ModalRemitoImpresion({
                         : "📤 Enviar remito"}
                   </button>
                 )}
+                {tipo === "recibo" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void handleEnviarRecibo()}
+                      disabled={ocupadoRecibo}
+                      className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#1ebe57] hover:to-[#0e7a6d] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
+                    >
+                      {enviandoRecibo
+                        ? "Generando…"
+                        : reciboAccionOk === "enviado"
+                          ? "✅ Enviado"
+                          : "📤 Enviar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDescargarRecibo()}
+                      disabled={ocupadoRecibo}
+                      className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] hover:from-[#7d3c98] hover:to-[#8e44ad] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
+                    >
+                      {descargandoRecibo
+                        ? "Generando…"
+                        : reciboAccionOk === "descargado"
+                          ? "✅ Listo"
+                          : "⬇️ Descargar"}
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={tipo === "recibo" ? handleImprimirRecibo : handleImprimir}
-                  disabled={tipo === "recibo" && generandoRecibo}
+                  disabled={tipo === "recibo" && ocupadoRecibo}
                   className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
                 >
                   {tipo === "recibo" && generandoRecibo ? "Generando…" : "🖨️ Imprimir"}
@@ -296,14 +421,67 @@ export default function ModalRemitoImpresion({
               <p className="text-xs text-[#95a5a6]">
                 Pedido {venta.nroVenta || venta.id?.slice(-6)} · {venta.cliente}
               </p>
-              <button
-                type="button"
-                onClick={handleImprimirRecibo}
-                disabled={generandoRecibo}
-                className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
-              >
-                {generandoRecibo ? "Generando…" : "🖨️ Imprimir recibo"}
-              </button>
+
+              {firmaUrl ? (
+                <div className="rounded-xl border-2 border-[#27ae60]/40 bg-[#eafaf1] p-3">
+                  <p className="text-xs font-semibold text-[#1e8449] mb-2">
+                    ✓ Firma de conformidad guardada
+                  </p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={firmaUrl}
+                    alt="Firma"
+                    className="max-h-20 mx-auto object-contain"
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-[#e67e22] font-medium">
+                  Todavía sin firma — podés firmar ahora o después de imprimir.
+                </p>
+              )}
+
+              <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setMostrarFirmar(true)}
+                  disabled={!negocioID || !venta.id || ocupadoRecibo}
+                  className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#2471a3] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+                >
+                  {firmaUrl ? "✏️ Re-firmar" : "✍️ Firmar recibo"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleEnviarRecibo()}
+                  disabled={ocupadoRecibo}
+                  className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#1ebe57] hover:to-[#0e7a6d] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+                >
+                  {enviandoRecibo
+                    ? "Generando…"
+                    : reciboAccionOk === "enviado"
+                      ? "✅ Enviado"
+                      : "📤 Enviar WhatsApp"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDescargarRecibo()}
+                  disabled={ocupadoRecibo}
+                  className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] hover:from-[#7d3c98] hover:to-[#8e44ad] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+                >
+                  {descargandoRecibo
+                    ? "Generando…"
+                    : reciboAccionOk === "descargado"
+                      ? "✅ Descargado"
+                      : "⬇️ Descargar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImprimirRecibo}
+                  disabled={ocupadoRecibo}
+                  className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+                >
+                  {generandoRecibo ? "Generando…" : "🖨️ Imprimir recibo"}
+                </button>
+              </div>
             </div>
           ) : tipo === "checklist" ? (
             <div className="max-w-2xl mx-auto">
@@ -487,6 +665,22 @@ export default function ModalRemitoImpresion({
           )}
         </div>
       </div>
+
+      {mostrarFirmar && venta.id && negocioID ? (
+        <ModalFirmarRecibo
+          abierto={mostrarFirmar}
+          negocioID={negocioID}
+          ventaId={String(venta.id)}
+          nroVenta={venta.nroVenta ? String(venta.nroVenta) : undefined}
+          cliente={venta.cliente}
+          firmaActual={firmaUrl || null}
+          onClose={() => setMostrarFirmar(false)}
+          onFirmado={(url) => {
+            setFirmaUrl(url);
+            onFirmaGuardada?.(String(venta.id), url);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
