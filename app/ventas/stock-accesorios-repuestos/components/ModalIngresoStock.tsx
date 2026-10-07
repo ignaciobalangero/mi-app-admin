@@ -19,10 +19,15 @@ type ProductoStock = {
   categoria?: string;
 };
 
+type ColeccionIngreso =
+  | "stockAccesorios"
+  | "stockRepuestos"
+  | "stockExtra";
+
 interface Props {
   producto: ProductoStock;
   negocioID: string;
-  coleccion: "stockAccesorios" | "stockRepuestos";
+  coleccion: ColeccionIngreso;
   cotizacion?: number;
   onClose: () => void;
   onActualizado: (
@@ -34,6 +39,12 @@ interface Props {
   ) => void;
 }
 
+const LABEL_COLECCION: Record<ColeccionIngreso, string> = {
+  stockAccesorios: "Accesorio",
+  stockRepuestos: "Repuesto",
+  stockExtra: "Stock Extra",
+};
+
 export default function ModalIngresoStock({
   producto,
   negocioID,
@@ -44,8 +55,11 @@ export default function ModalIngresoStock({
 }: Props) {
   const stockActual = Number(producto.cantidad) || 0;
   const costoActual = Number(producto.precioCosto) || 0;
-  const moneda = String(producto.moneda || "ARS").toUpperCase();
-  const tipoLabel = coleccion === "stockAccesorios" ? "Accesorio" : "Repuesto";
+  const monedaDefault = coleccion === "stockExtra" ? "USD" : "ARS";
+  const moneda = String(producto.moneda || monedaDefault).toUpperCase();
+  const tipoLabel = LABEL_COLECCION[coleccion];
+  const actualizaCostoPesos =
+    coleccion === "stockRepuestos" || coleccion === "stockExtra";
 
   const [cantidadIngreso, setCantidadIngreso] = useState(1);
   const [costoIngreso, setCostoIngreso] = useState(costoActual || 0);
@@ -76,15 +90,19 @@ export default function ModalIngresoStock({
         costoIngreso
       );
 
-      const patch: Record<string, number> = {
+      const patch: Record<string, number | Date> = {
         cantidad: nuevaCantidad,
         precioCosto: nuevoCosto,
       };
 
-      if (coleccion === "stockRepuestos") {
+      if (actualizaCostoPesos) {
         const cot = Number(cotizacion) > 0 ? Number(cotizacion) : 0;
         patch.precioCostoPesos =
           moneda === "USD" && cot > 0 ? nuevoCosto * cot : nuevoCosto;
+      }
+
+      if (coleccion === "stockExtra") {
+        patch.fechaActualizacion = new Date();
       }
 
       await updateDoc(
@@ -95,8 +113,8 @@ export default function ModalIngresoStock({
         ...producto,
         cantidad: nuevaCantidad,
         precioCosto: nuevoCosto,
-        ...(coleccion === "stockRepuestos"
-          ? { precioCostoPesos: patch.precioCostoPesos }
+        ...(actualizaCostoPesos
+          ? { precioCostoPesos: Number(patch.precioCostoPesos) || 0 }
           : {}),
       });
       onClose();

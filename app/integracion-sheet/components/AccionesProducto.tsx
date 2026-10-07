@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { useRol } from "@/lib/useRol";
 import ModalAdvertencia from "./ModalAdvertencia";
+import ModalIngresoStock from "@/app/ventas/stock-accesorios-repuestos/components/ModalIngresoStock";
 
 export default function AccionesProducto({ 
   producto, 
@@ -24,6 +25,7 @@ export default function AccionesProducto({
 }) {
   const { rol } = useRol();
   const [editando, setEditando] = useState(false);
+  const [mostrarIngreso, setMostrarIngreso] = useState(false);
   
   // 🔧 FUNCIÓN PARA INICIALIZAR formData
   const inicializarFormData = (prod: any) => ({
@@ -271,10 +273,51 @@ export default function AccionesProducto({
     }
   };
   
+  const sincronizarCantidadSheet = async (
+    cantidad: number,
+    precioCosto: number
+  ) => {
+    if (!sheetID || !hoja || !producto?.codigo) return;
+    try {
+      const precio1 = Number(producto.precio1 || producto.precioUSD || 0);
+      await fetch("/api/actualizar-stock-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sheetID,
+          hoja,
+          producto: {
+            codigo: producto.codigo,
+            categoria: producto.categoria || "modulos",
+            modelo: producto.modelo || producto.producto || "",
+            cantidad,
+            precioUSD: precio1,
+            cotizacion,
+            moneda: "USD",
+            precioCosto,
+          },
+          esActualizacion: true,
+          permitirStockCero: true,
+        }),
+      });
+    } catch (e) {
+      console.warn("⚠️ No se pudo sincronizar ingreso con Sheet:", e);
+    }
+  };
+
   return (
     <>
       {/* Botones de acciones */}
       <div className="flex flex-col gap-1 w-full">
+        <button
+          type="button"
+          onClick={() => setMostrarIngreso(true)}
+          className="bg-gradient-to-r from-[#16a085] to-[#1abc9c] hover:from-[#138d75] hover:to-[#16a085] text-white px-2 py-1 rounded-lg text-xs font-medium transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 flex items-center justify-center gap-1"
+          title="Ingresar stock (promedio ponderado)"
+        >
+          <span>📥</span>
+          <span className="hidden sm:inline">Ingresar</span>
+        </button>
         <button
           onClick={abrirModal}
           className="bg-gradient-to-r from-[#f39c12] to-[#e67e22] hover:from-[#e67e22] hover:to-[#d35400] text-white px-2 py-1 rounded-lg text-xs font-medium transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 flex items-center justify-center gap-1"
@@ -290,6 +333,45 @@ export default function AccionesProducto({
           <span className="hidden sm:inline">Eliminar</span>
         </button>
       </div>
+
+      {mostrarIngreso && rol?.negocioID && (
+        <ModalIngresoStock
+          producto={{
+            id: String(producto.codigo || producto.id),
+            producto: producto.modelo || producto.producto || "Producto",
+            codigo: producto.codigo,
+            codigoBarras: producto.codigoBarras,
+            cantidad: Number(producto.cantidad) || 0,
+            precioCosto: Number(producto.precioCosto) || 0,
+            precioCostoPesos: Number(producto.precioCostoPesos) || 0,
+            moneda: producto.moneda || "USD",
+            marca: producto.proveedor,
+            categoria: producto.categoria,
+          }}
+          negocioID={rol.negocioID}
+          coleccion="stockExtra"
+          cotizacion={cotizacion}
+          onClose={() => setMostrarIngreso(false)}
+          onActualizado={(actualizado) => {
+            const precio1 = Number(producto.precio1 || producto.precioUSD || 0);
+            const datos = {
+              cantidad: actualizado.cantidad,
+              precioCosto: actualizado.precioCosto,
+              precioCostoPesos: actualizado.precioCostoPesos,
+              ganancia: precio1 - actualizado.precioCosto,
+              fechaActualizacion: new Date(),
+            };
+            if (onActualizarLocal) {
+              onActualizarLocal(producto.codigo, datos);
+            }
+            void sincronizarCantidadSheet(
+              actualizado.cantidad,
+              actualizado.precioCosto
+            );
+            setMostrarIngreso(false);
+          }}
+        />
+      )}
   
       {/* Modal de edición */}
       {editando && (

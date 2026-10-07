@@ -67,7 +67,7 @@ export default function BotonEscanerStock({
         onClick={() => setEscannerAbierto(true)}
         disabled={!negocioID || buscando}
         className={`${baseBtn} ${className} disabled:opacity-50`}
-        title="Escanear código de barras o QR de accesorio/repuesto"
+        title="Escanear código de barras o QR de accesorio/repuesto/stock extra"
       >
         <span>📷</span>
         <span>{buscando ? "Buscando…" : label}</span>
@@ -116,7 +116,7 @@ export default function BotonEscanerStock({
                 producto: item.producto,
                 cantidad: item.cantidad,
                 precioCosto: 0,
-                moneda: "ARS",
+                moneda: item.coleccion === "stockExtra" ? "USD" : "ARS",
               });
             })();
           }}

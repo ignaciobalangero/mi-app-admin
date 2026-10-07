@@ -15,6 +15,7 @@ import ModalRetornarServicio from "./servicios/ModalRetornarServicio";
 import ModalVerServicioActual from "./servicios/ModalVerServicioActual";
 import ModalHistorialServicios from "./servicios/ModalHistorialServicio";
 import { estadoPideCondicion, etiquetaEstado, estiloBadgeEstado, estiloFilaEstado } from "@/lib/stockTelefonos/estados";
+import ModalCopiarListaPrecio from "./ModalCopiarListaPrecio";
 
 interface Props {
   negocioID: string;
@@ -42,6 +43,7 @@ export default function TablaStockTelefonos({
   // 🆕 ESTADOS PARA EL MODAL DE EDICIÓN - CORREGIDOS
   const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
   const [telefonoAEditar, setTelefonoAEditar] = useState<any | null>(null);
+  const [mostrarListaPrecio, setMostrarListaPrecio] = useState(false);
 
   // Hook de servicios técnicos
   const servicios = useServicios({ 
@@ -312,6 +314,16 @@ export default function TablaStockTelefonos({
         />
       )}
 
+      <ModalCopiarListaPrecio
+        abierto={mostrarListaPrecio}
+        telefonos={telefonos}
+        onClose={() => setMostrarListaPrecio(false)}
+        onCopiado={(msg) => {
+          setMensaje(msg);
+          setTimeout(() => setMensaje(""), 2000);
+        }}
+      />
+
       {/* Modales de servicios técnicos */}
       <ModalEnviarServicio
         mostrar={servicios.mostrarModalServicio}
@@ -417,16 +429,25 @@ export default function TablaStockTelefonos({
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3 justify-center lg:justify-end">
             <button
               onClick={() => setOrdenarPorModelo(!ordenarPorModelo)}
-              className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 ${
+              className={`px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-2 text-xs sm:text-sm ${
                 ordenarPorModelo 
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' 
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               {ordenarPorModelo ? '📱 Por Modelo ✓' : '📅 Por Fecha'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMostrarListaPrecio(true)}
+              className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#1ebe57] hover:to-[#0e7a6d] text-white px-3 sm:px-4 md:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+              title="Copiar lista de precios para WhatsApp"
+            >
+              📋 <span className="hidden sm:inline">Copiar lista</span> precios
             </button>
 
             <button

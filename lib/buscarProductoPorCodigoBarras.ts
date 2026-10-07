@@ -1,10 +1,17 @@
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+export type ColeccionCodigoBarras =
+  | "stockAccesorios"
+  | "stockRepuestos"
+  | "stockExtra";
+
+export type TipoProductoCodigoBarras = "accesorio" | "repuesto" | "extra";
+
 export type ProductoCodigoBarras = {
   id: string;
-  coleccion: "stockAccesorios" | "stockRepuestos";
-  tipo: "accesorio" | "repuesto";
+  coleccion: ColeccionCodigoBarras;
+  tipo: TipoProductoCodigoBarras;
   codigo: string;
   codigoBarras?: string;
   producto: string;
@@ -18,6 +25,7 @@ export type ProductoCodigoBarras = {
 
 const PREFIJO_ACC = "G1:ACC:";
 const PREFIJO_REP = "G1:REP:";
+const PREFIJO_EXT = "G1:EXT:";
 
 export function normalizarCodigoEscaneado(raw: string): string {
   return String(raw || "").trim();
@@ -35,9 +43,12 @@ function origenApp(): string {
 
 /** Ruta interna del producto en stock. */
 export function pathProductoStock(
-  tipo: "accesorio" | "repuesto",
+  tipo: TipoProductoCodigoBarras,
   id: string
 ): string {
+  if (tipo === "extra") {
+    return `/integracion-sheet/stock-repuestos-sheet?id=${encodeURIComponent(id)}&ingreso=1`;
+  }
   const base =
     tipo === "accesorio"
       ? "/ventas/stock-accesorios-repuestos/accesorios"
@@ -47,7 +58,7 @@ export function pathProductoStock(
 
 /** URL absoluta para QR: al escanear con el celular abre el producto en la app. */
 export function urlEtiquetaProducto(
-  tipo: "accesorio" | "repuesto",
+  tipo: TipoProductoCodigoBarras,
   id: string,
   origin?: string
 ): string {
@@ -57,16 +68,18 @@ export function urlEtiquetaProducto(
 
 /** Payload corto para código de barras 1D. */
 export function payloadEtiquetaProducto(
-  tipo: "accesorio" | "repuesto",
+  tipo: TipoProductoCodigoBarras,
   id: string
 ): string {
-  return tipo === "accesorio" ? `${PREFIJO_ACC}${id}` : `${PREFIJO_REP}${id}`;
+  if (tipo === "accesorio") return `${PREFIJO_ACC}${id}`;
+  if (tipo === "extra") return `${PREFIJO_EXT}${id}`;
+  return `${PREFIJO_REP}${id}`;
 }
 
 /** Código corto (barras): prioriza codigoBarras del producto. */
 export function codigoParaEtiqueta(p: {
   id: string;
-  tipo: "accesorio" | "repuesto";
+  tipo: TipoProductoCodigoBarras;
   codigoBarras?: string;
   codigo?: string;
 }): string {
@@ -78,14 +91,14 @@ export function codigoParaEtiqueta(p: {
 /** Contenido del QR: siempre un link que abre el producto. */
 export function codigoParaEtiquetaQr(p: {
   id: string;
-  tipo: "accesorio" | "repuesto";
+  tipo: TipoProductoCodigoBarras;
 }): string {
   return urlEtiquetaProducto(p.tipo, p.id);
 }
 
 /** Si el escaneo es una URL de stock, extrae tipo + id. */
 export function parsearUrlProductoStock(raw: string): {
-  tipo: "accesorio" | "repuesto";
+  tipo: TipoProductoCodigoBarras;
   id: string;
 } | null {
   const texto = normalizarCodigoEscaneado(raw);
@@ -99,21 +112,38 @@ export function parsearUrlProductoStock(raw: string): {
     if (!id) return null;
     if (u.pathname.includes("/accesorios")) return { tipo: "accesorio", id };
     if (u.pathname.includes("/repuestos")) return { tipo: "repuesto", id };
+    if (
+      u.pathname.includes("/integracion-sheet") ||
+      u.pathname.includes("/stock-repuestos-sheet") ||
+      u.pathname.includes("/stock-sheet")
+    ) {
+      return { tipo: "extra", id };
+    }
   } catch {
     /* no es URL */
   }
   return null;
 }
 
+function tipoDeColeccion(coleccion: ColeccionCodigoBarras): TipoProductoCodigoBarras {
+  if (coleccion === "stockAccesorios") return "accesorio";
+  if (coleccion === "stockExtra") return "extra";
+  return "repuesto";
+}
+
+function monedaDefault(coleccion: ColeccionCodigoBarras): string {
+  return coleccion === "stockExtra" ? "USD" : "ARS";
+}
+
 function mapDoc(
   id: string,
   data: Record<string, unknown>,
-  coleccion: "stockAccesorios" | "stockRepuestos"
+  coleccion: ColeccionCodigoBarras
 ): ProductoCodigoBarras {
   return {
     id,
     coleccion,
-    tipo: coleccion === "stockAccesorios" ? "accesorio" : "repuesto",
+    tipo: tipoDeColeccion(coleccion),
     codigo: String(data.codigo ?? id),
     codigoBarras: data.codigoBarras ? String(data.codigoBarras) : undefined,
     producto: String(data.producto || data.modelo || "Producto"),
@@ -121,8 +151,8 @@ function mapDoc(
     precioCosto: Number(data.precioCosto) || 0,
     precioCostoPesos:
       data.precioCostoPesos != null ? Number(data.precioCostoPesos) : undefined,
-    moneda: (data.moneda as string) || "ARS",
-    marca: data.marca ? String(data.marca) : undefined,
+    moneda: (data.moneda as string) || monedaDefault(coleccion),
+    marca: data.marca ? String(data.marca) : data.proveedor ? String(data.proveedor) : undefined,
     categoria: data.categoria ? String(data.categoria) : undefined,
   };
 }
@@ -135,8 +165,8 @@ function coincideCodigo(data: Record<string, unknown>, id: string, codigo: strin
 }
 
 /**
- * Busca accesorio o repuesto por código de barras, URL de etiqueta,
- * código interno, id o payload G1:ACC:/G1:REP:.
+ * Busca accesorio, repuesto o stockExtra por código de barras, URL de etiqueta,
+ * código interno, id o payload G1:ACC:/G1:REP:/G1:EXT:.
  */
 export async function buscarProductoPorCodigoBarras(
   negocioID: string,
@@ -147,8 +177,12 @@ export async function buscarProductoPorCodigoBarras(
 
   const desdeUrl = parsearUrlProductoStock(codigo);
   if (desdeUrl) {
-    const coleccion =
-      desdeUrl.tipo === "accesorio" ? "stockAccesorios" : "stockRepuestos";
+    const coleccion: ColeccionCodigoBarras =
+      desdeUrl.tipo === "accesorio"
+        ? "stockAccesorios"
+        : desdeUrl.tipo === "extra"
+          ? "stockExtra"
+          : "stockRepuestos";
     const snap = await getDoc(
       doc(db, `negocios/${negocioID}/${coleccion}/${desdeUrl.id}`)
     );
@@ -172,9 +206,18 @@ export async function buscarProductoPorCodigoBarras(
     return mapDoc(snap.id, snap.data() as Record<string, unknown>, "stockRepuestos");
   }
 
-  const [accSnap, repSnap] = await Promise.all([
+  if (codigo.startsWith(PREFIJO_EXT)) {
+    const id = codigo.slice(PREFIJO_EXT.length).trim();
+    if (!id) return null;
+    const snap = await getDoc(doc(db, `negocios/${negocioID}/stockExtra/${id}`));
+    if (!snap.exists()) return null;
+    return mapDoc(snap.id, snap.data() as Record<string, unknown>, "stockExtra");
+  }
+
+  const [accSnap, repSnap, extraSnap] = await Promise.all([
     getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`)),
     getDocs(collection(db, `negocios/${negocioID}/stockRepuestos`)),
+    getDocs(collection(db, `negocios/${negocioID}/stockExtra`)),
   ]);
 
   for (const d of accSnap.docs) {
@@ -186,6 +229,12 @@ export async function buscarProductoPorCodigoBarras(
   for (const d of repSnap.docs) {
     if (coincideCodigo(d.data() as Record<string, unknown>, d.id, codigo)) {
       return mapDoc(d.id, d.data() as Record<string, unknown>, "stockRepuestos");
+    }
+  }
+
+  for (const d of extraSnap.docs) {
+    if (coincideCodigo(d.data() as Record<string, unknown>, d.id, codigo)) {
+      return mapDoc(d.id, d.data() as Record<string, unknown>, "stockExtra");
     }
   }
 

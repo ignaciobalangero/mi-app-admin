@@ -18,7 +18,7 @@ export type EtiquetaRepuestoConfig = {
 export type ItemEtiquetaStock = {
   producto?: string;
   id?: string;
-  tipo?: "accesorio" | "repuesto";
+  tipo?: "accesorio" | "repuesto" | "extra";
   codigoBarras?: string;
   codigo?: string;
   /** Código ya resuelto para QR/barras */

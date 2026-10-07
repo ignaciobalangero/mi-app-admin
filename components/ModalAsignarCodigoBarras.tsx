@@ -7,8 +7,8 @@ import { db } from "@/lib/firebase";
 
 type ItemAsignar = {
   id: string;
-  coleccion: "stockAccesorios" | "stockRepuestos";
-  tipo: "accesorio" | "repuesto";
+  coleccion: "stockAccesorios" | "stockRepuestos" | "stockExtra";
+  tipo: "accesorio" | "repuesto" | "extra";
   codigo: string;
   producto: string;
   codigoBarras?: string;
@@ -34,7 +34,7 @@ export default function ModalAsignarCodigoBarras({
   const [items, setItems] = useState<ItemAsignar[]>([]);
   const [cargando, setCargando] = useState(false);
   const [q, setQ] = useState("");
-  const [filtro, setFiltro] = useState<"todos" | "accesorio" | "repuesto">("todos");
+  const [filtro, setFiltro] = useState<"todos" | "accesorio" | "repuesto" | "extra">("todos");
   const [guardandoId, setGuardandoId] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
@@ -45,9 +45,10 @@ export default function ModalAsignarCodigoBarras({
     const cargar = async () => {
       setCargando(true);
       try {
-        const [acc, rep] = await Promise.all([
+        const [acc, rep, extra] = await Promise.all([
           getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`)),
           getDocs(collection(db, `negocios/${negocioID}/stockRepuestos`)),
+          getDocs(collection(db, `negocios/${negocioID}/stockExtra`)),
         ]);
         if (cancel) return;
         const lista: ItemAsignar[] = [
@@ -71,6 +72,18 @@ export default function ModalAsignarCodigoBarras({
               tipo: "repuesto" as const,
               codigo: String(data.codigo ?? d.id),
               producto: String(data.producto || data.modelo || "Repuesto"),
+              codigoBarras: data.codigoBarras ? String(data.codigoBarras) : undefined,
+              cantidad: Number(data.cantidad) || 0,
+            };
+          }),
+          ...extra.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              coleccion: "stockExtra" as const,
+              tipo: "extra" as const,
+              codigo: String(data.codigo ?? d.id),
+              producto: String(data.producto || data.modelo || "Stock Extra"),
               codigoBarras: data.codigoBarras ? String(data.codigoBarras) : undefined,
               cantidad: Number(data.cantidad) || 0,
             };
@@ -151,14 +164,15 @@ export default function ModalAsignarCodigoBarras({
 
         <div className="p-4 space-y-3 border-b border-[#ecf0f1] bg-[#f8f9fa]">
           <p className="text-sm text-[#2c3e50]">
-            Asignalo a un accesorio o repuesto existente para poder escanearlo después.
+            Asignalo a un accesorio, repuesto o stock extra existente para poder escanearlo después.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {(
               [
                 ["todos", "Todos"],
                 ["accesorio", "Accesorios"],
                 ["repuesto", "Repuestos"],
+                ["extra", "Stock Extra"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -202,7 +216,12 @@ export default function ModalAsignarCodigoBarras({
                   <div className="min-w-0">
                     <p className="font-semibold text-[#2c3e50] text-sm truncate">{it.producto}</p>
                     <p className="text-xs text-[#7f8c8d]">
-                      {it.tipo === "accesorio" ? "Accesorio" : "Repuesto"} · {it.codigo}
+                      {it.tipo === "accesorio"
+                        ? "Accesorio"
+                        : it.tipo === "extra"
+                          ? "Stock Extra"
+                          : "Repuesto"}{" "}
+                      · {it.codigo}
                       {it.codigoBarras ? ` · ya tiene: ${it.codigoBarras}` : ""}
                     </p>
                   </div>
