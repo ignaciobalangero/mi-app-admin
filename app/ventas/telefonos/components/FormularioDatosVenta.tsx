@@ -13,6 +13,10 @@ import {
   datosStockAPagoItem,
   totalesTelefonosVenta,
 } from "@/lib/ventas/telefonoVentaHelpers";
+import {
+  etiquetaMesesGarantia,
+  MESES_GARANTIA_OPCIONES,
+} from "@/lib/ventas/garantiaTelefono";
 
 interface Props {
   negocioID: string;
@@ -57,6 +61,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     tipoPrecio: "venta",
     moneda: "ARS",
     stockID: "",
+    mesesGarantia: "" as number | "" | string,
   });
   const [pago, setPago] = useState({
     monto: "",
@@ -226,6 +231,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     tipoPrecio: "venta",
     moneda: "ARS",
     stockID: "",
+    mesesGarantia: "" as number | "" | string,
   };
 
   const construirTelefonoVenta = () => ({
@@ -251,6 +257,10 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     tipoPrecio: form.tipoPrecio,
     moneda: form.moneda || "ARS",
     stockID: form.stockID || "",
+    mesesGarantia:
+      form.mesesGarantia === "" || form.mesesGarantia == null
+        ? null
+        : Number(form.mesesGarantia),
   });
 
   const limpiarCamposDispositivo = () => {
@@ -278,6 +288,10 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       tipoPrecio: tel.tipoPrecio || "venta",
       moneda: tel.moneda || "ARS",
       stockID: tel.stockID || "",
+      mesesGarantia:
+        tel.mesesGarantia === null || tel.mesesGarantia === undefined
+          ? ""
+          : String(tel.mesesGarantia),
     }));
 
     if (tel.tipoProveedor === "lista" && tel.proveedorId) {
@@ -820,6 +834,11 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                               ? ` · Costo $${Number(tel.precioCosto).toLocaleString("es-AR")}`
                               : ""}
                             {tel.imei ? ` · IMEI ${tel.imei}` : ""}
+                            {Number(tel.mesesGarantia) > 0
+                              ? ` · 🛡️ ${etiquetaMesesGarantia(tel.mesesGarantia)}`
+                              : tel.mesesGarantia === 0
+                                ? " · Sin garantía"
+                                : ""}
                           </p>
                           {editando && (
                             <p className="text-xs font-semibold text-[#2980b9] mt-1">
@@ -827,16 +846,49 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                             </p>
                           )}
                         </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            quitarTelefonoDeVenta(index);
-                          }}
-                          className="shrink-0 rounded-lg bg-[#fdecea] px-3 py-1 text-xs font-medium text-[#e74c3c] hover:bg-[#fadbd8]"
-                        >
-                          Quitar
-                        </button>
+                        <div className="shrink-0 flex flex-col gap-1 items-end">
+                          <select
+                            value={
+                              tel.mesesGarantia === null ||
+                              tel.mesesGarantia === undefined ||
+                              tel.mesesGarantia === ""
+                                ? ""
+                                : String(tel.mesesGarantia)
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const raw = e.target.value;
+                              const meses =
+                                raw === "" ? null : Number(raw);
+                              setTelefonosEnVenta((prev) =>
+                                prev.map((t, i) =>
+                                  i === index ? { ...t, mesesGarantia: meses } : t
+                                )
+                              );
+                            }}
+                            className="text-xs border border-[#27ae60]/50 rounded-lg px-2 py-1 bg-white text-[#1e8449] font-medium max-w-[9rem]"
+                            title="Garantía"
+                          >
+                            <option value="">Garantía…</option>
+                            <option value="0">Sin garantía</option>
+                            {MESES_GARANTIA_OPCIONES.map((m) => (
+                              <option key={m} value={m}>
+                                {m === 1 ? "1 mes" : `${m} meses`}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              quitarTelefonoDeVenta(index);
+                            }}
+                            className="rounded-lg bg-[#fdecea] px-3 py-1 text-xs font-medium text-[#e74c3c] hover:bg-[#fadbd8]"
+                          >
+                            Quitar
+                          </button>
+                        </div>
                       </div>
                     )})}
                   </div>

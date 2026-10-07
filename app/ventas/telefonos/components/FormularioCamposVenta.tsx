@@ -1,6 +1,9 @@
 import SelectorTelefonoStock from "./SelectorTelefonoStock";
 import { Combobox } from "@headlessui/react";
 import { useState } from "react";
+import {
+  MESES_GARANTIA_OPCIONES,
+} from "@/lib/ventas/garantiaTelefono";
 
 /** DD/MM/YYYY (o similar) → YYYY-MM-DD para input type="date". */
 function fechaAInputDate(fecha: string): string {
@@ -160,6 +163,31 @@ export default function FormularioCamposVenta({
         setForm={setForm}
         stockIdsExcluidos={stockIdsExcluidos}
       />
+
+      {(form.stockID || form.modelo) && (
+        <div className="rounded-xl border-2 border-[#27ae60]/40 bg-[#eafaf1] p-3 space-y-2">
+          <label className="block text-sm font-bold text-[#1e8449]">
+            🛡️ Garantía
+          </label>
+          <select
+            name="mesesGarantia"
+            value={form.mesesGarantia === "" || form.mesesGarantia == null ? "" : String(form.mesesGarantia)}
+            onChange={handleChange}
+            className="w-full p-2.5 border-2 border-[#27ae60]/50 rounded-lg bg-white text-[#2c3e50] font-medium focus:ring-2 focus:ring-[#27ae60]/30 focus:border-[#27ae60]"
+          >
+            <option value="">Seleccionar garantía…</option>
+            <option value="0">Sin garantía</option>
+            {MESES_GARANTIA_OPCIONES.map((m) => (
+              <option key={m} value={m}>
+                {m === 1 ? "1 mes" : `${m} meses`}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-[#1e8449]/80">
+            Elegí cuántos meses de garantía das en esta venta.
+          </p>
+        </div>
+      )}
 
       <select 
         name="estado"

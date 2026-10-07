@@ -69,6 +69,12 @@ export function datosStockAPagoItem(
 export function telefonoDraftAProducto(telefono: Record<string, unknown>) {
   const moneda = String(telefono.moneda ?? "USD");
   const precioVenta = Number(telefono.precioVenta ?? 0);
+  const mesesGarantia =
+    telefono.mesesGarantia === "" ||
+    telefono.mesesGarantia === null ||
+    telefono.mesesGarantia === undefined
+      ? null
+      : Number(telefono.mesesGarantia);
   return {
     categoria: "Teléfono",
     producto: `${telefono.marca ?? ""} ${telefono.modelo ?? ""}`.trim(),
@@ -84,6 +90,7 @@ export function telefonoDraftAProducto(telefono: Record<string, unknown>) {
     codigo: telefono.stockID || telefono.modelo,
     tipo: "telefono",
     gb: telefono.gb || "",
+    mesesGarantia,
     datosTelefonoCompletos: telefono,
   };
 }

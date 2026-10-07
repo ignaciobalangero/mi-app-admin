@@ -449,6 +449,12 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     const productosTel = telefonos.map((tel) => {
       const precioCosto = Number(tel.precioCosto || 0);
       const precioUnitario = Number(tel.precioVenta || 0);
+      const mesesGarantia =
+        tel.mesesGarantia === "" ||
+        tel.mesesGarantia === null ||
+        tel.mesesGarantia === undefined
+          ? null
+          : Number(tel.mesesGarantia);
       return {
         categoria: "Teléfono",
         descripcion: tel.estado,
@@ -466,6 +472,9 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         codigo: tel.stockID || tel.modelo,
         tipo: "telefono",
         origenStock: "stockTelefonos",
+        mesesGarantia,
+        imei: tel.imei || "",
+        datosTelefonoCompletos: tel,
       };
     });
 
@@ -537,6 +546,12 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         ganancia,
         moneda: tel.moneda || "USD",
         stockID: tel.stockID || "",
+        mesesGarantia:
+          tel.mesesGarantia === "" ||
+          tel.mesesGarantia === null ||
+          tel.mesesGarantia === undefined
+            ? null
+            : Number(tel.mesesGarantia),
         observaciones: pagoTelefono.observaciones || observaciones || "",
         telefonosRecibidos: telefonosRecibidosFinal.length > 0 ? telefonosRecibidosFinal : null,
         telefonoRecibido: telefonosRecibidosFinal[0] || null,

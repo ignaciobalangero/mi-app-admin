@@ -785,6 +785,25 @@ export async function armarHtmlReciboCompraDesdeVenta(
       ""
   ).trim();
 
+  const { armarTextoGarantiaRecibo } = await import(
+    "@/lib/ventas/garantiaTelefono"
+  );
+  const mesesGarantiaLista: number[] = [];
+  for (const p of productosGeneral) {
+    if (!esProductoTelefono(p)) continue;
+    const m =
+      Number(p?.mesesGarantia ?? p?.datosTelefonoCompletos?.mesesGarantia) || 0;
+    if (m > 0) mesesGarantiaLista.push(m);
+  }
+  for (const t of grupo) {
+    const m = Number(t?.mesesGarantia) || 0;
+    if (m > 0) mesesGarantiaLista.push(m);
+  }
+  const textoGarantia = armarTextoGarantiaRecibo({
+    mesesPorTelefono: mesesGarantiaLista,
+    textoConfigNegocio: String(cfg.textoGarantiaTelefonos || ""),
+  });
+
   const html = htmlReciboCompraTelefono({
     fecha: String(base.fecha || ventaGeneral?.fecha || venta.fecha || ""),
     cliente: nombreCliente,
@@ -805,7 +824,7 @@ export async function armarHtmlReciboCompraDesdeVenta(
       fechaInicioActividad: recibo.fechaInicioActividad || "",
       leyendaComprobante: recibo.leyendaComprobante || "",
       textoConformidad: recibo.textoConformidad || "",
-      textoGarantia: cfg.textoGarantiaTelefonos || "",
+      textoGarantia,
     },
   });
 
