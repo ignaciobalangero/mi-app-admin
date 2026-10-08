@@ -157,11 +157,25 @@ function mapDoc(
   };
 }
 
+function soloDigitos(s: string): string {
+  return s.replace(/\D/g, "");
+}
+
 function coincideCodigo(data: Record<string, unknown>, id: string, codigo: string): boolean {
-  const c = codigo.toLowerCase();
+  const c = codigo.toLowerCase().trim();
   const barras = String(data.codigoBarras || "").trim().toLowerCase();
   const interno = String(data.codigo || "").trim().toLowerCase();
-  return barras === c || interno === c || id.toLowerCase() === c;
+  if (barras === c || interno === c || id.toLowerCase() === c) return true;
+
+  // EAN/UPC: comparar solo dígitos (a veces hay espacios o ceros de más)
+  const cDig = soloDigitos(c);
+  if (cDig.length >= 8) {
+    const bDig = soloDigitos(barras);
+    const iDig = soloDigitos(interno);
+    if (bDig && (bDig === cDig || bDig.endsWith(cDig) || cDig.endsWith(bDig))) return true;
+    if (iDig && (iDig === cDig || iDig.endsWith(cDig) || cDig.endsWith(iDig))) return true;
+  }
+  return false;
 }
 
 /**

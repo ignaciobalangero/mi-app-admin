@@ -41,6 +41,7 @@ export default function BotonEscanerStock({
       try {
         const encontrado = await buscarProductoPorCodigoBarras(negocioID, codigo);
         if (!encontrado) {
+          // Código leído OK pero el artículo no lo tiene cargado → asignar
           setCodigoSinAsignar(codigo);
           return;
         }

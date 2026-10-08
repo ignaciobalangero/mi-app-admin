@@ -164,7 +164,9 @@ export default function ModalAsignarCodigoBarras({
 
         <div className="p-4 space-y-3 border-b border-[#ecf0f1] bg-[#f8f9fa]">
           <p className="text-sm text-[#2c3e50]">
-            Asignalo a un accesorio, repuesto o stock extra existente para poder escanearlo después.
+            Ese código todavía no está cargado. Elegí el artículo de la lista para vincularlo (también
+            podés editar el producto y completar el campo{" "}
+            <strong>Código de barras / QR</strong>).
           </p>
           <div className="flex flex-wrap gap-2">
             {(
