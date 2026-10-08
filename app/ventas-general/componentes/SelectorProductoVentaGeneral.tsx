@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { collection, getDocs, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
@@ -78,6 +79,7 @@ export default function SelectorProductoVentaGeneral({
   const [usandoPrecioManual, setUsandoPrecioManual] = useState(false);
   const [monedaSeleccionada, setMonedaSeleccionada] = useState<"ARS" | "USD">("ARS");
   const [mostrarLibre, setMostrarLibre] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [libreForm, setLibreForm] = useState({
     producto: "",
     modelo: "",
@@ -90,6 +92,8 @@ export default function SelectorProductoVentaGeneral({
     moneda: "ARS" as "ARS" | "USD",
     observacion: "",
   });
+
+  useEffect(() => setMounted(true), []);
 
   const resetLibreForm = () => {
     setLibreForm({
@@ -643,11 +647,12 @@ useEffect(() => {
         </div>
       )}
 
-      {productoSeleccionado && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto border-2 border-[#ecf0f1] overflow-hidden flex flex-col max-h-[90vh]">
+      {productoSeleccionado && mounted
+        ? createPortal(
+        <div className="fixed inset-0 z-[2147483000] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden flex flex-col max-h-[92dvh]">
             
-            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-4 flex-shrink-0">
+            <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-4 flex-shrink-0 pt-[max(1rem,env(safe-area-inset-top))] sm:pt-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
                   <span className="text-xl">
@@ -670,7 +675,13 @@ useEffect(() => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div
+              className="overflow-y-auto overscroll-contain p-4 space-y-4"
+              style={{
+                WebkitOverflowScrolling: "touch",
+                maxHeight: "calc(92dvh - 9.5rem)",
+              }}
+            >
               
               <div className="bg-[#f8f9fa] rounded-lg p-3 border border-[#ecf0f1]">
                 <div className="flex items-center justify-between mb-2">
@@ -945,30 +956,34 @@ useEffect(() => {
               )}
             </div>
 
-            <div className="bg-[#f8f9fa] px-4 py-3 flex justify-end gap-2 border-t border-[#ecf0f1] flex-shrink-0">
+            <div className="bg-[#f8f9fa] px-4 py-3 flex flex-col-reverse sm:flex-row justify-end gap-2 border-t border-[#ecf0f1] flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <button
+                type="button"
                 onClick={() => setProductoSeleccionado(null)}
-                className="px-4 py-2 text-[#2c3e50] bg-white border-2 border-[#bdc3c7] rounded-lg hover:bg-[#ecf0f1] hover:border-[#7f8c8d] transition-all duration-200 font-medium text-sm"
+                className="w-full sm:w-auto px-4 py-3 text-[#2c3e50] bg-white border-2 border-[#bdc3c7] rounded-lg hover:bg-[#ecf0f1] hover:border-[#7f8c8d] transition-all duration-200 font-medium text-sm"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={confirmarAgregar}
                 disabled={(precioElegido === 0 && !usandoPrecioManual) || (usandoPrecioManual && precioManual <= 0) || cantidad > (productoSeleccionado.cantidad || 0)}
-                className="px-6 py-2 bg-[#27ae60] hover:bg-[#229954] disabled:bg-[#bdc3c7] text-white rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg disabled:transform-none disabled:shadow-none flex items-center gap-2 text-sm"
+                className="w-full sm:w-auto px-6 py-3 bg-[#27ae60] hover:bg-[#229954] disabled:bg-[#bdc3c7] text-white rounded-lg font-semibold transition-all duration-200 shadow-lg disabled:shadow-none flex items-center justify-center gap-2 text-sm"
               >
                 <span>✅</span>
                 Agregar al remito
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      ) : null}
 
-      {mostrarLibre && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto border-2 border-[#ecf0f1] overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] text-white p-4 flex-shrink-0">
+      {mostrarLibre && mounted
+        ? createPortal(
+        <div className="fixed inset-0 z-[2147483000] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden flex flex-col max-h-[92dvh]">
+            <div className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] text-white p-4 flex-shrink-0 pt-[max(1rem,env(safe-area-inset-top))] sm:pt-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
                   <span className="text-xl">✏️</span>
@@ -982,7 +997,13 @@ useEffect(() => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div
+              className="overflow-y-auto overscroll-contain p-4 space-y-3"
+              style={{
+                WebkitOverflowScrolling: "touch",
+                maxHeight: "calc(92dvh - 9.5rem)",
+              }}
+            >
               <div>
                 <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
                   Nombre / descripción *
@@ -1145,28 +1166,29 @@ useEffect(() => {
               </p>
             </div>
 
-            <div className="bg-[#f8f9fa] px-4 py-3 flex justify-end gap-2 border-t border-[#ecf0f1]">
+            <div className="bg-[#f8f9fa] px-4 py-3 flex flex-col-reverse sm:flex-row justify-end gap-2 border-t border-[#ecf0f1] flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <button
                 type="button"
                 onClick={() => {
                   resetLibreForm();
                   setMostrarLibre(false);
                 }}
-                className="px-4 py-2 text-[#2c3e50] bg-white border-2 border-[#bdc3c7] rounded-lg text-sm font-medium"
+                className="w-full sm:w-auto px-4 py-3 text-[#2c3e50] bg-white border-2 border-[#bdc3c7] rounded-lg text-sm font-medium"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={confirmarProductoLibre}
-                className="px-6 py-2 bg-[#9b59b6] hover:bg-[#8e44ad] text-white rounded-lg font-semibold text-sm"
+                className="w-full sm:w-auto px-6 py-3 bg-[#9b59b6] hover:bg-[#8e44ad] text-white rounded-lg font-semibold text-sm"
               >
                 Agregar a la venta
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      ) : null}
     </div>
   );
 }

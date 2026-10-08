@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useId } from "react";
+import { createPortal } from "react-dom";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import {
@@ -372,24 +373,26 @@ export default function ModalPago({
   const puedeGuardar =
     (items.length > 0 || borradorCompleto) && !guardadoConExito;
 
-  return (
-    <div className="fixed inset-0 z-[10001] bg-black/30 flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full h-full sm:h-auto sm:max-w-4xl lg:max-w-5xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden transform transition-all duration-300 flex flex-col sm:max-h-[95vh]">
-        <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-4 sm:p-6 flex justify-between items-center flex-shrink-0">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="w-8 h-8 sm:w-12 sm:h-12 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center">
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[2147483001] bg-black/40 flex items-stretch sm:items-center justify-center p-0 sm:p-4">
+      <div className="w-full h-[100dvh] max-h-[100dvh] sm:h-[95dvh] sm:max-h-[95dvh] sm:max-w-4xl lg:max-w-5xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-[#ecf0f1] overflow-hidden flex flex-col min-h-0">
+        <div className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] text-white p-3 sm:p-6 flex justify-between items-center gap-2 flex-shrink-0 pt-[max(0.75rem,env(safe-area-inset-top))] sm:pt-6">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <div className="w-8 h-8 sm:w-12 sm:h-12 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
               <span className="text-lg sm:text-2xl">💳</span>
             </div>
-            <div>
-              <h3 className="text-lg sm:text-2xl font-bold">Registrar pago</h3>
-              <p className="text-green-100 text-xs sm:text-sm">
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-2xl font-bold truncate">Registrar pago</h3>
+              <p className="text-green-100 text-xs sm:text-sm truncate">
                 Cada cobro con su moneda y medio (caja)
               </p>
             </div>
           </div>
 
           {totalesVenta && hayPesos && (
-            <div className="hidden sm:flex items-center gap-2 bg-white/20 rounded-lg px-3 py-2">
+            <div className="hidden md:flex items-center gap-2 bg-white/20 rounded-lg px-3 py-2 flex-shrink-0">
               <span className="text-green-100 text-xs">💱</span>
               <span className="text-white text-sm font-medium">
                 $1 USD = ${cotizacionUsada.toLocaleString()} ARS
@@ -398,14 +401,24 @@ export default function ModalPago({
           )}
 
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl flex items-center justify-center text-white text-lg sm:text-xl font-bold transition-all duration-200 hover:scale-110"
+            className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl flex items-center justify-center text-white text-lg sm:text-xl font-bold transition-all duration-200 flex-shrink-0"
           >
             ×
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-[#f8f9fa] min-h-0">
+        {totalesVenta && hayPesos && (
+          <div className="md:hidden bg-[#1e8449] text-white px-3 py-1.5 text-center text-xs font-medium flex-shrink-0">
+            💱 $1 USD = ${cotizacionUsada.toLocaleString()} ARS
+          </div>
+        )}
+
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6 space-y-3 sm:space-y-6 bg-[#f8f9fa] min-h-0"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           {totalesVenta && (
             <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border-2 border-blue-200 p-4 sm:p-6 shadow-sm">
               <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 flex items-center gap-2">
@@ -964,21 +977,23 @@ export default function ModalPago({
           )}
         </div>
 
-        <div className="bg-[#ecf0f1] border-t-2 border-[#bdc3c7] p-3 sm:p-6 flex-shrink-0">
-          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-4">
+        <div className="bg-[#ecf0f1] border-t-2 border-[#bdc3c7] p-3 sm:p-4 flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-4">
             <button
+              type="button"
               onClick={onClose}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 text-sm sm:text-base"
+              className="w-full sm:w-auto px-4 sm:px-6 py-3 min-h-[48px] bg-[#7f8c8d] hover:bg-[#6c7b7f] text-white rounded-lg font-medium transition-all duration-200 text-sm sm:text-base"
             >
               Cancelar
             </button>
             <button
+              type="button"
               onClick={handleGuardarPago}
               disabled={!puedeGuardar}
-              className={`w-full sm:w-auto px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium text-white transition-all duration-200 transform shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base ${
+              className={`w-full sm:w-auto px-6 sm:px-8 py-3 min-h-[48px] rounded-lg font-medium text-white transition-all duration-200 shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base ${
                 !puedeGuardar
                   ? "bg-[#bdc3c7] cursor-not-allowed"
-                  : "bg-[#27ae60] hover:bg-[#229954] hover:scale-105"
+                  : "bg-[#27ae60] hover:bg-[#229954]"
               }`}
             >
               Guardar pagos
@@ -986,6 +1001,7 @@ export default function ModalPago({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

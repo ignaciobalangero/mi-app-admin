@@ -1327,28 +1327,22 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
   };
 
   return (
-    <div className="mt-6">
-      <div className="flex justify-end gap-4">
+    <div className="w-full sm:w-auto sm:mt-0">
+      <div className="flex justify-stretch sm:justify-end gap-2 sm:gap-4">
         <button
           type="button"
           onClick={guardarVenta}
           disabled={guardando || !clienteDeBase}
-          className={`rounded-lg font-medium flex items-center gap-2 transition-all duration-200 transform text-white ${
+          className={`w-full sm:w-auto rounded-lg font-medium flex items-center justify-center gap-2 transition-all duration-200 text-white px-6 py-3 sm:py-0 sm:h-10 min-h-[48px] sm:min-h-[40px] ${
             guardando || !clienteDeBase
               ? "bg-[#bdc3c7] cursor-not-allowed" 
-              : "bg-[#3498db] hover:bg-[#2980b9] hover:scale-105"
+              : "bg-[#3498db] hover:bg-[#2980b9]"
           }`}
           title={
             !clienteDeBase
               ? "Seleccioná el cliente de la lista"
               : undefined
           }
-          style={{ 
-            height: "40px", 
-            padding: "0 24px",
-            minHeight: "40px",
-            maxHeight: "40px"
-          }}
         >
           {guardando ? (
             <>

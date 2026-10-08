@@ -525,11 +525,14 @@ export default function ModalVenta({
 
   return (
     <>
-      <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center p-2 sm:p-4">
-        <div className="w-full h-full sm:w-[95%] md:w-[85%] lg:w-[75%] xl:w-[65%] 2xl:w-[55%] sm:h-[95vh] bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col" style={{ isolation: 'isolate' }}>
+      <div className="fixed inset-0 z-[9998] bg-black/50 flex items-stretch sm:items-center justify-center p-0 sm:p-4">
+        <div
+          className="w-full h-[100dvh] max-h-[100dvh] sm:w-[95%] md:w-[85%] lg:w-[75%] xl:w-[65%] 2xl:w-[55%] sm:h-[95dvh] sm:max-h-[95dvh] bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col min-h-0"
+          style={{ isolation: "isolate" }}
+        >
           
           {/* Header del Remito - Con cotización editable */}
-          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-3 flex justify-between items-center flex-shrink-0">
+          <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-3 flex justify-between items-center flex-shrink-0 pt-[max(0.5rem,env(safe-area-inset-top))] sm:pt-3">
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Logo mini de GestiOne */}
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex overflow-hidden shadow-lg">
@@ -596,8 +599,11 @@ export default function ModalVenta({
             </div>
           </div>
 
-          {/* Contenido scrolleable - Con padding extra para dropdowns */}
-          <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 sm:space-y-3 bg-[#f8f9fa] min-h-0 pb-[200px]">
+          {/* Contenido scrolleable */}
+          <div
+            className="flex-1 overflow-y-auto overscroll-contain p-2 sm:p-3 space-y-2 sm:space-y-3 bg-[#f8f9fa] min-h-0"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             
             {/* Información del Cliente - CON BOTÓN AGREGAR */}
             <div
@@ -1169,27 +1175,27 @@ export default function ModalVenta({
             )}
           </div>
 
-          {/* Footer con Totales Duales */}
-          <div className="bg-[#ecf0f1] border-t border-[#bdc3c7] p-3 flex-shrink-0">
+          {/* Footer con Totales Duales — sticky, compacto en tablet/móvil */}
+          <div className="bg-[#ecf0f1] border-t border-[#bdc3c7] p-2 sm:p-3 flex-shrink-0 max-h-[42dvh] sm:max-h-none overflow-y-auto overscroll-contain pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             {/* Resumen de Totales Duales */}
-            <div className="bg-white rounded-lg border border-[#bdc3c7] p-3 mb-3 shadow-sm">
+            <div className="bg-white rounded-lg border border-[#bdc3c7] p-2 sm:p-3 mb-2 sm:mb-3 shadow-sm">
               
               {/* Sistema dual: ARS y USD por separado */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
                 
                 {/* Columna ARS */}
                 {totalARS > 0 && (
-                  <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
-                    <div className="flex justify-between items-center mb-3">
+                  <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-2.5 sm:p-4 border border-green-200">
+                    <div className="flex justify-between items-center mb-2 sm:mb-3">
                       <div>
-                        <h4 className="text-lg font-bold text-green-800 flex items-center gap-2">
-                          <span className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-sm">💰</span>
+                        <h4 className="text-sm sm:text-lg font-bold text-green-800 flex items-center gap-2">
+                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-green-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm">💰</span>
                           Pesos Argentinos
                         </h4>
-                        <p className="text-sm text-green-600">Total en ARS</p>
+                        <p className="text-xs sm:text-sm text-green-600">Total en ARS</p>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-green-800">
+                        <div className="text-lg sm:text-2xl font-bold text-green-800">
                           ${totalARS.toLocaleString("es-AR")} ARS
                         </div>
                       </div>
@@ -1228,17 +1234,17 @@ export default function ModalVenta({
 
                 {/* Columna USD */}
                 {totalUSD > 0 && (
-                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
-                    <div className="flex justify-between items-center mb-3">
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-2.5 sm:p-4 border border-blue-200">
+                    <div className="flex justify-between items-center mb-2 sm:mb-3">
                       <div>
-                        <h4 className="text-lg font-bold text-blue-800 flex items-center gap-2">
-                          <span className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm">💵</span>
+                        <h4 className="text-sm sm:text-lg font-bold text-blue-800 flex items-center gap-2">
+                          <span className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm">💵</span>
                           Dólares USD
                         </h4>
-                        <p className="text-sm text-blue-600">Total en USD</p>
+                        <p className="text-xs sm:text-sm text-blue-600">Total en USD</p>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-blue-800">
+                        <div className="text-lg sm:text-2xl font-bold text-blue-800">
                           USD ${totalUSD.toLocaleString("es-AR")}
                         </div>
                         <div className="text-sm text-blue-600">
@@ -1337,9 +1343,10 @@ export default function ModalVenta({
               )}
             </div>
 
-            {/* Botones de Acción */}
-            <div className="flex flex-col sm:flex-row justify-end gap-2">
+            {/* Botones de Acción — siempre visibles arriba del safe-area */}
+            <div className="sticky bottom-0 flex flex-col-reverse sm:flex-row justify-end gap-2 bg-[#ecf0f1] pt-1">
               <button
+                type="button"
                 onClick={() => {
                   const confirmar = window.confirm('¿Estás seguro de cancelar esta venta? Se perderán todos los datos.');
                   if (confirmar) {
@@ -1347,12 +1354,13 @@ export default function ModalVenta({
                     onClose?.();
                   }
                 }}
-                className="w-full sm:w-auto bg-[#e74c3c] hover:bg-[#c0392b] text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center justify-center gap-2 text-sm"
+                className="w-full sm:w-auto bg-[#e74c3c] hover:bg-[#c0392b] text-white px-4 py-3 sm:py-2 rounded-lg font-medium transition-all duration-200 shadow-lg flex items-center justify-center gap-2 text-sm"
               >
                 ❌ Cancelar Venta
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   if (!clienteDeBase) {
                     alert("Seleccioná el cliente de la lista antes de cobrar.");
@@ -1366,9 +1374,9 @@ export default function ModalVenta({
                   setModalPagoAbierto(true);
                 }}
                 disabled={!clienteDeBase}
-                className={`w-full sm:w-auto text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg flex items-center justify-center gap-2 text-sm ${
+                className={`w-full sm:w-auto text-white px-4 py-3 sm:py-2 rounded-lg font-medium transition-all duration-200 shadow-lg flex items-center justify-center gap-2 text-sm ${
                   clienteDeBase
-                    ? "bg-[#27ae60] hover:bg-[#229954] transform hover:scale-105"
+                    ? "bg-[#27ae60] hover:bg-[#229954]"
                     : "bg-[#bdc3c7] cursor-not-allowed"
                 }`}
               >
