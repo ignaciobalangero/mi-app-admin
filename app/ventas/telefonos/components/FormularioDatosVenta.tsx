@@ -17,6 +17,8 @@ import {
   etiquetaMesesGarantia,
   MESES_GARANTIA_OPCIONES,
 } from "@/lib/ventas/garantiaTelefono";
+import { calcularSaldosVenta } from "@/lib/ventas/pagoDualHelpers";
+import useCotizacion from "@/lib/hooks/useCotizacion";
 
 interface Props {
   negocioID: string;
@@ -28,6 +30,7 @@ interface Props {
 }
 
 export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId, datosEdicion }: Props) {
+  const { cotizacion } = useCotizacion(negocioID || "");
   const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
   const [stock, setStock] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
@@ -445,12 +448,19 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       clienteId: form.clienteId || "",
     };
 
+    const monedaPago = String(pago.moneda || "ARS").toUpperCase() === "USD" ? "USD" : "ARS";
+    const montoNum = Number(pago.monto || 0);
     const pagoTelefono = {
-      monto: pago.monto || "",
-      moneda: form.moneda || "ARS",
+      monto: monedaPago === "ARS" && montoNum > 0 ? String(montoNum) : "",
+      montoUSD: monedaPago === "USD" && montoNum > 0 ? String(montoNum) : "",
+      moneda: monedaPago,
       formaPago: pago.formaPago || "",
       observaciones: pago.observaciones || "",
       destino: "ventaTelefonos",
+      lineas:
+        montoNum > 0
+          ? [{ moneda: monedaPago as "ARS" | "USD", monto: montoNum, formaPago: pago.formaPago || "Efectivo" }]
+          : [],
     };
 
     if (!String(form.clienteId || "").trim()) {
@@ -493,8 +503,39 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     setMostrarPagoModal(false);
   };
 
-  const calcularRestaPagar = () =>
-    totalPrecioVenta() - Number(pago.monto || 0) - totalParteDePago();
+  const calcularRestaPagar = () => {
+    const { totalARS, totalUSD } = totalesTelefonosVenta(obtenerTelefonosParaVenta());
+    const monedaPago = String(pago.moneda || "ARS").toUpperCase() === "USD" ? "USD" : "ARS";
+    const montoNum = Number(pago.monto || 0);
+    const pagoARS = monedaPago === "ARS" ? montoNum : 0;
+    const pagoUSD = monedaPago === "USD" ? montoNum : 0;
+    const telefonosPago = telefonosRecibidos
+      .map((t) => ({
+        valorPago: Number(t.precioCompra ?? t.precioEstimado ?? 0),
+        moneda: String(t.moneda || "ARS"),
+      }))
+      .filter((t) => t.valorPago > 0);
+    const saldos = calcularSaldosVenta({
+      totalARS,
+      totalUSD,
+      pagoARS,
+      pagoUSD,
+      cotizacion: Number(cotizacion) || 1000,
+      telefonosPago,
+    });
+    return {
+      saldoARS: Math.max(0, saldos.saldoARS),
+      saldoUSD: Math.max(0, saldos.saldoUSD),
+      texto:
+        saldos.saldoUSD > 0.009 && saldos.saldoARS > 0.009
+          ? `USD $${saldos.saldoUSD.toLocaleString("es-AR")} + ARS $${saldos.saldoARS.toLocaleString("es-AR")}`
+          : saldos.saldoUSD > 0.009
+            ? `USD $${saldos.saldoUSD.toLocaleString("es-AR")}`
+            : saldos.saldoARS > 0.009
+              ? `ARS $${saldos.saldoARS.toLocaleString("es-AR")}`
+              : "$0",
+    };
+  };
 
   const hayPagos = Boolean(pago.monto || telefonosRecibidos.length > 0);
   const cantidadTelefonosVenta = obtenerTelefonosParaVenta().length;
@@ -1029,7 +1070,9 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                   )}
 
                   {/* Total pendiente */}
-                  {hayPrecioVenta && (
+                  {hayPrecioVenta &&
+                    (calcularRestaPagar().saldoARS > 0.009 ||
+                      calcularRestaPagar().saldoUSD > 0.009) && (
                     <div className="bg-gradient-to-r from-[#f8d7da] to-[#f5c6cb] border-2 border-[#e74c3c] rounded-2xl p-4 shadow-lg">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
@@ -1042,8 +1085,8 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-black text-[#721c24]">
-                            ${calcularRestaPagar().toLocaleString("es-AR")}
+                          <div className="text-xl sm:text-2xl font-black text-[#721c24]">
+                            {calcularRestaPagar().texto}
                           </div>
                         </div>
                       </div>

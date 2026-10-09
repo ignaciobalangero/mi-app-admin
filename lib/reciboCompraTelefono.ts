@@ -1,3 +1,8 @@
+import {
+  calcularSaldosVenta,
+  cotizacionEfectiva,
+} from "@/lib/ventas/pagoDualHelpers";
+
 export type LineaReciboCompra = {
   nombre: string;
   imei?: string;
@@ -12,6 +17,12 @@ export type PagoReciboCompra = {
   montoUSD?: number;
   moneda?: string;
   observaciones?: string;
+  detallesPago?: {
+    tipo?: string;
+    montoUSDEquivalente?: number;
+    cotizacionPago?: number;
+    [key: string]: unknown;
+  } | null;
 };
 
 export type ReciboCompraDatos = {
@@ -145,7 +156,11 @@ function bloqueSaldoPendiente(ars: number, usd: number): string {
     </div>`;
 }
 
-/** Saldo a mostrar: prioriza campos guardados; si faltan, calcula con ítems − parte de pago − pagos. */
+/**
+ * Saldo a mostrar en el recibo.
+ * Si hay ítems, recalcula con la misma lógica dual ARS/USD (pago en pesos
+ * cancela deuda USD en ventas solo-dólar). Los campos guardados son fallback.
+ */
 export function resolverSaldoPendienteRecibo(opts: {
   lineas: LineaReciboCompra[];
   partePago: LineaReciboCompra[];
@@ -154,7 +169,71 @@ export function resolverSaldoPendienteRecibo(opts: {
   saldoPendienteUSD?: number;
   saldoPendiente?: number;
   monedaFallback?: string;
+  cotizacion?: number;
 }): { ars: number; usd: number } {
+  let totalARS = 0;
+  let totalUSD = 0;
+  for (const l of opts.lineas) {
+    const mon = String(l.moneda || "USD").toUpperCase();
+    if (mon === "ARS") totalARS += Number(l.precio) || 0;
+    else totalUSD += Number(l.precio) || 0;
+  }
+
+  if (opts.lineas.length > 0) {
+    let pagoARS = 0;
+    let pagoUSD = 0;
+    let cotDesdePagos = 0;
+
+    for (const p of opts.pagos) {
+      const det = p.detallesPago;
+      const cotP = Number(det?.cotizacionPago) || 0;
+      if (cotP > 0 && cotDesdePagos <= 0) cotDesdePagos = cotP;
+
+      if (det?.tipo === "ARS_a_USD") {
+        pagoARS += Number(p.monto) || 0;
+        continue;
+      }
+
+      const mon = String(p.moneda || "").toUpperCase();
+      const montoARS = Number(p.monto) || 0;
+      const montoUSD = Number(p.montoUSD) || 0;
+
+      if (mon === "USD") {
+        // Prefer montoUSD; algunos registros legacy guardan el USD en `monto`
+        pagoUSD += montoUSD > 0 ? montoUSD : montoARS;
+      } else if (mon === "ARS") {
+        pagoARS += montoARS > 0 ? montoARS : 0;
+      } else {
+        // Legacy sin moneda: monto → ARS, montoUSD → USD
+        pagoARS += montoARS;
+        pagoUSD += montoUSD;
+      }
+    }
+
+    const cotizacion = cotizacionEfectiva(cotDesdePagos, Number(opts.cotizacion) || 0);
+    const telefonosPago = opts.partePago
+      .filter((t) => Number(t.precio) > 0)
+      .map((t) => ({
+        valorPago: Number(t.precio) || 0,
+        moneda: String(t.moneda || "USD"),
+      }));
+
+    const saldos = calcularSaldosVenta({
+      totalARS,
+      totalUSD,
+      pagoARS,
+      pagoUSD,
+      cotizacion,
+      telefonosPago,
+    });
+
+    return {
+      ars: Math.max(0, Math.round(saldos.saldoARS * 100) / 100),
+      usd: Math.max(0, Math.round(saldos.saldoUSD * 100) / 100),
+    };
+  }
+
+  // Sin ítems: usar campos guardados
   let ars = Math.max(0, Number(opts.saldoPendienteARS) || 0);
   let usd = Math.max(0, Number(opts.saldoPendienteUSD) || 0);
 
@@ -167,33 +246,9 @@ export function resolverSaldoPendienteRecibo(opts: {
     }
   }
 
-  if (ars > 0.009 || usd > 0.009) {
-    return {
-      ars: Math.round(ars * 100) / 100,
-      usd: Math.round(usd * 100) / 100,
-    };
-  }
-
-  let totalARS = 0;
-  let totalUSD = 0;
-  for (const l of opts.lineas) {
-    const mon = String(l.moneda || "USD").toUpperCase();
-    if (mon === "ARS") totalARS += Number(l.precio) || 0;
-    else totalUSD += Number(l.precio) || 0;
-  }
-  for (const l of opts.partePago) {
-    const mon = String(l.moneda || "USD").toUpperCase();
-    if (mon === "ARS") totalARS -= Number(l.precio) || 0;
-    else totalUSD -= Number(l.precio) || 0;
-  }
-  for (const p of opts.pagos) {
-    totalARS -= Number(p.monto) || 0;
-    totalUSD -= Number(p.montoUSD) || 0;
-  }
-
   return {
-    ars: Math.max(0, Math.round(totalARS * 100) / 100),
-    usd: Math.max(0, Math.round(totalUSD * 100) / 100),
+    ars: Math.round(ars * 100) / 100,
+    usd: Math.round(usd * 100) / 100,
   };
 }
 
@@ -753,6 +808,7 @@ export async function armarHtmlReciboCompraDesdeVenta(
       montoUSD: p.montoUSD,
       moneda: p.moneda,
       observaciones: p.observaciones,
+      detallesPago: p.detallesPago,
     }));
 
   const monedaFallback =
@@ -765,6 +821,14 @@ export async function armarHtmlReciboCompraDesdeVenta(
             "USD"
         );
 
+  const cotizacionRecibo =
+    Number(ventaGeneral?.cotizacionUsada) ||
+    Number(ventaGeneral?.pago?.cotizacionPago) ||
+    Number(ventaGeneral?.pago?.cotizacion) ||
+    Number(base?.cotizacionUsada) ||
+    Number(venta?.cotizacionUsada) ||
+    0;
+
   const { ars: saldoARS, usd: saldoUSD } = resolverSaldoPendienteRecibo({
     lineas,
     partePago,
@@ -776,6 +840,7 @@ export async function armarHtmlReciboCompraDesdeVenta(
     saldoPendiente:
       ventaGeneral?.saldoPendiente ?? base?.saldoPendiente ?? venta?.saldoPendiente,
     monedaFallback,
+    cotizacion: cotizacionRecibo,
   });
 
   const firmaClienteUrl = String(
