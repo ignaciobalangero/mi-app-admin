@@ -657,7 +657,12 @@ export async function armarHtmlReciboCompraDesdeVenta(
   negocioID: string,
   venta: any,
   opciones?: { ventasMismoNro?: any[] }
-): Promise<{ html: string; nro: string; cliente: string } | null> {
+): Promise<{
+  html: string;
+  nro: string;
+  cliente: string;
+  telefonoCliente: string;
+} | null> {
   if (!negocioID || !venta) return null;
 
   const { collection, doc, getDoc, getDocs, query, where } = await import(
@@ -897,7 +902,60 @@ export async function armarHtmlReciboCompraDesdeVenta(
     nro ||
     String(ventaGeneral?.nroVenta || base?.nroVenta || venta?.id || "").slice(-6);
 
-  return { html, nro: nroFinal, cliente: nombreCliente };
+  return {
+    html,
+    nro: nroFinal,
+    cliente: nombreCliente,
+    telefonoCliente,
+  };
+}
+
+/** Intenta pasar una imagen a data URL para que html2canvas no contamine el canvas (CORS). */
+async function imagenADataUrlSegura(src: string): Promise<string | null> {
+  const url = String(src || "").trim();
+  if (!url) return null;
+  if (url.startsWith("data:")) return url;
+
+  try {
+    const res = await fetch(url, { mode: "cors", credentials: "omit", cache: "force-cache" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("FileReader"));
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    /* seguir con Image + crossOrigin */
+  }
+
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = img.naturalWidth || img.width;
+          c.height = img.naturalHeight || img.height;
+          const ctx = c.getContext("2d");
+          if (!ctx || !c.width || !c.height) {
+            reject(new Error("canvas"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          resolve(c.toDataURL("image/png"));
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = () => reject(new Error("img"));
+      img.src = url;
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** Convierte el HTML del recibo en un PNG (para WhatsApp / descarga). */
@@ -926,7 +984,22 @@ export async function generarPngReciboDesdeHtml(
   try {
     const imgs = Array.from(hoja.querySelectorAll("img"));
     await Promise.all(
-      imgs.map(
+      imgs.map(async (img) => {
+        const src = img.getAttribute("src") || img.src || "";
+        const dataUrl = await imagenADataUrlSegura(src);
+        if (dataUrl) {
+          img.setAttribute("src", dataUrl);
+          img.removeAttribute("crossorigin");
+        } else {
+          // Sin CORS el canvas se tienta y toBlob falla: mejor omitir la imagen
+          img.remove();
+        }
+      })
+    );
+
+    // Esperar pintado de data URLs
+    await Promise.all(
+      Array.from(hoja.querySelectorAll("img")).map(
         (img) =>
           new Promise<void>((resolve) => {
             if (img.complete) {
@@ -943,17 +1016,21 @@ export async function generarPngReciboDesdeHtml(
       scale: 2,
       backgroundColor: "#ffffff",
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       logging: false,
       width: hoja.scrollWidth,
       height: hoja.scrollHeight,
     });
 
     const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))),
-        "image/png"
-      );
+      try {
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))),
+          "image/png"
+        );
+      } catch (e) {
+        reject(e instanceof Error ? e : new Error("Canvas contaminado"));
+      }
     });
     return new File([blob], nombreArchivo, { type: "image/png" });
   } finally {
@@ -970,18 +1047,92 @@ export function descargarArchivoRecibo(file: File) {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-/** Comparte el PNG (WhatsApp / share sheet) o descarga si no hay share. */
-export async function enviarReciboPorWhatsApp(file: File, titulo: string): Promise<"shared" | "downloaded"> {
+/** Abre el recibo en una pestaña para verlo (sin disparar impresión). */
+export function abrirVistaPreviaRecibo(html: string): boolean {
+  const sinAutoPrint = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/\s*onload\s*=\s*["'][^"']*["']/gi, "");
+  const win = window.open("", "_blank", "width=860,height=1000");
+  if (!win) return false;
+  win.document.open();
+  win.document.write(sinAutoPrint);
+  win.document.close();
+  win.focus();
+  return true;
+}
+
+/** Copia la imagen PNG del recibo al portapapeles (pegar en WhatsApp, mail, etc.). */
+export async function copiarReciboAlPortapapeles(file: File): Promise<void> {
+  if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
+    throw new Error("Este navegador no permite copiar imágenes al portapapeles");
+  }
+  const buffer = await file.arrayBuffer();
+  const blob = new Blob([buffer], { type: "image/png" });
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({ "image/png": blob }),
+    ]);
+  } catch {
+    // Chrome a veces exige Promise como valor
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "image/png": Promise.resolve(blob),
+      }),
+    ]);
+  }
+}
+
+export type ResultadoEnvioRecibo = "shared" | "downloaded" | "whatsapp_web";
+
+/**
+ * Comparte el PNG (share sheet en móvil) o, en escritorio, descarga la imagen
+ * y abre WhatsApp Web / app con un mensaje listo.
+ */
+export async function enviarReciboPorWhatsApp(
+  file: File,
+  titulo: string,
+  opts?: { telefonoCliente?: string; mensaje?: string }
+): Promise<ResultadoEnvioRecibo> {
   const shareData: ShareData = {
     files: [file],
     title: titulo,
   };
-  if (typeof navigator.canShare === "function" && navigator.canShare(shareData)) {
-    await navigator.share(shareData);
-    return "shared";
+
+  try {
+    const puedeArchivos =
+      typeof navigator.canShare === "function" &&
+      (navigator.canShare({ files: [file] }) || navigator.canShare(shareData));
+    if (puedeArchivos && typeof navigator.share === "function") {
+      await navigator.share(shareData);
+      return "shared";
+    }
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") throw e;
+    // En Chrome/Safari escritorio share suele fallar: seguimos al fallback
+    console.warn("Share API no disponible o falló, usando WhatsApp web:", e);
   }
+
   descargarArchivoRecibo(file);
-  return "downloaded";
+
+  const { construirUrlWhatsApp, normalizarTelefonoWa, soloDigitosWa } = await import(
+    "@/lib/consultaStockWhatsApp"
+  );
+  const mensaje =
+    opts?.mensaje?.trim() ||
+    `${titulo}\n\nTe envío el recibo de compra. Adjuntá la imagen que se descargó en tu dispositivo.`;
+  const telRaw = String(opts?.telefonoCliente || "").trim();
+  const telOk = normalizarTelefonoWa(telRaw) || (soloDigitosWa(telRaw).length >= 10 ? soloDigitosWa(telRaw) : "");
+
+  const url = telOk
+    ? construirUrlWhatsApp(telOk, mensaje)
+    : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+
+  const win = window.open(url, "_blank", "noopener,noreferrer");
+  if (!win) {
+    // Popup bloqueado: al menos ya se descargó la imagen
+    return "downloaded";
+  }
+  return telOk ? "whatsapp_web" : "downloaded";
 }
 
 /** Arma e imprime el recibo de compra de una venta de teléfono (ventaTelefonos o ventasGeneral). */

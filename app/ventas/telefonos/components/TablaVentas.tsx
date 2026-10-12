@@ -159,13 +159,26 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
       : [venta];
   };
 
-  const generarArchivoReciboVenta = async (venta: any): Promise<File | null> => {
+  const generarArchivoReciboVenta = async (
+    venta: any
+  ): Promise<{
+    file: File;
+    telefonoCliente: string;
+    nro: string;
+    cliente: string;
+  } | null> => {
     const armado = await armarHtmlReciboCompraDesdeVenta(negocioID, venta, {
       ventasMismoNro: grupoVenta(venta),
     });
     if (!armado) return null;
     const nro = armado.nro || venta.nroVenta || venta.id?.slice(-6) || "recibo";
-    return generarPngReciboDesdeHtml(armado.html, `recibo-${nro}.png`);
+    const file = await generarPngReciboDesdeHtml(armado.html, `recibo-${nro}.png`);
+    return {
+      file,
+      telefonoCliente: armado.telefonoCliente || "",
+      nro,
+      cliente: armado.cliente || String(venta.cliente || ""),
+    };
   };
 
   const enviarReciboWhatsApp = async (venta: any) => {
@@ -173,20 +186,26 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
     const id = String(venta?.id || "");
     setProcesandoReciboId(id);
     try {
-      const file = await generarArchivoReciboVenta(venta);
-      if (!file) {
+      const armado = await generarArchivoReciboVenta(venta);
+      if (!armado) {
         alert("No se pudo generar el recibo.");
         return;
       }
-      const nro = venta.nroVenta || "";
-      const resultado = await enviarReciboPorWhatsApp(
-        file,
-        `Recibo de compra${nro ? ` #${nro}` : ""}`
-      );
+      const titulo = `Recibo de compra${armado.nro ? ` #${armado.nro}` : ""}`;
+      const resultado = await enviarReciboPorWhatsApp(armado.file, titulo, {
+        telefonoCliente: armado.telefonoCliente,
+        mensaje: `Hola${armado.cliente ? ` ${armado.cliente}` : ""}! Te envío el ${titulo}. Adjuntá la imagen del recibo que se descargó.`,
+      });
       if (resultado === "downloaded") {
         alert(
           "Se descargó la imagen del recibo.\nAbrí WhatsApp y adjuntá esa imagen en el chat del cliente."
         );
+      } else if (resultado === "whatsapp_web") {
+        alert(
+          "Se abrió WhatsApp y se descargó la imagen del recibo.\nAdjuntá esa imagen en el chat."
+        );
+        setMensaje("✅ WhatsApp abierto");
+        setTimeout(() => setMensaje(""), 2000);
       } else {
         setMensaje("✅ Recibo listo para enviar");
         setTimeout(() => setMensaje(""), 2000);
@@ -194,7 +213,9 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
     } catch (e) {
       console.error(e);
       if (e instanceof Error && e.name === "AbortError") return;
-      alert("No se pudo enviar el recibo.");
+      alert(
+        "No se pudo enviar el recibo. Probá descargar y adjuntar la imagen en WhatsApp."
+      );
     } finally {
       setProcesandoReciboId("");
     }
@@ -205,12 +226,12 @@ export default function TablaVentas({ negocioID, onEditar, ventas, setVentas }: 
     const id = String(venta?.id || "");
     setProcesandoReciboId(id);
     try {
-      const file = await generarArchivoReciboVenta(venta);
-      if (!file) {
+      const armado = await generarArchivoReciboVenta(venta);
+      if (!armado) {
         alert("No se pudo generar el recibo.");
         return;
       }
-      descargarArchivoRecibo(file);
+      descargarArchivoRecibo(armado.file);
       setMensaje("✅ Recibo descargado");
       setTimeout(() => setMensaje(""), 2000);
     } catch (e) {

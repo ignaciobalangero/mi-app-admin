@@ -13,9 +13,11 @@ import {
   esVentaTelefonoParaRecibo,
   imprimirReciboCompraDesdeVenta,
   abrirVentanaReciboPendiente,
+  abrirVistaPreviaRecibo,
   armarHtmlReciboCompraDesdeVenta,
   generarPngReciboDesdeHtml,
   descargarArchivoRecibo,
+  copiarReciboAlPortapapeles,
   enviarReciboPorWhatsApp,
 } from "@/lib/reciboCompraTelefono";
 import ModalFirmarRecibo from "./ModalFirmarRecibo";
@@ -71,6 +73,8 @@ export default function ModalRemitoImpresion({
   const [generandoRecibo, setGenerandoRecibo] = useState(false);
   const [enviandoRecibo, setEnviandoRecibo] = useState(false);
   const [descargandoRecibo, setDescargandoRecibo] = useState(false);
+  const [visualizandoRecibo, setVisualizandoRecibo] = useState(false);
+  const [copiandoRecibo, setCopiandoRecibo] = useState(false);
   const [reciboAccionOk, setReciboAccionOk] = useState<string>("");
   const [mostrarFirmar, setMostrarFirmar] = useState(false);
   const [firmaUrl, setFirmaUrl] = useState<string>("");
@@ -87,12 +91,19 @@ export default function ModalRemitoImpresion({
     setGenerandoRecibo(false);
     setEnviandoRecibo(false);
     setDescargandoRecibo(false);
+    setVisualizandoRecibo(false);
+    setCopiandoRecibo(false);
     setReciboAccionOk("");
     setMostrarFirmar(false);
     onClose();
   };
 
-  const generarArchivoRecibo = async (): Promise<File | null> => {
+  const generarArchivoRecibo = async (): Promise<{
+    file: File;
+    telefonoCliente: string;
+    nro: string;
+    cliente: string;
+  } | null> => {
     if (!venta || !negocioID) return null;
     const armado = await armarHtmlReciboCompraDesdeVenta(negocioID, {
       ...venta,
@@ -100,7 +111,13 @@ export default function ModalRemitoImpresion({
     });
     if (!armado) return null;
     const nro = armado.nro || venta.nroVenta || venta.id?.slice(-6) || "recibo";
-    return generarPngReciboDesdeHtml(armado.html, `recibo-${nro}.png`);
+    const file = await generarPngReciboDesdeHtml(armado.html, `recibo-${nro}.png`);
+    return {
+      file,
+      telefonoCliente: armado.telefonoCliente || "",
+      nro,
+      cliente: armado.cliente || String(venta.cliente || ""),
+    };
   };
 
   const handleEnviarRecibo = async () => {
@@ -111,18 +128,23 @@ export default function ModalRemitoImpresion({
     setEnviandoRecibo(true);
     setReciboAccionOk("");
     try {
-      const file = await generarArchivoRecibo();
-      if (!file) {
+      const armado = await generarArchivoRecibo();
+      if (!armado) {
         alert("No se pudo generar el recibo.");
         return;
       }
-      const nro = venta.nroVenta || venta.id?.slice(-6) || "";
-      const resultado = await enviarReciboPorWhatsApp(
-        file,
-        `Recibo de compra${nro ? ` #${nro}` : ""}`
-      );
+      const titulo = `Recibo de compra${armado.nro ? ` #${armado.nro}` : ""}`;
+      const resultado = await enviarReciboPorWhatsApp(armado.file, titulo, {
+        telefonoCliente: armado.telefonoCliente,
+        mensaje: `Hola${armado.cliente ? ` ${armado.cliente}` : ""}! Te envío el ${titulo}. Adjuntá la imagen del recibo que se descargó.`,
+      });
       if (resultado === "shared") {
         setReciboAccionOk("enviado");
+      } else if (resultado === "whatsapp_web") {
+        setReciboAccionOk("enviado");
+        alert(
+          "Se abrió WhatsApp y se descargó la imagen del recibo.\nAdjuntá esa imagen en el chat."
+        );
       } else {
         setReciboAccionOk("descargado");
         alert(
@@ -133,7 +155,9 @@ export default function ModalRemitoImpresion({
     } catch (e) {
       console.error(e);
       if (e instanceof Error && e.name === "AbortError") return;
-      alert("No se pudo enviar el recibo. Probá de nuevo.");
+      alert(
+        "No se pudo enviar el recibo. Probá «Descargar» y adjuntá la imagen en WhatsApp manualmente."
+      );
     } finally {
       setEnviandoRecibo(false);
     }
@@ -147,12 +171,12 @@ export default function ModalRemitoImpresion({
     setDescargandoRecibo(true);
     setReciboAccionOk("");
     try {
-      const file = await generarArchivoRecibo();
-      if (!file) {
+      const armado = await generarArchivoRecibo();
+      if (!armado) {
         alert("No se pudo generar el recibo.");
         return;
       }
-      descargarArchivoRecibo(file);
+      descargarArchivoRecibo(armado.file);
       setReciboAccionOk("descargado");
       setTimeout(() => setReciboAccionOk(""), 3000);
     } catch (e) {
@@ -163,7 +187,70 @@ export default function ModalRemitoImpresion({
     }
   };
 
-  const ocupadoRecibo = generandoRecibo || enviandoRecibo || descargandoRecibo;
+  const handleVisualizarRecibo = async () => {
+    if (!venta || !negocioID) {
+      alert("No se pudo identificar el negocio para el recibo.");
+      return;
+    }
+    setVisualizandoRecibo(true);
+    setReciboAccionOk("");
+    try {
+      const armado = await armarHtmlReciboCompraDesdeVenta(negocioID, {
+        ...venta,
+        firmaClienteUrl: firmaUrl || venta.firmaClienteUrl,
+      });
+      if (!armado) {
+        alert("No se pudo generar el recibo.");
+        return;
+      }
+      if (!abrirVistaPreviaRecibo(armado.html)) {
+        alert(
+          "No se pudo abrir la vista. Permití ventanas emergentes para este sitio."
+        );
+        return;
+      }
+      setReciboAccionOk("visto");
+      setTimeout(() => setReciboAccionOk(""), 3000);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo visualizar el recibo. Probá de nuevo.");
+    } finally {
+      setVisualizandoRecibo(false);
+    }
+  };
+
+  const handleCopiarRecibo = async () => {
+    if (!venta || !negocioID) {
+      alert("No se pudo identificar el negocio para el recibo.");
+      return;
+    }
+    setCopiandoRecibo(true);
+    setReciboAccionOk("");
+    try {
+      const armado = await generarArchivoRecibo();
+      if (!armado) {
+        alert("No se pudo generar el recibo.");
+        return;
+      }
+      await copiarReciboAlPortapapeles(armado.file);
+      setReciboAccionOk("copiado");
+      setTimeout(() => setReciboAccionOk(""), 3000);
+    } catch (e) {
+      console.error(e);
+      alert(
+        "No se pudo copiar al portapapeles.\nUsá «Descargar» y adjuntá la imagen, o probá en Chrome/Safari actualizado."
+      );
+    } finally {
+      setCopiandoRecibo(false);
+    }
+  };
+
+  const ocupadoRecibo =
+    generandoRecibo ||
+    enviandoRecibo ||
+    descargandoRecibo ||
+    visualizandoRecibo ||
+    copiandoRecibo;
 
   const negocio = {
     nombre: nombreNegocio,
@@ -210,21 +297,20 @@ export default function ModalRemitoImpresion({
         scale: 2,
         backgroundColor: "#ffffff",
         useCORS: true,
+        allowTaint: false,
         logging: false,
       });
       const file = await canvasAPngFile(canvas, `remito-${nro}.png`);
-
-      const shareData: ShareData = {
-        files: [file],
-        title: `Remito #${nro}`,
-      };
-
-      if (typeof navigator.canShare === "function" && navigator.canShare(shareData)) {
-        await navigator.share(shareData);
-        setRemitoListo(true);
-      } else {
-        descargarArchivo(file);
-        setRemitoListo(true);
+      const resultado = await enviarReciboPorWhatsApp(file, `Remito #${nro}`, {
+        telefonoCliente: String((venta as any).telefonoCliente || ""),
+        mensaje: `Hola${venta.cliente ? ` ${venta.cliente}` : ""}! Te envío el remito #${nro}. Adjuntá la imagen que se descargó.`,
+      });
+      setRemitoListo(true);
+      if (resultado === "whatsapp_web") {
+        alert(
+          "Se abrió WhatsApp y se descargó la imagen del remito.\nAdjuntá esa imagen en el chat."
+        );
+      } else if (resultado === "downloaded") {
         alert(
           "Se descargó la imagen del remito.\nAbrí WhatsApp y adjuntá esa imagen en el chat del cliente."
         );
@@ -286,7 +372,7 @@ export default function ModalRemitoImpresion({
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 justify-end">
+          <div className="flex flex-wrap gap-2 justify-end items-center">
             {tipo && (
               <>
                 <button
@@ -296,6 +382,7 @@ export default function ModalRemitoImpresion({
                 >
                   ← Volver
                 </button>
+                {/* Acciones de remito/checklist en header; las del recibo van solo en el cuerpo */}
                 {tipo === "formal" && (
                   <button
                     type="button"
@@ -310,42 +397,15 @@ export default function ModalRemitoImpresion({
                         : "📤 Enviar remito"}
                   </button>
                 )}
-                {tipo === "recibo" && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void handleEnviarRecibo()}
-                      disabled={ocupadoRecibo}
-                      className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#1ebe57] hover:to-[#0e7a6d] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
-                    >
-                      {enviandoRecibo
-                        ? "Generando…"
-                        : reciboAccionOk === "enviado"
-                          ? "✅ Enviado"
-                          : "📤 Enviar"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDescargarRecibo()}
-                      disabled={ocupadoRecibo}
-                      className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] hover:from-[#7d3c98] hover:to-[#8e44ad] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
-                    >
-                      {descargandoRecibo
-                        ? "Generando…"
-                        : reciboAccionOk === "descargado"
-                          ? "✅ Listo"
-                          : "⬇️ Descargar"}
-                    </button>
-                  </>
+                {(tipo === "formal" || tipo === "checklist") && (
+                  <button
+                    type="button"
+                    onClick={handleImprimir}
+                    className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] px-4 py-2 rounded-lg font-medium text-sm"
+                  >
+                    🖨️ Imprimir
+                  </button>
                 )}
-                <button
-                  type="button"
-                  onClick={tipo === "recibo" ? handleImprimirRecibo : handleImprimir}
-                  disabled={tipo === "recibo" && ocupadoRecibo}
-                  className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] px-4 py-2 rounded-lg font-medium text-sm disabled:opacity-60"
-                >
-                  {tipo === "recibo" && generandoRecibo ? "Generando…" : "🖨️ Imprimir"}
-                </button>
               </>
             )}
             <button
@@ -440,48 +500,77 @@ export default function ModalRemitoImpresion({
                 </p>
               )}
 
-              <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-lg mx-auto">
                 <button
                   type="button"
                   onClick={() => setMostrarFirmar(true)}
                   disabled={!negocioID || !venta.id || ocupadoRecibo}
-                  className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#2471a3] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+                  className="bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#2471a3] text-white px-4 py-3 rounded-xl font-semibold text-sm disabled:opacity-60"
                 >
-                  {firmaUrl ? "✏️ Re-firmar" : "✍️ Firmar recibo"}
+                  {firmaUrl ? "✏️ Re-firmar" : "✍️ Firmar"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleEnviarRecibo()}
+                  onClick={() => void handleVisualizarRecibo()}
                   disabled={ocupadoRecibo}
-                  className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#1ebe57] hover:to-[#0e7a6d] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+                  className="bg-gradient-to-r from-[#2c3e50] to-[#34495e] hover:from-[#1a252f] hover:to-[#2c3e50] text-white px-4 py-3 rounded-xl font-semibold text-sm disabled:opacity-60"
                 >
-                  {enviandoRecibo
-                    ? "Generando…"
-                    : reciboAccionOk === "enviado"
-                      ? "✅ Enviado"
-                      : "📤 Enviar WhatsApp"}
+                  {visualizandoRecibo
+                    ? "Abriendo…"
+                    : reciboAccionOk === "visto"
+                      ? "✅ Abierto"
+                      : "👁️ Visualizar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCopiarRecibo()}
+                  disabled={ocupadoRecibo}
+                  className="bg-gradient-to-r from-[#16a085] to-[#1abc9c] hover:from-[#138d75] hover:to-[#16a085] text-white px-4 py-3 rounded-xl font-semibold text-sm disabled:opacity-60"
+                >
+                  {copiandoRecibo
+                    ? "Copiando…"
+                    : reciboAccionOk === "copiado"
+                      ? "✅ Copiado"
+                      : "📋 Copiar"}
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleDescargarRecibo()}
                   disabled={ocupadoRecibo}
-                  className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] hover:from-[#7d3c98] hover:to-[#8e44ad] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+                  className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] hover:from-[#7d3c98] hover:to-[#8e44ad] text-white px-4 py-3 rounded-xl font-semibold text-sm disabled:opacity-60"
                 >
                   {descargandoRecibo
                     ? "Generando…"
                     : reciboAccionOk === "descargado"
-                      ? "✅ Descargado"
+                      ? "✅ Listo"
                       : "⬇️ Descargar"}
                 </button>
                 <button
                   type="button"
-                  onClick={handleImprimirRecibo}
+                  onClick={() => void handleEnviarRecibo()}
                   disabled={ocupadoRecibo}
-                  className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-6 py-3 rounded-xl font-semibold disabled:opacity-60"
+                  className="bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#1ebe57] hover:to-[#0e7a6d] text-white px-4 py-3 rounded-xl font-semibold text-sm disabled:opacity-60"
                 >
-                  {generandoRecibo ? "Generando…" : "🖨️ Imprimir recibo"}
+                  {enviandoRecibo
+                    ? "Generando…"
+                    : reciboAccionOk === "enviado"
+                      ? "✅ Enviado"
+                      : "📤 WhatsApp"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleImprimirRecibo()}
+                  disabled={ocupadoRecibo}
+                  className="bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#229954] hover:to-[#27ae60] text-white px-4 py-3 rounded-xl font-semibold text-sm disabled:opacity-60"
+                >
+                  {generandoRecibo ? "Generando…" : "🖨️ Imprimir"}
                 </button>
               </div>
+              {reciboAccionOk === "copiado" && (
+                <p className="text-xs text-[#16a085] font-medium">
+                  Imagen en el portapapeles — pegala con Ctrl+V / ⌘V en WhatsApp u otra app.
+                </p>
+              )}
             </div>
           ) : tipo === "checklist" ? (
             <div className="max-w-2xl mx-auto">
