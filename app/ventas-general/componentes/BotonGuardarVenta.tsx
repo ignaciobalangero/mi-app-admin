@@ -631,6 +631,11 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       const valorPago = Number(tr.precioCompra ?? tr.precioEstimado ?? tr.valorPago ?? 0);
       if (valorPago <= 0) continue;
       const monedaTel = String(tr.moneda ?? "ARS").toUpperCase() === "USD" ? "USD" : "ARS";
+      const precioOVacio = (valor: unknown): number | "" => {
+        if (valor === null || valor === undefined || String(valor).trim() === "") return "";
+        const n = Number(valor);
+        return Number.isFinite(n) ? n : "";
+      };
 
       const stockParteDePago = {
         fechaIngreso: Timestamp.now(),
@@ -640,13 +645,14 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         marca: String(tr.marca ?? "").trim(),
         estado: String(tr.estado ?? "usado").toLowerCase() === "nuevo" ? "nuevo" : "usado",
         bateria: String(tr.bateria ?? "").trim(),
+        ciclosCarga: String(tr.ciclosCarga ?? "").trim(),
         gb: String(tr.gb ?? "").trim(),
         color: String(tr.color ?? "").trim(),
         imei: String(tr.imei ?? "").trim(),
         serial: String(tr.serie ?? tr.serial ?? "").trim(),
         precioCompra: valorPago,
-        precioVenta: valorPago,
-        precioMayorista: "",
+        precioVenta: precioOVacio(tr.precioVenta),
+        precioMayorista: precioOVacio(tr.precioMayorista),
         moneda: monedaTel,
         observaciones:
           String(tr.observaciones ?? "").trim() ||
