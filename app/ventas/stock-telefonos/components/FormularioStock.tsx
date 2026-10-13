@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Timestamp, addDoc, collection, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
@@ -59,6 +59,19 @@ const inicial: Telefono = {
 
 const TIPO_STOCK = "telefono";
 
+function digitosImei(valor: string): string {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+/** IMEI vacío se permite. Si hay algo escrito y no llega a 15 dígitos, es un error de tipeo. */
+function alertaImeiCorto(imei: string): string | null {
+  const texto = String(imei || "").trim();
+  if (!texto) return null;
+  const digitos = digitosImei(texto);
+  if (digitos.length >= 15) return null;
+  return `El IMEI tiene ${digitos.length} dígito${digitos.length === 1 ? "" : "s"}. Tiene que tener 15. Revisalo: suele ser un error de tipeo.`;
+}
+
 export default function FormularioStock({
   negocioID,
   onGuardado,
@@ -71,6 +84,9 @@ export default function FormularioStock({
   const [editandoID, setEditandoID] = useState<string | null>(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [imprimirEtiquetaAlGuardar, setImprimirEtiquetaAlGuardar] = useState(false); // 🆕 Estado para impresión
+  const [guardando, setGuardando] = useState(false);
+  const [cargadosSeguidos, setCargadosSeguidos] = useState(0);
+  const imeiRef = useRef<HTMLInputElement>(null);
   const { rol } = useRol();
 
   // Si se pasan datos para editar, los cargamos automáticamente
@@ -111,6 +127,7 @@ export default function FormularioStock({
     if (!mostrarFormulario) {
       setForm(inicial);
       setEditandoID(null);
+      setCargadosSeguidos(0);
     }
   }, [mostrarFormulario]);
 
@@ -119,7 +136,14 @@ export default function FormularioStock({
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const guardar = async () => {
+  const guardar = async (continuar: boolean) => {
+    const avisoImei = alertaImeiCorto(form.imei);
+    if (avisoImei) {
+      alert(avisoImei);
+      imeiRef.current?.focus();
+      return;
+    }
+
     let fechaFormateada: Date;
 
     if (typeof form.fechaIngreso === "string") {
@@ -137,6 +161,7 @@ export default function FormularioStock({
     
     const data = {
       ...form,
+      imei: digitosImei(form.imei),
       tipo: TIPO_STOCK,
       estado: normalizarEstado(form.estado) || "nuevo",
       bateria: estadoPideCondicion(form.estado) ? form.bateria : "",
@@ -152,36 +177,67 @@ export default function FormularioStock({
       setForm(inicial);
       setEditandoID(null);
       setMostrarFormulario(false);
+      setCargadosSeguidos(0);
       return;
     }
 
-    if (editandoID) {
-      await updateDoc(doc(db, `negocios/${negocioID}/stockTelefonos/${editandoID}`), data);
-      const telefonoActualizado = { ...data, id: editandoID };
-      onGuardado?.(telefonoActualizado);
-      
-      // 🆕 Imprimir etiqueta si está marcado
-      if (imprimirEtiquetaAlGuardar) {
-        setTimeout(() => {
-          ImpresionGestione.etiquetaTelefono(telefonoActualizado);
-        }, 500);
-      }
-    } else {
-      const ref = await addDoc(collection(db, `negocios/${negocioID}/stockTelefonos`), data);
-      const nuevoTelefono = { ...data, id: ref.id };
-      onGuardado?.(nuevoTelefono);
-      
-      // 🆕 Imprimir etiqueta si está marcado
-      if (imprimirEtiquetaAlGuardar) {
-        setTimeout(() => {
-          ImpresionGestione.etiquetaTelefono(nuevoTelefono);
-        }, 500);
-      }
-    }
+    setGuardando(true);
+    try {
+      if (editandoID) {
+        await updateDoc(doc(db, `negocios/${negocioID}/stockTelefonos/${editandoID}`), data);
+        const telefonoActualizado = { ...data, id: editandoID };
+        onGuardado?.(telefonoActualizado);
 
-    setForm(inicial);
-    setEditandoID(null);
-    setMostrarFormulario(false);
+        if (imprimirEtiquetaAlGuardar) {
+          setTimeout(() => {
+            ImpresionGestione.etiquetaTelefono(telefonoActualizado);
+          }, 500);
+        }
+      } else {
+        const ref = await addDoc(collection(db, `negocios/${negocioID}/stockTelefonos`), data);
+        const nuevoTelefono = { ...data, id: ref.id };
+        onGuardado?.(nuevoTelefono);
+
+        if (imprimirEtiquetaAlGuardar) {
+          setTimeout(() => {
+            ImpresionGestione.etiquetaTelefono(nuevoTelefono);
+          }, 500);
+        }
+      }
+
+      if (continuar && !editandoID) {
+        setCargadosSeguidos((n) => n + 1);
+        setForm((prev) => ({
+          ...inicial,
+          fechaIngreso: prev.fechaIngreso,
+          proveedor: prev.proveedor,
+          marca: prev.marca,
+          modelo: prev.modelo,
+          estado: prev.estado,
+          bateria: prev.bateria,
+          ciclosCarga: prev.ciclosCarga,
+          gb: prev.gb,
+          color: prev.color,
+          precioCompra: prev.precioCompra,
+          precioVenta: prev.precioVenta,
+          precioMayorista: prev.precioMayorista,
+          moneda: prev.moneda,
+        }));
+        setMostrarFormulario(true);
+        setTimeout(() => imeiRef.current?.focus(), 50);
+        return;
+      }
+
+      setForm(inicial);
+      setEditandoID(null);
+      setMostrarFormulario(false);
+      setCargadosSeguidos(0);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo guardar el teléfono. Probá de nuevo.");
+    } finally {
+      setGuardando(false);
+    }
   };
 
   return (
@@ -257,14 +313,25 @@ export default function FormularioStock({
             placeholder="Color"
             className="p-2 border rounded"
           />
-          <input
-            type="text"
-            name="imei"
-            value={form.imei}
-            onChange={handleChange}
-            placeholder="IMEI (opcional)"
-            className="p-2 border rounded"
-          />
+          <div>
+            <input
+              ref={imeiRef}
+              type="text"
+              name="imei"
+              inputMode="numeric"
+              value={form.imei}
+              onChange={handleChange}
+              placeholder="IMEI (15 dígitos, opcional)"
+              className={`p-2 border rounded w-full ${
+                alertaImeiCorto(form.imei) ? "border-red-500 bg-red-50" : ""
+              }`}
+            />
+            {alertaImeiCorto(form.imei) && (
+              <p className="text-xs text-red-600 mt-1">
+                {digitosImei(form.imei).length}/15 dígitos. Revisá el IMEI antes de guardar.
+              </p>
+            )}
+          </div>
           <input
             type="text"
             name="serial"
@@ -340,12 +407,30 @@ export default function FormularioStock({
             </label>
           </div>
           
-          <div className="text-center col-span-1 md:col-span-2">
+          {cargadosSeguidos > 0 && !editandoID && (
+            <p className="col-span-1 md:col-span-2 text-sm text-center text-indigo-700 font-medium">
+              {cargadosSeguidos} equipo{cargadosSeguidos === 1 ? "" : "s"} guardado{cargadosSeguidos === 1 ? "" : "s"} en este pedido. Quedaron proveedor, modelo y precios: cambiá el IMEI del siguiente.
+            </p>
+          )}
+
+          <div className="col-span-1 md:col-span-2 flex flex-col sm:flex-row gap-2 justify-center">
+            {!editandoID && !soloCapturarDatos && (
+              <button
+                type="button"
+                onClick={() => void guardar(true)}
+                disabled={guardando}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded disabled:opacity-60"
+              >
+                {guardando ? "Guardando…" : "Agregar otro y seguir"}
+              </button>
+            )}
             <button
-              onClick={guardar}
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded"
+              type="button"
+              onClick={() => void guardar(false)}
+              disabled={guardando}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded disabled:opacity-60"
             >
-              {editandoID ? "Actualizar" : "Guardar Teléfono"}
+              {editandoID ? "Actualizar" : soloCapturarDatos ? "Guardar Teléfono" : "Guardar y cerrar"}
             </button>
           </div>
         </div>
