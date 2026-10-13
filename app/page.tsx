@@ -131,7 +131,7 @@ function Home() {
       let desde = new Date(actual.getFullYear(), actual.getMonth() - 5, 1);
 
       if (rangoActividad === "historico") {
-        const fechas = [...porMes.keys()]
+        const fechas = Array.from(porMes.keys())
           .map((clave) => fechaDesdeClaveMes(clave))
           .filter((fecha): fecha is Date => Boolean(fecha));
         if (fechas.length > 0) {
