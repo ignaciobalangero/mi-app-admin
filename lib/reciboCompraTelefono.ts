@@ -958,83 +958,228 @@ async function imagenADataUrlSegura(src: string): Promise<string | null> {
   }
 }
 
-/** Convierte el HTML del recibo en un PNG (para WhatsApp / descarga). */
+/** A4 a 96dpi. El margen replica los 12mm de @page de la impresión. */
+const ANCHO_HOJA_PX = 794;
+const MARGEN_HOJA_PX = 45;
+
+/** La captura usa la misma hoja A4 que Imprimir, sin el alto mínimo de la vista en pantalla. */
+const CSS_CAPTURA_RECIBO = `
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    width: ${ANCHO_HOJA_PX}px !important;
+    min-height: 0 !important;
+    height: auto !important;
+    display: block !important;
+  }
+  .hoja {
+    width: ${ANCHO_HOJA_PX}px !important;
+    max-width: ${ANCHO_HOJA_PX}px !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: ${MARGEN_HOJA_PX}px !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    box-sizing: border-box !important;
+  }
+`;
+
+async function esperarImagenes(root: ParentNode): Promise<void> {
+  await Promise.all(
+    Array.from(root.querySelectorAll("img")).map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        })
+    )
+  );
+}
+
+async function inlineImagenesRecibo(root: ParentNode): Promise<void> {
+  const imgs = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute("src") || img.src || "";
+      const dataUrl = await imagenADataUrlSegura(src);
+      if (dataUrl) {
+        img.setAttribute("src", dataUrl);
+        img.removeAttribute("crossorigin");
+      } else {
+        img.remove();
+      }
+    })
+  );
+  await esperarImagenes(root);
+}
+
+async function canvasAPngFile(canvas: HTMLCanvasElement, nombreArchivo: string): Promise<File> {
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    try {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))),
+        "image/png"
+      );
+    } catch (e) {
+      reject(e instanceof Error ? e : new Error("Canvas contaminado"));
+    }
+  });
+  return new File([blob], nombreArchivo, { type: "image/png" });
+}
+
+function porcentajeColumna(cell: HTMLElement): number {
+  const style = cell.getAttribute("style") || "";
+  const explicito = style.match(/width:\s*([\d.]+)\s*%/i);
+  if (explicito) return Number(explicito[1]) || 0;
+  if (cell.classList.contains("imei")) return 28;
+  if (cell.classList.contains("precio") || cell.classList.contains("fecha")) return 18;
+  return 0;
+}
+
+function anchoContenido(el: HTMLElement): number {
+  const cs = el.ownerDocument.defaultView?.getComputedStyle(el);
+  const pad =
+    (parseFloat(cs?.paddingLeft || "0") || 0) + (parseFloat(cs?.paddingRight || "0") || 0);
+  return Math.max(0, Math.round(el.clientWidth - pad));
+}
+
+/**
+ * html2canvas parte thead/tbody y no respeta width:100%, así que las tablas
+ * salen más cortas que en la impresión. Se unifica el encabezado y se fijan
+ * anchos en px contra el ancho real de la hoja.
+ */
+function prepararTablasParaCaptura(root: HTMLElement): void {
+  const doc = root.ownerDocument;
+  const tablas = Array.from(root.querySelectorAll("table"));
+  for (const table of tablas) {
+    const thead = table.querySelector("thead");
+    let tbody = table.querySelector("tbody");
+    if (thead) {
+      if (!tbody) {
+        tbody = doc.createElement("tbody");
+        table.appendChild(tbody);
+      }
+      const filas = Array.from(thead.querySelectorAll("tr"));
+      filas.forEach((fila, indice) => {
+        fila.querySelectorAll("th").forEach((th) => {
+          const td = doc.createElement("td");
+          td.className = th.className;
+          td.innerHTML = th.innerHTML;
+          const previo = th.getAttribute("style");
+          const align = th.classList.contains("precio") ? "right" : "left";
+          td.setAttribute(
+            "style",
+            `${previo ? `${previo};` : ""}font-weight:700;background:#f7f7f7;text-align:${align};`
+          );
+          th.replaceWith(td);
+        });
+        const ref = tbody!.children[indice] || null;
+        tbody!.insertBefore(fila, ref);
+      });
+      thead.remove();
+    }
+
+    const padre = table.parentElement;
+    const total = padre ? anchoContenido(padre) : Math.round(table.getBoundingClientRect().width);
+    if (total < 20) continue;
+    table.style.tableLayout = "fixed";
+    table.style.borderCollapse = "collapse";
+    table.style.width = `${total}px`;
+    table.style.minWidth = `${total}px`;
+    table.style.maxWidth = `${total}px`;
+
+    const primera = table.querySelector("tr");
+    if (!primera) continue;
+    const celdas = Array.from(primera.children) as HTMLElement[];
+    if (celdas.length < 2) continue;
+
+    const pesos = celdas.map((celda) => porcentajeColumna(celda));
+    const usado = pesos.reduce((acc, n) => acc + n, 0);
+    const flexibles = pesos.filter((n) => n <= 0).length || 1;
+    const resto = Math.max(8, (100 - usado) / flexibles);
+    const pcts = pesos.map((n) => (n > 0 ? n : resto));
+    const suma = pcts.reduce((acc, n) => acc + n, 0) || 1;
+
+    let colgroup = table.querySelector("colgroup");
+    if (!colgroup) {
+      colgroup = doc.createElement("colgroup");
+      table.insertBefore(colgroup, table.firstChild);
+    }
+    colgroup.innerHTML = pcts
+      .map((p) => `<col style="width:${Math.max(1, Math.round((p / suma) * total))}px">`)
+      .join("");
+
+    table.querySelectorAll("tr").forEach((tr) => {
+      Array.from(tr.children).forEach((cell, i) => {
+        if (i >= pcts.length) return;
+        const px = Math.max(1, Math.round((pcts[i] / suma) * total));
+        const el = cell as HTMLElement;
+        el.style.width = `${px}px`;
+        el.style.boxSizing = "border-box";
+      });
+    });
+  }
+}
+
+/** Convierte el HTML del recibo en un PNG (para WhatsApp / descarga / copiar). */
 export async function generarPngReciboDesdeHtml(
   html: string,
   nombreArchivo: string
 ): Promise<File> {
-  const html2canvas = (await import("html2canvas")).default;
   const sinScripts = html.replace(/<script[\s\S]*?<\/script>/gi, "");
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(sinScripts, "text/html");
-  const estilo = doc.querySelector("style")?.innerHTML || "";
-  const hojaInner = doc.querySelector(".hoja")?.innerHTML || doc.body.innerHTML;
-
-  const host = document.createElement("div");
-  host.setAttribute(
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.setAttribute(
     "style",
-    "position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1;pointer-events:none;"
+    `position:fixed;left:0;top:0;width:${ANCHO_HOJA_PX}px;height:5000px;opacity:0;pointer-events:none;border:0;z-index:-1;background:#fff;`
   );
-  host.innerHTML = `<style>${estilo}
-    .hoja-captura { width: 794px; background: #fff; padding: 36px; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.35; box-sizing: border-box; }
-  </style><div class="hoja hoja-captura">${hojaInner}</div>`;
-  document.body.appendChild(host);
+  document.body.appendChild(iframe);
 
-  const hoja = host.querySelector(".hoja-captura") as HTMLElement;
   try {
-    const imgs = Array.from(hoja.querySelectorAll("img"));
-    await Promise.all(
-      imgs.map(async (img) => {
-        const src = img.getAttribute("src") || img.src || "";
-        const dataUrl = await imagenADataUrlSegura(src);
-        if (dataUrl) {
-          img.setAttribute("src", dataUrl);
-          img.removeAttribute("crossorigin");
-        } else {
-          // Sin CORS el canvas se tienta y toBlob falla: mejor omitir la imagen
-          img.remove();
-        }
-      })
-    );
+    const doc = iframe.contentDocument;
+    if (!doc) throw new Error("No se pudo preparar el recibo");
+    doc.open();
+    doc.write(sinScripts);
+    doc.close();
 
-    // Esperar pintado de data URLs
-    await Promise.all(
-      Array.from(hoja.querySelectorAll("img")).map(
-        (img) =>
-          new Promise<void>((resolve) => {
-            if (img.complete) {
-              resolve();
-              return;
-            }
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-          })
-      )
-    );
+    const extra = doc.createElement("style");
+    extra.textContent = CSS_CAPTURA_RECIBO;
+    doc.head.appendChild(extra);
 
+    const hoja = doc.querySelector(".hoja") as HTMLElement | null;
+    if (!hoja) throw new Error("El recibo no tiene hoja");
+
+    await inlineImagenesRecibo(hoja);
+    await doc.fonts?.ready;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+
+    prepararTablasParaCaptura(hoja);
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+
+    const html2canvas = (await import("html2canvas")).default;
     const canvas = await html2canvas(hoja, {
       scale: 2,
       backgroundColor: "#ffffff",
       useCORS: true,
       allowTaint: false,
       logging: false,
-      width: hoja.scrollWidth,
-      height: hoja.scrollHeight,
+      width: Math.ceil(hoja.getBoundingClientRect().width),
+      height: Math.ceil(hoja.getBoundingClientRect().height),
+      windowWidth: ANCHO_HOJA_PX,
     });
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      try {
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))),
-          "image/png"
-        );
-      } catch (e) {
-        reject(e instanceof Error ? e : new Error("Canvas contaminado"));
-      }
-    });
-    return new File([blob], nombreArchivo, { type: "image/png" });
+    return await canvasAPngFile(canvas, nombreArchivo);
   } finally {
-    host.remove();
+    iframe.remove();
   }
 }
 
