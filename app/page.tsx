@@ -10,12 +10,35 @@ import { useRol } from "../lib/useRol";
 import { calcularResumenCajaDia } from "@/lib/caja/calcularResumenDia";
 import { fechaCajaHoy } from "@/lib/caja/fechaCaja";
 import { obtenerSesionAbierta, obtenerSesionDelDia } from "@/lib/caja/sesionCaja";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { collection, doc, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import RecordatoriosInicio from "./components/RecordatoriosInicio";
 import BuscadorStockInicio from "./components/BuscadorStockInicio";
 import BotonEscanerStock from "@/components/BotonEscanerStock";
+
+type RangoActividad = 6 | 12 | 18 | 24 | "historico";
+
+const RANGOS_ACTIVIDAD: { id: RangoActividad; label: string }[] = [
+  { id: 6, label: "6" },
+  { id: 12, label: "12" },
+  { id: 18, label: "18" },
+  { id: 24, label: "24" },
+  { id: "historico", label: "Histórico" },
+];
+
+function claveMes(fecha: Date) {
+  return `${String(fecha.getMonth() + 1).padStart(2, "0")}-${fecha.getFullYear()}`;
+}
+
+function fechaDesdeClaveMes(clave: string): Date | null {
+  const partes = String(clave || "").match(/^(\d{2})-(\d{4})$/);
+  if (!partes) return null;
+  const mes = Number(partes[1]);
+  const anio = Number(partes[2]);
+  if (mes < 1 || mes > 12 || anio < 2000) return null;
+  return new Date(anio, mes - 1, 1);
+}
 
 function Home() {
   const { rol } = useRol();
@@ -27,6 +50,7 @@ function Home() {
   const [totalCajaHoy, setTotalCajaHoy] = useState(0);
   const [datosGrafico, setDatosGrafico] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [rangoActividad, setRangoActividad] = useState<RangoActividad>(6);
 
   const [user] = useAuthState(auth);
 
@@ -80,48 +104,69 @@ function Home() {
   }, [rol]);
 
   // ==========================================
-  // CARGAR GRÁFICO DE ÚLTIMOS 6 MESES
+  // GRÁFICO: 6, 12, 18, 24 MESES O HISTÓRICO
   // ==========================================
   useEffect(() => {
-    const cargarGraficoHistorico = async () => {
-      if (!rol?.negocioID) return;
+    if (!rol?.negocioID) return;
+    let cancelado = false;
 
+    const cargarGraficoHistorico = async () => {
       setCargando(true);
 
-      const hoy = new Date();
-      const meses: any[] = [];
+      const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/estadisticas`));
+      const porMes = new Map<string, { trabajos: number; accesorios: number; telefonos: number }>();
+      snap.forEach((item) => {
+        const fechaDoc = fechaDesdeClaveMes(item.id) || fechaDesdeClaveMes(String(item.data().mes || ""));
+        if (!fechaDoc) return;
+        const data = item.data();
+        porMes.set(claveMes(fechaDoc), {
+          trabajos: data.trabajosReparados || 0,
+          accesorios: data.accesoriosVendidos || 0,
+          telefonos: data.telefonosVendidos || 0,
+        });
+      });
 
-      // Generar últimos 6 meses
-      for (let i = 5; i >= 0; i--) {
-        const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-        const mesKey = `${String(fecha.getMonth() + 1).padStart(2, "0")}-${fecha.getFullYear()}`;
+      const hoy = new Date();
+      const actual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      let desde = new Date(actual.getFullYear(), actual.getMonth() - 5, 1);
+
+      if (rangoActividad === "historico") {
+        const fechas = [...porMes.keys()]
+          .map((clave) => fechaDesdeClaveMes(clave))
+          .filter((fecha): fecha is Date => Boolean(fecha));
+        if (fechas.length > 0) {
+          desde = fechas.reduce((min, fecha) => (fecha < min ? fecha : min), fechas[0]);
+        }
+      } else {
+        desde = new Date(actual.getFullYear(), actual.getMonth() - (rangoActividad - 1), 1);
+      }
+
+      const meses: { mes: string; trabajos: number; accesorios: number; telefonos: number }[] = [];
+      for (
+        let cursor = new Date(desde);
+        cursor <= actual;
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+      ) {
+        const clave = claveMes(cursor);
+        const stats = porMes.get(clave);
         meses.push({
-          mes: mesKey,
-          trabajos: 0,
-          accesorios: 0,
-          telefonos: 0,
+          mes: clave,
+          trabajos: stats?.trabajos ?? 0,
+          accesorios: stats?.accesorios ?? 0,
+          telefonos: stats?.telefonos ?? 0,
         });
       }
 
-      // Cargar estadísticas de cada mes
-      for (const mesData of meses) {
-        const estadisticasRef = doc(db, `negocios/${rol.negocioID}/estadisticas/${mesData.mes}`);
-        const estadisticasSnap = await getDoc(estadisticasRef);
-
-        if (estadisticasSnap.exists()) {
-          const data = estadisticasSnap.data();
-          mesData.trabajos = data.trabajosReparados || 0;
-          mesData.accesorios = data.accesoriosVendidos || 0;
-          mesData.telefonos = data.telefonosVendidos || 0;
-        }
-      }
-
+      if (cancelado) return;
       setDatosGrafico(meses);
       setCargando(false);
     };
 
-    cargarGraficoHistorico();
-  }, [rol]);
+    void cargarGraficoHistorico();
+    return () => {
+      cancelado = true;
+    };
+  }, [rol, rangoActividad]);
 
   useEffect(() => {
     if (rol?.tipo === "cliente") {
@@ -276,13 +321,40 @@ function Home() {
 
             {/* GRÁFICO */}
             <div className="bg-white rounded-2xl p-6 shadow-xl border border-[#ecf0f1]">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-br from-[#9b59b6] to-[#8e44ad] rounded-xl flex items-center justify-center shadow-lg">
-                  <span className="text-white text-xl">📊</span>
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#9b59b6] to-[#8e44ad] rounded-xl flex items-center justify-center shadow-lg">
+                    <span className="text-white text-xl">📊</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-[#2c3e50]">Actividad Mensual</h2>
+                    <p className="text-[#7f8c8d] text-sm">
+                      {rangoActividad === "historico"
+                        ? cargando
+                          ? "Histórico"
+                          : `Histórico · ${datosGrafico.length} meses`
+                        : `Evolución de los últimos ${rangoActividad} meses`}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-[#2c3e50]">Actividad Mensual</h2>
-                  <p className="text-[#7f8c8d] text-sm">Evolución de los últimos 6 meses</p>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Cantidad de meses">
+                  {RANGOS_ACTIVIDAD.map((opcion) => {
+                    const activo = rangoActividad === opcion.id;
+                    return (
+                      <button
+                        key={String(opcion.id)}
+                        type="button"
+                        onClick={() => setRangoActividad(opcion.id)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                          activo
+                            ? "bg-[#2c3e50] text-white"
+                            : "bg-[#ecf0f1] text-[#2c3e50] hover:bg-[#d5dbdb]"
+                        }`}
+                      >
+                        {opcion.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -294,9 +366,19 @@ function Home() {
                   </div>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={350}>
+                <div className="w-full overflow-x-auto">
+                <div style={{ width: datosGrafico.length > 12 ? Math.max(datosGrafico.length * 52, 640) : "100%", height: 380 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={datosGrafico}>
-                    <XAxis dataKey="mes" fontSize={12} stroke="#7f8c8d" />
+                    <XAxis
+                      dataKey="mes"
+                      fontSize={11}
+                      stroke="#7f8c8d"
+                      interval={0}
+                      angle={datosGrafico.length > 8 ? -40 : 0}
+                      textAnchor={datosGrafico.length > 8 ? "end" : "middle"}
+                      height={datosGrafico.length > 8 ? 70 : 30}
+                    />
                     <YAxis fontSize={12} stroke="#7f8c8d" />
                     <Tooltip
                       contentStyle={{
@@ -312,6 +394,8 @@ function Home() {
                     <Bar dataKey="telefonos" fill="#e67e22" name="Teléfonos" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
+                </div>
               )}
             </div>
           </div>
