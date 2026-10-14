@@ -25,6 +25,7 @@ const RUTAS_PUBLICAS_EXACTAS_O_PREFIJO = [
   "/cliente",
   "/estado-trabajo",
   "/firmar-trabajo",
+  "/escaner-imei",
   "/zingueria",
   "/loguinz",
 ] as const;
@@ -36,6 +37,7 @@ export function esRutaPublica(pathname: string, host?: string | null): boolean {
   if (pathname === "/cliente" || pathname.startsWith("/cliente/")) return true;
   if (pathname === "/estado-trabajo" || pathname.startsWith("/estado-trabajo/")) return true;
   if (pathname === "/firmar-trabajo" || pathname.startsWith("/firmar-trabajo/")) return true;
+  if (pathname === "/escaner-imei" || pathname.startsWith("/escaner-imei/")) return true;
   return RUTAS_PUBLICAS_EXACTAS_O_PREFIJO.some(
     (ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`)
   );

@@ -8,6 +8,9 @@ import { useRol } from "@/lib/useRol";
 import { ImpresionGestione } from "../../../configuraciones/impresion/utils/impresionEspecifica";
 import CamposEstadoTelefono from "./CamposEstadoTelefono";
 import ConsultaImeiIfree from "./ConsultaImeiIfree";
+import PanelEscanerCelular from "./PanelEscanerCelular";
+import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
+import { extraerImei } from "@/lib/extraerImei";
 import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
 import type { ChequeoImei } from "@/lib/ifree/consultasImei";
 
@@ -89,6 +92,8 @@ export default function FormularioStock({
   const [guardando, setGuardando] = useState(false);
   const [cargadosSeguidos, setCargadosSeguidos] = useState(0);
   const [chequeoImei, setChequeoImei] = useState<ChequeoImei | null>(null);
+  const [escanerLocal, setEscanerLocal] = useState(false);
+  const [imeiRecienCargado, setImeiRecienCargado] = useState(false);
   const imeiRef = useRef<HTMLInputElement>(null);
   const { rol } = useRol();
 
@@ -336,7 +341,11 @@ export default function FormularioStock({
               onChange={handleChange}
               placeholder="IMEI (15 dígitos, opcional)"
               className={`p-2 border rounded w-full ${
-                alertaImeiCorto(form.imei) ? "border-red-500 bg-red-50" : ""
+                imeiRecienCargado
+                  ? "border-emerald-500 bg-emerald-50"
+                  : alertaImeiCorto(form.imei)
+                    ? "border-red-500 bg-red-50"
+                    : ""
               }`}
             />
             {alertaImeiCorto(form.imei) && (
@@ -344,6 +353,36 @@ export default function FormularioStock({
                 {digitosImei(form.imei).length}/15 dígitos. Revisá el IMEI antes de guardar.
               </p>
             )}
+            <div className="flex flex-wrap gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setEscanerLocal(true)}
+                className="px-3 py-2 rounded-lg border border-[#bdc3c7] bg-white text-[#2c3e50] text-sm font-semibold hover:bg-[#f8f9f9]"
+              >
+                📷 Cámara de este equipo
+              </button>
+            </div>
+            <PanelEscanerCelular
+              negocioID={negocioID}
+              onImei={(imei) => {
+                setForm((prev) => ({ ...prev, imei }));
+                setImeiRecienCargado(true);
+                setTimeout(() => setImeiRecienCargado(false), 2500);
+              }}
+            />
+            <EscanerCodigoBarras
+              abierto={escanerLocal}
+              titulo="Escanear IMEI"
+              modo="imei"
+              onDetectado={(codigo) => {
+                const imei = extraerImei(codigo) || digitosImei(codigo).slice(0, 15);
+                if (!imei) return;
+                setForm((prev) => ({ ...prev, imei }));
+                setImeiRecienCargado(true);
+                setTimeout(() => setImeiRecienCargado(false), 2500);
+              }}
+              onCerrar={() => setEscanerLocal(false)}
+            />
             <ConsultaImeiIfree
               negocioID={negocioID}
               imei={form.imei}
