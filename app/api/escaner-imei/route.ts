@@ -38,18 +38,21 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "No autorizado." }, { status: 403 });
       }
 
+      const modo = body.modo === "codigo" ? "codigo" : "imei";
       const token = randomBytes(16).toString("hex");
       const ahora = Date.now();
       await db.collection(COLECCION).doc(token).set({
         negocioID,
         uid: sesion.uid,
+        modo,
         creadoEn: ahora,
         expiraEn: ahora + VIGENCIA_MS,
         imei: "",
+        codigo: "",
         seq: 0,
         pingEn: 0,
       });
-      return NextResponse.json({ ok: true, token });
+      return NextResponse.json({ ok: true, token, modo });
     }
 
     const token = String(body.token ?? "").trim();
@@ -73,6 +76,23 @@ export async function POST(req: Request) {
     }
 
     if (accion === "enviar") {
+      if (String(data.modo || "imei") === "codigo") {
+        const codigo = String(body.codigo ?? "")
+          .replace(/[\u0000-\u001F\u007F]/g, "")
+          .trim()
+          .slice(0, 500);
+        if (!codigo) {
+          return NextResponse.json({ error: "No se leyó un código." }, { status: 400 });
+        }
+        await ref.update({
+          codigo,
+          seq: FieldValue.increment(1),
+          enviadoEn: Date.now(),
+          pingEn: Date.now(),
+        });
+        return NextResponse.json({ ok: true, codigo });
+      }
+
       const imei = imeiDe(body.imei);
       if (!imei) {
         return NextResponse.json({ error: "Ese código no tiene un IMEI de 15 dígitos." }, { status: 400 });
@@ -120,6 +140,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       imei: String(data.imei || ""),
+      codigo: String(data.codigo || ""),
+      modo: String(data.modo || "imei"),
       seq: Number(data.seq || 0),
       conectado: Date.now() - pingEn < CONECTADO_MS,
     });

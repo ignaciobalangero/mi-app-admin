@@ -5,10 +5,12 @@ import { createPortal } from "react-dom";
 import { collection, getDocs, writeBatch, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
+import PanelEscanerCodigo from "@/components/PanelEscanerCodigo";
 import {
   normalizarCodigoEscaneado,
   parsearUrlProductoStock,
 } from "@/lib/buscarProductoPorCodigoBarras";
+import { esEquipoConCamara } from "@/lib/esEquipoConCamara";
 import {
   fusionarCategoriasUnicas,
   fusionarValoresUnicos,
@@ -66,6 +68,7 @@ export default function ControlStockRepuestos({
   const [diferencias, setDiferencias] = useState<DiferenciaConteoStock[]>([]);
   const [diferenciasPrecio, setDiferenciasPrecio] = useState<DiferenciaPrecioStock[]>([]);
   const [escannerAbierto, setEscannerAbierto] = useState(false);
+  const [panelCelular, setPanelCelular] = useState(false);
   const [productoDestacadoId, setProductoDestacadoId] = useState<string | null>(null);
   const [ultimoEscaneoMsg, setUltimoEscaneoMsg] = useState<string | null>(null);
   const [escaneoCantidad, setEscaneoCantidad] = useState<{
@@ -299,7 +302,7 @@ export default function ControlStockRepuestos({
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 80);
     setTimeout(() => setProductoDestacadoId(null), 2500);
-    if (yEscanearOtro) {
+    if (yEscanearOtro && (esEquipoConCamara() || !panelCelular)) {
       setTimeout(() => setEscannerAbierto(true), 80);
     }
   };
@@ -572,7 +575,10 @@ export default function ControlStockRepuestos({
               />
               <button
                 type="button"
-                onClick={() => setEscannerAbierto(true)}
+                onClick={() => {
+                  if (esEquipoConCamara()) setEscannerAbierto(true);
+                  else setPanelCelular(true);
+                }}
                 className="rounded-xl bg-gradient-to-r from-[#2c3e50] to-[#34495e] px-3 py-2 text-sm font-semibold text-white shadow"
               >
                 📷 Escanear
@@ -984,6 +990,14 @@ export default function ControlStockRepuestos({
           </div>
         </div>
       )}
+
+      <PanelEscanerCodigo
+        negocioID={negocioID}
+        abierto={panelCelular}
+        onCerrar={() => setPanelCelular(false)}
+        onCodigo={aplicarEscaneoControl}
+        onCamaraLocal={() => setEscannerAbierto(true)}
+      />
 
       <EscanerCodigoBarras
         abierto={escannerAbierto}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
+import PanelEscanerCodigo from "@/components/PanelEscanerCodigo";
 import ModalIngresoStock from "@/app/ventas/stock-accesorios-repuestos/components/ModalIngresoStock";
 import ModalAsignarCodigoBarras from "@/components/ModalAsignarCodigoBarras";
 import { useRol } from "@/lib/useRol";
@@ -10,6 +11,7 @@ import {
   buscarProductoPorCodigoBarras,
   type ProductoCodigoBarras,
 } from "@/lib/buscarProductoPorCodigoBarras";
+import { esEquipoConCamara } from "@/lib/esEquipoConCamara";
 
 type Props = {
   className?: string;
@@ -26,7 +28,9 @@ export default function BotonEscanerStock({
   const negocioID = rol?.negocioID || "";
   const { cotizacion } = useCotizacion(negocioID);
 
+  const [panelCelular, setPanelCelular] = useState(false);
   const [escannerAbierto, setEscannerAbierto] = useState(false);
+  const cola = useRef<Promise<void>>(Promise.resolve());
   const [buscando, setBuscando] = useState(false);
   const [producto, setProducto] = useState<ProductoCodigoBarras | null>(null);
   const [codigoSinAsignar, setCodigoSinAsignar] = useState<string | null>(null);
@@ -41,10 +45,11 @@ export default function BotonEscanerStock({
       try {
         const encontrado = await buscarProductoPorCodigoBarras(negocioID, codigo);
         if (!encontrado) {
-          // Código leído OK pero el artículo no lo tiene cargado → asignar
+          setProducto(null);
           setCodigoSinAsignar(codigo);
           return;
         }
+        setCodigoSinAsignar(null);
         setProducto(encontrado);
       } catch (e) {
         console.error(e);
@@ -56,6 +61,13 @@ export default function BotonEscanerStock({
     [negocioID]
   );
 
+  const recibirCodigo = useCallback(
+    (codigo: string) => {
+      cola.current = cola.current.then(() => onDetectado(codigo)).catch(() => undefined);
+    },
+    [onDetectado]
+  );
+
   const baseBtn =
     variante === "inicio"
       ? "inline-flex items-center gap-2 bg-white/25 hover:bg-white/40 backdrop-blur-sm text-white font-semibold px-5 py-3 rounded-xl shadow-lg border border-white/30 transition-all duration-200 hover:scale-105"
@@ -65,7 +77,10 @@ export default function BotonEscanerStock({
     <>
       <button
         type="button"
-        onClick={() => setEscannerAbierto(true)}
+        onClick={() => {
+          if (esEquipoConCamara()) setEscannerAbierto(true);
+          else setPanelCelular(true);
+        }}
         disabled={!negocioID || buscando}
         className={`${baseBtn} ${className} disabled:opacity-50`}
         title="Escanear código de barras o QR de accesorio/repuesto/stock extra"
@@ -73,6 +88,14 @@ export default function BotonEscanerStock({
         <span>📷</span>
         <span>{buscando ? "Buscando…" : label}</span>
       </button>
+
+      <PanelEscanerCodigo
+        negocioID={negocioID}
+        abierto={panelCelular}
+        onCerrar={() => setPanelCelular(false)}
+        onCodigo={recibirCodigo}
+        onCamaraLocal={() => setEscannerAbierto(true)}
+      />
 
       <EscanerCodigoBarras
         abierto={escannerAbierto}

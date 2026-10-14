@@ -7,6 +7,13 @@ import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import { normalizarProductoModelo } from "@/lib/impresionVentaGeneral";
+import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
+import PanelEscanerCodigo from "@/components/PanelEscanerCodigo";
+import { esEquipoConCamara } from "@/lib/esEquipoConCamara";
+import {
+  normalizarCodigoEscaneado,
+  parsearUrlProductoStock,
+} from "@/lib/buscarProductoPorCodigoBarras";
 
 function camposNombreStock(data: { producto?: string; modelo?: string }, fallback = "") {
   return normalizarProductoModelo(
@@ -18,6 +25,7 @@ function camposNombreStock(data: { producto?: string; modelo?: string }, fallbac
 interface ProductoStock {
   id: string;
   codigo?: string;
+  codigoBarras?: string;
   producto: string;
   modelo: string;
   marca?: string;
@@ -79,6 +87,8 @@ export default function SelectorProductoVentaGeneral({
   const [usandoPrecioManual, setUsandoPrecioManual] = useState(false);
   const [monedaSeleccionada, setMonedaSeleccionada] = useState<"ARS" | "USD">("ARS");
   const [mostrarLibre, setMostrarLibre] = useState(false);
+  const [escanerLocal, setEscanerLocal] = useState(false);
+  const [panelCelular, setPanelCelular] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [libreForm, setLibreForm] = useState({
     producto: "",
@@ -210,6 +220,7 @@ useEffect(() => {
         return {
           id: doc.id,
           codigo: data.codigo || doc.id,
+          codigoBarras: data.codigoBarras ? String(data.codigoBarras) : "",
           producto: nombre.producto,
           modelo: nombre.modelo,
           marca: data.marca || "",
@@ -229,6 +240,7 @@ useEffect(() => {
         return {
           id: doc.id,
           codigo: data.codigo || doc.id,
+          codigoBarras: data.codigoBarras ? String(data.codigoBarras) : "",
           producto: nombre.producto,
           modelo: nombre.modelo,
           marca: data.marca || "",
@@ -255,7 +267,8 @@ useEffect(() => {
       
       return {
         id: doc.id,
-        codigo: doc.id,
+        codigo: data.codigo || doc.id,
+        codigoBarras: data.codigoBarras ? String(data.codigoBarras) : "",
         producto: nombre.producto,
         modelo: nombre.modelo,
         marca: data.marca || "",
@@ -283,6 +296,7 @@ useEffect(() => {
       const repuesto: ProductoStock = {
         id: doc.id,
         codigo: data.codigo || doc.id,
+        codigoBarras: data.codigoBarras ? String(data.codigoBarras) : "",
         producto: nombre.producto,
         modelo: nombre.modelo,
         marca: data.marca || "",
@@ -421,25 +435,114 @@ useEffect(() => {
     setMostrar(false);
   };
 
+  const coincideCodigoLeido = (p: ProductoStock, raw: string) => {
+    const codigo = normalizarCodigoEscaneado(raw);
+    if (!codigo) return false;
+    const c = codigo.toLowerCase();
+    const desdeUrl = parsearUrlProductoStock(codigo);
+    if (desdeUrl?.id && p.id === desdeUrl.id) {
+      if (desdeUrl.tipo === "accesorio" && p.tipo === "accesorio") return true;
+      if (desdeUrl.tipo === "repuesto" && p.tipo === "repuesto") return true;
+      if (desdeUrl.tipo === "extra" && p.tipo === "general") return true;
+    }
+    if (p.id.toLowerCase() === c) return true;
+    if ((p.codigo || "").toLowerCase() === c) return true;
+    if ((p.codigoBarras || "").toLowerCase() === c) return true;
+    const prefijos: [string, ProductoStock["tipo"]][] = [
+      ["G1:ACC:", "accesorio"],
+      ["G1:REP:", "repuesto"],
+      ["G1:EXT:", "general"],
+    ];
+    for (const [prefijo, tipo] of prefijos) {
+      if (codigo.startsWith(prefijo) && p.tipo === tipo && p.id === codigo.slice(prefijo.length).trim()) {
+        return true;
+      }
+    }
+    const digitos = codigo.replace(/\D/g, "");
+    if (digitos.length >= 8) {
+      const barras = (p.codigoBarras || "").replace(/\D/g, "");
+      const interno = (p.codigo || "").replace(/\D/g, "");
+      if (barras && (barras === digitos || barras.endsWith(digitos) || digitos.endsWith(barras))) return true;
+      if (interno && (interno === digitos || interno.endsWith(digitos) || digitos.endsWith(interno))) return true;
+    }
+    return false;
+  };
+
+  const elegirProductoEscaneado = (raw: string) => {
+    if (todos.length === 0) {
+      alert("Todavía se están cargando los productos. Probá de nuevo en un segundo.");
+      return;
+    }
+    const encontrado = todos.find((p) => coincideCodigoLeido(p, raw));
+    if (!encontrado) {
+      alert("No hay un producto con ese código.");
+      return;
+    }
+    if (productos.some((p) => p.id === encontrado.id)) {
+      alert("Ese producto ya está en el remito.");
+      return;
+    }
+    setProductoSeleccionado(encontrado);
+    setPrecioElegido(encontrado.precio1Pesos || encontrado.precio1);
+    setPrecioManual(0);
+    setUsandoPrecioManual(false);
+    setMonedaSeleccionada("ARS");
+    setCantidad(1);
+    setBusqueda("");
+    setMostrar(false);
+    setMostrarLibre(false);
+  };
+
+  const abrirEscaner = () => {
+    setMostrar(false);
+    if (esEquipoConCamara()) setEscanerLocal(true);
+    else setPanelCelular(true);
+  };
+
   return (
     <div className="relative w-full space-y-2">
-      <div className="relative">
-        <input
-          type="text"
-          value={busqueda}
-          onChange={(e) => {
-            setBusqueda(e.target.value);
-            setMostrar(true);
-          }}
-          onFocus={() => setMostrar(true)}
-          onBlur={() => setTimeout(() => setMostrar(false), 200)}
-          placeholder="Buscar por código, nombre, marca, color, modelo, categoría, proveedor..."
-          className="w-full p-4 pl-12 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-lg"
-        />
-        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-          <span className="text-[#3498db] text-xl">🔍</span>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => {
+              setBusqueda(e.target.value);
+              setMostrar(true);
+            }}
+            onFocus={() => setMostrar(true)}
+            onBlur={() => setTimeout(() => setMostrar(false), 200)}
+            placeholder="Buscar por código, nombre, marca, color, modelo, categoría, proveedor..."
+            className="w-full p-4 pl-12 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d] text-lg"
+          />
+          <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+            <span className="text-[#3498db] text-xl">🔍</span>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={abrirEscaner}
+          className="shrink-0 px-4 rounded-lg bg-[#2c3e50] text-white font-semibold hover:bg-[#34495e]"
+          title="Escanear código de barras o QR"
+        >
+          📷 Escanear
+        </button>
       </div>
+
+      <PanelEscanerCodigo
+        negocioID={rol?.negocioID || ""}
+        abierto={panelCelular}
+        onCerrar={() => setPanelCelular(false)}
+        onCodigo={elegirProductoEscaneado}
+        onCamaraLocal={() => setEscanerLocal(true)}
+      />
+      <EscanerCodigoBarras
+        abierto={escanerLocal}
+        titulo="Escanear producto"
+        modo="codigo"
+        onDetectado={elegirProductoEscaneado}
+        onCerrar={() => setEscanerLocal(false)}
+      />
 
       <button
         type="button"
