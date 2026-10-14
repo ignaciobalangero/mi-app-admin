@@ -187,8 +187,8 @@ export function interpretarRespuestaIfree(
     (valor && (esAfirmativo(valor) || /black|stolen|lost|barred/i.test(valor))) ||
     /blacklist(?:\s+status)?\s*:\s*(blacklisted|yes|stolen)/i.test(detalle);
   const limpia =
-    (valor && (esNegativo(valor) || /^no$/i.test(valor.trim())) && !/blacklisted|stolen/i.test(valor)) ||
-    /blacklist(?:\s+status)?\s*:\s*(clean|no|clear)/i.test(detalle);
+    (valor && (esNegativo(valor) || /limpio|^no$/i.test(valor.trim())) && !/blacklisted|stolen/i.test(valor)) ||
+    /(?:blacklist(?:\s+status)?|estado en la lista negra)\s*:\s*(clean|no|clear|limpio)/i.test(detalle);
   if (reportado && !limpia) return armar("blacklist", "peligro", "En lista negra", detalle);
   if (limpia && !reportado) return armar("blacklist", "ok", "Lista negra limpia", detalle);
   if (/blacklisted|stolen/i.test(texto)) return armar("blacklist", "peligro", "En lista negra", detalle);

@@ -22,7 +22,7 @@ async function postIfree(params: Record<string, string>): Promise<Envelope> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(params),
-    signal: AbortSignal.timeout(50_000),
+    signal: AbortSignal.timeout(60_000),
   });
   const texto = await res.text();
   let data: Envelope = {};
@@ -40,7 +40,15 @@ async function postIfree(params: Record<string, string>): Promise<Envelope> {
 function mensajeErrorIfree(error: unknown): string {
   const texto = String(error || "").trim();
   if (!texto) return "";
-  if (/insufficient balance/i.test(texto)) return "No hay crédito en la cuenta de iFree.";
+  if (/insufficient/i.test(texto) && /balance/i.test(texto)) {
+    return "No hay crédito en la cuenta de iFree.";
+  }
+  if (/unable to check blacklist/i.test(texto)) {
+    return "iFree no pudo revisar la lista negra de ese IMEI. No significa que esté robado.";
+  }
+  if (/ip guard|unauthorized ip/i.test(texto)) {
+    return "iFree bloqueó la consulta por la dirección del servidor. Dejá IP Guard apagado.";
+  }
   if (/invalid (api )?key|10234/i.test(texto)) return "La clave de iFree no es válida.";
   if (/invalid imei|invalid serial/i.test(texto)) return "iFree no aceptó ese IMEI.";
   return texto;

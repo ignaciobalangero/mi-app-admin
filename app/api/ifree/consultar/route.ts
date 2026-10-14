@@ -6,6 +6,7 @@ import { consultaIncluida, type ConsultaImeiId } from "@/lib/ifree/consultasImei
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const CONSULTAS = new Set<ConsultaImeiId>(["fmi", "icloud", "blacklist"]);
 
