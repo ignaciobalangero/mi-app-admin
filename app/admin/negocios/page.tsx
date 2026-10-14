@@ -17,6 +17,8 @@ import {
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { esSuperAdminUsuario } from "@/lib/superAdminConstants";
+import ClaveIfreeGestione from "./ClaveIfreeGestione";
+import type { PlanControlImei } from "@/lib/ifree/consultasImei";
 import {
   calcularNuevaFechaVencimiento,
   cuentaAccesoSuspendido,
@@ -86,6 +88,7 @@ export default function GestionSuscripciones() {
     facturacionElectronicaSolicitada?: boolean;
     cuit?: string;
     puntoVenta?: number;
+    controlImeiPlan?: PlanControlImei;
   }>>({});
 
   const [modalDatosFacturacion, setModalDatosFacturacion] = useState<{
@@ -199,6 +202,7 @@ export default function GestionSuscripciones() {
         facturacionElectronicaSolicitada?: boolean;
         cuit?: string;
         puntoVenta?: number;
+        controlImeiPlan?: PlanControlImei;
       }> = {};
       for (const nid of negocioIDs) {
         try {
@@ -208,6 +212,10 @@ export default function GestionSuscripciones() {
             configs[nid] = {
               facturacionElectronicaHabilitada: !!d.facturacionElectronicaHabilitada,
               facturacionElectronicaSolicitada: !!d.facturacionElectronicaSolicitada,
+              controlImeiPlan:
+                d.controlImeiPlan === "imei" || d.controlImeiPlan === "todo"
+                  ? d.controlImeiPlan
+                  : "off",
               cuit: d.cuit != null ? String(d.cuit) : undefined,
               puntoVenta: d.puntoVenta != null ? Number(d.puntoVenta) : undefined,
             };
@@ -244,6 +252,33 @@ export default function GestionSuscripciones() {
     } catch (error: any) {
       console.error("Error:", error);
       setMensaje("❌ Error al actualizar");
+      setTimeout(() => setMensaje(""), 3000);
+    }
+  };
+
+  const guardarPlanControlImei = async (negocioID: string, plan: PlanControlImei) => {
+    try {
+      const configRef = doc(db, `negocios/${negocioID}/configuracion`, "datos");
+      await setDoc(configRef, { controlImeiPlan: plan }, { merge: true });
+      setConfigFacturacion((prev) => ({
+        ...prev,
+        [negocioID]: {
+          ...prev[negocioID],
+          facturacionElectronicaHabilitada: prev[negocioID]?.facturacionElectronicaHabilitada ?? false,
+          controlImeiPlan: plan,
+        },
+      }));
+      const texto =
+        plan === "todo"
+          ? "✅ Controlar todo habilitado"
+          : plan === "imei"
+            ? "✅ Controlar IMEI habilitado"
+            : "✅ Control de IMEI desactivado";
+      setMensaje(texto);
+      setTimeout(() => setMensaje(""), 3000);
+    } catch (error) {
+      console.error(error);
+      setMensaje("❌ Error al actualizar el control de IMEI");
       setTimeout(() => setMensaje(""), 3000);
     }
   };
@@ -868,6 +903,8 @@ export default function GestionSuscripciones() {
             </div>
           </div>
         </div>
+        {esSuperAdmin ? <ClaveIfreeGestione /> : null}
+
         {/* Lista de Suscripciones */}
         <div className="bg-white rounded-2xl shadow-lg border border-[#ecf0f1] overflow-hidden">
           <div className="bg-gradient-to-r from-[#34495e] to-[#2c3e50] p-4">
@@ -905,6 +942,9 @@ export default function GestionSuscripciones() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Fact. electrónica
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Control IMEI
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Acciones
@@ -1016,6 +1056,19 @@ export default function GestionSuscripciones() {
                             </>
                           )}
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <select
+                          value={cfg?.controlImeiPlan || "off"}
+                          onChange={(e) =>
+                            guardarPlanControlImei(admin.negocioID, e.target.value as PlanControlImei)
+                          }
+                          className="text-xs px-2 py-1.5 border border-[#bdc3c7] rounded-lg bg-white text-[#2c3e50]"
+                        >
+                          <option value="off">Sin activar</option>
+                          <option value="imei">Controlar IMEI</option>
+                          <option value="todo">Controlar todo</option>
+                        </select>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-2">

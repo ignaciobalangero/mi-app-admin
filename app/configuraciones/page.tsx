@@ -20,6 +20,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConfiguracionWhatsappPanel from "./components/ConfiguracionWhatsappPanel";
+import PanelIfreeImei from "./components/PanelIfreeImei";
 import PanelRecalculoGlobal from "./components/PanelRecalculoGlobal";
 import PanelCuentasNegocio from "./components/PanelCuentasNegocio";
 import { getSuperAdminUidClient, esSuperAdminUsuario } from "@/lib/superAdminConstants";
@@ -211,7 +212,10 @@ export default function Configuraciones() {
   const pestanas = [
     { id: "general", label: "General", icono: "⚙️" },
     ...(rol?.tipo === "admin"
-      ? [{ id: "whatsapp", label: "WhatsApp", icono: "💬" }]
+      ? [
+          { id: "whatsapp", label: "WhatsApp", icono: "💬" },
+          { id: "imei", label: "IMEI", icono: "📱" },
+        ]
       : []),
     { id: "facturacion", label: "Facturación electrónica", icono: "🧾" },
     { id: "garantias", label: "Garantías", icono: "🛡️" },
@@ -365,6 +369,10 @@ export default function Configuraciones() {
             <div className="p-6">
               {pestanaActiva === "whatsapp" && rol?.tipo === "admin" && rol?.negocioID && (
                 <ConfiguracionWhatsappPanel negocioID={rol.negocioID} />
+              )}
+
+              {pestanaActiva === "imei" && rol?.tipo === "admin" && rol?.negocioID && (
+                <PanelIfreeImei negocioID={rol.negocioID} />
               )}
 
               {pestanaActiva === "general" && (
@@ -873,7 +881,8 @@ export default function Configuraciones() {
 
           {pestanaActiva !== "suscripcion" &&
             pestanaActiva !== "facturacion" &&
-            pestanaActiva !== "whatsapp" && (
+            pestanaActiva !== "whatsapp" &&
+            pestanaActiva !== "imei" && (
             <div className="flex justify-center">
               <button
                 onClick={guardarConfiguracion}

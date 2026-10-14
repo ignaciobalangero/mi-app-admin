@@ -7,7 +7,9 @@ import { useRol } from "@/lib/useRol";
 // ✅ Correcto
 import { ImpresionGestione } from "../../../configuraciones/impresion/utils/impresionEspecifica";
 import CamposEstadoTelefono from "./CamposEstadoTelefono";
+import ConsultaImeiIfree from "./ConsultaImeiIfree";
 import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
+import type { ChequeoImei } from "@/lib/ifree/consultasImei";
 
 interface Props {
   negocioID: string;
@@ -86,6 +88,7 @@ export default function FormularioStock({
   const [imprimirEtiquetaAlGuardar, setImprimirEtiquetaAlGuardar] = useState(false); // 🆕 Estado para impresión
   const [guardando, setGuardando] = useState(false);
   const [cargadosSeguidos, setCargadosSeguidos] = useState(0);
+  const [chequeoImei, setChequeoImei] = useState<ChequeoImei | null>(null);
   const imeiRef = useRef<HTMLInputElement>(null);
   const { rol } = useRol();
 
@@ -119,6 +122,12 @@ export default function FormularioStock({
     });
   
     setEditandoID(datosIniciales.id || null);
+    const chequeo = datosIniciales.chequeoImei;
+    setChequeoImei(
+      chequeo && typeof chequeo === "object" && String(chequeo.imei || "").trim()
+        ? (chequeo as ChequeoImei)
+        : null
+    );
     setMostrarFormulario(true);
   }, [datosIniciales]);
   
@@ -128,6 +137,7 @@ export default function FormularioStock({
       setForm(inicial);
       setEditandoID(null);
       setCargadosSeguidos(0);
+      setChequeoImei(null);
     }
   }, [mostrarFormulario]);
 
@@ -169,6 +179,7 @@ export default function FormularioStock({
       fechaIngreso: Timestamp.fromDate(fechaFormateada),
       creadoEn: Timestamp.now(),
       proveedor: form.proveedor || (clienteRecibido ? `Recibido de ${clienteRecibido}` : ""),
+      ...(chequeoImei && chequeoImei.imei === digitosImei(form.imei) ? { chequeoImei } : {}),
     };
 
     if (soloCapturarDatos) {
@@ -176,6 +187,7 @@ export default function FormularioStock({
       onGuardado?.(datosParaParteDePago);
       setForm(inicial);
       setEditandoID(null);
+      setChequeoImei(null);
       setMostrarFormulario(false);
       setCargadosSeguidos(0);
       return;
@@ -223,6 +235,7 @@ export default function FormularioStock({
           precioMayorista: prev.precioMayorista,
           moneda: prev.moneda,
         }));
+        setChequeoImei(null);
         setMostrarFormulario(true);
         setTimeout(() => imeiRef.current?.focus(), 50);
         return;
@@ -313,7 +326,7 @@ export default function FormularioStock({
             placeholder="Color"
             className="p-2 border rounded"
           />
-          <div>
+          <div className="md:col-span-2">
             <input
               ref={imeiRef}
               type="text"
@@ -331,6 +344,12 @@ export default function FormularioStock({
                 {digitosImei(form.imei).length}/15 dígitos. Revisá el IMEI antes de guardar.
               </p>
             )}
+            <ConsultaImeiIfree
+              negocioID={negocioID}
+              imei={form.imei}
+              chequeo={chequeoImei}
+              onChequeo={setChequeoImei}
+            />
           </div>
           <input
             type="text"

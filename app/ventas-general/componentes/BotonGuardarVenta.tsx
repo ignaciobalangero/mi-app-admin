@@ -660,6 +660,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
         tipo: "telefono",
         origen: "parte_de_pago",
         ventaId: ventaTelefonosRef.id,
+        ...(tr.chequeoImei && typeof tr.chequeoImei === "object" ? { chequeoImei: tr.chequeoImei } : {}),
       };
       const idFijo = `parte_pago_${ventaTelefonosRef.id}_${i}`;
       await setDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos`, idFijo), stockParteDePago);
