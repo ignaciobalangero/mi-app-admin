@@ -6,9 +6,12 @@ import {
   descripcionProductoVenta,
   htmlImpresionVenta,
   imprimirHtmlVenta,
+  textoImportePagoRemito,
+  textoSaldoRemito,
   type TipoImpresionVenta,
   type VentaImpresion,
 } from "@/lib/impresionVentaGeneral";
+import { cargarPagosYSaldoRemito, type SaldoRemito } from "@/lib/ventas/vincularPagoVenta";
 import {
   esVentaTelefonoParaRecibo,
   imprimirReciboCompraDesdeVenta,
@@ -78,7 +81,27 @@ export default function ModalRemitoImpresion({
   const [reciboAccionOk, setReciboAccionOk] = useState<string>("");
   const [mostrarFirmar, setMostrarFirmar] = useState(false);
   const [firmaUrl, setFirmaUrl] = useState<string>("");
+  const [saldoRemito, setSaldoRemito] = useState<SaldoRemito | null>(null);
   const remitoRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!mostrar || !venta || !negocioID) {
+      setSaldoRemito(null);
+      return;
+    }
+    let cancelado = false;
+    cargarPagosYSaldoRemito(negocioID, venta)
+      .then((saldo) => {
+        if (!cancelado) setSaldoRemito(saldo);
+      })
+      .catch((error) => {
+        console.error("No se pudieron cargar los pagos del remito:", error);
+        if (!cancelado) setSaldoRemito(null);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [mostrar, venta, negocioID]);
 
   useEffect(() => {
     if (!mostrar || !venta) return;
@@ -258,9 +281,21 @@ export default function ModalRemitoImpresion({
     telefono: telefonoNegocio,
   };
 
+  const ventaParaDocumento = (): VentaConFirma | null => {
+    if (!venta) return null;
+    if (!saldoRemito) return venta;
+    return {
+      ...venta,
+      pagos: saldoRemito.pagos,
+      saldoPendienteARS: saldoRemito.saldoPendienteARS,
+      saldoPendienteUSD: saldoRemito.saldoPendienteUSD,
+    };
+  };
+
   const handleImprimir = () => {
-    if (!venta || !tipo || tipo === "recibo") return;
-    const html = htmlImpresionVenta(venta, tipo, negocio);
+    const actual = ventaParaDocumento();
+    if (!actual || !tipo || tipo === "recibo") return;
+    const html = htmlImpresionVenta(actual, tipo, negocio);
     if (!imprimirHtmlVenta(html)) {
       alert("No se pudo abrir la ventana de impresión. Revisá el bloqueador de ventanas emergentes.");
     }
@@ -332,9 +367,14 @@ export default function ModalRemitoImpresion({
       (acc, p) => acc + Number(p.precioUnitario || 0) * Number(p.cantidad || 0),
       0
     ) || 0;
-  const descuentos =
-    (venta.pagos?.reduce((acc, p) => acc + Number(p.monto || 0), 0) || 0) +
-    (venta.telefonoComoPago ? Number(venta.telefonoComoPago.valorPago || 0) : 0);
+  const ventaVista = ventaParaDocumento() || venta;
+  const descuentos = ventaVista.telefonoComoPago
+    ? Number(ventaVista.telefonoComoPago.valorPago || 0)
+    : 0;
+  const textoSaldo = saldoRemito
+    ? textoSaldoRemito(saldoRemito.saldoPendienteARS, saldoRemito.saldoPendienteUSD)
+    : "";
+  const saldoCero = textoSaldo === "Saldo: $0";
   const totalFinal = Math.max(0, subtotal - descuentos);
   const cantItems =
     venta.productos?.reduce((a, p) => a + Number(p.cantidad || 0), 0) || 0;
@@ -656,7 +696,7 @@ export default function ModalRemitoImpresion({
                   </p>
                   <p>
                     <strong>Estado:</strong>{" "}
-                    {venta.estado === "pagado" ? "PAGADO" : "PENDIENTE"}
+                    {saldoCero || venta.estado === "pagado" ? "PAGADO" : "PENDIENTE"}
                   </p>
                 </div>
                 <div className="bg-gradient-to-r from-[#ebf3fd] to-[#d6eaff] rounded-xl p-4 text-sm">
@@ -712,13 +752,13 @@ export default function ModalRemitoImpresion({
                 </table>
               </div>
 
-              {(venta.pagos?.length || venta.telefonoComoPago) ? (
+              {(ventaVista.pagos?.length || venta.telefonoComoPago) ? (
                 <div className="mb-6 text-sm">
                   <h3 className="font-bold text-[#2c3e50] mb-2">Pagos</h3>
-                  {venta.pagos?.map((pago, i) => (
+                  {ventaVista.pagos?.map((pago, i) => (
                     <p key={i} className="text-[#27ae60]">
-                      {pago.formaPago} — ${Number(pago.monto)?.toLocaleString("es-AR")}{" "}
-                      {pago.moneda}
+                      {pago.fecha ? `${pago.fecha} · ` : ""}
+                      {pago.formaPago} — {textoImportePagoRemito(pago)}
                     </p>
                   ))}
                   {venta.telefonoComoPago && (
@@ -748,6 +788,15 @@ export default function ModalRemitoImpresion({
                       ${totalFinal.toLocaleString("es-AR")}
                     </strong>
                   </div>
+                  {textoSaldo ? (
+                    <div
+                      className={`flex justify-between border-t border-[#ecf0f1] mt-2 pt-2 font-bold ${
+                        saldoCero ? "text-[#166534]" : "text-[#b45309]"
+                      }`}
+                    >
+                      <span>{textoSaldo}</span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

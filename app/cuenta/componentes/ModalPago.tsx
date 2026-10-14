@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { cotizacionNegocioCaja } from "@/lib/caja/cotizacionCaja";
+import {
+  impactoClienteDePago,
+  listarVentasPendientesCliente,
+  sincronizarVentaTrasPago,
+  type VentaPendienteCliente,
+} from "@/lib/ventas/vincularPagoVenta";
 
 interface Trabajo {
   firebaseId?: string;
@@ -98,6 +104,9 @@ export default function ModalPago({
   
   const [guardandoPago, setGuardandoPago] = useState(false);
   const [pagoGuardado, setPagoGuardado] = useState(false);
+  const [ventasPendientes, setVentasPendientes] = useState<VentaPendienteCliente[]>([]);
+  const [ventaIdAplicar, setVentaIdAplicar] = useState("");
+  const [cargandoVentas, setCargandoVentas] = useState(false);
 
   useEffect(() => {
     if (!mostrar) return;
@@ -110,7 +119,31 @@ export default function ModalPago({
       fecha: hoyInputDate(),
     });
     setPagoGuardado(false);
+    setVentaIdAplicar("");
+    setVentasPendientes([]);
   }, [mostrar, clienteSeleccionado?.cliente]);
+
+  useEffect(() => {
+    if (!mostrar || !negocioID || !clienteSeleccionado?.cliente) return;
+    let cancelado = false;
+    setCargandoVentas(true);
+    listarVentasPendientesCliente(negocioID, clienteSeleccionado.cliente)
+      .then((lista) => {
+        if (cancelado) return;
+        setVentasPendientes(lista);
+        setVentaIdAplicar(lista.length === 1 ? lista[0].id : "");
+      })
+      .catch((error) => {
+        console.error("No se pudieron cargar las ventas pendientes:", error);
+        if (!cancelado) setVentasPendientes([]);
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoVentas(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [mostrar, negocioID, clienteSeleccionado?.cliente]);
 
   if (!mostrar || !clienteSeleccionado) return null;
 
@@ -190,6 +223,17 @@ export default function ModalPago({
       }
       const cotizacion = await cotizacionNegocioCaja(negocioID);
       const { fecha, fechaCompleta } = fechaDesdeInput(pago.fecha || hoyInputDate());
+      const ventaAplicar = ventasPendientes.find((v) => v.id === ventaIdAplicar);
+      const monedaPago = pago.moneda === "USD" ? "USD" : "ARS";
+      const impacto = ventaAplicar
+        ? impactoClienteDePago({
+            moneda: monedaPago,
+            monto: montoNumerico,
+            cotizacion,
+            totalARS: ventaAplicar.totalARS,
+            totalUSD: ventaAplicar.totalUSD,
+          })
+        : null;
       
       const pagoData = {
         monto: pago.moneda === "USD" ? null : montoNumerico,
@@ -204,16 +248,25 @@ export default function ModalPago({
         tipo: 'ingreso',
         negocioID: negocioID,
         cotizacion,
+        ...(ventaAplicar
+          ? {
+              nroVenta: ventaAplicar.nroVenta,
+              ventaId: ventaAplicar.id,
+              detallesPago: impacto?.detallesPago ?? null,
+            }
+          : {}),
       };
 
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
 
-      // ⭐ NUEVO: Restar pago del saldo del cliente
       await actualizarSaldoCliente(
         clienteSeleccionado.cliente,
-        pago.moneda === "ARS" ? -montoNumerico : 0,
-        pago.moneda === "USD" ? -montoNumerico : 0
+        impacto ? impacto.ars : pago.moneda === "ARS" ? -montoNumerico : 0,
+        impacto ? impacto.usd : pago.moneda === "USD" ? -montoNumerico : 0
       );
+      if (ventaAplicar) {
+        await sincronizarVentaTrasPago(negocioID, ventaAplicar.id);
+      }
       console.log('💳 Saldo actualizado por pago desde cuenta corriente');
 
       // Marcar trabajos como pagados
@@ -351,6 +404,42 @@ export default function ModalPago({
             )}
           </div>
 
+          <div className="bg-white rounded-xl border-2 border-[#8e44ad] p-4 sm:p-6 shadow-sm">
+            <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 flex items-center gap-2">
+              <span>🧾</span>
+              <span className="text-sm sm:text-base">Venta del remito</span>
+            </h4>
+            {cargandoVentas ? (
+              <p className="text-sm text-[#7f8c8d]">Buscando ventas con saldo…</p>
+            ) : ventasPendientes.length === 0 ? (
+              <p className="text-sm text-[#7f8c8d]">
+                Este cliente no tiene ventas con saldo. El pago solo baja la cuenta corriente.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#2c3e50]">
+                  Aplicar este pago a
+                </label>
+                <select
+                  value={ventaIdAplicar}
+                  onChange={(e) => setVentaIdAplicar(e.target.value)}
+                  disabled={guardandoPago}
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm text-[#2c3e50]"
+                >
+                  <option value="">No vincular a una venta</option>
+                  {ventasPendientes.map((venta) => (
+                    <option key={venta.id} value={venta.id}>
+                      {venta.etiqueta}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#7f8c8d]">
+                  Si la elegís, al reimprimir el remito van a figurar este pago y el saldo que quede.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Fecha del pago */}
           <div className="bg-white rounded-xl border-2 border-[#1abc9c] p-4 sm:p-6 shadow-sm">
             <h4 className="text-base sm:text-lg font-semibold text-[#2c3e50] mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3">
@@ -441,6 +530,42 @@ export default function ModalPago({
                   Total ARS: {formatPesos(clienteSeleccionado.saldoPesos)}
                 </button>
               )}
+              {ventaIdAplicar && (() => {
+                const venta = ventasPendientes.find((v) => v.id === ventaIdAplicar);
+                if (!venta) return null;
+                return (
+                  <>
+                    {venta.saldoUSD > 0.01 && (
+                      <button
+                        type="button"
+                        onClick={() => setPago((prev) => ({
+                          ...prev,
+                          monto: montoDesdeNumero(venta.saldoUSD, "USD"),
+                          moneda: "USD",
+                        }))}
+                        disabled={guardandoPago}
+                        className="bg-[#8e44ad] hover:bg-[#7d3c98] text-white px-3 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
+                      >
+                        Saldo de la venta USD: {formatUSD(venta.saldoUSD)}
+                      </button>
+                    )}
+                    {venta.saldoARS > 0.01 && (
+                      <button
+                        type="button"
+                        onClick={() => setPago((prev) => ({
+                          ...prev,
+                          monto: montoDesdeNumero(venta.saldoARS, "ARS"),
+                          moneda: "ARS",
+                        }))}
+                        disabled={guardandoPago}
+                        className="bg-[#8e44ad] hover:bg-[#7d3c98] text-white px-3 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
+                      >
+                        Saldo de la venta ARS: {formatPesos(venta.saldoARS)}
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
               {clienteSeleccionado.saldoUSD > 0 && (
                 <button
                   type="button"

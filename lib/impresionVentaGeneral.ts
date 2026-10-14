@@ -20,7 +20,16 @@ export type VentaImpresion = {
   cliente?: string;
   estado?: string;
   productos?: LineaProductoVenta[];
-  pagos?: { formaPago?: string; monto?: number; moneda?: string; observaciones?: string }[];
+  pagos?: {
+    formaPago?: string;
+    monto?: number;
+    montoUSD?: number;
+    moneda?: string;
+    fecha?: string;
+    observaciones?: string;
+  }[];
+  saldoPendienteARS?: number;
+  saldoPendienteUSD?: number;
   telefonoComoPago?: {
     marca?: string;
     modelo?: string;
@@ -91,13 +100,41 @@ function totalesVenta(venta: VentaImpresion) {
       (acc, p) => acc + Number(p.precioUnitario || 0) * Number(p.cantidad || 0),
       0
     ) || 0;
-  const descuentos =
-    (venta.pagos?.reduce((acc, p) => acc + Number(p.monto || 0), 0) || 0) +
-    (venta.telefonoComoPago ? Number(venta.telefonoComoPago.valorPago || 0) : 0);
+  const descuentos = venta.telefonoComoPago
+    ? Number(venta.telefonoComoPago.valorPago || 0)
+    : 0;
   const totalFinal = Math.max(0, subtotal - descuentos);
   const cantItems =
     venta.productos?.reduce((a, p) => a + Number(p.cantidad || 0), 0) || 0;
   return { subtotal, descuentos, totalFinal, cantItems };
+}
+
+export function textoImportePagoRemito(p: {
+  monto?: number;
+  montoUSD?: number;
+  moneda?: string;
+}): string {
+  const partes: string[] = [];
+  if (Number(p.montoUSD) > 0) {
+    partes.push(`USD ${Number(p.montoUSD).toLocaleString("es-AR")}`);
+  }
+  if (Number(p.monto) > 0) {
+    partes.push(`$${Number(p.monto).toLocaleString("es-AR")}`);
+  }
+  if (partes.length) return partes.join(" + ");
+  const moneda = String(p.moneda || "").toUpperCase();
+  return moneda || "—";
+}
+
+/** "Saldo: $0" cuando la venta quedó cancelada; si no, el pendiente por moneda. */
+export function textoSaldoRemito(ars?: number, usd?: number): string {
+  const a = Math.max(0, Number(ars) || 0);
+  const u = Math.max(0, Number(usd) || 0);
+  const partes: string[] = [];
+  if (u > 0.009) partes.push(`USD $${u.toLocaleString("es-AR")}`);
+  if (a > 0.009) partes.push(`$${Math.round(a).toLocaleString("es-AR")}`);
+  if (!partes.length) return "Saldo: $0";
+  return `Saldo pendiente: ${partes.join(" + ")}`;
 }
 
 export function htmlImpresionVentaFormal(
@@ -131,10 +168,10 @@ export function htmlImpresionVentaFormal(
       ? `<div style="margin-top:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:12px">
         <strong style="color:#166534">Pagos:</strong>
         ${(venta.pagos || [])
-          .map(
-            (p) =>
-              `<div>${esc(String(p.formaPago ?? ""))} — $${Number(p.monto || 0).toLocaleString("es-AR")} ${esc(String(p.moneda ?? ""))}</div>`
-          )
+          .map((p) => {
+            const cuando = String(p.fecha || "").trim();
+            return `<div>${cuando ? `${esc(cuando)} · ` : ""}${esc(String(p.formaPago ?? "Pago"))} — ${esc(textoImportePagoRemito(p))}</div>`;
+          })
           .join("")}
         ${
           venta.telefonoComoPago
@@ -187,6 +224,11 @@ export function htmlImpresionVentaFormal(
       <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Subtotal</span><strong>$${subtotal.toLocaleString("es-AR")}</strong></div>
       ${descuentos > 0 ? `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:6px"><span>Descuentos</span><strong>-$${descuentos.toLocaleString("es-AR")}</strong></div>` : ""}
       <div style="display:flex;justify-content:space-between;border-top:2px solid #3498db;padding-top:8px;font-size:16px"><span><strong>Total</strong></span><strong style="color:#7c3aed">$${totalFinal.toLocaleString("es-AR")}</strong></div>
+      ${
+        venta.saldoPendienteARS != null || venta.saldoPendienteUSD != null
+          ? `<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;font-weight:700;color:${textoSaldoRemito(venta.saldoPendienteARS, venta.saldoPendienteUSD) === "Saldo: $0" ? "#166534" : "#b45309"}"><span>${esc(textoSaldoRemito(venta.saldoPendienteARS, venta.saldoPendienteUSD))}</span></div>`
+          : ""
+      }
     </div>
   </div>
   <p style="text-align:center;margin-top:20px;color:#64748b;font-size:11px">Gracias por su compra · Documento válido como comprobante</p>
@@ -330,10 +372,14 @@ export function mensajeRemitoVentaWhatsApp(
     lineas.push("");
     lineas.push("*Pagos:*");
     for (const pago of venta.pagos) {
+      const cuando = String(pago.fecha || "").trim();
       lineas.push(
-        `· ${pago.formaPago || "Pago"} — $${Number(pago.monto || 0).toLocaleString("es-AR")} ${pago.moneda || ""}`.trim()
+        `· ${cuando ? `${cuando} · ` : ""}${pago.formaPago || "Pago"} — ${textoImportePagoRemito(pago)}`.trim()
       );
     }
+  }
+  if (venta.saldoPendienteARS != null || venta.saldoPendienteUSD != null) {
+    lineas.push(textoSaldoRemito(venta.saldoPendienteARS, venta.saldoPendienteUSD));
   }
   if (venta.telefonoComoPago) {
     lineas.push(

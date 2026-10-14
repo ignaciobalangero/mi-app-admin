@@ -16,6 +16,12 @@ import {
  limit,
 } from "firebase/firestore";
 import { deltasSaldoAlAnularPagos } from "@/lib/ventas/eliminarVentaHelpers";
+import {
+  impactoClienteDePago,
+  listarVentasPendientesCliente,
+  sincronizarVentaTrasPago,
+  type VentaPendienteCliente,
+} from "@/lib/ventas/vincularPagoVenta";
 
 interface Props {
  negocioID: string;
@@ -57,6 +63,8 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
  
  // Trabajos pendientes (se usan para marcar PAGADO al guardar, sin mostrar sugerencia)
  const [trabajosPendientes, setTrabajosPendientes] = useState<Trabajo[]>([]);
+ const [ventasPendientes, setVentasPendientes] = useState<VentaPendienteCliente[]>([]);
+ const [ventaIdAplicar, setVentaIdAplicar] = useState("");
 
  const hoyInputDate = () => {
    const d = new Date();
@@ -152,6 +160,28 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
    fetchProveedores();
    fetchCotizacion();
  }, [negocioID]);
+
+ useEffect(() => {
+   if (!negocioID || !cliente) {
+     setVentasPendientes([]);
+     setVentaIdAplicar("");
+     return;
+   }
+   let cancelado = false;
+   listarVentasPendientesCliente(negocioID, cliente)
+     .then((lista) => {
+       if (cancelado) return;
+       setVentasPendientes(lista);
+       setVentaIdAplicar(lista.length === 1 ? lista[0].id : "");
+     })
+     .catch((error) => {
+       console.error("No se pudieron cargar las ventas pendientes:", error);
+       if (!cancelado) setVentasPendientes([]);
+     });
+   return () => {
+     cancelado = true;
+   };
+ }, [negocioID, cliente]);
 
  // Cargar trabajos pendientes cuando se selecciona un cliente
  useEffect(() => {
@@ -258,6 +288,20 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
    const destino = obtenerDestino() || "";
    const { fecha, fechaCompleta } = fechaDesdeInput(fechaPago || hoyInputDate());
 
+   const ventaAplicar =
+     !editandoId && tipoDestino !== "proveedor"
+       ? ventasPendientes.find((v) => v.id === ventaIdAplicar)
+       : undefined;
+   const impacto = ventaAplicar
+     ? impactoClienteDePago({
+         moneda: moneda === "USD" ? "USD" : "ARS",
+         monto,
+         cotizacion,
+         totalARS: ventaAplicar.totalARS,
+         totalUSD: ventaAplicar.totalUSD,
+       })
+     : null;
+
    const nuevoPago = {
      fecha,
      fechaCompleta,
@@ -272,7 +316,14 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
      cotizacion,
      tipo: 'ingreso',
      negocioID,
-     observaciones: ""
+     observaciones: "",
+     ...(ventaAplicar
+       ? {
+           nroVenta: ventaAplicar.nroVenta,
+           ventaId: ventaAplicar.id,
+           detallesPago: impacto?.detallesPago ?? null,
+         }
+       : {}),
    };
 
    try {
@@ -312,12 +363,14 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
       // 🚀 NUEVA FUNCIONALIDAD: Marcar trabajos como pagados
       await marcarTrabajosComoPagados(monto, moneda);
     }
-    // ⭐ NUEVO: Restar pago del saldo del cliente
     await actualizarSaldoCliente(
       cliente,
-      moneda === "ARS" ? -monto : 0,
-      moneda === "USD" ? -monto : 0
+      impacto ? impacto.ars : moneda === "ARS" ? -monto : 0,
+      impacto ? impacto.usd : moneda === "USD" ? -monto : 0
     );
+    if (ventaAplicar) {
+      await sincronizarVentaTrasPago(negocioID, ventaAplicar.id);
+    }
     console.log('💳 Saldo actualizado por pago manual');
      const snap = await getDocs(collection(db, `negocios/${negocioID}/pagos`));
      const pagosActualizados = snap.docs.map((doc) => ({
@@ -494,6 +547,29 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
            </div>
          </Combobox>
        </div>
+
+       {ventasPendientes.length > 0 && !editandoId && tipoDestino !== "proveedor" && (
+         <div className="col-span-1 sm:col-span-2 md:col-span-6">
+           <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+             🧾 Venta del remito
+           </label>
+           <select
+             value={ventaIdAplicar}
+             onChange={(e) => setVentaIdAplicar(e.target.value)}
+             className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm text-[#2c3e50]"
+           >
+             <option value="">No vincular a una venta</option>
+             {ventasPendientes.map((venta) => (
+               <option key={venta.id} value={venta.id}>
+                 {venta.etiqueta}
+               </option>
+             ))}
+           </select>
+           <p className="text-xs text-[#7f8c8d] mt-1">
+             Si la elegís, el remito de esa venta muestra este pago y el saldo que queda.
+           </p>
+         </div>
+       )}
 
        {/* Monto - 2 columnas */}
        <div className="col-span-2">

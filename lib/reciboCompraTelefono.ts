@@ -149,10 +149,11 @@ function textoSaldoPendiente(ars: number, usd: number): string {
 
 function bloqueSaldoPendiente(ars: number, usd: number): string {
   const texto = textoSaldoPendiente(ars, usd);
-  if (!texto) return "";
+  const cancelado = !texto;
+  const linea = texto || "Saldo: $0";
   return `
     <div class="total-wrap">
-      <div class="total saldo">${esc(texto)}</div>
+      <div class="total saldo${cancelado ? " cancelado" : ""}">${esc(linea)}</div>
     </div>`;
 }
 
@@ -348,6 +349,9 @@ ${esc(garantia)}`
     margin-top: 8px;
     border-width: 2px;
     background: #fff8e6;
+  }
+  .total.saldo.cancelado {
+    background: #e8f8ef;
   }
   .legal {
     margin-top: 12px;
