@@ -24,7 +24,7 @@ type Props = {
   onChequeo?: (chequeo: ChequeoImei) => void;
 };
 
-const ORDEN: ConsultaImeiId[] = ["fmi", "icloud", "blacklist"];
+const ORDEN: ConsultaImeiId[] = ["blacklist", "fmi", "icloud"];
 
 const ESTILO: Record<ResultadoConsultaImei["nivel"], { caja: string; marca: string }> = {
   ok: { caja: "border-emerald-200 bg-emerald-50", marca: "text-emerald-800" },

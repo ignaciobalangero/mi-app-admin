@@ -13,7 +13,7 @@ import {
 
 type Props = { negocioID: string };
 
-const ORDEN: ConsultaImeiId[] = ["fmi", "icloud", "blacklist"];
+const ORDEN: ConsultaImeiId[] = ["blacklist", "fmi", "icloud"];
 
 const TEXTO_PLAN: Record<PlanControlImei, string> = {
   off: "Todavía no está en tu suscripción. Pedilo y lo activamos.",
