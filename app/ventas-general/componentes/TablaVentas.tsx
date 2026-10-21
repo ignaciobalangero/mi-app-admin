@@ -6,6 +6,7 @@ import { useRol } from "@/lib/useRol";
 import {
   collection,
   getDocs,
+  getCountFromServer,
   orderBy,
   query,
   doc,
@@ -150,10 +151,10 @@ export default function TablaVentas({ refrescar }: Props) {
       }
 
       if (esNuevaCarga) {
-        const totalSnapshot = await getDocs(
-          query(collection(db, `negocios/${rol.negocioID}/ventasGeneral`))
-        );
-        setTotalVentas(totalSnapshot.size);
+        const negocio = rol.negocioID;
+        void getCountFromServer(collection(db, `negocios/${negocio}/ventasGeneral`))
+          .then((total) => setTotalVentas(total.data().count))
+          .catch(() => undefined);
       }
 
     } catch (error) {

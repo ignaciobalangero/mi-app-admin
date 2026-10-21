@@ -8,6 +8,7 @@ import {
   imprimirHtmlVenta,
   textoImportePagoRemito,
   textoSaldoRemito,
+  totalesVenta,
   type TipoImpresionVenta,
   type VentaImpresion,
 } from "@/lib/impresionVentaGeneral";
@@ -362,22 +363,22 @@ export default function ModalRemitoImpresion({
 
   if (!mostrar || !venta) return null;
 
-  const subtotal =
-    venta.productos?.reduce(
-      (acc, p) => acc + Number(p.precioUnitario || 0) * Number(p.cantidad || 0),
-      0
-    ) || 0;
   const ventaVista = ventaParaDocumento() || venta;
-  const descuentos = ventaVista.telefonoComoPago
-    ? Number(ventaVista.telefonoComoPago.valorPago || 0)
-    : 0;
+  const {
+    subtotal,
+    descuentos,
+    descuentoARS,
+    descuentoUSD,
+    descuentoPorcentaje,
+    totalFinal,
+    cantItems,
+  } = totalesVenta(ventaVista);
+  const etiquetaDescuento =
+    descuentoPorcentaje > 0 ? `Descuento ${descuentoPorcentaje}%` : "Descuento";
   const textoSaldo = saldoRemito
     ? textoSaldoRemito(saldoRemito.saldoPendienteARS, saldoRemito.saldoPendienteUSD)
     : "";
   const saldoCero = textoSaldo === "Saldo: $0";
-  const totalFinal = Math.max(0, subtotal - descuentos);
-  const cantItems =
-    venta.productos?.reduce((a, p) => a + Number(p.cantidad || 0), 0) || 0;
 
   const elegirTipo = (t: TipoModalImpresion) => setTipo(t);
   const esTelefono = esVentaTelefonoParaRecibo(venta);
@@ -654,8 +655,20 @@ export default function ModalRemitoImpresion({
                 </div>
                 {descuentos > 0 && (
                   <div className="flex justify-between text-[#27ae60]">
-                    <span>Descuentos</span>
+                    <span>Parte de pago</span>
                     <strong>-${descuentos.toLocaleString("es-AR")}</strong>
+                  </div>
+                )}
+                {descuentoARS > 0 && (
+                  <div className="flex justify-between text-[#27ae60]">
+                    <span>{etiquetaDescuento}{descuentoUSD > 0 ? " ARS" : ""}</span>
+                    <strong>-${descuentoARS.toLocaleString("es-AR")}</strong>
+                  </div>
+                )}
+                {descuentoUSD > 0 && (
+                  <div className="flex justify-between text-[#27ae60]">
+                    <span>{etiquetaDescuento}{descuentoARS > 0 ? " USD" : ""}</span>
+                    <strong>-USD {descuentoUSD.toLocaleString("es-AR")}</strong>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-base border-t border-[#ecf0f1] pt-2">
@@ -778,8 +791,20 @@ export default function ModalRemitoImpresion({
                   </div>
                   {descuentos > 0 && (
                     <div className="flex justify-between text-[#27ae60] mb-2">
-                      <span>Descuentos</span>
+                      <span>Parte de pago</span>
                       <strong>-${descuentos.toLocaleString("es-AR")}</strong>
+                    </div>
+                  )}
+                  {descuentoARS > 0 && (
+                    <div className="flex justify-between text-[#27ae60] mb-2">
+                      <span>{etiquetaDescuento}{descuentoUSD > 0 ? " ARS" : ""}</span>
+                      <strong>-${descuentoARS.toLocaleString("es-AR")}</strong>
+                    </div>
+                  )}
+                  {descuentoUSD > 0 && (
+                    <div className="flex justify-between text-[#27ae60] mb-2">
+                      <span>{etiquetaDescuento}{descuentoARS > 0 ? " USD" : ""}</span>
+                      <strong>-USD {descuentoUSD.toLocaleString("es-AR")}</strong>
                     </div>
                   )}
                   <div className="flex justify-between border-t-2 border-[#3498db] pt-2 text-lg">

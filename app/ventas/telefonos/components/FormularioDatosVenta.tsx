@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Timestamp, collection, getDocs, addDoc, setDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import { cargarClientesLista } from "@/lib/clientes/listaClientes";
 import { db } from "@/lib/firebase";
 import FormularioCamposVenta from "./FormularioCamposVenta";
 import ModalPago from "./ModalPago";
@@ -149,26 +150,27 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
   }, [form.proveedor, proveedores]);
 
   useEffect(() => {
-    const cargarDatos = async () => {
-      const clientesSnap = await getDocs(collection(db, `negocios/${negocioID}/clientes`));
-      const clientesData = clientesSnap.docs.map((doc) => ({
-        id: doc.id,
-        nombre: doc.data().nombre,
-      }));
-      setClientes(clientesData);
-      const stockSnap = await getDocs(collection(db, `negocios/${negocioID}/stockTelefonos`));
-      const stockData = stockSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setStock(stockData);
-    };
-    cargarDatos();
+    let cancelado = false;
+    void cargarClientesLista(negocioID, (lista) => {
+      if (cancelado) return;
+      setClientes(
+        lista
+          .filter((c) => c.nombre)
+          .map((c) => ({ id: c.id, nombre: c.nombre }))
+      );
+    });
+    void getDocs(collection(db, `negocios/${negocioID}/stockTelefonos`)).then((stockSnap) => {
+      if (cancelado) return;
+      setStock(stockSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
     const clienteNuevo = localStorage.getItem("clienteNuevo");
     if (clienteNuevo) {
       setForm((prev) => ({ ...prev, cliente: clienteNuevo }));
       localStorage.removeItem("clienteNuevo");
     }
+    return () => {
+      cancelado = true;
+    };
   }, [negocioID]);
 
   useEffect(() => {

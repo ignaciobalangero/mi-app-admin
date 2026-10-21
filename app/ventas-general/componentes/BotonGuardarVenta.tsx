@@ -56,6 +56,7 @@ export default function BotonGuardarVenta({
   cotizacion,
   onGuardar,
   desdePedidoTienda = false,
+  descuento,
 }: {
   cliente: string;
   clienteId?: string;
@@ -65,6 +66,7 @@ export default function BotonGuardarVenta({
   pago: any;
   moneda: "ARS" | "USD";
   cotizacion: number;
+  descuento?: { ars: number; usd: number; porcentaje: number };
   onGuardar?: () => void;
   desdePedidoTienda?: boolean;
 }) {
@@ -76,6 +78,23 @@ export default function BotonGuardarVenta({
   const [guardando, setGuardando] = useState(false);
   const guardandoRef = useRef(false);
   const clienteDeBase = Boolean(String(clienteId || "").trim());
+  const aplicarDescuentoGuardado = (brutoARS: number, brutoUSD: number) => {
+    const descARS = Math.min(
+      Math.max(0, brutoARS),
+      Math.max(0, Math.round((Number(descuento?.ars) || 0) * 100) / 100)
+    );
+    const descUSD = Math.min(
+      Math.max(0, brutoUSD),
+      Math.max(0, Math.round((Number(descuento?.usd) || 0) * 100) / 100)
+    );
+    return {
+      descARS,
+      descUSD,
+      totalARS: Math.max(0, Math.round((brutoARS - descARS) * 100) / 100),
+      totalUSD: Math.max(0, Math.round((brutoUSD - descUSD) * 100) / 100),
+      porcentaje: Math.min(100, Math.max(0, Number(descuento?.porcentaje) || 0)),
+    };
+  };
   /** Nombre e ID canónicos resueltos al guardar (ficha Clientes). */
   const clienteCanonRef = useRef<{ nombre: string; id: string }>({
     nombre: "",
@@ -445,6 +464,16 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       totalARS + Math.max(0, Number(totalesExtrasParaPago?.totalARS || 0));
     const totalUSDParaPago =
       totalUSD + Math.max(0, Number(totalesExtrasParaPago?.totalUSD || 0));
+    const hayExtrasEnOperacion =
+      Math.max(0, Number(totalesExtrasParaPago?.totalARS || 0)) > 0 ||
+      Math.max(0, Number(totalesExtrasParaPago?.totalUSD || 0)) > 0;
+    const descOperacion = aplicarDescuentoGuardado(totalARSParaPago, totalUSDParaPago);
+    const totalARSDoc = hayExtrasEnOperacion
+      ? totalARS
+      : Math.max(0, Math.round((totalARS - descOperacion.descARS) * 100) / 100);
+    const totalUSDDoc = hayExtrasEnOperacion
+      ? totalUSD
+      : Math.max(0, Math.round((totalUSD - descOperacion.descUSD) * 100) / 100);
 
     const productosTel = telefonos.map((tel) => {
       const precioCosto = Number(tel.precioCosto || 0);
@@ -480,7 +509,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
 
     const gananciaTotal = productosTel.reduce((acc, p) => acc + p.ganancia, 0);
     // Doc inicial: solo teléfonos (los extras actualizan totales después).
-    const totalAproximado = totalARS + totalUSD * cotizacion;
+    const totalAproximado = totalARSDoc + totalUSDDoc * cotizacion;
 
     const telefonosPagoInput = telefonosRecibidosFinal
       .map((tr) => ({
@@ -500,11 +529,11 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       cotizacion
     );
     // Misma regla que el modal: si hay accesorio ARS en la misma venta, NO convertir ARS→USD.
-    const ventaTelSoloUSD = esVentaSoloUSD(totalARSParaPago, totalUSDParaPago);
+    const ventaTelSoloUSD = esVentaSoloUSD(descOperacion.totalARS, descOperacion.totalUSD);
 
     const saldosTel = calcularSaldosVenta({
-      totalARS: totalARSParaPago,
-      totalUSD: totalUSDParaPago,
+      totalARS: descOperacion.totalARS,
+      totalUSD: descOperacion.totalUSD,
       pagoARS: pagoARS_TelPreview,
       pagoUSD: pagoUSD_TelPreview,
       cotizacion: cotTelPreview,
@@ -605,8 +634,17 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       clienteId: clienteIdOk,
       productos: productosTel,
       total: totalAproximado,
-      totalARS,
-      totalUSD,
+      totalARS: totalARSDoc,
+      totalUSD: totalUSDDoc,
+      ...(!hayExtrasEnOperacion
+        ? {
+            subtotalARS: totalARS,
+            subtotalUSD: totalUSD,
+            descuentoARS: descOperacion.descARS,
+            descuentoUSD: descOperacion.descUSD,
+            descuentoPorcentaje: descOperacion.porcentaje,
+          }
+        : {}),
       gananciaTotal,
       tipo: "telefono",
       observaciones: pagoTelefono.observaciones || observaciones || "",
@@ -624,7 +662,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       cotizacionUsada: cotTelPreview,
     });
 
-    await actualizarSaldoCliente(clienteNombre, totalARS, totalUSD);
+    await actualizarSaldoCliente(clienteNombre, totalARSDoc, totalUSDDoc);
 
     for (let i = 0; i < telefonosRecibidosFinal.length; i++) {
       const tr = telefonosRecibidosFinal[i];
@@ -845,7 +883,12 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     }
 
     // ✅ CALCULAR TOTALES SEPARADOS POR MONEDA
-    const { totalARS, totalUSD } = calcularTotalesSeparados(productosConCodigo);
+    const brutos = calcularTotalesSeparados(productosConCodigo);
+    const desc = aplicarDescuentoGuardado(brutos.totalARS, brutos.totalUSD);
+    const descARS = desc.descARS;
+    const descUSD = desc.descUSD;
+    const totalARS = desc.totalARS;
+    const totalUSD = desc.totalUSD;
     const gananciaTotal = productosConCodigo.reduce((acc, p) => acc + p.ganancia, 0);
     
     // Total aproximado para compatibilidad (convertir USD a ARS)
@@ -976,8 +1019,13 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       fecha,
       observaciones,
       pago: pagoVentaFirestore,
-      totalARS,                    // ✅ Total en pesos
-      totalUSD,                    // ✅ Total en dólares  
+      totalARS,                    // ✅ Total en pesos (ya con descuento)
+      totalUSD,                    // ✅ Total en dólares (ya con descuento)
+      subtotalARS: brutos.totalARS,
+      subtotalUSD: brutos.totalUSD,
+      descuentoARS: descARS,
+      descuentoUSD: descUSD,
+      descuentoPorcentaje: desc.porcentaje,
       total: totalAproximado,      // ✅ Para compatibilidad
       gananciaTotal,
       moneda: totalUSD > 0 && totalARS > 0 ? "DUAL" : totalUSD > 0 ? "USD" : "ARS", // ✅ Detectar tipo
@@ -1251,7 +1299,10 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
               }))
             ];
             
-            const { totalARS: nuevoTotalARS, totalUSD: nuevoTotalUSD } = calcularTotalesSeparados(productosCompletos);
+            const brutosMerge = calcularTotalesSeparados(productosCompletos);
+            const descMerge = aplicarDescuentoGuardado(brutosMerge.totalARS, brutosMerge.totalUSD);
+            const nuevoTotalARS = descMerge.totalARS;
+            const nuevoTotalUSD = descMerge.totalUSD;
             const nuevaGananciaTotal = productosCompletos.reduce((acc, p) => acc + p.ganancia, 0);
             const nuevoTotalAproximado = nuevoTotalARS + (nuevoTotalUSD * cotizacion);
 
@@ -1277,6 +1328,11 @@ if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
               productos: productosCompletos,
               totalARS: nuevoTotalARS,
               totalUSD: nuevoTotalUSD,
+              subtotalARS: brutosMerge.totalARS,
+              subtotalUSD: brutosMerge.totalUSD,
+              descuentoARS: descMerge.descARS,
+              descuentoUSD: descMerge.descUSD,
+              descuentoPorcentaje: descMerge.porcentaje,
               total: nuevoTotalAproximado,
               gananciaTotal: nuevaGananciaTotal,
               moneda: nuevoTotalUSD > 0 && nuevoTotalARS > 0 ? "DUAL" : nuevoTotalUSD > 0 ? "USD" : "ARS",

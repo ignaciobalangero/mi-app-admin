@@ -35,6 +35,9 @@ export type VentaImpresion = {
     modelo?: string;
     valorPago?: number;
   };
+  descuentoARS?: number;
+  descuentoUSD?: number;
+  descuentoPorcentaje?: number;
   /** Firma digital del cliente para el recibo de compra. */
   firmaClienteUrl?: string;
 };
@@ -94,7 +97,7 @@ export function descripcionProductoVenta(p: LineaProductoVenta): string {
   return partes.join(" ").trim() || "—";
 }
 
-function totalesVenta(venta: VentaImpresion) {
+export function totalesVenta(venta: VentaImpresion) {
   const subtotal =
     venta.productos?.reduce(
       (acc, p) => acc + Number(p.precioUnitario || 0) * Number(p.cantidad || 0),
@@ -103,10 +106,45 @@ function totalesVenta(venta: VentaImpresion) {
   const descuentos = venta.telefonoComoPago
     ? Number(venta.telefonoComoPago.valorPago || 0)
     : 0;
-  const totalFinal = Math.max(0, subtotal - descuentos);
+  const descuentoARS = Math.max(0, Number(venta.descuentoARS) || 0);
+  const descuentoUSD = Math.max(0, Number(venta.descuentoUSD) || 0);
+  const descuentoPorcentaje = Math.max(0, Number(venta.descuentoPorcentaje) || 0);
+  const totalFinal = Math.max(0, subtotal - descuentos - descuentoARS - descuentoUSD);
   const cantItems =
     venta.productos?.reduce((a, p) => a + Number(p.cantidad || 0), 0) || 0;
-  return { subtotal, descuentos, totalFinal, cantItems };
+  return {
+    subtotal,
+    descuentos,
+    descuentoARS,
+    descuentoUSD,
+    descuentoPorcentaje,
+    totalFinal,
+    cantItems,
+  };
+}
+
+function etiquetaDescuento(porcentaje: number) {
+  return porcentaje > 0 ? `Descuento ${porcentaje}%` : "Descuento";
+}
+
+function htmlFilasDescuentoComercial(
+  descuentoARS: number,
+  descuentoUSD: number,
+  descuentoPorcentaje: number
+): string {
+  const etiqueta = etiquetaDescuento(descuentoPorcentaje);
+  const filas: string[] = [];
+  if (descuentoARS > 0) {
+    filas.push(
+      `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:6px"><span>${etiqueta}${descuentoUSD > 0 ? " ARS" : ""}</span><strong>-$${descuentoARS.toLocaleString("es-AR")}</strong></div>`
+    );
+  }
+  if (descuentoUSD > 0) {
+    filas.push(
+      `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:6px"><span>${etiqueta}${descuentoARS > 0 ? " USD" : ""}</span><strong>-USD ${descuentoUSD.toLocaleString("es-AR")}</strong></div>`
+    );
+  }
+  return filas.join("");
 }
 
 export function textoImportePagoRemito(p: {
@@ -141,7 +179,7 @@ export function htmlImpresionVentaFormal(
   venta: VentaImpresion,
   negocio: { nombre?: string; direccion?: string; telefono?: string }
 ): string {
-  const { subtotal, descuentos, totalFinal } = totalesVenta(venta);
+  const { subtotal, descuentos, descuentoARS, descuentoUSD, descuentoPorcentaje, totalFinal } = totalesVenta(venta);
   const nro = venta.nroVenta || venta.id?.slice(-6) || "—";
 
   const filas =
@@ -222,7 +260,8 @@ export function htmlImpresionVentaFormal(
   <div style="margin-top:16px;display:flex;justify-content:flex-end">
     <div style="width:260px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
       <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Subtotal</span><strong>$${subtotal.toLocaleString("es-AR")}</strong></div>
-      ${descuentos > 0 ? `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:6px"><span>Descuentos</span><strong>-$${descuentos.toLocaleString("es-AR")}</strong></div>` : ""}
+      ${descuentos > 0 ? `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:6px"><span>Parte de pago</span><strong>-$${descuentos.toLocaleString("es-AR")}</strong></div>` : ""}
+      ${htmlFilasDescuentoComercial(descuentoARS, descuentoUSD, descuentoPorcentaje)}
       <div style="display:flex;justify-content:space-between;border-top:2px solid #3498db;padding-top:8px;font-size:16px"><span><strong>Total</strong></span><strong style="color:#7c3aed">$${totalFinal.toLocaleString("es-AR")}</strong></div>
       ${
         venta.saldoPendienteARS != null || venta.saldoPendienteUSD != null
@@ -239,7 +278,7 @@ export function htmlImpresionVentaChecklist(
   venta: VentaImpresion,
   negocio: { nombre?: string }
 ): string {
-  const { cantItems, subtotal, descuentos, totalFinal } = totalesVenta(venta);
+  const { cantItems, subtotal, descuentos, descuentoARS, descuentoUSD, descuentoPorcentaje, totalFinal } = totalesVenta(venta);
   const nro = venta.nroVenta || venta.id?.slice(-6) || "—";
 
   const lineas =
@@ -263,7 +302,17 @@ export function htmlImpresionVentaChecklist(
   const totalesHTML = `
     <div class="totales">
       <div class="tot-row"><span>Subtotal</span><strong>$${subtotal.toLocaleString("es-AR")}</strong></div>
-      ${descuentos > 0 ? `<div class="tot-row desc"><span>Descuentos</span><strong>-$${descuentos.toLocaleString("es-AR")}</strong></div>` : ""}
+      ${descuentos > 0 ? `<div class="tot-row desc"><span>Parte de pago</span><strong>-$${descuentos.toLocaleString("es-AR")}</strong></div>` : ""}
+      ${
+        descuentoARS > 0
+          ? `<div class="tot-row desc"><span>${etiquetaDescuento(descuentoPorcentaje)}${descuentoUSD > 0 ? " ARS" : ""}</span><strong>-$${descuentoARS.toLocaleString("es-AR")}</strong></div>`
+          : ""
+      }
+      ${
+        descuentoUSD > 0
+          ? `<div class="tot-row desc"><span>${etiquetaDescuento(descuentoPorcentaje)}${descuentoARS > 0 ? " USD" : ""}</span><strong>-USD ${descuentoUSD.toLocaleString("es-AR")}</strong></div>`
+          : ""
+      }
       <div class="tot-row tot-final"><span>Total</span><strong>$${totalFinal.toLocaleString("es-AR")}</strong></div>
     </div>`;
 
@@ -334,7 +383,7 @@ export function mensajeRemitoVentaWhatsApp(
   venta: VentaImpresion,
   negocio: { nombre?: string } = {}
 ): string {
-  const { subtotal, descuentos, totalFinal } = totalesVenta(venta);
+  const { subtotal, descuentos, descuentoARS, descuentoUSD, descuentoPorcentaje, totalFinal } = totalesVenta(venta);
   const nro = venta.nroVenta || venta.id?.slice(-6) || "—";
   const nombreNegocio = String(negocio.nombre || "").trim();
   const lineas: string[] = [];
@@ -364,7 +413,14 @@ export function mensajeRemitoVentaWhatsApp(
   lineas.push("");
   lineas.push(`Subtotal: $${subtotal.toLocaleString("es-AR")}`);
   if (descuentos > 0) {
-    lineas.push(`Descuentos/pagos: -$${descuentos.toLocaleString("es-AR")}`);
+    lineas.push(`Parte de pago: -$${descuentos.toLocaleString("es-AR")}`);
+  }
+  const etiqueta = etiquetaDescuento(descuentoPorcentaje);
+  if (descuentoARS > 0) {
+    lineas.push(`${etiqueta}${descuentoUSD > 0 ? " ARS" : ""}: -$${descuentoARS.toLocaleString("es-AR")}`);
+  }
+  if (descuentoUSD > 0) {
+    lineas.push(`${etiqueta}${descuentoARS > 0 ? " USD" : ""}: -USD ${descuentoUSD.toLocaleString("es-AR")}`);
   }
   lineas.push(`*Total: $${totalFinal.toLocaleString("es-AR")}*`);
 

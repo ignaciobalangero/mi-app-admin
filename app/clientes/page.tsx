@@ -3,24 +3,19 @@
 import { useEffect, useState, useMemo } from "react";
 import Header from "@/app/Header";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, getDoc, deleteDoc, query, orderBy } from "firebase/firestore";
+import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import Link from "next/link";
+import {
+  cargarClientesLista,
+  reemplazarCacheClientes,
+  type ClienteLista,
+} from "@/lib/clientes/listaClientes";
 
-interface Cliente {
-  id: string;
-  nombre: string;
-  telefono: string;
-  dni: string;
-  direccion: string;
-  email: string;
-}
+type Cliente = ClienteLista;
 
-// Configuración del caché
-const CACHE_KEY_PREFIX = "clientes_cache_";
-const CACHE_TIMESTAMP_KEY = "clientes_cache_timestamp_";
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutos (ajustable)
+const POR_PAGINA = 40;
 
 export default function ListaClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -30,6 +25,7 @@ export default function ListaClientes() {
   const [clienteAEliminar, setClienteAEliminar] = useState<Cliente | null>(null);
   const [cargando, setCargando] = useState(true);
   const [usandoCache, setUsandoCache] = useState(false);
+  const [pagina, setPagina] = useState(1);
 
   useEffect(() => {
     const obtenerNegocio = async () => {
@@ -48,67 +44,29 @@ export default function ListaClientes() {
 
   useEffect(() => {
     if (!negocioID) return;
-
-    const cacheKey = CACHE_KEY_PREFIX + negocioID;
-    const timestampKey = CACHE_TIMESTAMP_KEY + negocioID;
+    let cancelado = false;
 
     const cargarClientes = async () => {
-      // 1. Intentar cargar desde caché
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        const timestamp = localStorage.getItem(timestampKey);
-        
-        if (cached && timestamp) {
-          const ahora = Date.now();
-          const tiempoCache = parseInt(timestamp);
-          
-          // Si el caché es válido (menos de 10 minutos)
-          if (ahora - tiempoCache < CACHE_DURATION) {
-            const clientesCache = JSON.parse(cached);
-            setClientes(clientesCache);
-            setUsandoCache(true);
-            setCargando(false);
-            console.log(`✅ ${clientesCache.length} clientes desde caché (${Math.round((ahora - tiempoCache) / 1000)}s antigüedad)`);
-            return; // NO cargar desde Firebase
-          } else {
-            console.log(`⏰ Caché expirado (${Math.round((ahora - tiempoCache) / 60000)} minutos)`);
-          }
-        }
-      } catch (error) {
-        console.error("Error leyendo caché:", error);
-      }
-
-      // 2. Si no hay caché válido, cargar desde Firebase
       setCargando(true);
-      setUsandoCache(false);
-
       try {
-        const q = query(
-          collection(db, `negocios/${negocioID}/clientes`),
-          orderBy("nombre")
-        );
-        
-        const snapshot = await getDocs(q);
-        const lista: Cliente[] = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })) as Cliente[];
-        
-        // Guardar en caché
-        localStorage.setItem(cacheKey, JSON.stringify(lista));
-        localStorage.setItem(timestampKey, Date.now().toString());
-        
-        setClientes(lista);
-        console.log(`🔥 ${lista.length} clientes desde Firebase (${snapshot.size} lecturas)`);
+        await cargarClientesLista(negocioID, (lista) => {
+          if (cancelado) return;
+          setClientes(lista);
+          setCargando(false);
+        });
+        if (!cancelado) setUsandoCache(false);
       } catch (error) {
         console.error("Error cargando clientes:", error);
-        alert("Error al cargar clientes. Por favor, recarga la página.");
+        if (!cancelado) alert("Error al cargar clientes. Por favor, recarga la página.");
       } finally {
-        setCargando(false);
+        if (!cancelado) setCargando(false);
       }
     };
 
-    cargarClientes();
+    void cargarClientes();
+    return () => {
+      cancelado = true;
+    };
   }, [negocioID]);
 
   // Filtrado optimizado
@@ -121,6 +79,13 @@ export default function ListaClientes() {
     );
   }, [clientes, filtro]);
 
+  const totalPaginas = Math.max(1, Math.ceil(clientesFiltrados.length / POR_PAGINA));
+  const paginaSegura = Math.min(pagina, totalPaginas);
+  const clientesVisibles = clientesFiltrados.slice(
+    (paginaSegura - 1) * POR_PAGINA,
+    paginaSegura * POR_PAGINA
+  );
+
   const eliminarCliente = async () => {
     if (!clienteAEliminar || !negocioID) return;
     
@@ -130,11 +95,7 @@ export default function ListaClientes() {
       // Actualizar estado y caché local
       const nuevosClientes = clientes.filter((c) => c.id !== clienteAEliminar.id);
       setClientes(nuevosClientes);
-      
-      const cacheKey = CACHE_KEY_PREFIX + negocioID;
-      const timestampKey = CACHE_TIMESTAMP_KEY + negocioID;
-      localStorage.setItem(cacheKey, JSON.stringify(nuevosClientes));
-      localStorage.setItem(timestampKey, Date.now().toString());
+      reemplazarCacheClientes(negocioID, nuevosClientes);
       
       setClienteAEliminar(null);
       console.log(`🗑️ Cliente eliminado. Caché actualizado.`);
@@ -151,25 +112,8 @@ export default function ListaClientes() {
     setUsandoCache(false);
     
     try {
-      const q = query(
-        collection(db, `negocios/${negocioID}/clientes`),
-        orderBy("nombre")
-      );
-      
-      const snapshot = await getDocs(q);
-      const lista: Cliente[] = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })) as Cliente[];
-      
-      // Actualizar caché
-      const cacheKey = CACHE_KEY_PREFIX + negocioID;
-      const timestampKey = CACHE_TIMESTAMP_KEY + negocioID;
-      localStorage.setItem(cacheKey, JSON.stringify(lista));
-      localStorage.setItem(timestampKey, Date.now().toString());
-      
+      const lista = await cargarClientesLista(negocioID, undefined, true);
       setClientes(lista);
-      console.log(`🔄 ${lista.length} clientes recargados manualmente`);
     } catch (error) {
       console.error("Error recargando:", error);
       alert("Error al recargar clientes");
@@ -225,7 +169,10 @@ export default function ListaClientes() {
                   type="text"
                   placeholder="🔍 Buscar cliente por nombre..."
                   value={filtro}
-                  onChange={(e) => setFiltro(e.target.value)}
+                  onChange={(e) => {
+                    setFiltro(e.target.value);
+                    setPagina(1);
+                  }}
                   className="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
               </div>
@@ -338,8 +285,8 @@ export default function ListaClientes() {
                     </tr>
                   </thead>
                   <tbody>
-                    {clientesFiltrados.length > 0 ? (
-                      clientesFiltrados.map((cliente, index) => {
+                    {clientesVisibles.length > 0 ? (
+                      clientesVisibles.map((cliente, index) => {
                         const isEven = index % 2 === 0;
                         return (
                           <tr 
@@ -417,11 +364,27 @@ export default function ListaClientes() {
                       <span className="text-white text-sm font-bold">📊</span>
                     </div>
                     <span className="text-sm font-semibold text-[#2c3e50]">
-                      {filtro ? `Mostrando ${clientesFiltrados.length} de ${clientes.length}` : `Total: ${clientes.length} clientes`}
+                      {clientesFiltrados.length} clientes · página {paginaSegura} de {totalPaginas}
                     </span>
                   </div>
                   
-                  <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={paginaSegura <= 1}
+                      onClick={() => setPagina(paginaSegura - 1)}
+                      className="px-3 py-1.5 rounded-lg border border-[#bdc3c7] text-sm font-semibold text-[#2c3e50] disabled:opacity-40"
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      type="button"
+                      disabled={paginaSegura >= totalPaginas}
+                      onClick={() => setPagina(paginaSegura + 1)}
+                      className="px-3 py-1.5 rounded-lg border border-[#bdc3c7] text-sm font-semibold text-[#2c3e50] disabled:opacity-40"
+                    >
+                      Siguiente
+                    </button>
                     {filtro && (
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-[#7f8c8d]">Filtrado por:</span>

@@ -9,6 +9,7 @@ import BotonGuardarVenta from "./BotonGuardarVenta";
 import SelectorProductoVentaGeneral from "./SelectorProductoVentaGeneral";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs } from "firebase/firestore";
+import { cargarClientesLista } from "@/lib/clientes/listaClientes";
 import { Combobox } from "@headlessui/react";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import { useCargarPedidoTiendaEnVenta } from "@/lib/useCargarPedidoTiendaEnVenta";
@@ -19,7 +20,7 @@ import {
   STORAGE_PEDIDO_TIENDA_ACTIVO,
 } from "@/lib/usePedidosTiendaPendientesVenta";
 import type { PedidoTienda } from "@/lib/tiendaClienteTypes";
-import { calcularSaldosVenta, cotizacionEfectiva } from "@/lib/ventas/pagoDualHelpers";
+import { aplicarDescuentoVenta, calcularSaldosVenta, cotizacionEfectiva } from "@/lib/ventas/pagoDualHelpers";
 import {
   normalizarVentaTelefonoPendiente,
   parsearTelefonosComoPagoLS,
@@ -111,19 +112,12 @@ export default function ModalVenta({
           localStorage.removeItem("ventaModalTemporal");
           
           if (rol?.negocioID) {
-            const recargarClientes = async () => {
-              const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/clientes`));
-              const lista = snap.docs
-                .map((d) => ({
-                  id: d.id,
-                  nombre: String(d.data()?.nombre ?? "").trim(),
-                }))
-                .filter((c) => c.nombre);
-              setListaClientes(lista);
-              const hit = lista.find((c) => c.nombre === clienteNuevo);
+            void cargarClientesLista(rol.negocioID, (lista) => {
+              const nombres = lista.filter((c) => c.nombre);
+              setListaClientes(nombres);
+              const hit = nombres.find((c) => c.nombre === clienteNuevo);
               if (hit) setClienteId(hit.id);
-            };
-            recargarClientes();
+            }, true);
           }
         }
       } catch (error) {
@@ -237,6 +231,10 @@ export default function ModalVenta({
   const [clienteId, setClienteId] = useState("");
   const [queryCliente, setQueryCliente] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
+  const [modoDescuento, setModoDescuento] = useState<"ninguno" | "porcentaje" | "monto">("ninguno");
+  const [descuentoPct, setDescuentoPct] = useState("");
+  const [descuentoMontoARS, setDescuentoMontoARS] = useState("");
+  const [descuentoMontoUSD, setDescuentoMontoUSD] = useState("");
 
   // ✅ FUNCIÓN PARA LIMPIAR DATOS TEMPORALES
   const limpiarDatosTemporales = () => {
@@ -399,18 +397,9 @@ export default function ModalVenta({
 
   useEffect(() => {
     if (!rol?.negocioID) return;
-    const cargarClientes = async () => {
-      const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/clientes`));
-      setListaClientes(
-        snap.docs
-          .map((d) => ({
-            id: d.id,
-            nombre: String(d.data()?.nombre ?? "").trim(),
-          }))
-          .filter((c) => c.nombre)
-      );
-    };
-    cargarClientes();
+    void cargarClientesLista(rol.negocioID, (lista) => {
+      setListaClientes(lista.filter((c) => c.nombre));
+    });
   }, [rol?.negocioID]);
 
   // Si hay nombre (teléfono/pedido/tipeo exacto) pero aún no hay ID, vincularlo con Clientes.
@@ -463,7 +452,19 @@ export default function ModalVenta({
     return { totalARS, totalUSD };
   };
 
-  const { totalARS, totalUSD } = calcularTotales();
+  const brutos = calcularTotales();
+  const descuentoAplicado = aplicarDescuentoVenta({
+    totalARS: brutos.totalARS,
+    totalUSD: brutos.totalUSD,
+    modo: modoDescuento,
+    porcentaje: Number(descuentoPct) || 0,
+    montoARS: Number(descuentoMontoARS) || 0,
+    montoUSD: Number(descuentoMontoUSD) || 0,
+  });
+  const totalARS = descuentoAplicado.totalARS;
+  const totalUSD = descuentoAplicado.totalUSD;
+  const brutoARS = descuentoAplicado.subtotalARS;
+  const brutoUSD = descuentoAplicado.subtotalUSD;
 
   // ✅ CÁLCULOS DUALES DE PAGOS
   const pagoARS = Number(pago.monto || 0);
@@ -655,23 +656,28 @@ export default function ModalVenta({
                         className="absolute left-0 right-0 top-full mt-1 w-full bg-white border border-[#bdc3c7] rounded-lg max-h-60 overflow-y-auto shadow-2xl"
                         style={{ zIndex: 70 }}
                       >
-                        {listaClientes
-                          .filter((c) =>
-                            c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
-                          )
-                          .map((c) => (
-                            <Combobox.Option
-                              key={c.id}
-                              value={c}
-                              className={({ active }) =>
-                                `px-3 py-2 cursor-pointer transition-colors text-[#2c3e50] text-sm ${
-                                  active ? "bg-[#3498db] text-white" : "hover:bg-[#ecf0f1]"
-                                }`
-                              }
-                            >
-                              {c.nombre}
-                            </Combobox.Option>
-                          ))}
+                        {queryCliente.trim().length < 2 ? (
+                          <p className="px-3 py-2 text-sm text-[#7f8c8d]">Escribí al menos 2 letras del nombre.</p>
+                        ) : (
+                          listaClientes
+                            .filter((c) =>
+                              c.nombre.toLowerCase().includes(queryCliente.trim().toLowerCase())
+                            )
+                            .slice(0, 25)
+                            .map((c) => (
+                              <Combobox.Option
+                                key={c.id}
+                                value={c}
+                                className={({ active }) =>
+                                  `px-3 py-2 cursor-pointer transition-colors text-[#2c3e50] text-sm ${
+                                    active ? "bg-[#3498db] text-white" : "hover:bg-[#ecf0f1]"
+                                  }`
+                                }
+                              >
+                                {c.nombre}
+                              </Combobox.Option>
+                            ))
+                        )}
                       </Combobox.Options>
                     </div>
                   </Combobox>
@@ -1181,10 +1187,86 @@ export default function ModalVenta({
             <div className="bg-white rounded-lg border border-[#bdc3c7] p-2 sm:p-3 mb-2 sm:mb-3 shadow-sm">
               
               {/* Sistema dual: ARS y USD por separado */}
+              <div className="mb-2 sm:mb-3 flex flex-wrap items-end gap-2">
+                <div className="min-w-[9rem]">
+                  <label className="block text-xs font-semibold text-[#2c3e50] mb-1">Descuento</label>
+                  <select
+                    value={modoDescuento}
+                    onChange={(e) =>
+                      setModoDescuento(e.target.value as "ninguno" | "porcentaje" | "monto")
+                    }
+                    className="w-full border border-[#bdc3c7] rounded-lg px-2 py-1.5 text-sm bg-white"
+                  >
+                    <option value="ninguno">Sin descuento</option>
+                    <option value="porcentaje">Porcentaje</option>
+                    <option value="monto">Monto</option>
+                  </select>
+                </div>
+                {modoDescuento === "porcentaje" && (
+                  <div>
+                    <label className="block text-xs text-[#7f8c8d] mb-1">%</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={descuentoPct}
+                      onChange={(e) => setDescuentoPct(e.target.value)}
+                      placeholder="0"
+                      className="w-24 border border-[#bdc3c7] rounded-lg px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                )}
+                {modoDescuento === "monto" && brutoARS > 0 && (
+                  <div>
+                    <label className="block text-xs text-[#7f8c8d] mb-1">Pesos</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={descuentoMontoARS}
+                      onChange={(e) => setDescuentoMontoARS(e.target.value)}
+                      placeholder="0"
+                      className="w-32 border border-[#bdc3c7] rounded-lg px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                )}
+                {modoDescuento === "monto" && brutoUSD > 0 && (
+                  <div>
+                    <label className="block text-xs text-[#7f8c8d] mb-1">Dólares</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={descuentoMontoUSD}
+                      onChange={(e) => setDescuentoMontoUSD(e.target.value)}
+                      placeholder="0"
+                      className="w-32 border border-[#bdc3c7] rounded-lg px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                )}
+                {(descuentoAplicado.descuentoARS > 0 || descuentoAplicado.descuentoUSD > 0) && (
+                  <p className="text-xs text-[#27ae60] pb-1">
+                    {descuentoAplicado.descuentoPorcentaje > 0
+                      ? `${descuentoAplicado.descuentoPorcentaje}% · `
+                      : ""}
+                    {descuentoAplicado.descuentoARS > 0
+                      ? `-$${descuentoAplicado.descuentoARS.toLocaleString("es-AR")} ARS`
+                      : ""}
+                    {descuentoAplicado.descuentoARS > 0 && descuentoAplicado.descuentoUSD > 0
+                      ? " · "
+                      : ""}
+                    {descuentoAplicado.descuentoUSD > 0
+                      ? `-USD ${descuentoAplicado.descuentoUSD.toLocaleString("es-AR")}`
+                      : ""}
+                  </p>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
                 
                 {/* Columna ARS */}
-                {totalARS > 0 && (
+                {brutoARS > 0 && (
                   <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-2.5 sm:p-4 border border-green-200">
                     <div className="flex justify-between items-center mb-2 sm:mb-3">
                       <div>
@@ -1198,6 +1280,12 @@ export default function ModalVenta({
                         <div className="text-lg sm:text-2xl font-bold text-green-800">
                           ${totalARS.toLocaleString("es-AR")} ARS
                         </div>
+                        {descuentoAplicado.descuentoARS > 0 && (
+                          <div className="text-xs text-green-700">
+                            Antes ${brutoARS.toLocaleString("es-AR")} · desc. -$
+                            {descuentoAplicado.descuentoARS.toLocaleString("es-AR")}
+                          </div>
+                        )}
                       </div>
                     </div>
                     
@@ -1233,7 +1321,7 @@ export default function ModalVenta({
                 )}
 
                 {/* Columna USD */}
-                {totalUSD > 0 && (
+                {brutoUSD > 0 && (
                   <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-2.5 sm:p-4 border border-blue-200">
                     <div className="flex justify-between items-center mb-2 sm:mb-3">
                       <div>
@@ -1247,6 +1335,12 @@ export default function ModalVenta({
                         <div className="text-lg sm:text-2xl font-bold text-blue-800">
                           USD ${totalUSD.toLocaleString("es-AR")}
                         </div>
+                        {descuentoAplicado.descuentoUSD > 0 && (
+                          <div className="text-xs text-blue-700">
+                            Antes USD ${brutoUSD.toLocaleString("es-AR")} · desc. -USD{" "}
+                            {descuentoAplicado.descuentoUSD.toLocaleString("es-AR")}
+                          </div>
+                        )}
                         <div className="text-sm text-blue-600">
                           ≈ ${(totalUSD * cotizacionManual).toLocaleString("es-AR")} ARS
                         </div>
@@ -1317,7 +1411,7 @@ export default function ModalVenta({
                 )}
                 
                 {/* Si no hay productos, mostrar mensaje */}
-                {totalARS === 0 && totalUSD === 0 && (
+                {brutoARS === 0 && brutoUSD === 0 && (
                   <div className="col-span-full bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
                     <div className="text-gray-500 text-sm">
                       Agregue productos para ver el resumen de totales
@@ -1387,6 +1481,11 @@ export default function ModalVenta({
                 cliente={cliente}
                 clienteId={clienteId}
                 productos={productos}
+                descuento={{
+                  ars: descuentoAplicado.descuentoARS,
+                  usd: descuentoAplicado.descuentoUSD,
+                  porcentaje: descuentoAplicado.descuentoPorcentaje,
+                }}
                 fecha={new Date().toLocaleDateString("es-AR")}
                 observaciones={observaciones}
                 desdePedidoTienda={desdePedidoTienda}

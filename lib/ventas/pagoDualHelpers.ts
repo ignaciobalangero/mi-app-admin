@@ -184,6 +184,66 @@ export function resolverLineasPago(pago: {
   return out;
 }
 
+export function aplicarDescuentoVenta(params: {
+  totalARS: number;
+  totalUSD: number;
+  modo: "ninguno" | "porcentaje" | "monto";
+  porcentaje?: number;
+  montoARS?: number;
+  montoUSD?: number;
+}): {
+  subtotalARS: number;
+  subtotalUSD: number;
+  descuentoARS: number;
+  descuentoUSD: number;
+  descuentoPorcentaje: number;
+  totalARS: number;
+  totalUSD: number;
+} {
+  const subtotalARS = Math.max(0, Number(params.totalARS) || 0);
+  const subtotalUSD = Math.max(0, Number(params.totalUSD) || 0);
+  const redondear = (n: number) => Math.round(Math.max(0, n) * 100) / 100;
+
+  if (params.modo === "porcentaje") {
+    const porcentaje = Math.min(100, Math.max(0, Number(params.porcentaje) || 0));
+    const descuentoARS = redondear((subtotalARS * porcentaje) / 100);
+    const descuentoUSD = redondear((subtotalUSD * porcentaje) / 100);
+    return {
+      subtotalARS,
+      subtotalUSD,
+      descuentoARS,
+      descuentoUSD,
+      descuentoPorcentaje: porcentaje,
+      totalARS: redondear(subtotalARS - descuentoARS),
+      totalUSD: redondear(subtotalUSD - descuentoUSD),
+    };
+  }
+
+  if (params.modo === "monto") {
+    const descuentoARS = redondear(Math.min(subtotalARS, Number(params.montoARS) || 0));
+    const descuentoUSD = redondear(Math.min(subtotalUSD, Number(params.montoUSD) || 0));
+    return {
+      subtotalARS,
+      subtotalUSD,
+      descuentoARS,
+      descuentoUSD,
+      descuentoPorcentaje: 0,
+      totalARS: redondear(subtotalARS - descuentoARS),
+      totalUSD: redondear(subtotalUSD - descuentoUSD),
+    };
+  }
+
+  return {
+    subtotalARS,
+    subtotalUSD,
+    descuentoARS: 0,
+    descuentoUSD: 0,
+    descuentoPorcentaje: 0,
+    totalARS: redondear(subtotalARS),
+    totalUSD: redondear(subtotalUSD),
+  };
+}
+
 export function formaPagoDocumento(
   forma: string | undefined,
   moneda: "ARS" | "USD"

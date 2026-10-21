@@ -122,21 +122,24 @@ export default function FormularioCamposVenta({
                 spellCheck={false}
               />
               <Combobox.Options className="absolute z-10 w-full bg-white border border-gray-400 rounded mt-1 max-h-60 overflow-y-auto text-sm shadow-lg">
-                {clientes
-                  .filter((c) =>
-                    c.nombre.toLowerCase().includes(queryCliente.toLowerCase())
-                  )
-                  .map((c) => (
-                    <Combobox.Option
-                      key={c.id}
-                      value={c}
-                      className={({ active }) =>
-                        `px-4 py-2 cursor-pointer ${active ? "bg-blue-600 text-white" : "text-black"}`
-                      }
-                    >
-                      {c.nombre}
-                    </Combobox.Option>
-                  ))}
+                {queryCliente.trim().length < 2 ? (
+                  <p className="px-4 py-2 text-gray-500">Escribí al menos 2 letras del nombre.</p>
+                ) : (
+                  clientes
+                    .filter((c) => c.nombre.toLowerCase().includes(queryCliente.trim().toLowerCase()))
+                    .slice(0, 25)
+                    .map((c) => (
+                      <Combobox.Option
+                        key={c.id}
+                        value={c}
+                        className={({ active }) =>
+                          `px-4 py-2 cursor-pointer ${active ? "bg-blue-600 text-white" : "text-black"}`
+                        }
+                      >
+                        {c.nombre}
+                      </Combobox.Option>
+                    ))
+                )}
               </Combobox.Options>
             </div>
           </Combobox>
