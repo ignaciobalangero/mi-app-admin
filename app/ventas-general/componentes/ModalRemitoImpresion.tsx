@@ -461,11 +461,7 @@ export default function ModalRemitoImpresion({
 
         <div className="overflow-y-auto p-6 bg-white flex-1">
           {!tipo ? (
-            <div
-              className={`grid grid-cols-1 gap-4 max-w-3xl mx-auto py-4 ${
-                esTelefono ? "md:grid-cols-3" : "md:grid-cols-2"
-              }`}
-            >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto py-4">
               <button
                 type="button"
                 onClick={() => elegirTipo("formal")}
@@ -492,22 +488,22 @@ export default function ModalRemitoImpresion({
                   Lista compacta con casilla, precios y total. Una línea por producto para preparar pedidos de repuestos.
                 </p>
               </button>
-              {esTelefono && (
-                <button
-                  type="button"
-                  onClick={() => elegirTipo("recibo")}
-                  className="text-left p-6 rounded-xl border-2 border-[#2c3e50] hover:bg-[#ecf0f1] transition-colors group"
-                >
-                  <div className="text-3xl mb-3">🧾</div>
-                  <h3 className="font-bold text-[#2c3e50] text-lg mb-2 group-hover:text-[#1a252f]">
-                    Recibo de compra
-                  </h3>
-                  <p className="text-sm text-[#7f8c8d]">
-                    Recibo con logo, garantía, IMEI, parte de pago y pagos de la venta de teléfono.
-                  </p>
-                </button>
-              )}
-              <p className={`${esTelefono ? "md:col-span-3" : "md:col-span-2"} text-center text-xs text-[#95a5a6]`}>
+              <button
+                type="button"
+                onClick={() => elegirTipo("recibo")}
+                className="text-left p-6 rounded-xl border-2 border-[#2c3e50] hover:bg-[#ecf0f1] transition-colors group"
+              >
+                <div className="text-3xl mb-3">🧾</div>
+                <h3 className="font-bold text-[#2c3e50] text-lg mb-2 group-hover:text-[#1a252f]">
+                  Recibo de compra
+                </h3>
+                <p className="text-sm text-[#7f8c8d]">
+                  {esTelefono
+                    ? "Recibo con logo, garantía, IMEI, parte de pago y pagos. Se puede copiar para mandárselo al cliente."
+                    : "Recibo de la venta, con logo, productos y pagos. Se puede copiar para mandárselo al cliente aunque no sea un teléfono."}
+                </p>
+              </button>
+              <p className="md:col-span-3 text-center text-xs text-[#95a5a6]">
                 Pedido {venta.nroVenta || venta.id?.slice(-6)} · {venta.cliente} · {cantItems} ítems
               </p>
             </div>
@@ -516,8 +512,9 @@ export default function ModalRemitoImpresion({
               <div className="text-5xl">🧾</div>
               <h3 className="text-xl font-bold text-[#2c3e50]">Recibo de compra</h3>
               <p className="text-sm text-[#7f8c8d]">
-                Se genera el comprobante de la venta de teléfono con los datos del negocio,
-                el cliente, los equipos, la parte de pago y los pagos cargados.
+                {esTelefono
+                  ? "Se genera el comprobante de la venta de teléfono con los datos del negocio, el cliente, los equipos, la parte de pago y los pagos cargados."
+                  : "Se genera el comprobante de la venta con los datos del negocio, el cliente, los productos y los pagos. Copialo para mandárselo al cliente."}
               </p>
               <p className="text-xs text-[#95a5a6]">
                 Pedido {venta.nroVenta || venta.id?.slice(-6)} · {venta.cliente}

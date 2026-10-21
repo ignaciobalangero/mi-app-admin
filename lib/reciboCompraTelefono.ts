@@ -37,6 +37,9 @@ export type ReciboCompraDatos = {
   /** Deuda que queda después de pagos y equipos en parte de pago. */
   saldoPendienteARS?: number;
   saldoPendienteUSD?: number;
+  descuentoARS?: number;
+  descuentoUSD?: number;
+  descuentoPorcentaje?: number;
   /** URL o data URL de la firma digital del cliente. */
   firmaClienteUrl?: string;
   negocio: {
@@ -77,31 +80,72 @@ function precioCelda(linea: LineaReciboCompra): string {
   return `${moneda} ${fmtMonto(linea.precio)}`;
 }
 
-function filasProductos(lineas: LineaReciboCompra[], vaciaSiNoHay: boolean): string {
+function filasProductos(
+  lineas: LineaReciboCompra[],
+  vaciaSiNoHay: boolean,
+  conImei: boolean
+): string {
+  const vacia = conImei
+    ? `<tr><td class="prod">&nbsp;</td><td class="imei"></td><td class="precio"></td></tr>`
+    : `<tr><td class="prod">&nbsp;</td><td class="precio"></td></tr>`;
   if (!lineas.length) {
     if (!vaciaSiNoHay) return "";
-    return `<tr><td class="prod">&nbsp;</td><td class="imei"></td><td class="precio"></td></tr>`;
+    return vacia;
   }
   return lineas
-    .map(
-      (l) => `<tr>
+    .map((l) => {
+      const imei = conImei ? `<td class="imei">${esc(l.imei || "")}</td>` : "";
+      return `<tr>
         <td class="prod">${esc(l.nombre || "")}</td>
-        <td class="imei">${esc(l.imei || "")}</td>
+        ${imei}
         <td class="precio">${esc(precioCelda(l))}</td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join("");
 }
 
-function textoTotal(lineas: LineaReciboCompra[]): string {
+function totalesPorMoneda(lineas: LineaReciboCompra[]): Map<string, number> {
   const porMoneda = new Map<string, number>();
   for (const l of lineas) {
     const moneda = String(l.moneda || "USD").toUpperCase();
     porMoneda.set(moneda, (porMoneda.get(moneda) || 0) + (Number(l.precio) || 0));
   }
-  if (porMoneda.size === 0) return "Importe Total: —";
-  const partes = Array.from(porMoneda.entries()).map(([m, n]) => `${m} ${fmtMonto(n)}`);
+  return porMoneda;
+}
+
+function textoTotal(
+  lineas: LineaReciboCompra[],
+  descuentoARS = 0,
+  descuentoUSD = 0
+): string {
+  const porMoneda = totalesPorMoneda(lineas);
+  const ars = Math.max(0, (porMoneda.get("ARS") || 0) - Math.max(0, descuentoARS));
+  const usd = Math.max(0, (porMoneda.get("USD") || 0) - Math.max(0, descuentoUSD));
+  porMoneda.delete("ARS");
+  porMoneda.delete("USD");
+  const partes: string[] = [];
+  if (usd > 0.009) partes.push(`USD ${fmtMonto(usd)}`);
+  if (ars > 0.009) partes.push(`ARS ${fmtMonto(ars)}`);
+  for (const [m, n] of Array.from(porMoneda.entries())) {
+    if (n > 0.009) partes.push(`${m} ${fmtMonto(n)}`);
+  }
+  if (!partes.length) {
+    if (descuentoARS > 0 || descuentoUSD > 0) return "Importe Total: $0";
+    return "Importe Total: —";
+  }
   return `Importe Total: ${partes.join(" + ")}`;
+}
+
+function bloqueDescuento(datos: ReciboCompraDatos): string {
+  const ars = Math.max(0, Number(datos.descuentoARS) || 0);
+  const usd = Math.max(0, Number(datos.descuentoUSD) || 0);
+  if (ars <= 0 && usd <= 0) return "";
+  const pct = Math.max(0, Number(datos.descuentoPorcentaje) || 0);
+  const etiqueta = pct > 0 ? `Descuento ${pct}%` : "Descuento";
+  const partes: string[] = [];
+  if (ars > 0) partes.push(`ARS ${fmtMonto(ars)}`);
+  if (usd > 0) partes.push(`USD ${fmtMonto(usd)}`);
+  return `<div class="total-wrap"><div class="total descuento">${esc(etiqueta)}: -${esc(partes.join(" − "))}</div></div>`;
 }
 
 function importePago(p: PagoReciboCompra): string {
@@ -171,6 +215,8 @@ export function resolverSaldoPendienteRecibo(opts: {
   saldoPendiente?: number;
   monedaFallback?: string;
   cotizacion?: number;
+  descuentoARS?: number;
+  descuentoUSD?: number;
 }): { ars: number; usd: number } {
   let totalARS = 0;
   let totalUSD = 0;
@@ -210,6 +256,9 @@ export function resolverSaldoPendienteRecibo(opts: {
         pagoUSD += montoUSD;
       }
     }
+
+    totalARS = Math.max(0, totalARS - Math.max(0, Number(opts.descuentoARS) || 0));
+    totalUSD = Math.max(0, totalUSD - Math.max(0, Number(opts.descuentoUSD) || 0));
 
     const cotizacion = cotizacionEfectiva(cotDesdePagos, Number(opts.cotizacion) || 0);
     const telefonosPago = opts.partePago
@@ -272,6 +321,11 @@ export function htmlReciboCompraTelefono(datos: ReciboCompraDatos): string {
   const garantia = String(n.textoGarantia || "").trim();
   const logo = String(n.logoUrl || "").trim();
   const inicio = String(n.fechaInicioActividad || "").trim();
+  const conImei =
+    datos.lineas.some((l) => String(l.imei || "").trim()) ||
+    datos.partePago.some((l) => String(l.imei || "").trim());
+  const hayPartePago = datos.partePago.some((l) => l.nombre || l.precio);
+  const thImei = conImei ? `<th class="imei">IMEI</th>` : "";
 
   const datosNegocio = [
     n.domicilioComercial
@@ -324,7 +378,7 @@ ${esc(garantia)}`
   }
   .grid th { text-align: left; font-weight: 700; background: #f7f7f7; }
   .sin-borde td { border: none; padding: 1px 0; }
-  .logo { max-height: 42px; max-width: 140px; object-fit: contain; display: block; margin-bottom: 4px; }
+  .logo { height: 42px; width: auto; max-width: 140px; object-fit: contain; display: block; margin-bottom: 4px; }
   .nombre { font-size: 18px; font-weight: 700; letter-spacing: 0.4px; line-height: 1.1; }
   .titulo { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; margin: 0 0 6px; }
   .meta { font-size: 11px; }
@@ -352,6 +406,11 @@ ${esc(garantia)}`
   }
   .total.saldo.cancelado {
     background: #e8f8ef;
+  }
+  .total.descuento {
+    margin-bottom: 8px;
+    color: #166534;
+    font-size: 12px;
   }
   .legal {
     margin-top: 12px;
@@ -440,7 +499,7 @@ ${esc(garantia)}`
       <tr>
         <td style="width:48%">
           <table class="sin-borde"><tr><td>
-            ${logo ? `<img class="logo" src="${esc(logo)}" alt=""/>` : ""}
+            ${logo ? `<img class="logo" src="${esc(logo)}" alt="" width="140" height="42"/>` : ""}
             <div class="nombre">${esc(n.nombre || "")}</div>
             <div style="margin-top:6px">${datosNegocio || ""}</div>
           </td></tr></table>
@@ -475,31 +534,37 @@ ${esc(garantia)}`
       <thead>
         <tr>
           <th>Producto/Servicio</th>
-          <th class="imei">IMEI</th>
+          ${thImei}
           <th class="precio">Precio</th>
         </tr>
       </thead>
       <tbody>
-        ${filasProductos(datos.lineas, true)}
+        ${filasProductos(datos.lineas, true, conImei)}
       </tbody>
     </table>
 
-    <div class="seccion">Entrega como parte de pago:</div>
+    ${
+      hayPartePago
+        ? `<div class="seccion">Entrega como parte de pago:</div>
     <table class="grid">
       <thead>
         <tr>
           <th>Producto/Servicio</th>
-          <th class="imei">IMEI</th>
+          ${thImei}
           <th class="precio">Precio</th>
         </tr>
       </thead>
       <tbody>
-        ${filasProductos(datos.partePago, true)}
+        ${filasProductos(datos.partePago, false, conImei)}
       </tbody>
-    </table>
+    </table>`
+        : ""
+    }
+
+    ${bloqueDescuento(datos)}
 
     <div class="total-wrap">
-      <div class="total">${esc(textoTotal(datos.lineas))}</div>
+      <div class="total">${esc(textoTotal(datos.lineas, Number(datos.descuentoARS) || 0, Number(datos.descuentoUSD) || 0))}</div>
     </div>
 
     ${bloquePagos(datos.pagos || [])}
@@ -838,10 +903,16 @@ export async function armarHtmlReciboCompraDesdeVenta(
     Number(venta?.cotizacionUsada) ||
     0;
 
+  const descuentoARS = Math.max(0, Number(ventaGeneral?.descuentoARS) || 0);
+  const descuentoUSD = Math.max(0, Number(ventaGeneral?.descuentoUSD) || 0);
+  const descuentoPorcentaje = Math.max(0, Number(ventaGeneral?.descuentoPorcentaje) || 0);
+
   const { ars: saldoARS, usd: saldoUSD } = resolverSaldoPendienteRecibo({
     lineas,
     partePago,
     pagos,
+    descuentoARS,
+    descuentoUSD,
     saldoPendienteARS:
       ventaGeneral?.saldoPendienteARS ?? base?.saldoPendienteARS ?? venta?.saldoPendienteARS,
     saldoPendienteUSD:
@@ -889,6 +960,9 @@ export async function armarHtmlReciboCompraDesdeVenta(
     pagos,
     saldoPendienteARS: saldoARS,
     saldoPendienteUSD: saldoUSD,
+    descuentoARS,
+    descuentoUSD,
+    descuentoPorcentaje,
     firmaClienteUrl,
     negocio: {
       nombre: cfg.nombreNegocio || "",
@@ -915,6 +989,15 @@ export async function armarHtmlReciboCompraDesdeVenta(
 }
 
 /** Intenta pasar una imagen a data URL para que html2canvas no contamine el canvas (CORS). */
+function blobADataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("FileReader"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function imagenADataUrlSegura(src: string): Promise<string | null> {
   const url = String(src || "").trim();
   if (!url) return null;
@@ -923,40 +1006,20 @@ async function imagenADataUrlSegura(src: string): Promise<string | null> {
   try {
     const res = await fetch(url, { mode: "cors", credentials: "omit", cache: "force-cache" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("FileReader"));
-      reader.readAsDataURL(blob);
-    });
+    return await blobADataUrl(await res.blob());
   } catch {
-    /* seguir con Image + crossOrigin */
+    /* Firebase Storage no manda CORS: se lee por el servidor */
   }
 
   try {
-    return await new Promise<string>((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        try {
-          const c = document.createElement("canvas");
-          c.width = img.naturalWidth || img.width;
-          c.height = img.naturalHeight || img.height;
-          const ctx = c.getContext("2d");
-          if (!ctx || !c.width || !c.height) {
-            reject(new Error("canvas"));
-            return;
-          }
-          ctx.drawImage(img, 0, 0);
-          resolve(c.toDataURL("image/png"));
-        } catch (e) {
-          reject(e);
-        }
-      };
-      img.onerror = () => reject(new Error("img"));
-      img.src = url;
+    const { auth } = await import("@/lib/auth");
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) return null;
+    const res = await fetch(`/api/imagen-recibo?url=${encodeURIComponent(url)}`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
+    if (!res.ok) return null;
+    return await blobADataUrl(await res.blob());
   } catch {
     return null;
   }
@@ -1015,6 +1078,15 @@ async function inlineImagenesRecibo(root: ParentNode): Promise<void> {
       if (dataUrl) {
         img.setAttribute("src", dataUrl);
         img.removeAttribute("crossorigin");
+        if (img.classList.contains("logo")) {
+          img.setAttribute("width", "140");
+          img.setAttribute("height", "42");
+        }
+        try {
+          await img.decode();
+        } catch {
+          /* la espera de load de abajo cubre el caso */
+        }
       } else {
         img.remove();
       }
