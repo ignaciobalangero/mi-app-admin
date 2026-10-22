@@ -9,6 +9,7 @@ import {
 } from "@/lib/comprimirImagenCliente";
 import { esUrlFotoValida } from "@/lib/fotosRepuestoHelpers";
 import { ImagePlus, Package, Star, Trash2 } from "lucide-react";
+import VideoMudo from "@/components/VideoMudo";
 
 type Props = {
   negocioID: string;
@@ -58,7 +59,12 @@ export default function CampoFotoRepuesto({
       alert(`"${file.name}" es demasiado grande (máx. 15 MB).`);
       return null;
     }
-    const optimizada = await comprimirImagenParaCatalogo(file);
+    const optimizada = await comprimirImagenParaCatalogo(
+      file,
+      segmento === "telefonos"
+        ? { maxLado: 2400, maxBytes: 2 * 1024 * 1024, calidadInicial: 0.92 }
+        : undefined
+    );
     if (optimizada.bytesComprimidos < optimizada.bytesOriginales) {
       setInfoOptimizacion(
         `Optimizada: ${formatearPesoImagen(optimizada.bytesOriginales)} → ${formatearPesoImagen(optimizada.bytesComprimidos)}`
@@ -248,7 +254,9 @@ export default function CampoFotoRepuesto({
         </button>
         {!compact && (
           <span className="text-[10px] text-[#95a5a6]">
-            Se optimizan solas (máx. 1200 px, ~400 KB). Elegí varias a la vez.
+            {segmento === "telefonos"
+              ? "Se guardan en alta, hasta 2400 px. Elegí varias a la vez."
+              : "Se optimizan solas (máx. 1200 px, ~400 KB). Elegí varias a la vez."}
           </span>
         )}
       </div>
@@ -259,7 +267,7 @@ export default function CampoFotoRepuesto({
       {permiteVideo && onVideoChange ? (
         <div className="space-y-2 border-t border-[#ecf0f1] pt-2">
           <p className="text-[10px] text-[#7f8c8d]">
-            Un video de hasta 30 segundos. Grabalo con la cámara del celular y elegilo de la galería.
+            Un video de hasta 30 segundos, sin audio. Grabalo con la cámara y elegilo de la galería.
           </p>
           <input
             ref={videoRef}
@@ -288,23 +296,7 @@ export default function CampoFotoRepuesto({
             ) : null}
           </div>
           {videoURL ? (
-            <video
-              src={videoURL}
-              muted
-              controls
-              playsInline
-              className="w-full max-h-40 rounded-lg bg-black"
-              onPlay={(ev) => {
-                ev.currentTarget.muted = true;
-                ev.currentTarget.volume = 0;
-              }}
-              onVolumeChange={(ev) => {
-                const v = ev.currentTarget;
-                if (v.muted && v.volume === 0) return;
-                v.muted = true;
-                v.volume = 0;
-              }}
-            />
+            <VideoMudo src={videoURL} className="w-full max-h-40 rounded-lg bg-black" />
           ) : null}
         </div>
       ) : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import VideoMudo from "@/components/VideoMudo";
 
 type Equipo = {
   id: string;
@@ -252,24 +253,10 @@ export default function VitrinaCelulares({
                   </div>
                 ) : null}
                 {abierto.video ? (
-                  <video
+                  <VideoMudo
                     key={abierto.video}
                     src={abierto.video}
-                    muted
-                    controls
-                    playsInline
-                    preload="metadata"
                     className="w-full max-h-[50vh] rounded-xl bg-black"
-                    onPlay={(ev) => {
-                      ev.currentTarget.muted = true;
-                      ev.currentTarget.volume = 0;
-                    }}
-                    onVolumeChange={(ev) => {
-                      const v = ev.currentTarget;
-                      if (v.muted && v.volume === 0) return;
-                      v.muted = true;
-                      v.volume = 0;
-                    }}
                   />
                 ) : null}
               </div>
