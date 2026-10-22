@@ -25,6 +25,7 @@ interface Telefono {
   precioVenta: number;
   precioMayorista: number;
   moneda: "USD" | "ARS";
+  accesorios?: string;
   observaciones: string;
   fotoURL?: string;
   fotosURLs?: string[];
@@ -75,6 +76,7 @@ export default function ModalEditarTelefono({
       bateria: telefono.bateria != null ? String(telefono.bateria) : "",
       ciclosCarga: telefono.ciclosCarga != null ? String(telefono.ciclosCarga) : "",
       gb: telefono.gb || "",
+      accesorios: telefono.accesorios || "",
       observaciones: telefono.observaciones || "",
       fotosURLs: normalizarFotosURLs(telefono),
       videoURL: normalizarVideoURL(telefono.videoURL),
@@ -407,6 +409,20 @@ export default function ModalEditarTelefono({
                 onVideoChange={(url) =>
                   setFormulario((prev: any) => ({ ...prev, videoURL: url }))
                 }
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2 lg:col-span-3">
+              <label className="block text-sm font-semibold text-[#2c3e50]">
+                Accesorios
+              </label>
+              <input
+                type="text"
+                name="accesorios"
+                value={formulario.accesorios || ""}
+                onChange={manejarCambio}
+                placeholder="Caja, cable, cargador… Si no trae nada, dejalo vacío"
+                className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#f39c12]/20 focus:border-[#f39c12] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm"
               />
             </div>
 

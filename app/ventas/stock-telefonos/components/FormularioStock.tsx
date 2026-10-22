@@ -42,6 +42,7 @@ interface Telefono {
   precioVenta: string;
   precioMayorista: string;
   moneda: "USD" | "ARS";
+  accesorios: string;
   observaciones: string;
 }
 
@@ -61,6 +62,7 @@ const inicial: Telefono = {
   precioVenta: "",
   precioMayorista: "",
   moneda: "USD",
+  accesorios: "",
   observaciones: "",
 };
 
@@ -456,6 +458,15 @@ export default function FormularioStock({
             className="p-2 border rounded"
           />
         
+          <input
+            type="text"
+            name="accesorios"
+            value={form.accesorios}
+            onChange={handleChange}
+            placeholder="Accesorios (caja, cable…)"
+            className="p-2 border rounded col-span-1 md:col-span-2"
+          />
+
           <textarea
             name="observaciones"
             value={form.observaciones}

@@ -10,6 +10,7 @@ type Equipo = {
   gb: string;
   bateria: string;
   estado: string;
+  accesorios?: string;
   moneda: "ARS" | "USD";
   precio: number;
   fotos: string[];
@@ -141,6 +142,9 @@ export default function VitrinaCelulares({
             <span className="min-w-0 flex-1">
               <span className="block font-semibold truncate">{nombreEquipo(e)}</span>
               <span className="block text-sm text-neutral-500 truncate">{detalle(e) || e.estado}</span>
+              {e.accesorios ? (
+                <span className="block text-sm text-neutral-700 truncate">Incluye {e.accesorios}</span>
+              ) : null}
               <span className="mt-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-sky-700">
                   {e.fotos.length > 1
@@ -172,6 +176,9 @@ export default function VitrinaCelulares({
                 <h2 className="font-bold text-lg leading-tight">{nombreEquipo(abierto)}</h2>
                 <p className="text-sm text-neutral-500">{[detalle(abierto), abierto.estado].filter(Boolean).join(" · ")}</p>
                 <p className="font-bold text-emerald-700 mt-1">{textoPrecio(abierto)}</p>
+                {abierto.accesorios ? (
+                  <p className="text-sm text-neutral-800 mt-1">Incluye {abierto.accesorios}</p>
+                ) : null}
               </div>
               <button
                 type="button"

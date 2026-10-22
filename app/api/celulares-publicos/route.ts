@@ -114,6 +114,7 @@ export async function GET(req: Request) {
           gb: String(d.gb || "").trim(),
           bateria: String(d.bateria || "").trim(),
           estado: etiqueta(estado),
+          accesorios: String(d.accesorios || "").trim().slice(0, 160),
           moneda,
           precio: Math.max(0, parseNumero(precioRaw)),
           fotos: fotosPublicas(d),
