@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
@@ -10,6 +10,7 @@ import AdminPageMain from "@/app/components/AdminPageMain";
 import { useRol } from "@/lib/useRol";
 import {
   collection,
+  getCountFromServer,
   getDocs,
   deleteDoc,
   doc,
@@ -18,8 +19,12 @@ import {
   query,
   where,
   limit,
+  orderBy,
+  startAfter,
   runTransaction,
   serverTimestamp,
+  type DocumentData,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import TablaTrabajos from "./componentes/TablaTrabajos";
 import ModalPago from "./componentes/ModalPago";
@@ -53,6 +58,12 @@ export default function GestionTrabajosPage() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
   const [trabajos, setTrabajos] = useState<Trabajo[]>([]);
+  const [cargandoTrabajos, setCargandoTrabajos] = useState(false);
+  const [hayMasTrabajos, setHayMasTrabajos] = useState(true);
+  const [totalTrabajos, setTotalTrabajos] = useState<number | null>(null);
+  const ultimoDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const negocioRef = useRef("");
+  const ITEMS_POR_PAGINA = 75;
   const [filtroIMEI, setFiltroIMEI] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
   const [filtroTrabajo, setFiltroTrabajo] = useState("");
@@ -84,24 +95,63 @@ export default function GestionTrabajosPage() {
   
   const { rol } = useRol();
   
-  const cargarTrabajos = async () => {
-    if (!negocioID) return;
+  const mapearTrabajos = (docs: QueryDocumentSnapshot<DocumentData>[]) =>
+    docs
+      .map((docSnap) => ({
+        firebaseId: docSnap.id,
+        ...(docSnap.data() as Omit<Trabajo, "firebaseId">),
+      }))
+      .filter(
+        (t) =>
+          t.estado !== "BORRADOR_INGRESO" &&
+          !(t as Trabajo & { esBorradorIngreso?: boolean }).esBorradorIngreso
+      );
+
+  const cargarTrabajos = async (reiniciar = true) => {
+    const id = negocioRef.current;
+    if (!id) return;
+    setCargandoTrabajos(true);
     try {
-      const snap = await getDocs(collection(db, `negocios/${negocioID}/trabajos`));
-      const lista: Trabajo[] = snap.docs
-        .map((docSnap) => ({
-          firebaseId: docSnap.id,
-          ...(docSnap.data() as Omit<Trabajo, "firebaseId">),
-        }))
-        .filter(
-          (t) =>
-            t.estado !== "BORRADOR_INGRESO" &&
-            !(t as Trabajo & { esBorradorIngreso?: boolean }).esBorradorIngreso
-        );
-      lista.sort((a, b) => parsearFecha(b.fecha).getTime() - parsearFecha(a.fecha).getTime());
-      setTrabajos(lista);
+      const col = collection(db, `negocios/${id}/trabajos`);
+      const cursor = reiniciar ? null : ultimoDocRef.current;
+      const q = cursor
+        ? query(col, orderBy("creadoEn", "desc"), startAfter(cursor), limit(ITEMS_POR_PAGINA))
+        : query(col, orderBy("creadoEn", "desc"), limit(ITEMS_POR_PAGINA));
+      const snap = await getDocs(q);
+      const lista = mapearTrabajos(snap.docs);
+
+      if (reiniciar) setTrabajos(lista);
+      else {
+        setTrabajos((prev) => {
+          const ids = new Set(prev.map((t) => t.firebaseId));
+          return [...prev, ...lista.filter((t) => !ids.has(t.firebaseId))];
+        });
+      }
+
+      setHayMasTrabajos(snap.docs.length === ITEMS_POR_PAGINA);
+      if (snap.docs.length > 0) ultimoDocRef.current = snap.docs[snap.docs.length - 1];
+
+      if (reiniciar) {
+        void getCountFromServer(col)
+          .then((total) => setTotalTrabajos(total.data().count))
+          .catch(() => undefined);
+      }
     } catch (error) {
       console.error("Error cargando trabajos:", error);
+      if (reiniciar) {
+        try {
+          const snap = await getDocs(
+            query(collection(db, `negocios/${id}/trabajos`), limit(ITEMS_POR_PAGINA))
+          );
+          setTrabajos(mapearTrabajos(snap.docs));
+          setHayMasTrabajos(false);
+          ultimoDocRef.current = null;
+        } catch (fallback) {
+          console.error("Error en la carga reducida de trabajos:", fallback);
+        }
+      }
+    } finally {
+      setCargandoTrabajos(false);
     }
   };
 
@@ -109,17 +159,25 @@ export default function GestionTrabajosPage() {
     if (rol?.negocioID) {
       setNegocioID(rol.negocioID);
     }
-  }, [rol]);  
+  }, [rol]);
 
   useEffect(() => {
-    const listener = () => cargarTrabajos();
+    negocioRef.current = negocioID;
+  }, [negocioID]);
+
+  useEffect(() => {
+    const listener = () => {
+      ultimoDocRef.current = null;
+      void cargarTrabajos(true);
+    };
     window.addEventListener("trabajosActualizados", listener);
     return () => window.removeEventListener("trabajosActualizados", listener);
   }, []);
 
   useEffect(() => {
     if (!negocioID) return;
-    cargarTrabajos();
+    ultimoDocRef.current = null;
+    void cargarTrabajos(true);
   }, [negocioID]);
 
   // Esta función ahora no se usa más, pero la mantengo por compatibilidad con TablaTrabajos
@@ -356,7 +414,13 @@ export default function GestionTrabajosPage() {
                   Gestión de Trabajos
                 </h1>
                 <p className="text-blue-100 text-sm">
-                  {trabajosFiltrados.length} {trabajosFiltrados.length === 1 ? 'trabajo encontrado' : 'trabajos encontrados'}
+                  {cargandoTrabajos && trabajos.length === 0
+                    ? "Cargando…"
+                    : `${trabajosFiltrados.length} ${trabajosFiltrados.length === 1 ? "trabajo en pantalla" : "trabajos en pantalla"}${
+                        totalTrabajos != null
+                          ? ` · ${totalTrabajos.toLocaleString("es-AR")} en total`
+                          : ""
+                      }`}
                 </p>
               </div>
             </div>
@@ -414,6 +478,11 @@ export default function GestionTrabajosPage() {
               <div className="text-[11px] font-medium text-slate-500 sm:text-xs">Pagados</div>
             </div>
           </div>
+          {hayMasTrabajos && trabajos.length > 0 && (
+            <p className="mb-4 text-center text-xs text-slate-500">
+              Esos números son de los trabajos ya cargados. El resto del historial entra con «Cargar más».
+            </p>
+          )}
 
           {/* Componente Tabla */}
           <TablaTrabajos
@@ -432,6 +501,23 @@ export default function GestionTrabajosPage() {
             recargarTrabajos={cargarTrabajos}
             tipoFecha={tipoFecha}
           />
+
+          {hayMasTrabajos && (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void cargarTrabajos(false)}
+                disabled={cargandoTrabajos}
+                className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                  cargandoTrabajos
+                    ? "bg-[#bdc3c7] cursor-not-allowed text-white"
+                    : "bg-[#3498db] hover:bg-[#2980b9] text-white shadow-lg"
+                }`}
+              >
+                {cargandoTrabajos ? "Cargando…" : "Cargar más trabajos"}
+              </button>
+            </div>
+          )}
 
           {/* Modal de pago - Nuevo ModalPago */}
           <ModalPago
