@@ -6,8 +6,11 @@ import {
 export type LineaReciboCompra = {
   nombre: string;
   imei?: string;
+  /** Total de la línea (unitario × cantidad). */
   precio: number;
   moneda: string;
+  cantidad?: number;
+  precioUnitario?: number;
 };
 
 export type PagoReciboCompra = {
@@ -80,14 +83,31 @@ function precioCelda(linea: LineaReciboCompra): string {
   return `${moneda} ${fmtMonto(linea.precio)}`;
 }
 
+function cantidadLinea(linea: LineaReciboCompra): number {
+  const cant = Number(linea.cantidad);
+  return Number.isFinite(cant) && cant > 0 ? cant : 1;
+}
+
+function precioUnitarioLinea(linea: LineaReciboCompra): number {
+  const explicito = Number(linea.precioUnitario);
+  if (Number.isFinite(explicito) && linea.precioUnitario != null) return explicito;
+  const cant = cantidadLinea(linea);
+  return cant > 0 ? (Number(linea.precio) || 0) / cant : Number(linea.precio) || 0;
+}
+
+function precioUnitarioCelda(linea: LineaReciboCompra): string {
+  const moneda = String(linea.moneda || "USD").toUpperCase();
+  return `${moneda} ${fmtMonto(precioUnitarioLinea(linea))}`;
+}
+
 function filasProductos(
   lineas: LineaReciboCompra[],
   vaciaSiNoHay: boolean,
   conImei: boolean
 ): string {
   const vacia = conImei
-    ? `<tr><td class="prod">&nbsp;</td><td class="imei"></td><td class="precio"></td></tr>`
-    : `<tr><td class="prod">&nbsp;</td><td class="precio"></td></tr>`;
+    ? `<tr><td class="prod">&nbsp;</td><td class="imei"></td><td class="cant"></td><td class="unitario"></td><td class="precio"></td></tr>`
+    : `<tr><td class="prod">&nbsp;</td><td class="cant"></td><td class="unitario"></td><td class="precio"></td></tr>`;
   if (!lineas.length) {
     if (!vaciaSiNoHay) return "";
     return vacia;
@@ -98,6 +118,8 @@ function filasProductos(
       return `<tr>
         <td class="prod">${esc(l.nombre || "")}</td>
         ${imei}
+        <td class="cant">${esc(String(cantidadLinea(l)))}</td>
+        <td class="unitario">${esc(precioUnitarioCelda(l))}</td>
         <td class="precio">${esc(precioCelda(l))}</td>
       </tr>`;
     })
@@ -386,8 +408,11 @@ ${esc(garantia)}`
   .cliente { margin-top: 8px; }
   .seccion { margin: 12px 0 4px; font-weight: 700; font-size: 11px; }
   .prod { width: auto; }
-  .imei { width: 28%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10px; word-break: break-all; }
-  .precio { width: 18%; white-space: nowrap; text-align: right; }
+  .imei { width: 22%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10px; word-break: break-all; }
+  .cant { width: 11%; white-space: nowrap; text-align: center; }
+  .unitario { width: 18%; white-space: nowrap; text-align: right; }
+  .precio { width: 16%; white-space: nowrap; text-align: right; }
+  .grid th.cant, .grid th.unitario, .grid th.precio { text-align: inherit; }
   .fecha { width: 18%; }
   .total-wrap { margin-top: 12px; width: 100%; text-align: right; }
   .total {
@@ -535,6 +560,8 @@ ${esc(garantia)}`
         <tr>
           <th>Producto/Servicio</th>
           ${thImei}
+          <th class="cant">Cantidad</th>
+          <th class="unitario">Precio unitario</th>
           <th class="precio">Precio</th>
         </tr>
       </thead>
@@ -551,6 +578,8 @@ ${esc(garantia)}`
         <tr>
           <th>Producto/Servicio</th>
           ${thImei}
+          <th class="cant">Cantidad</th>
+          <th class="unitario">Precio unitario</th>
           <th class="precio">Precio</th>
         </tr>
       </thead>
@@ -678,8 +707,7 @@ function nombreProductoRecibo(p: any): string {
 function lineaDesdeProducto(p: any): LineaReciboCompra {
   const completo = p?.datosTelefonoCompletos || {};
   const cant = Math.max(1, Number(p?.cantidad) || 1);
-  let nombre = nombreProductoRecibo(p);
-  if (cant > 1) nombre = `${nombre} ×${cant}`;
+  const nombre = nombreProductoRecibo(p);
   const unitario =
     Number(p?.precioUnitario ?? p?.precioVenta ?? completo.precioVenta ?? 0) || 0;
   return {
@@ -687,6 +715,8 @@ function lineaDesdeProducto(p: any): LineaReciboCompra {
     imei: esProductoTelefono(p)
       ? String(p?.imei || completo.imei || "")
       : String(p?.imei || ""),
+    cantidad: cant,
+    precioUnitario: unitario,
     precio: unitario * cant,
     moneda: String(p?.moneda || completo.moneda || "USD"),
   };
@@ -696,6 +726,8 @@ function lineaDesdeEquipoRecibido(t: any): LineaReciboCompra {
   return {
     nombre: nombreLineaTelefono(t),
     imei: String(t?.imei || ""),
+    cantidad: 1,
+    precioUnitario: Number(t?.precioCompra ?? t?.precioEstimado ?? t?.valorPago ?? 0) || 0,
     precio: Number(t?.precioCompra ?? t?.precioEstimado ?? t?.valorPago ?? 0) || 0,
     moneda: String(t?.moneda || "USD"),
   };
@@ -835,6 +867,8 @@ export async function armarHtmlReciboCompraDesdeVenta(
     lineas = grupo.map((t) => ({
       nombre: nombreLineaTelefono(t),
       imei: String(t.imei || ""),
+      cantidad: 1,
+      precioUnitario: Number(t.precioVenta) || 0,
       precio: Number(t.precioVenta) || 0,
       moneda: String(t.moneda || "USD"),
     }));
