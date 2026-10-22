@@ -13,7 +13,7 @@ import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
 import { extraerImei } from "@/lib/extraerImei";
 import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
 import CampoFotoRepuesto from "@/app/ventas/stock-accesorios-repuestos/repuestos/components/CampoFotoRepuesto";
-import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
+import { fotosParaFirestore, normalizarFotosURLs, normalizarVideoURL } from "@/lib/fotosRepuestoHelpers";
 import type { ChequeoImei } from "@/lib/ifree/consultasImei";
 
 interface Props {
@@ -95,6 +95,7 @@ export default function FormularioStock({
   const [cargadosSeguidos, setCargadosSeguidos] = useState(0);
   const [chequeoImei, setChequeoImei] = useState<ChequeoImei | null>(null);
   const [fotosURLs, setFotosURLs] = useState<string[]>([]);
+  const [videoURL, setVideoURL] = useState("");
   const [escanerLocal, setEscanerLocal] = useState(false);
   const [imeiRecienCargado, setImeiRecienCargado] = useState(false);
   const imeiRef = useRef<HTMLInputElement>(null);
@@ -138,6 +139,7 @@ export default function FormularioStock({
         : null
     );
     setFotosURLs(normalizarFotosURLs(datosIniciales));
+    setVideoURL(normalizarVideoURL(datosIniciales.videoURL));
     setMostrarFormulario(true);
   }, [datosIniciales]);
   
@@ -154,6 +156,7 @@ export default function FormularioStock({
     setCargadosSeguidos(0);
     setChequeoImei(null);
     setFotosURLs([]);
+    setVideoURL("");
   }, [mostrarFormulario]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -196,6 +199,7 @@ export default function FormularioStock({
       proveedor: form.proveedor || (clienteRecibido ? `Recibido de ${clienteRecibido}` : ""),
       ...(chequeoImei && chequeoImei.imei === digitosImei(form.imei) ? { chequeoImei } : {}),
       ...fotosParaFirestore(fotosURLs),
+      videoURL,
     };
 
     if (soloCapturarDatos) {
@@ -253,6 +257,7 @@ export default function FormularioStock({
         }));
         setChequeoImei(null);
         setFotosURLs([]);
+        setVideoURL("");
         setMostrarFormulario(true);
         setTimeout(() => imeiRef.current?.focus(), 50);
         return;
@@ -469,6 +474,9 @@ export default function FormularioStock({
                 segmento="telefonos"
                 titulo="Fotos del equipo (podés subir varias)"
                 ayuda="Frente, atrás y detalles. La primera es la que se ve en la lista. El cliente desliza el resto."
+                permiteVideo
+                videoURL={videoURL}
+                onVideoChange={setVideoURL}
               />
             </div>
           )}

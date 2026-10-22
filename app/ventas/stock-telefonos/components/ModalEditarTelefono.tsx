@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import CamposEstadoTelefono from "./CamposEstadoTelefono";
 import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
 import CampoFotoRepuesto from "@/app/ventas/stock-accesorios-repuestos/repuestos/components/CampoFotoRepuesto";
-import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
+import { fotosParaFirestore, normalizarFotosURLs, normalizarVideoURL } from "@/lib/fotosRepuestoHelpers";
 
 interface Telefono {
   id: string;
@@ -28,6 +28,7 @@ interface Telefono {
   observaciones: string;
   fotoURL?: string;
   fotosURLs?: string[];
+  videoURL?: string;
 }
 
 interface Props {
@@ -76,6 +77,7 @@ export default function ModalEditarTelefono({
       gb: telefono.gb || "",
       observaciones: telefono.observaciones || "",
       fotosURLs: normalizarFotosURLs(telefono),
+      videoURL: normalizarVideoURL(telefono.videoURL),
     });
   }, [telefono]);
 
@@ -110,6 +112,7 @@ export default function ModalEditarTelefono({
       const telefonoActualizado = {
         ...formulario,
         ...fotosParaFirestore(normalizarFotosURLs(formulario)),
+        videoURL: normalizarVideoURL(formulario.videoURL),
         fechaIngreso: Timestamp.fromDate(fechaFormateada),
         estado: normalizarEstado(formulario.estado) || "nuevo",
         bateria: estadoPideCondicion(formulario.estado) ? formulario.bateria || "" : "",
@@ -399,6 +402,11 @@ export default function ModalEditarTelefono({
                 segmento="telefonos"
                 titulo="Fotos del equipo (podés subir varias)"
                 ayuda="Frente, atrás y detalles. La primera es la que se ve en la lista. El cliente desliza el resto."
+                permiteVideo
+                videoURL={normalizarVideoURL(formulario.videoURL)}
+                onVideoChange={(url) =>
+                  setFormulario((prev: any) => ({ ...prev, videoURL: url }))
+                }
               />
             </div>
 

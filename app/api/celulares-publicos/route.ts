@@ -34,6 +34,11 @@ function fotosPublicas(d: Record<string, unknown>): string[] {
   return urls;
 }
 
+function videoPublico(d: Record<string, unknown>): string {
+  const t = typeof d.videoURL === "string" ? d.videoURL.trim() : "";
+  return t.startsWith("https://") ? t : "";
+}
+
 function etiqueta(estado: string): string {
   const e = estado.trim().toLowerCase();
   if (e === "nuevo") return "Nuevo";
@@ -112,6 +117,7 @@ export async function GET(req: Request) {
           moneda,
           precio: Math.max(0, parseNumero(precioRaw)),
           fotos: fotosPublicas(d),
+          video: videoPublico(d),
         };
       })
       .filter((e): e is NonNullable<typeof e> => e !== null)

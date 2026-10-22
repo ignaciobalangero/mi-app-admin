@@ -31,6 +31,13 @@ export function fotosParaFirestore(fotosURLs: string[]): {
   };
 }
 
+/** Un solo video corto por equipo. Solo https. */
+export function normalizarVideoURL(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const t = v.trim();
+  return t.startsWith("https://") ? t : "";
+}
+
 export function esUrlFotoValida(url: string): boolean {
   const t = url.trim();
   return t.startsWith("http://") || t.startsWith("https://");

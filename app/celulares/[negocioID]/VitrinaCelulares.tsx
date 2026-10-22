@@ -13,6 +13,7 @@ type Equipo = {
   moneda: "ARS" | "USD";
   precio: number;
   fotos: string[];
+  video?: string;
 };
 
 type Respuesta = {
@@ -111,7 +112,7 @@ export default function VitrinaCelulares({
           </div>
         </div>
         <p className="max-w-lg mx-auto mt-2 text-sm text-neutral-500">
-          Tocá un equipo para ver las fotos. Si hay varias, deslizá para pasarlas.
+          Tocá un equipo para ver las fotos y, si tiene, el video.
         </p>
       </header>
 
@@ -143,10 +144,12 @@ export default function VitrinaCelulares({
               <span className="mt-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-sky-700">
                   {e.fotos.length > 1
-                    ? `Ver ${e.fotos.length} fotos`
+                    ? `Ver ${e.fotos.length} fotos${e.video ? " y video" : ""}`
                     : e.fotos.length === 1
-                      ? "Ver foto"
-                      : e.estado}
+                      ? `Ver foto${e.video ? " y video" : ""}`
+                      : e.video
+                        ? "Ver video"
+                        : e.estado}
                 </span>
                 <span className="font-bold text-emerald-700">{textoPrecio(e)}</span>
               </span>
@@ -179,63 +182,77 @@ export default function VitrinaCelulares({
                 ×
               </button>
             </div>
-            {abierto.fotos.length === 0 ? (
+            {abierto.fotos.length === 0 && !abierto.video ? (
               <p className="p-8 text-center text-neutral-500">Este equipo todavía no tiene fotos.</p>
             ) : (
-              <div className="p-3">
-                <div
-                  className="relative touch-pan-y"
-                  onPointerDown={(ev) => {
-                    toqueX.current = ev.clientX;
-                  }}
-                  onPointerUp={(ev) => {
-                    if (toqueX.current == null) return;
-                    const dx = ev.clientX - toqueX.current;
-                    toqueX.current = null;
-                    if (dx > 40) moverFoto(-1);
-                    else if (dx < -40) moverFoto(1);
-                  }}
-                >
-                  <img
-                    src={abierto.fotos[fotoIdx] || abierto.fotos[0]}
-                    alt={`${nombreEquipo(abierto)} foto ${fotoIdx + 1}`}
-                    className="w-full max-h-[62vh] object-contain bg-neutral-50 rounded-xl select-none"
-                    draggable={false}
+              <div className="p-3 space-y-3">
+                {abierto.fotos.length > 0 ? (
+                  <div>
+                    <div
+                      className="relative touch-pan-y"
+                      onPointerDown={(ev) => {
+                        toqueX.current = ev.clientX;
+                      }}
+                      onPointerUp={(ev) => {
+                        if (toqueX.current == null) return;
+                        const dx = ev.clientX - toqueX.current;
+                        toqueX.current = null;
+                        if (dx > 40) moverFoto(-1);
+                        else if (dx < -40) moverFoto(1);
+                      }}
+                    >
+                      <img
+                        src={abierto.fotos[fotoIdx] || abierto.fotos[0]}
+                        alt={`${nombreEquipo(abierto)} foto ${fotoIdx + 1}`}
+                        className="w-full max-h-[62vh] object-contain bg-neutral-50 rounded-xl select-none"
+                        draggable={false}
+                      />
+                      {abierto.fotos.length > 1 ? (
+                        <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white">
+                          {fotoIdx + 1} / {abierto.fotos.length}
+                        </span>
+                      ) : null}
+                    </div>
+                    {abierto.fotos.length > 1 ? (
+                      <>
+                        <div className="mt-3 flex justify-center gap-1.5">
+                          {abierto.fotos.map((_, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              aria-label={`Foto ${i + 1}`}
+                              onClick={() => setFotoIdx(i)}
+                              className={`h-2.5 rounded-full ${i === fotoIdx ? "w-6 bg-neutral-900" : "w-2.5 bg-neutral-300"}`}
+                            />
+                          ))}
+                        </div>
+                        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                          {abierto.fotos.map((url, i) => (
+                            <button
+                              key={url}
+                              type="button"
+                              onClick={() => setFotoIdx(i)}
+                              className={`h-16 w-16 flex-shrink-0 rounded-lg overflow-hidden border-2 ${
+                                i === fotoIdx ? "border-neutral-900" : "border-transparent"
+                              }`}
+                            >
+                              <img src={url} alt="" className="h-full w-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+                {abierto.video ? (
+                  <video
+                    key={abierto.video}
+                    src={abierto.video}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="w-full max-h-[50vh] rounded-xl bg-black"
                   />
-                  {abierto.fotos.length > 1 ? (
-                    <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white">
-                      {fotoIdx + 1} / {abierto.fotos.length}
-                    </span>
-                  ) : null}
-                </div>
-                {abierto.fotos.length > 1 ? (
-                  <>
-                    <div className="mt-3 flex justify-center gap-1.5">
-                      {abierto.fotos.map((_, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          aria-label={`Foto ${i + 1}`}
-                          onClick={() => setFotoIdx(i)}
-                          className={`h-2.5 rounded-full ${i === fotoIdx ? "w-6 bg-neutral-900" : "w-2.5 bg-neutral-300"}`}
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                      {abierto.fotos.map((url, i) => (
-                        <button
-                          key={url}
-                          type="button"
-                          onClick={() => setFotoIdx(i)}
-                          className={`h-16 w-16 flex-shrink-0 rounded-lg overflow-hidden border-2 ${
-                            i === fotoIdx ? "border-neutral-900" : "border-transparent"
-                          }`}
-                        >
-                          <img src={url} alt="" className="h-full w-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  </>
                 ) : null}
               </div>
             )}

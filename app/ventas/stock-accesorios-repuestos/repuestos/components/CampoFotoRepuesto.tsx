@@ -20,6 +20,10 @@ type Props = {
   segmento?: string;
   titulo?: string;
   ayuda?: string;
+  /** Un video corto, solo en celulares. */
+  permiteVideo?: boolean;
+  videoURL?: string;
+  onVideoChange?: (url: string) => void;
 };
 
 const EXT_VALIDAS = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"];
@@ -33,9 +37,14 @@ export default function CampoFotoRepuesto({
   segmento = "repuestos",
   titulo = "Fotos del producto (se ven en la tienda web)",
   ayuda = "La primera foto es la portada del catálogo. Podés subir varias.",
+  permiteVideo = false,
+  videoURL = "",
+  onVideoChange,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [subiendoVideo, setSubiendoVideo] = useState(false);
   const [infoOptimizacion, setInfoOptimizacion] = useState("");
   const [urlManual, setUrlManual] = useState("");
 
@@ -93,6 +102,72 @@ export default function CampoFotoRepuesto({
       alert(`No se pudo subir la imagen: ${msg}`);
     } finally {
       setSubiendo(false);
+    }
+  };
+
+  const duracionSegundos = (file: File) =>
+    new Promise<number>((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        const d = video.duration;
+        URL.revokeObjectURL(url);
+        resolve(d);
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("No se pudo leer el video"));
+      };
+      video.src = url;
+    });
+
+  const subirVideo = async (file: File) => {
+    const ext = file.name.split(".").pop()?.toLowerCase() || "mp4";
+    const ok = ["mp4", "mov", "m4v", "webm"].includes(ext);
+    if (!ok) {
+      alert("El video tiene que ser MP4, MOV o WEBM.");
+      return;
+    }
+    if (file.size > 40 * 1024 * 1024) {
+      alert("El video pesa más de 40 MB. Grabá uno más corto.");
+      return;
+    }
+    let segundos = 0;
+    try {
+      segundos = await duracionSegundos(file);
+    } catch {
+      alert("No se pudo leer el video. Probá con otro archivo.");
+      return;
+    }
+    if (!Number.isFinite(segundos) || segundos > 30) {
+      alert("El video puede durar hasta 30 segundos.");
+      return;
+    }
+    const mime =
+      file.type ||
+      (ext === "webm" ? "video/webm" : ext === "mov" ? "video/quicktime" : "video/mp4");
+    const carpeta = productoId || `temp-${Date.now()}`;
+    const path = `negocios/${negocioID}/${segmento}/${carpeta}/video-${Date.now()}.${ext}`;
+    const r = refStorage(storage, path);
+    await uploadBytes(r, file, { contentType: mime });
+    const url = await getDownloadURL(r);
+    onVideoChange?.(url);
+  };
+
+  const handleVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !negocioID || !onVideoChange) return;
+    setSubiendoVideo(true);
+    try {
+      await subirVideo(file);
+    } catch (err) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      alert(`No se pudo subir el video: ${msg}`);
+    } finally {
+      setSubiendoVideo(false);
     }
   };
 
@@ -179,6 +254,48 @@ export default function CampoFotoRepuesto({
       </div>
       {infoOptimizacion ? (
         <p className="text-[10px] font-medium text-[#27ae60]">{infoOptimizacion}</p>
+      ) : null}
+
+      {permiteVideo && onVideoChange ? (
+        <div className="space-y-2 border-t border-[#ecf0f1] pt-2">
+          <p className="text-[10px] text-[#7f8c8d]">
+            Un video de hasta 30 segundos. Grabalo con la cámara del celular y elegilo de la galería.
+          </p>
+          <input
+            ref={videoRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm"
+            className="hidden"
+            onChange={(e) => void handleVideo(e)}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={subiendoVideo || !negocioID}
+              onClick={() => videoRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-lg border-2 border-[#9b59b6] px-3 py-2 text-xs font-semibold text-[#9b59b6] hover:bg-[#f5eef8] disabled:opacity-50"
+            >
+              {subiendoVideo ? "Subiendo video…" : videoURL ? "Cambiar video" : "Subir video"}
+            </button>
+            {videoURL ? (
+              <button
+                type="button"
+                onClick={() => onVideoChange("")}
+                className="text-[11px] font-semibold text-[#e74c3c]"
+              >
+                Quitar video
+              </button>
+            ) : null}
+          </div>
+          {videoURL ? (
+            <video
+              src={videoURL}
+              controls
+              playsInline
+              className="w-full max-h-40 rounded-lg bg-black"
+            />
+          ) : null}
+        </div>
       ) : null}
 
       {fotosURLs.length > 0 ? (
