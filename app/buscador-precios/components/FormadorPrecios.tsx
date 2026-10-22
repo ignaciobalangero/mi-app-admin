@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const COLORES_CONOCIDOS = new Set([
   "black",
@@ -241,11 +241,54 @@ const reemplazarPrecioEnLinea = (linea: string, nuevoPrecio: number): string => 
   return linea;
 };
 
+const CLAVE_TITULO = "formador-precios-titulo";
+
+/** Deja el precio en negrita de WhatsApp (*$350.000*). */
+const resaltarPrecioWhatsApp = (linea: string): string => {
+  const patrones = [
+    /(u\$\s*\d[\d.]*)/i,
+    /(\$\s*\d[\d.]*)/,
+    /(USD\s*\d[\d.]*)/i,
+    /(U\$S\s*\d[\d.]*)/i,
+  ];
+  for (const regex of patrones) {
+    if (!regex.test(linea)) continue;
+    return linea.replace(regex, "*$1*");
+  }
+  return linea;
+};
+
+const lineaParaWhatsApp = (linea: string): string => {
+  const limpia = resaltarPrecioWhatsApp(linea.trim());
+  if (/^[•\-*]/.test(limpia)) return limpia;
+  return `• ${limpia}`;
+};
+
+/** Texto con título y viñetas, listo para pegar en WhatsApp. */
+const armarMensajeWhatsApp = (titulo: string, lineas: string[]): string => {
+  const cuerpo = lineas.map(lineaParaWhatsApp).join("\n");
+  const t = titulo.trim().replace(/\*/g, "");
+  if (!t) return cuerpo;
+  return `——— *${t}* ———\n\n${cuerpo}`;
+};
+
 export default function FormadorPrecios() {
   const [listaTexto, setListaTexto] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [titulo, setTitulo] = useState("");
+  const [tituloListo, setTituloListo] = useState(false);
   const [porcentajeStr, setPorcentajeStr] = useState("0");
   const [sumaStr, setSumaStr] = useState("0");
+
+  useEffect(() => {
+    setTitulo(localStorage.getItem(CLAVE_TITULO) || "");
+    setTituloListo(true);
+  }, []);
+
+  useEffect(() => {
+    if (!tituloListo) return;
+    localStorage.setItem(CLAVE_TITULO, titulo);
+  }, [titulo, tituloListo]);
 
   const porcentaje = parseNumero(porcentajeStr);
   const sumaFija = parseNumero(sumaStr);
@@ -300,16 +343,20 @@ export default function FormadorPrecios() {
 
   const outputText = useMemo(() => {
     if (!itemsTransformados.length) return "";
-    return itemsTransformados.map((it) => it.lineaTransformada).join("\n");
-  }, [itemsTransformados]);
+    return armarMensajeWhatsApp(
+      titulo,
+      itemsTransformados.map((it) => it.lineaTransformada)
+    );
+  }, [itemsTransformados, titulo]);
 
   const copiarResultado = async () => {
     if (!outputText) return;
     try {
       await navigator.clipboard.writeText(outputText);
-      alert("📋 Lista formadora copiada al portapapeles");
+      alert("Lista copiada. Pegala en WhatsApp.");
     } catch (e) {
       console.error(e);
+      alert("No se pudo copiar. Seleccioná el texto de la salida y copialo a mano.");
     }
   };
 
@@ -323,9 +370,22 @@ export default function FormadorPrecios() {
           <div>
             <h2 className="text-2xl font-bold text-[#2c3e50]">Formador de Precios</h2>
             <p className="text-[#7f8c8d] mt-1">
-              Pegá una lista y aplicá un ajuste por porcentaje y/o suma fija.
+              Pegá una lista, poné el título y copiá el mensaje listo para WhatsApp.
             </p>
           </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+            Título del mensaje
+          </label>
+          <input
+            type="text"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            placeholder="Ej: Lista iPhone 17 — octubre"
+            className="w-full px-5 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#25D366] focus:border-[#25D366] transition-all text-[#2c3e50] font-medium text-base"
+          />
         </div>
 
         <div className="flex flex-col md:flex-row gap-4 mb-4">
@@ -393,7 +453,7 @@ export default function FormadorPrecios() {
                   : "bg-gray-300 text-gray-500 cursor-not-allowed"
               }`}
             >
-              📋 Copiar lista resultante
+              📋 Copiar para WhatsApp
             </button>
           </div>
         </div>
@@ -408,8 +468,8 @@ export default function FormadorPrecios() {
             <h3 className="text-xl font-bold text-[#2c3e50]">Salida</h3>
             <p className="text-[#7f8c8d] text-sm">
               {itemsTransformados.length
-                ? `${itemsTransformados.length} líneas formadas${busqueda.trim() ? " (filtradas)" : ""}`
-                : "Pegá una lista para ver el resultado."}
+                ? `${itemsTransformados.length} líneas, listas para pegar en WhatsApp${busqueda.trim() ? " (filtradas)" : ""}`
+                : "Pegá una lista para ver el mensaje."}
             </p>
           </div>
         </div>
@@ -418,7 +478,7 @@ export default function FormadorPrecios() {
           value={outputText}
           readOnly
           className="w-full h-64 px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-[#f8f9fa] text-[#2c3e50] font-mono text-sm resize-none"
-          placeholder="—"
+          placeholder={"——— *Título* ———\n\n• Producto *$000*"}
         />
 
         {itemsTransformados.length > 0 && (
