@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth";
 import { useAuthState } from "react-firebase-hooks/auth";
 import Header from "@/app/Header";
+import { insertarClienteEnCache } from "@/lib/clientes/listaClientes";
 
 export default function AgregarClienteForm() {
   const router = useRouter();
@@ -74,6 +75,14 @@ export default function AgregarClienteForm() {
 
         // 2️⃣ Actualizar el cliente
         await updateDoc(clienteRef, cliente);
+        insertarClienteEnCache(negocioID, {
+          id: clienteId,
+          nombre: cliente.nombre,
+          telefono: cliente.telefono || "",
+          dni: cliente.dni || "",
+          direccion: cliente.direccion || "",
+          email: cliente.email || "",
+        });
 
         // 3️⃣ SI CAMBIÓ EL NOMBRE, ACTUALIZAR TODO EL SISTEMA
         if (nombreAnterior && nombreAnterior !== cliente.nombre) {
@@ -139,7 +148,15 @@ export default function AgregarClienteForm() {
         
       } else {
         // 🆕 CREACIÓN DE CLIENTE NUEVO
-        await addDoc(collection(db, `negocios/${negocioID}/clientes`), cliente);
+        const ref = await addDoc(collection(db, `negocios/${negocioID}/clientes`), cliente);
+        insertarClienteEnCache(negocioID, {
+          id: ref.id,
+          nombre: cliente.nombre,
+          telefono: cliente.telefono || "",
+          dni: cliente.dni || "",
+          direccion: cliente.direccion || "",
+          email: cliente.email || "",
+        });
         setMensaje("✅ Cliente guardado con éxito");
 
         // Redirección según el origen

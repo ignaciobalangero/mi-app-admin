@@ -69,6 +69,27 @@ export function reemplazarCacheClientes(negocioID: string, lista: ClienteLista[]
   guardar(negocioID, lista);
 }
 
+/** Mete el cliente recién guardado en la lista en caché. Si no hay lista completa, no inventa una de un solo cliente. */
+export function insertarClienteEnCache(negocioID: string, cliente: ClienteLista) {
+  if (!negocioID || !cliente.id) return;
+  const enMemoria = memoria.get(negocioID);
+  const base =
+    enMemoria && Date.now() - enMemoria.ts < CACHE_MS
+      ? enMemoria.lista
+      : leerLocal(negocioID);
+  if (!base) {
+    memoria.delete(negocioID);
+    return;
+  }
+  const nombre = cliente.nombre.trim();
+  const item = { ...cliente, nombre };
+  const sin = base.filter((c) => c.id !== item.id);
+  let i = 0;
+  while (i < sin.length && sin[i].nombre < nombre) i++;
+  sin.splice(i, 0, item);
+  guardar(negocioID, sin);
+}
+
 async function bajarDesdeFirebase(
   negocioID: string,
   onLote?: (lista: ClienteLista[]) => void
