@@ -6,6 +6,7 @@ import { etiquetaEstado } from "@/lib/stockTelefonos/estados";
 import {
   armarListaPrecioWhatsApp,
   estadosDisponiblesEnStock,
+  urlCatalogoCelulares,
   type TipoPrecioLista,
   type TelefonoListaPrecio,
 } from "@/lib/stockTelefonos/listaPrecioWhatsApp";
@@ -13,6 +14,7 @@ import {
 type Props = {
   abierto: boolean;
   telefonos: TelefonoListaPrecio[];
+  negocioID?: string;
   onClose: () => void;
   onCopiado: (mensaje: string) => void;
 };
@@ -20,10 +22,12 @@ type Props = {
 export default function ModalCopiarListaPrecio({
   abierto,
   telefonos,
+  negocioID = "",
   onClose,
   onCopiado,
 }: Props) {
   const [mounted, setMounted] = useState(false);
+  const [origen, setOrigen] = useState("");
   const [tipoPrecio, setTipoPrecio] = useState<TipoPrecioLista>("venta");
   const [estadosSel, setEstadosSel] = useState<string[]>([]);
   const [copiando, setCopiando] = useState(false);
@@ -33,7 +37,10 @@ export default function ModalCopiarListaPrecio({
     [telefonos]
   );
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    setOrigen(window.location.origin);
+  }, []);
 
   useEffect(() => {
     if (!abierto) return;
@@ -41,14 +48,27 @@ export default function ModalCopiarListaPrecio({
     setEstadosSel(estados);
   }, [abierto, estados]);
 
+  const linkFotos = useMemo(
+    () =>
+      origen && negocioID
+        ? urlCatalogoCelulares(origen, negocioID, tipoPrecio)
+        : "",
+    [origen, negocioID, tipoPrecio]
+  );
+
   const preview = useMemo(
     () =>
       armarListaPrecioWhatsApp(telefonos, {
         tipoPrecio,
         estados: estadosSel,
+        linkFotos,
       }),
-    [telefonos, tipoPrecio, estadosSel]
+    [telefonos, tipoPrecio, estadosSel, linkFotos]
   );
+
+  const textoSoloLink = linkFotos
+    ? `Te dejo los celulares para verlos con fotos 👇\n${linkFotos}`
+    : "";
 
   const toggleEstado = (estado: string) => {
     setEstadosSel((prev) =>
@@ -58,12 +78,12 @@ export default function ModalCopiarListaPrecio({
     );
   };
 
-  const copiar = async () => {
-    if (!preview.texto || preview.cantidad === 0) return;
+  const copiarTexto = async (texto: string, aviso: string) => {
+    if (!texto) return;
     setCopiando(true);
     try {
-      await navigator.clipboard.writeText(preview.texto);
-      onCopiado(`📋 Lista copiada (${preview.cantidad} equipos)`);
+      await navigator.clipboard.writeText(texto);
+      onCopiado(aviso);
       onClose();
     } catch (e) {
       console.error(e);
@@ -81,7 +101,9 @@ export default function ModalCopiarListaPrecio({
         <div className="bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white p-4 flex justify-between gap-3 flex-shrink-0">
           <div>
             <h2 className="font-bold text-lg">Copiar lista de precios</h2>
-            <p className="text-sm text-white/90">Formato listo para WhatsApp</p>
+            <p className="text-sm text-white/90">
+              Mayorista y minorista llevan el link abajo. También podés copiar solo el link.
+            </p>
           </div>
           <button
             type="button"
@@ -98,8 +120,8 @@ export default function ModalCopiarListaPrecio({
             <div className="grid grid-cols-2 gap-2">
               {(
                 [
-                  ["venta", "Precio venta"],
-                  ["mayorista", "Precio mayorista"],
+                  ["venta", "Minorista"],
+                  ["mayorista", "Mayorista"],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -174,21 +196,34 @@ export default function ModalCopiarListaPrecio({
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-200 flex gap-2 flex-shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-800 font-semibold"
-          >
-            Cancelar
-          </button>
+        <div className="p-4 border-t border-gray-200 flex flex-col gap-2 flex-shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             disabled={!preview.texto || copiando}
-            onClick={() => void copiar()}
-            className="flex-1 py-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe57] text-white font-semibold disabled:opacity-50"
+            onClick={() =>
+              void copiarTexto(
+                preview.texto,
+                `📋 Lista copiada (${preview.cantidad} equipos)`
+              )
+            }
+            className="w-full py-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe57] text-white font-semibold disabled:opacity-50"
           >
-            {copiando ? "Copiando…" : "📋 Copiar"}
+            {copiando ? "Copiando…" : "📋 Copiar lista con link"}
+          </button>
+          <button
+            type="button"
+            disabled={!textoSoloLink || copiando}
+            onClick={() => void copiarTexto(textoSoloLink, "🔗 Link copiado")}
+            className="w-full py-3 rounded-xl bg-white border-2 border-[#128C7E] text-[#128C7E] font-semibold disabled:opacity-50"
+          >
+            Copiar solo el link
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-gray-100 text-gray-800 font-semibold"
+          >
+            Cancelar
           </button>
         </div>
       </div>

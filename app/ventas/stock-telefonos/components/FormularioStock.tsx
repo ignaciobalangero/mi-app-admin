@@ -12,6 +12,8 @@ import PanelEscanerCelular from "./PanelEscanerCelular";
 import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
 import { extraerImei } from "@/lib/extraerImei";
 import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
+import CampoFotoRepuesto from "@/app/ventas/stock-accesorios-repuestos/repuestos/components/CampoFotoRepuesto";
+import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
 import type { ChequeoImei } from "@/lib/ifree/consultasImei";
 
 interface Props {
@@ -92,9 +94,11 @@ export default function FormularioStock({
   const [guardando, setGuardando] = useState(false);
   const [cargadosSeguidos, setCargadosSeguidos] = useState(0);
   const [chequeoImei, setChequeoImei] = useState<ChequeoImei | null>(null);
+  const [fotosURLs, setFotosURLs] = useState<string[]>([]);
   const [escanerLocal, setEscanerLocal] = useState(false);
   const [imeiRecienCargado, setImeiRecienCargado] = useState(false);
   const imeiRef = useRef<HTMLInputElement>(null);
+  const formularioAbierto = useRef(false);
   const { rol } = useRol();
 
   // Si se pasan datos para editar, los cargamos automáticamente
@@ -133,17 +137,23 @@ export default function FormularioStock({
         ? (chequeo as ChequeoImei)
         : null
     );
+    setFotosURLs(normalizarFotosURLs(datosIniciales));
     setMostrarFormulario(true);
   }, [datosIniciales]);
   
-  // Si se oculta el formulario, se resetea
+  // Si se oculta el formulario, se resetea. El primer render (cerrado) no pisa los datos de edición.
   useEffect(() => {
-    if (!mostrarFormulario) {
-      setForm(inicial);
-      setEditandoID(null);
-      setCargadosSeguidos(0);
-      setChequeoImei(null);
+    if (mostrarFormulario) {
+      formularioAbierto.current = true;
+      return;
     }
+    if (!formularioAbierto.current) return;
+    formularioAbierto.current = false;
+    setForm(inicial);
+    setEditandoID(null);
+    setCargadosSeguidos(0);
+    setChequeoImei(null);
+    setFotosURLs([]);
   }, [mostrarFormulario]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -185,6 +195,7 @@ export default function FormularioStock({
       creadoEn: Timestamp.now(),
       proveedor: form.proveedor || (clienteRecibido ? `Recibido de ${clienteRecibido}` : ""),
       ...(chequeoImei && chequeoImei.imei === digitosImei(form.imei) ? { chequeoImei } : {}),
+      ...fotosParaFirestore(fotosURLs),
     };
 
     if (soloCapturarDatos) {
@@ -241,6 +252,7 @@ export default function FormularioStock({
           moneda: prev.moneda,
         }));
         setChequeoImei(null);
+        setFotosURLs([]);
         setMostrarFormulario(true);
         setTimeout(() => imeiRef.current?.focus(), 50);
         return;
@@ -446,6 +458,20 @@ export default function FormularioStock({
             placeholder="Observaciones (opcional)"
             className="p-2 border rounded col-span-1 md:col-span-2"
           />
+
+          {!soloCapturarDatos && (
+            <div className="col-span-1 md:col-span-2">
+              <CampoFotoRepuesto
+                negocioID={negocioID}
+                productoId={editandoID || undefined}
+                fotosURLs={fotosURLs}
+                onChange={setFotosURLs}
+                segmento="telefonos"
+                titulo="Fotos del equipo (podés subir varias)"
+                ayuda="Frente, atrás y detalles. La primera es la que se ve en la lista. El cliente desliza el resto."
+              />
+            </div>
+          )}
           
           {/* 🆕 Checkbox para imprimir etiqueta */}
           <div className="col-span-1 md:col-span-2">

@@ -1,6 +1,43 @@
 import { useState } from "react";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, runTransaction, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import useCotizacion from "@/lib/hooks/useCotizacion";
+
+export type RepuestoServicioPropio = {
+  id: string;
+  coleccion: "stockRepuestos" | "stockExtra";
+  nombre: string;
+  codigo: string;
+  cantidad: number;
+  costoUnitario: number;
+  moneda: string;
+  costoPesos?: number;
+};
+
+export type RegistroServicioPropio = {
+  motivo: string;
+  manoObra: number;
+  repuestos: RepuestoServicioPropio[];
+};
+
+function monedaNorm(m: unknown): "ARS" | "USD" {
+  return String(m || "USD").toUpperCase() === "ARS" ? "ARS" : "USD";
+}
+
+/** Pasa el costo de un repuesto a la moneda del equipo con la cotización de Venta general. */
+export function costoEnMonedaEquipo(
+  costo: number,
+  monedaOrigen: string,
+  monedaEquipo: string,
+  cotizacion: number | null
+): number | null {
+  const origen = monedaNorm(monedaOrigen);
+  const destino = monedaNorm(monedaEquipo);
+  if (origen === destino) return costo;
+  if (!cotizacion || cotizacion <= 0) return null;
+  if (origen === "USD" && destino === "ARS") return costo * cotizacion;
+  return costo / cotizacion;
+}
 
 interface DatosServicio {
   lugar: string;
@@ -18,6 +55,9 @@ interface UseServiciosProps {
 }
 
 export const useServicios = ({ negocioID, setTelefonos, setMensaje }: UseServiciosProps) => {
+  const { dolarManual, usarDolarManual } = useCotizacion(negocioID);
+  const cotizacion =
+    usarDolarManual && dolarManual != null && dolarManual > 0 ? dolarManual : null;
   // Estados para modales
   const [mostrarModalServicio, setMostrarModalServicio] = useState(false);
   const [mostrarModalHistorial, setMostrarModalHistorial] = useState(false);
@@ -73,6 +113,122 @@ export const useServicios = ({ negocioID, setTelefonos, setMensaje }: UseServici
     } catch (error) {
       console.error("Error al enviar a servicio:", error);
       alert("Error al enviar a servicio técnico: " + error.message);
+    }
+  };
+
+  const registrarServicioPropio = async (payload: RegistroServicioPropio) => {
+    if (!telefonoServicio) return;
+    const motivo = payload.motivo.trim();
+    if (!motivo) {
+      alert("Contá qué se le hizo al equipo.");
+      return;
+    }
+    const repuestos = payload.repuestos.filter((r) => r.cantidad > 0);
+    const manoObra = Math.max(0, Number(payload.manoObra) || 0);
+    const monedaEquipo = monedaNorm(telefonoServicio.moneda);
+
+    const lineas = repuestos.map((r) => {
+      const costo = costoEnMonedaEquipo(
+        r.costoUnitario,
+        r.moneda,
+        monedaEquipo,
+        cotizacion
+      );
+      return { ...r, costoEnEquipo: costo };
+    });
+    if (lineas.some((l) => l.costoEnEquipo == null)) {
+      alert("Hay un repuesto en otra moneda. Cargá la cotización en Venta general: acá se usa solo esa.");
+      return;
+    }
+
+    const costoRepuestos = lineas.reduce(
+      (s, l) => s + (l.costoEnEquipo || 0) * l.cantidad,
+      0
+    );
+    const costoFinal = Math.round((costoRepuestos + manoObra) * 100) / 100;
+    const costoActual = parseFloat(telefonoServicio.precioCompra) || 0;
+    const hoy = new Date().toLocaleDateString("es-AR");
+
+    try {
+      const phoneRef = doc(db, `negocios/${negocioID}/stockTelefonos/${telefonoServicio.id}`);
+      const historialPrevio = telefonoServicio.historialServicios || [];
+      const servicioCompleto = {
+        lugar: "Servicio propio",
+        motivo,
+        fechaEnvio: hoy,
+        fechaRetorno: hoy,
+        propio: true,
+        repuestos: lineas.map((l) => ({
+          id: l.id,
+          coleccion: l.coleccion,
+          nombre: l.nombre,
+          codigo: l.codigo,
+          cantidad: l.cantidad,
+          costoUnitario: l.costoUnitario,
+          moneda: l.moneda,
+          costoEnEquipo: Math.round((l.costoEnEquipo || 0) * 100) / 100,
+        })),
+        manoObra,
+        costoFinal,
+        monedaServicio: monedaEquipo,
+        sumadoAlCosto: true,
+        id: Date.now(),
+      };
+
+      await runTransaction(db, async (tx) => {
+        const lecturas = [];
+        for (const linea of lineas) {
+          const ref = doc(db, `negocios/${negocioID}/${linea.coleccion}/${linea.id}`);
+          const snap = await tx.get(ref);
+          lecturas.push({ linea, ref, snap });
+        }
+        for (const { linea, snap } of lecturas) {
+          if (!snap.exists()) {
+            throw new Error(`No está en stock: ${linea.nombre}`);
+          }
+          const cant = Number(snap.data()?.cantidad ?? snap.data()?.stock) || 0;
+          if (cant < linea.cantidad) {
+            throw new Error(
+              `${linea.nombre} tiene ${cant} en stock y querés usar ${linea.cantidad}.`
+            );
+          }
+        }
+        for (const { linea, ref, snap } of lecturas) {
+          const cant = Number(snap.data()?.cantidad ?? snap.data()?.stock) || 0;
+          tx.update(ref, { cantidad: cant - linea.cantidad });
+        }
+        tx.update(phoneRef, {
+          enServicio: false,
+          precioCompra: Math.round((costoActual + costoFinal) * 100) / 100,
+          costoTotalServicio:
+            (parseFloat(telefonoServicio.costoTotalServicio) || 0) + costoFinal,
+          historialServicios: [...historialPrevio, servicioCompleto],
+        });
+      });
+
+      const datosActualizados = {
+        ...telefonoServicio,
+        enServicio: false,
+        precioCompra: Math.round((costoActual + costoFinal) * 100) / 100,
+        costoTotalServicio:
+          (parseFloat(telefonoServicio.costoTotalServicio) || 0) + costoFinal,
+        historialServicios: [...historialPrevio, servicioCompleto],
+      };
+      setTelefonos((prev) =>
+        prev.map((t) => (t.id === telefonoServicio.id ? datosActualizados : t))
+      );
+      const detalle =
+        lineas.length > 0
+          ? ` Se descontaron ${lineas.length} repuesto${lineas.length === 1 ? "" : "s"} del stock.`
+          : "";
+      setMensaje(
+        `✅ Servicio propio registrado. Costo del equipo +$${costoFinal} ${monedaEquipo}.${detalle}`
+      );
+      cerrarModalServicio();
+    } catch (error) {
+      console.error("Error en servicio propio:", error);
+      const msg = error instanceof Error ? error.message : "No se pudo registrar";
+      alert(msg);
     }
   };
 
@@ -200,7 +356,9 @@ export const useServicios = ({ negocioID, setTelefonos, setMensaje }: UseServici
     setDatosServicio,
 
     // Funciones principales
+    cotizacion,
     enviarAServicio,
+    registrarServicioPropio,
     handleRetornoServicio,
 
     // Funciones para abrir modales

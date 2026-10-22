@@ -5,6 +5,8 @@ import { doc, updateDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import CamposEstadoTelefono from "./CamposEstadoTelefono";
 import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
+import CampoFotoRepuesto from "@/app/ventas/stock-accesorios-repuestos/repuestos/components/CampoFotoRepuesto";
+import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
 
 interface Telefono {
   id: string;
@@ -24,6 +26,8 @@ interface Telefono {
   precioMayorista: number;
   moneda: "USD" | "ARS";
   observaciones: string;
+  fotoURL?: string;
+  fotosURLs?: string[];
 }
 
 interface Props {
@@ -71,6 +75,7 @@ export default function ModalEditarTelefono({
       ciclosCarga: telefono.ciclosCarga != null ? String(telefono.ciclosCarga) : "",
       gb: telefono.gb || "",
       observaciones: telefono.observaciones || "",
+      fotosURLs: normalizarFotosURLs(telefono),
     });
   }, [telefono]);
 
@@ -104,6 +109,7 @@ export default function ModalEditarTelefono({
 
       const telefonoActualizado = {
         ...formulario,
+        ...fotosParaFirestore(normalizarFotosURLs(formulario)),
         fechaIngreso: Timestamp.fromDate(fechaFormateada),
         estado: normalizarEstado(formulario.estado) || "nuevo",
         bateria: estadoPideCondicion(formulario.estado) ? formulario.bateria || "" : "",
@@ -380,6 +386,20 @@ export default function ModalEditarTelefono({
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-3">
+              <CampoFotoRepuesto
+                negocioID={negocioID}
+                productoId={telefono.id}
+                fotosURLs={normalizarFotosURLs(formulario)}
+                onChange={(urls) =>
+                  setFormulario((prev: any) => ({ ...prev, fotosURLs: urls, fotoURL: urls[0] || "" }))
+                }
+                segmento="telefonos"
+                titulo="Fotos del equipo (podés subir varias)"
+                ayuda="Frente, atrás y detalles. La primera es la que se ve en la lista. El cliente desliza el resto."
+              />
             </div>
 
             {/* Observaciones */}

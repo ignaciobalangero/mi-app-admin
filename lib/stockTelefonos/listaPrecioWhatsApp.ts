@@ -96,12 +96,24 @@ function lineaTelefono(
   return `• ${modeloColor} | Bat ${bateria} | ${gb} | ${precio}`;
 }
 
+export function urlCatalogoCelulares(
+  origen: string,
+  negocioID: string,
+  tipoPrecio: TipoPrecioLista
+): string {
+  const base = String(origen || "").replace(/\/$/, "");
+  const lista = tipoPrecio === "mayorista" ? "mayorista" : "minorista";
+  return `${base}/celulares/${encodeURIComponent(negocioID)}/${lista}`;
+}
+
 /** Texto listo para pegar en WhatsApp. */
 export function armarListaPrecioWhatsApp(
   telefonos: TelefonoListaPrecio[],
   opts: {
     tipoPrecio: TipoPrecioLista;
     estados: string[];
+    /** Link público de fotos. Solo se agrega al texto, no abre el sistema. */
+    linkFotos?: string;
   }
 ): { texto: string; cantidad: number } {
   const estadosSel = new Set(
@@ -151,6 +163,12 @@ export function armarListaPrecioWhatsApp(
 
   if (cantidad === 0) {
     return { texto: "", cantidad: 0 };
+  }
+
+  const link = String(opts.linkFotos || "").trim();
+  if (link) {
+    bloques.push("👇 Mirá las fotos de cada equipo");
+    bloques.push(link);
   }
 
   const texto = bloques.join("\n").trim();

@@ -5,6 +5,11 @@ export function esConsultaStockPublico(pathname: string): boolean {
   return pathname.startsWith("/consulta-stock");
 }
 
+/** Vitrina de celulares: solo fotos y el precio de la lista. Sin login. */
+export function esVitrinaCelularesPublica(pathname: string): boolean {
+  return pathname.startsWith("/celulares");
+}
+
 /** Inicio de tienda en dominio propio (ej. iphonetec.com.ar → redirige al catálogo). */
 export function esInicioDominioTienda(pathname: string, host?: string | null): boolean {
   if (pathname !== "/" && pathname !== "") return false;
@@ -34,6 +39,7 @@ const RUTAS_PUBLICAS_EXACTAS_O_PREFIJO = [
 /** true = no pide sesión, no sidebar admin, no pantalla de cuenta vencida. */
 export function esRutaPublica(pathname: string, host?: string | null): boolean {
   if (esConsultaStockPublico(pathname)) return true;
+  if (esVitrinaCelularesPublica(pathname)) return true;
   if (esInicioDominioTienda(pathname, host)) return true;
   if (pathname === "/cliente" || pathname.startsWith("/cliente/")) return true;
   if (pathname === "/estado-trabajo" || pathname.startsWith("/estado-trabajo/")) return true;

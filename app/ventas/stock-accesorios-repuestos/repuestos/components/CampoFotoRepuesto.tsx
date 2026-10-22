@@ -16,6 +16,10 @@ type Props = {
   fotosURLs: string[];
   onChange: (urls: string[]) => void;
   compact?: boolean;
+  /** Carpeta de Storage. Repuestos por defecto. */
+  segmento?: string;
+  titulo?: string;
+  ayuda?: string;
 };
 
 const EXT_VALIDAS = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"];
@@ -26,6 +30,9 @@ export default function CampoFotoRepuesto({
   fotosURLs,
   onChange,
   compact = false,
+  segmento = "repuestos",
+  titulo = "Fotos del producto (se ven en la tienda web)",
+  ayuda = "La primera foto es la portada del catálogo. Podés subir varias.",
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -49,7 +56,7 @@ export default function CampoFotoRepuesto({
       );
     }
     const carpeta = productoId || `temp-${Date.now()}`;
-    const path = `negocios/${negocioID}/repuestos/${carpeta}/${Date.now()}.${optimizada.extension}`;
+    const path = `negocios/${negocioID}/${segmento}/${carpeta}/${Date.now()}.${optimizada.extension}`;
     const r = refStorage(storage, path);
     await uploadBytes(r, optimizada.blob, {
       contentType: optimizada.mimeType,
@@ -118,11 +125,9 @@ export default function CampoFotoRepuesto({
   return (
     <div className={wrap}>
       <label className="block text-xs font-semibold text-[#2c3e50]">
-        Fotos del producto (se ven en la tienda web)
+        {titulo}
       </label>
-      <p className="text-[10px] text-[#7f8c8d]">
-        La primera foto es la portada del catálogo. Podés subir varias.
-      </p>
+      <p className="text-[10px] text-[#7f8c8d]">{ayuda}</p>
 
       <div className="flex flex-wrap gap-2">
         <input

@@ -15,6 +15,7 @@ import ModalRetornarServicio from "./servicios/ModalRetornarServicio";
 import ModalVerServicioActual from "./servicios/ModalVerServicioActual";
 import ModalHistorialServicios from "./servicios/ModalHistorialServicio";
 import { estadoPideCondicion, etiquetaEstado, estiloBadgeEstado, estiloFilaEstado } from "@/lib/stockTelefonos/estados";
+import { normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
 import ModalCopiarListaPrecio from "./ModalCopiarListaPrecio";
 
 interface Props {
@@ -317,6 +318,7 @@ export default function TablaStockTelefonos({
       <ModalCopiarListaPrecio
         abierto={mostrarListaPrecio}
         telefonos={telefonos}
+        negocioID={negocioID}
         onClose={() => setMostrarListaPrecio(false)}
         onCopiado={(msg) => {
           setMensaje(msg);
@@ -332,6 +334,13 @@ export default function TablaStockTelefonos({
         setDatosServicio={servicios.setDatosServicio}
         onEnviar={servicios.enviarAServicio}
         onCerrar={servicios.cerrarModalServicio}
+        negocioID={negocioID}
+        cotizacion={
+          servicios.cotizacion != null && servicios.cotizacion > 0
+            ? servicios.cotizacion
+            : null
+        }
+        onRegistrarPropio={servicios.registrarServicioPropio}
       />
 
       <ModalRetornarServicio
@@ -573,7 +582,16 @@ export default function TablaStockTelefonos({
                         <span className="text-gray-700 truncate block">{t.proveedor || "-"}</span>
                       </td>
                       <td className="p-2 border border-gray-300" style={{minWidth: '120px'}}>
-                        <div className="font-medium text-gray-800 text-xs truncate">{t.modelo}</div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {normalizarFotosURLs(t)[0] ? (
+                            <img
+                              src={normalizarFotosURLs(t)[0]}
+                              alt=""
+                              className="h-9 w-9 rounded object-cover flex-shrink-0 border border-gray-200"
+                            />
+                          ) : null}
+                          <div className="font-medium text-gray-800 text-xs truncate">{t.modelo}</div>
+                        </div>
                       </td>
                       <td className="p-1 sm:p-2 border border-gray-300 text-xs" style={{minWidth: '60px', maxWidth: '80px'}}>
                         <span className="text-gray-700 truncate block">{t.marca || "-"}</span>

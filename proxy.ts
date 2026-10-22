@@ -11,6 +11,8 @@ const RUTAS_PERMITIDAS_TIENDA = [
   /^\/_next\//,
   /^\/favicon\.ico$/,
   /^\/consulta-stock\//,
+  /^\/celulares\//,
+  /^\/api\/celulares-publicos(?:\/|$)/,
   /^\/estado-trabajo\//,
   /^\/api\/estado-trabajo(?:\/|$)/,
   /^\/firmar-trabajo\//,

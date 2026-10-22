@@ -61,6 +61,27 @@ interface ModalHistorialServiciosProps {
                         )}
                       </div>
                     </div>
+                    {Array.isArray(servicio.repuestos) && servicio.repuestos.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-300 text-sm">
+                        <strong>Repuestos usados:</strong>
+                        <ul className="mt-1 space-y-1">
+                          {servicio.repuestos.map((r: any, i: number) => (
+                            <li key={`${r.id || i}`}>
+                              {r.cantidad}× {r.nombre}
+                              {r.codigo ? ` (${r.codigo})` : ""}
+                              {r.costoEnEquipo != null
+                                ? ` · $${(Number(r.costoEnEquipo) * Number(r.cantidad || 1)).toLocaleString("es-AR")}`
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {Number(servicio.manoObra) > 0 && (
+                      <div className="mt-2 text-sm">
+                        <strong>Mano de obra:</strong> ${servicio.manoObra} {servicio.monedaServicio || ""}
+                      </div>
+                    )}
                     {servicio.observacionesServicio && (
                       <div className="mt-3 pt-3 border-t border-gray-300">
                         <strong>📝 Observaciones:</strong> {servicio.observacionesServicio}
@@ -78,8 +99,9 @@ interface ModalHistorialServiciosProps {
                       ) || 0}
                   </div>
                   <div className="text-xs text-blue-600 mt-1">
-                    Costo real = Precio compra + Servicios = $
-                    {(telefono.precioCompra || 0) + (telefono.costoTotalServicio || 0)}
+                    {telefono.historialServicios?.some((s: any) => s.sumadoAlCosto)
+                      ? `Costo del equipo (ya incluye lo sumado): $${telefono.precioCompra || 0}`
+                      : `Costo real = Precio compra + Servicios = $${(telefono.precioCompra || 0) + (telefono.costoTotalServicio || 0)}`}
                   </div>
                 </div>
               </div>

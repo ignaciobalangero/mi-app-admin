@@ -1,3 +1,9 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import ServicioPropioForm from "./ServicioPropioForm";
+import type { RegistroServicioPropio } from "./useServicios";
+
 interface DatosServicio {
     lugar: string;
     motivo: string;
@@ -14,6 +20,9 @@ interface DatosServicio {
     setDatosServicio: React.Dispatch<React.SetStateAction<DatosServicio>>;
     onEnviar: () => void;
     onCerrar: () => void;
+    negocioID: string;
+    cotizacion: number | null;
+    onRegistrarPropio: (payload: RegistroServicioPropio) => Promise<void>;
   }
   
   export default function ModalEnviarServicio({
@@ -22,13 +31,25 @@ interface DatosServicio {
     datosServicio,
     setDatosServicio,
     onEnviar,
-    onCerrar
+    onCerrar,
+    negocioID,
+    cotizacion,
+    onRegistrarPropio,
   }: ModalEnviarServicioProps) {
+    const [modo, setModo] = useState<"taller" | "propio">("taller");
+    const [guardando, setGuardando] = useState(false);
+    useEffect(() => {
+      if (mostrar) {
+        setModo("taller");
+        setGuardando(false);
+      }
+    }, [mostrar, telefono?.id]);
     if (!mostrar || !telefono) return null;
+    const monedaEquipo = String(telefono.moneda || "USD").toUpperCase() === "ARS" ? "ARS" : "USD";
   
     return (
       <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex justify-center items-center z-50">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-gray-200 transform transition-all duration-300">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 border border-gray-200 max-h-[92vh] overflow-y-auto">
           <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-t-2xl p-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -42,6 +63,51 @@ interface DatosServicio {
           </div>
           
           <div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setModo("taller")}
+                className={`py-2 rounded-lg text-sm font-semibold border-2 ${
+                  modo === "taller"
+                    ? "bg-orange-600 border-orange-600 text-white"
+                    : "bg-white border-gray-300 text-gray-700"
+                }`}
+              >
+                Taller externo
+              </button>
+              <button
+                type="button"
+                onClick={() => setModo("propio")}
+                className={`py-2 rounded-lg text-sm font-semibold border-2 ${
+                  modo === "propio"
+                    ? "bg-orange-600 border-orange-600 text-white"
+                    : "bg-white border-gray-300 text-gray-700"
+                }`}
+              >
+                Servicio propio
+              </button>
+            </div>
+
+            {modo === "propio" ? (
+              <ServicioPropioForm
+                key={telefono.id}
+                negocioID={negocioID}
+                monedaEquipo={monedaEquipo}
+                precioCompra={Number(telefono.precioCompra) || 0}
+                cotizacion={cotizacion}
+                guardando={guardando}
+                onCancelar={onCerrar}
+                onConfirmar={async (payload) => {
+                  setGuardando(true);
+                  try {
+                    await onRegistrarPropio(payload);
+                  } finally {
+                    setGuardando(false);
+                  }
+                }}
+              />
+            ) : (
+            <>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 🏪 Lugar del servicio *
@@ -137,6 +203,8 @@ interface DatosServicio {
                 Enviar a Servicio
               </button>
             </div>
+            </>
+            )}
           </div>
         </div>
       </div>
