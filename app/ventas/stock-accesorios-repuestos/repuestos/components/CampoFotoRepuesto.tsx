@@ -290,9 +290,20 @@ export default function CampoFotoRepuesto({
           {videoURL ? (
             <video
               src={videoURL}
+              muted
               controls
               playsInline
               className="w-full max-h-40 rounded-lg bg-black"
+              onPlay={(ev) => {
+                ev.currentTarget.muted = true;
+                ev.currentTarget.volume = 0;
+              }}
+              onVolumeChange={(ev) => {
+                const v = ev.currentTarget;
+                if (v.muted && v.volume === 0) return;
+                v.muted = true;
+                v.volume = 0;
+              }}
             />
           ) : null}
         </div>
