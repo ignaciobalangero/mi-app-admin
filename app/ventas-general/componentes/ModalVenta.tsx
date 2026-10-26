@@ -1581,6 +1581,10 @@ export default function ModalVenta({
         cotizacionPago:
           cotizacionPagoValida ??
           (Number(prev.cotizacionPago) > 0 ? Number(prev.cotizacionPago) : undefined),
+        cotizacionProveedor:
+          Number(nuevoPago.cotizacionProveedor) > 0
+            ? Number(nuevoPago.cotizacionProveedor)
+            : null,
         pagoARSAplicadoAUSD: Boolean(nuevoPago.pagoARSAplicadoAUSD),
         lineas,
       };

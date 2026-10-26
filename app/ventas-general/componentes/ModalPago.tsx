@@ -140,6 +140,7 @@ export default function ModalPago({
   };
 
   const [cotizacionPago, setCotizacionPago] = useState<number>(cotizacionInicial);
+  const [cotizacionProveedor, setCotizacionProveedor] = useState("");
 
   useEffect(() => {
     if (!mostrar) return;
@@ -151,6 +152,12 @@ export default function ModalPago({
       setCotizacionPago(delPago);
     } else {
       setCotizacionPago(totalesVenta?.cotizacion || 1000);
+    }
+    const cotProv = Number((pago as { cotizacionProveedor?: number } | null)?.cotizacionProveedor);
+    if (Number.isFinite(cotProv) && cotProv > 0) {
+      setCotizacionProveedor(String(cotProv));
+    } else if (totalesVenta?.cotizacion) {
+      setCotizacionProveedor(String(totalesVenta.cotizacion));
     }
   }, [mostrar]); // solo al abrir
 
@@ -164,6 +171,7 @@ export default function ModalPago({
           id: docSnap.id,
           nombre: docSnap.data().nombre,
           categoria: docSnap.data().categoria || "",
+          cuentaUSD: docSnap.data().cuentaUSD === true,
         }));
         setProveedores(proveedoresData);
       } catch (error) {
@@ -363,6 +371,8 @@ export default function ModalPago({
         pagoSeguro.tipoDestino === "proveedor" ? pagoSeguro.proveedorSeleccionado : null,
       observaciones: [pagoSeguro.observaciones, notaConversion].filter(Boolean).join(" • "),
       cotizacionPago: cotizacionUsada,
+      cotizacionProveedor:
+        Number(cotizacionProveedor) > 0 ? Number(cotizacionProveedor) : null,
       pagoARSAplicadoAUSD: ventaSoloUSD && ars > 0,
       lineas: itemsFinal,
     };
@@ -792,7 +802,7 @@ export default function ModalPago({
                           )}
                           <div>
                             <div className="text-xs text-blue-800 font-medium mb-1">
-                              Cotización del cobro
+                              Cotización del cobro (saldo de la venta)
                             </div>
                             <input
                               type="number"
@@ -805,8 +815,9 @@ export default function ModalPago({
                           </div>
                           {montoBorrador > 0 && cotizacionUsada > 0 && (
                             <div className="text-xs text-blue-800">
-                              Este ítem ≈ USD {(montoBorrador / cotizacionUsada).toFixed(2)} al
-                              cambio ${cotizacionUsada.toLocaleString()}
+                              En la venta: USD {(montoBorrador / cotizacionUsada).toFixed(2)} al
+                              cambio ${cotizacionUsada.toLocaleString()}. Esta cotización no
+                              cambia la cuenta del proveedor.
                             </div>
                           )}
                         </div>
@@ -909,6 +920,30 @@ export default function ModalPago({
                       </option>
                     ))}
                   </select>
+                  {proveedores.find((p) => p.nombre === pagoSeguro.proveedorSeleccionado)
+                    ?.cuentaUSD && (pagoARS > 0 || borrador.moneda === "ARS") ? (
+                    <div className="mt-3 space-y-1">
+                      <label className="block text-sm font-semibold text-[#2c3e50]">
+                        Cotización del proveedor (distinta a la de la venta)
+                      </label>
+                      <input
+                        type="number"
+                        value={cotizacionProveedor}
+                        onChange={(e) => setCotizacionProveedor(e.target.value)}
+                        placeholder="Ej: 1450"
+                        className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#8e44ad] focus:border-[#8e44ad] transition-all text-sm sm:text-base text-[#2c3e50]"
+                      />
+                      <p className="text-xs text-[#7f8c8d]">
+                        El saldo de la venta usa la cotización del cobro. Acá ponés la del
+                        proveedor: los mismos pesos se pasan a su cuenta en USD con este otro
+                        cambio. La caja sigue en pesos
+                        {Number(cotizacionProveedor) > 0 && pagoARS > 0
+                          ? `. En el proveedor: USD ${(Math.round((pagoARS / Number(cotizacionProveedor)) * 100) / 100).toLocaleString("es-AR")}`
+                          : ""}
+                        .
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-2">

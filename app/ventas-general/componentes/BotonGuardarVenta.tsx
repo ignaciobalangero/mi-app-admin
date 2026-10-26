@@ -41,6 +41,7 @@ import {
   resolverLineasPago,
   ventaEstaPagada,
 } from "@/lib/ventas/pagoDualHelpers";
+import { registrarEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
 import {
   normalizarVentaTelefonoPendiente,
   totalesTelefonosVenta,
@@ -825,6 +826,23 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       }
     }
 
+    if (pagoTelefono?.tipoDestino === "proveedor" && pagoTelefono?.proveedorDestino) {
+      await registrarEnCuentaProveedor({
+        negocioID: rol.negocioID,
+        nombre: String(pagoTelefono.proveedorDestino),
+        pagoARS: pagoARS_Tel,
+        pagoUSD: pagoUSD_Tel,
+        cotizacion:
+          Number(pagoTelefono.cotizacionProveedor) > 0
+            ? Number(pagoTelefono.cotizacionProveedor)
+            : null,
+        forma: pagoTelefono.formaPago || "Efectivo",
+        referencia: `Pago desde venta de teléfono #${nroVenta}`,
+        notas: `Cliente: ${clienteNombre}`,
+        fecha,
+      });
+    }
+
     return ventaTelefonosRef.id;
   };
 
@@ -1137,31 +1155,20 @@ console.log('💳 Saldo actualizado por venta normal');
         }
       }
     }
-    // ✅ 4. SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
-if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
-  // Buscar datos del proveedor
-  const proveedoresSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/proveedores`));
-  const proveedor = proveedoresSnap.docs.find(doc => doc.data().nombre === pago.proveedorDestino);
-  
-  if (proveedor) {
-    const montoProvARS = ventaSoloUSD ? 0 : pagoARS || 0;
-    const montoProvUSD = ventaSoloUSD ? creditoUSD : pagoUSD || 0;
-    const pagoProveedor = {
-      proveedorId: proveedor.id,
-      proveedorNombre: proveedor.data().nombre,
-      fecha: fecha,
-      monto: montoProvARS,
-      montoUSD: montoProvUSD,
-      forma: pago?.formaPago || "Efectivo",
-      referencia: `Pago desde venta general #${nroVenta}`,
-      notas: `Cliente: ${clienteNombre}${pago?.observaciones ? ` - ${pago.observaciones}` : ''}`,
-      fechaCreacion: new Date().toISOString(),
-    };
-    
-    await addDoc(collection(db, `negocios/${rol.negocioID}/pagosProveedores`), pagoProveedor);
-    console.log("✅ Pago también guardado en pagosProveedores para:", proveedor.data().nombre);
-  }
-}
+    if (pago?.tipoDestino === "proveedor" && pago?.proveedorDestino) {
+      await registrarEnCuentaProveedor({
+        negocioID: rol.negocioID,
+        nombre: String(pago.proveedorDestino),
+        pagoARS: pagoARS || 0,
+        pagoUSD: pagoUSD || 0,
+        cotizacion:
+          Number(pago?.cotizacionProveedor) > 0 ? Number(pago.cotizacionProveedor) : null,
+        forma: pago?.formaPago || "Efectivo",
+        referencia: `Pago desde venta general #${nroVenta}`,
+        notas: `Cliente: ${clienteNombre}${pago?.observaciones ? ` - ${pago.observaciones}` : ""}`,
+        fecha,
+      });
+    }
     return ventaRef.id;
     } catch (errTrasStock) {
       // Compensar: el stock ya se descontó; si falla el guardado, reponer

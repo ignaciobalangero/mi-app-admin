@@ -24,6 +24,7 @@ interface Proveedor {
   cbu: string;
   alias: string;
   notas: string;
+  cuentaUSD?: boolean;
 }
 
 export default function ProveedoresPage() {
@@ -45,6 +46,7 @@ export default function ProveedoresPage() {
   const [cbu, setCbu] = useState("");
   const [alias, setAlias] = useState("");
   const [notas, setNotas] = useState("");
+  const [cuentaUSD, setCuentaUSD] = useState(false);
 
   const categorias = [
     "Distribuidores",
@@ -98,6 +100,7 @@ export default function ProveedoresPage() {
     setCbu("");
     setAlias("");
     setNotas("");
+    setCuentaUSD(false);
     setEditandoId(null);
   };
 
@@ -123,6 +126,7 @@ export default function ProveedoresPage() {
       cbu: cbu.trim(),
       alias: alias.trim(),
       notas: notas.trim(),
+      cuentaUSD,
       fechaCreacion: editandoId ? undefined : new Date().toISOString(),
     };
 
@@ -156,6 +160,7 @@ export default function ProveedoresPage() {
     setCbu(proveedor.cbu);
     setAlias(proveedor.alias);
     setNotas(proveedor.notas);
+    setCuentaUSD(proveedor.cuentaUSD === true);
     setEditandoId(proveedor.id);
     setMostrarFormulario(true);
   };
@@ -351,6 +356,21 @@ export default function ProveedoresPage() {
                 />
               </div>
 
+              <div className="lg:col-span-3">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={cuentaUSD}
+                    onChange={(e) => setCuentaUSD(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Llevar la cuenta en USD
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Un pago en pesos se convierte con la cotización de Venta general y baja la deuda en dólares.
+                </p>
+              </div>
+
               {/* Notas */}
               <div className="lg:col-span-3">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -423,7 +443,14 @@ export default function ProveedoresPage() {
                     <tr key={proveedor.id} className="border-b hover:bg-gray-50">
                       <td className="p-4">
                         <div>
-                          <p className="font-semibold text-gray-900">{proveedor.nombre}</p>
+                          <p className="font-semibold text-gray-900">
+                            {proveedor.nombre}
+                            {proveedor.cuentaUSD ? (
+                              <span className="ml-2 bg-blue-600 text-white px-2 py-0.5 rounded-full text-[10px]">
+                                Cuenta USD
+                              </span>
+                            ) : null}
+                          </p>
                           {proveedor.email && (
                             <p className="text-sm text-gray-600">{proveedor.email}</p>
                           )}

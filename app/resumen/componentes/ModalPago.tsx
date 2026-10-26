@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarEstadoTrabajoCliente";
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { cotizacionNegocioCaja } from "@/lib/caja/cotizacionCaja";
+import { cotizacionVentaGeneral, montosPagoEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
 
 interface Trabajo {
   firebaseId: string;
@@ -47,6 +48,7 @@ export default function ModalPago({
     tipoDestino: "libre",
     proveedorSeleccionado: "",
     destinoLibre: "",
+    cotizacionProveedor: "",
   });
 
   const [proveedores, setProveedores] = useState<any[]>([]);
@@ -99,8 +101,15 @@ export default function ModalPago({
           id: doc.id,
           nombre: doc.data().nombre,
           categoria: doc.data().categoria || "",
+          cuentaUSD: doc.data().cuentaUSD === true,
         }));
         setProveedores(proveedoresData);
+        const cot = await cotizacionVentaGeneral(negocioID);
+        if (cot) {
+          setPago((prev) =>
+            prev.cotizacionProveedor ? prev : { ...prev, cotizacionProveedor: String(cot) }
+          );
+        }
       } catch (error) {
         console.error("Error al cargar proveedores:", error);
       }
@@ -147,6 +156,27 @@ export default function ModalPago({
       const montoNumerico = parseFloat(pago.monto);
       const destino = obtenerDestino() || "";
       const cotizacion = await cotizacionNegocioCaja(negocioID);
+
+      const proveedor =
+        pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado
+          ? proveedores.find((p) => p.nombre === pago.proveedorSeleccionado)
+          : undefined;
+      const cotizacionDeEsteProveedor =
+        Number(pago.cotizacionProveedor) > 0
+          ? Number(pago.cotizacionProveedor)
+          : await cotizacionVentaGeneral(negocioID);
+      const enCuenta = proveedor
+        ? montosPagoEnCuentaProveedor({
+            cuentaUSD: proveedor.cuentaUSD === true,
+            moneda: pago.moneda,
+            monto: montoNumerico,
+            cotizacion: cotizacionDeEsteProveedor,
+          })
+        : null;
+      if (enCuenta && "error" in enCuenta) {
+        alert(enCuenta.error);
+        return;
+      }
       
       // 1. Crear el pago en la colección pagos
       const pagoData = {
@@ -171,25 +201,25 @@ export default function ModalPago({
 
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
 
-      // 2. SI ES PAGO A PROVEEDOR, guardarlo en pagosProveedores
-      if (pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado) {
-        const proveedor = proveedores.find(p => p.nombre === pago.proveedorSeleccionado);
-        if (proveedor) {
-          const pagoProveedor = {
-            proveedorId: proveedor.id,
-            proveedorNombre: proveedor.nombre,
-            fecha: new Date().toLocaleDateString("es-AR"),
-            monto: pago.moneda === "ARS" ? montoNumerico : 0,
-            montoUSD: pago.moneda === "USD" ? montoNumerico : 0,
-            forma: pago.formaPago,
-            referencia: `Pago desde trabajo: ${trabajo.trabajo}`,
-            notas: `Cliente: ${trabajo.cliente} - Modelo: ${trabajo.modelo}${pago.observaciones ? ` - ${pago.observaciones}` : ''}`,
-            fechaCreacion: new Date().toISOString(),
-          };
-          
-          await addDoc(collection(db, `negocios/${negocioID}/pagosProveedores`), pagoProveedor);
-          console.log("✅ Pago también guardado en pagosProveedores para:", proveedor.nombre);
-        }
+      if (proveedor && enCuenta && !("error" in enCuenta)) {
+        await addDoc(collection(db, `negocios/${negocioID}/pagosProveedores`), {
+          proveedorId: proveedor.id,
+          proveedorNombre: proveedor.nombre,
+          fecha: new Date().toLocaleDateString("es-AR"),
+          monto: enCuenta.monto,
+          montoUSD: enCuenta.montoUSD,
+          montoARSOriginal: enCuenta.montoARSOriginal,
+          cotizacion: cotizacionDeEsteProveedor,
+          forma: pago.formaPago,
+          referencia: `Pago desde trabajo: ${trabajo.trabajo}`,
+          notas: [
+            `Cliente: ${trabajo.cliente} - Modelo: ${trabajo.modelo}${pago.observaciones ? ` - ${pago.observaciones}` : ""}`,
+            enCuenta.notaConversion,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          fechaCreacion: new Date().toISOString(),
+        });
       }
 
       // 3. ⭐ NUEVA LÓGICA: Actualizar saldos según estado anterior
@@ -252,6 +282,7 @@ export default function ModalPago({
           tipoDestino: "libre",
           proveedorSeleccionado: "",
           destinoLibre: "",
+          cotizacionProveedor: "",
         });
       }, 1500);
 
@@ -475,6 +506,29 @@ export default function ModalPago({
                       No hay proveedores. <span className="text-[#8e44ad] font-medium">Crea uno en la sección Proveedores</span>
                     </p>
                   )}
+                  {proveedores.find((p) => p.nombre === pago.proveedorSeleccionado)?.cuentaUSD &&
+                  pago.moneda === "ARS" ? (
+                    <div className="mt-3 space-y-1">
+                      <label className="block text-sm font-semibold text-[#2c3e50]">
+                        Cotización de este proveedor
+                      </label>
+                      <input
+                        type="number"
+                        name="cotizacionProveedor"
+                        value={pago.cotizacionProveedor}
+                        onChange={handlePagoChange}
+                        placeholder="Ej: 1450"
+                        className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#8e44ad] focus:border-[#8e44ad] transition-all text-sm text-[#2c3e50]"
+                      />
+                      <p className="text-xs text-[#7f8c8d]">
+                        Solo pasa este pago de pesos a la cuenta en USD. La caja sigue en pesos
+                        {Number(pago.cotizacionProveedor) > 0 && Number(pago.monto) > 0
+                          ? `. Impacta USD ${(Math.round((Number(pago.monto) / Number(pago.cotizacionProveedor)) * 100) / 100).toLocaleString("es-AR")}`
+                          : ""}
+                        .
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-2">

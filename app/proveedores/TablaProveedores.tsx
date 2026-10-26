@@ -35,6 +35,7 @@ interface Pago {
   fecha: string;
   monto: number;
   montoUSD?: number;
+  montoARSOriginal?: number;
   forma: string;
   referencia: string;
   notas: string;
@@ -439,6 +440,11 @@ export default function TablaProveedores({
   ? `U$D ${pago.montoUSD}` 
   : `$ ${(pago.monto && pago.monto > 0) ? pago.monto.toLocaleString() : '0'}`
 }
+                      {pago.montoARSOriginal ? (
+                        <p className="text-xs font-medium text-gray-600">
+                          desde ${Number(pago.montoARSOriginal).toLocaleString("es-AR")} ARS
+                        </p>
+                      ) : null}
                       </td>
                       <td className="p-4 font-semibold text-gray-800 bg-white border-r border-gray-300">{pago.notas || "-"}</td>
                       <td className="p-4 bg-white">

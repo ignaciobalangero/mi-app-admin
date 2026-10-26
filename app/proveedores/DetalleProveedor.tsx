@@ -12,6 +12,8 @@ import {
 } from "firebase/firestore";
 import TablaProveedores from "./TablaProveedores";
 import { formatearFechaCaja } from "@/lib/caja/fechaCaja";
+import useCotizacion from "@/lib/hooks/useCotizacion";
+import { montosPagoEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
 
 interface Proveedor {
   id: string;
@@ -22,6 +24,7 @@ interface Proveedor {
   cbu: string;
   alias: string;
   notas: string;
+  cuentaUSD?: boolean;
 }
 
 interface ProductoCompra {
@@ -50,6 +53,7 @@ interface Pago {
   fecha: string;
   monto: number;
   montoUSD?: number;
+  montoARSOriginal?: number;
   forma: string;
   referencia: string;
   notas: string;
@@ -63,6 +67,9 @@ interface Props {
 }
 
 export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Props) {
+  const { dolarManual, usarDolarManual } = useCotizacion(negocioID);
+  const cotizacionCuenta =
+    usarDolarManual && dolarManual != null && dolarManual > 0 ? dolarManual : null;
   const [compras, setCompras] = useState<Compra[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [vistaActual, setVistaActual] = useState<"resumen" | "compras" | "pagos">("resumen");
@@ -89,6 +96,12 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
   const [formaPago, setFormaPago] = useState("");
   const [referenciaPago, setReferenciaPago] = useState("");
   const [notasPago, setNotasPago] = useState("");
+  const [cotizacionPagoProveedor, setCotizacionPagoProveedor] = useState("");
+
+  useEffect(() => {
+    if (!cotizacionCuenta) return;
+    setCotizacionPagoProveedor((actual) => actual || String(cotizacionCuenta));
+  }, [cotizacionCuenta]);
 
   const formasPago = ["Efectivo", "Transferencia", "Tarjeta", "Cheque", "USD", "Crypto"];
   const estadosCompra = [
@@ -251,15 +264,31 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
       return;
     }
 
+    const montoIngresado = monedaPago === "USD" ? montoUSDPago : montoPago;
+    const cotizacionDeEstePago = Number(cotizacionPagoProveedor) || cotizacionCuenta;
+    const enCuenta = montosPagoEnCuentaProveedor({
+      cuentaUSD: proveedor.cuentaUSD === true,
+      moneda: monedaPago,
+      monto: montoIngresado,
+      cotizacion: cotizacionDeEstePago,
+    });
+    if ("error" in enCuenta) {
+      setMensaje(`❌ ${enCuenta.error}`);
+      setTimeout(() => setMensaje(""), 3000);
+      return;
+    }
+
     const nuevoPago = {
       proveedorId: proveedor.id,
       proveedorNombre: proveedor.nombre,
       fecha: formatearFechaCaja(new Date()),
-      monto: monedaPago === "ARS" ? montoPago : 0,
-      montoUSD: monedaPago === "USD" ? montoUSDPago : 0,
+      monto: enCuenta.monto,
+      montoUSD: enCuenta.montoUSD,
+      montoARSOriginal: enCuenta.montoARSOriginal,
+      cotizacion: cotizacionDeEstePago && cotizacionDeEstePago > 0 ? cotizacionDeEstePago : null,
       forma: formaPago,
       referencia: referenciaPago.trim(),
-      notas: notasPago.trim(),
+      notas: [notasPago.trim(), enCuenta.notaConversion].filter(Boolean).join(" · "),
       fechaCreacion: new Date().toISOString(),
     };
 
@@ -310,6 +339,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
     setFormaPago("");
     setReferenciaPago("");
     setNotasPago("");
+    setCotizacionPagoProveedor(cotizacionCuenta ? String(cotizacionCuenta) : "");
   };
 
   const calcularTotales = () => {
@@ -560,6 +590,9 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                       <p className="font-black text-green-700 text-lg">
                         {pago.montoUSD ? `U$D ${pago.montoUSD}` : `${pago.monto.toLocaleString()}`}
                       </p>
+                      {pago.montoARSOriginal ? (
+                        <p className="text-xs text-gray-600">desde ${pago.montoARSOriginal.toLocaleString("es-AR")} ARS</p>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -931,7 +964,34 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                     placeholder="0.00"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-green-500 bg-white text-gray-900"
                   />
+                  {proveedor.cuentaUSD && monedaPago === "ARS" && Number(cotizacionPagoProveedor) > 0 && montoPago > 0 ? (
+                    <p className="text-xs text-blue-700 mt-1">
+                      En la cuenta del proveedor: USD{" "}
+                      {(Math.round((montoPago / Number(cotizacionPagoProveedor)) * 100) / 100).toLocaleString("es-AR")}
+                    </p>
+                  ) : null}
                 </div>
+
+                {proveedor.cuentaUSD && monedaPago === "ARS" ? (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Cotización de este pago
+                    </label>
+                    <input
+                      type="number"
+                      value={cotizacionPagoProveedor}
+                      onChange={(e) => setCotizacionPagoProveedor(e.target.value)}
+                      placeholder={cotizacionCuenta ? String(cotizacionCuenta) : "Ej: 1450"}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-green-500 bg-white text-gray-900"
+                    />
+                    <p className="text-xs text-gray-600 mt-1">
+                      Solo convierte este pago de pesos a la cuenta en USD. La caja sigue en pesos
+                      {cotizacionCuenta
+                        ? `. Venta general está en $${cotizacionCuenta.toLocaleString("es-AR")}; acá podés usar otra.`
+                        : "."}
+                    </p>
+                  </div>
+                ) : null}
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">💳 Forma de Pago *</label>

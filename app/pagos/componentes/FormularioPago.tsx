@@ -22,6 +22,8 @@ import {
   sincronizarVentaTrasPago,
   type VentaPendienteCliente,
 } from "@/lib/ventas/vincularPagoVenta";
+import { montosPagoEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
+import useCotizacion from "@/lib/hooks/useCotizacion";
 
 interface Props {
  negocioID: string;
@@ -65,6 +67,10 @@ export default function FormularioPago({ negocioID, setPagos }: Props) {
  const [trabajosPendientes, setTrabajosPendientes] = useState<Trabajo[]>([]);
  const [ventasPendientes, setVentasPendientes] = useState<VentaPendienteCliente[]>([]);
  const [ventaIdAplicar, setVentaIdAplicar] = useState("");
+ const { dolarManual, usarDolarManual } = useCotizacion(negocioID);
+ const cotizacionCuenta =
+   usarDolarManual && dolarManual != null && dolarManual > 0 ? dolarManual : null;
+ const [cotizacionProveedor, setCotizacionProveedor] = useState("");
 
  const hoyInputDate = () => {
    const d = new Date();
@@ -142,6 +148,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
        id: doc.id,
        nombre: doc.data().nombre,
        categoria: doc.data().categoria || "",
+       cuentaUSD: doc.data().cuentaUSD === true,
      }));
      setProveedores(proveedoresData);
    };
@@ -302,6 +309,25 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
        })
      : null;
 
+   const proveedorCuenta =
+     tipoDestino === "proveedor"
+       ? proveedores.find((p) => p.nombre === proveedorSeleccionado)
+       : undefined;
+   const cotizacionDeEsteProveedor =
+     Number(cotizacionProveedor) > 0 ? Number(cotizacionProveedor) : cotizacionCuenta;
+   const enCuenta = proveedorCuenta
+     ? montosPagoEnCuentaProveedor({
+         cuentaUSD: proveedorCuenta.cuentaUSD === true,
+         moneda,
+         monto,
+         cotizacion: cotizacionDeEsteProveedor,
+       })
+     : null;
+   if (enCuenta && "error" in enCuenta) {
+     setMensaje(`❌ ${enCuenta.error}`);
+     return;
+   }
+
    const nuevoPago = {
      fecha,
      fechaCompleta,
@@ -338,24 +364,25 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
       docRef = await addDoc(collection(db, `negocios/${negocioID}/pagos`), nuevoPago);
       
       // 🆕 SI ES PAGO A PROVEEDOR, TAMBIÉN GUARDARLO EN pagosProveedores
-      if (tipoDestino === "proveedor" && proveedorSeleccionado) {
-        const proveedor = proveedores.find(p => p.nombre === proveedorSeleccionado);
-        if (proveedor) {
+      if (proveedorCuenta && enCuenta && !("error" in enCuenta)) {
           const pagoProveedor = {
-            proveedorId: proveedor.id,
-            proveedorNombre: proveedor.nombre,
+            proveedorId: proveedorCuenta.id,
+            proveedorNombre: proveedorCuenta.nombre,
             fecha,
-            monto: moneda === "ARS" ? monto : 0,
-            montoUSD: moneda === "USD" ? monto : 0,
+            monto: enCuenta.monto,
+            montoUSD: enCuenta.montoUSD,
+            montoARSOriginal: enCuenta.montoARSOriginal,
+            cotizacion: cotizacionDeEsteProveedor,
             forma: forma,
             referencia: `Pago desde formulario principal`,
-            notas: `Origen: ${cliente || 'Cliente no especificado'}`,
+            notas: [`Origen: ${cliente || "Cliente no especificado"}`, enCuenta.notaConversion]
+              .filter(Boolean)
+              .join(" · "),
             fechaCreacion: new Date().toISOString(),
           };
           
           await addDoc(collection(db, `negocios/${negocioID}/pagosProveedores`), pagoProveedor);
-          console.log("✅ Pago también guardado en pagosProveedores para:", proveedor.nombre);
-        }
+          console.log("✅ Pago también guardado en pagosProveedores para:", proveedorCuenta.nombre);
       }
       
       setMensaje("✅ Pago guardado con éxito");
@@ -684,7 +711,14 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
              </label>
              <select
                value={proveedorSeleccionado}
-               onChange={(e) => setProveedorSeleccionado(e.target.value)}
+               onChange={(e) => {
+                 const nombre = e.target.value;
+                 setProveedorSeleccionado(nombre);
+                 const elegido = proveedores.find((p) => p.nombre === nombre);
+                 if (elegido?.cuentaUSD && !cotizacionProveedor && cotizacionCuenta) {
+                   setCotizacionProveedor(String(cotizacionCuenta));
+                 }
+               }}
                className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#8e44ad] focus:border-[#8e44ad] transition-all text-[#2c3e50] text-sm"
              >
                <option value="">Seleccionar proveedor</option>
@@ -699,6 +733,28 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                  No hay proveedores. <a href="/proveedores" className="text-[#8e44ad] font-medium">Crear uno</a>
                </p>
              )}
+             {proveedores.find((p) => p.nombre === proveedorSeleccionado)?.cuentaUSD &&
+             moneda === "ARS" ? (
+               <div className="mt-3">
+                 <label className="block text-sm font-semibold text-[#2c3e50] mb-2">
+                   Cotización de este proveedor
+                 </label>
+                 <input
+                   type="number"
+                   value={cotizacionProveedor}
+                   onChange={(e) => setCotizacionProveedor(e.target.value)}
+                   placeholder={cotizacionCuenta ? String(cotizacionCuenta) : "Ej: 1450"}
+                   className="w-full px-3 py-2.5 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#8e44ad] focus:border-[#8e44ad] transition-all text-[#2c3e50] text-sm"
+                 />
+                 <p className="text-xs text-[#7f8c8d] mt-1">
+                   Solo pasa este pago de pesos a la cuenta en USD. La caja sigue en pesos
+                   {Number(cotizacionProveedor) > 0 && monto > 0
+                     ? `. Impacta USD ${(Math.round((monto / Number(cotizacionProveedor)) * 100) / 100).toLocaleString("es-AR")}`
+                     : ""}
+                   .
+                 </p>
+               </div>
+             ) : null}
            </div>
          ) : (
            <div>
