@@ -101,6 +101,16 @@ export default function VitrinaCelulares({
 
   const tituloLista = listaInicial === "mayorista" ? "Precios mayoristas" : "Precios";
 
+  const linkDescarga = (equipoId: string, tipo: "foto" | "video" | "paquete", indice?: number) => {
+    const q = new URLSearchParams({
+      negocioId: negocioID,
+      id: equipoId,
+      tipo,
+    });
+    if (indice != null) q.set("i", String(indice));
+    return `/api/celulares-publicos/descarga?${q.toString()}`;
+  };
+
   return (
     <main className="min-h-screen bg-neutral-100 text-neutral-900">
       <header className="bg-white border-b border-neutral-200 px-4 py-4">
@@ -114,7 +124,7 @@ export default function VitrinaCelulares({
           </div>
         </div>
         <p className="max-w-lg mx-auto mt-2 text-sm text-neutral-500">
-          Tocá un equipo para ver las fotos y, si tiene, el video.
+          Tocá un equipo para ver las fotos y el video, y descargarlos para reenviarlos.
         </p>
       </header>
 
@@ -221,6 +231,22 @@ export default function VitrinaCelulares({
                         </span>
                       ) : null}
                     </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <a
+                        href={linkDescarga(abierto.id, "foto", fotoIdx)}
+                        className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-semibold text-white"
+                      >
+                        Descargar esta foto
+                      </a>
+                      {abierto.fotos.length > 1 || abierto.video ? (
+                        <a
+                          href={linkDescarga(abierto.id, "paquete")}
+                          className="rounded-lg border border-neutral-300 px-3 py-2 text-sm font-semibold text-neutral-800"
+                        >
+                          Descargar fotos{abierto.video ? " y video" : ""}
+                        </a>
+                      ) : null}
+                    </div>
                     {abierto.fotos.length > 1 ? (
                       <>
                         <div className="mt-3 flex justify-center gap-1.5">
@@ -253,11 +279,20 @@ export default function VitrinaCelulares({
                   </div>
                 ) : null}
                 {abierto.video ? (
-                  <VideoMudo
-                    key={abierto.video}
-                    src={abierto.video}
-                    className="w-full max-h-[50vh] rounded-xl bg-black"
-                  />
+                  <div className="space-y-2">
+                    <VideoMudo
+                      key={abierto.video}
+                      src={abierto.video}
+                      className="w-full max-h-[50vh] rounded-xl bg-black"
+                    />
+                    <a
+                      href={linkDescarga(abierto.id, "video")}
+                      download
+                      className="inline-block rounded-lg bg-neutral-900 px-3 py-2 text-sm font-semibold text-white"
+                    >
+                      Descargar video
+                    </a>
+                  </div>
                 ) : null}
               </div>
             )}

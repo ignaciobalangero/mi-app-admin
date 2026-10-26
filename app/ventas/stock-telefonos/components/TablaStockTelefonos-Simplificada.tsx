@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, deleteDoc, doc, getDocs, getDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import * as XLSX from "xlsx";
 import { useRol } from "@/lib/useRol";
@@ -54,6 +54,24 @@ export default function TablaStockTelefonos({
   });
 
   // 🆕 FUNCIÓN PARA IMPRIMIR ETIQUETA
+  const marcarConsignacion = async (telefono: any) => {
+    if (!telefono?.id || !negocioID) return;
+    const siguiente = telefono.consignacion !== true;
+    try {
+      await updateDoc(doc(db, `negocios/${negocioID}/stockTelefonos/${telefono.id}`), {
+        consignacion: siguiente,
+      });
+      setTelefonos((prev) =>
+        prev.map((item) => (item.id === telefono.id ? { ...item, consignacion: siguiente } : item))
+      );
+      setMensaje(siguiente ? "Marcado como consignación" : "Salió de consignación");
+      setTimeout(() => setMensaje(""), 2000);
+    } catch (error) {
+      console.error(error);
+      setMensaje("No se pudo marcar la consignación");
+    }
+  };
+
   const imprimirEtiquetaTelefono = async (telefono: any) => {
     try {
       setMensaje("🏷️ Preparando etiqueta...");
@@ -569,7 +587,11 @@ export default function TablaStockTelefonos({
                   return (
                     <tr 
                       key={`stock-${t.id || ""}-${t.imei || Math.random()}`} 
-                      className={`transition-colors duration-200 ${estiloFilaEstado(t.estado, t.enServicio)}`}
+                      className={`transition-colors duration-200 ${
+                        t.consignacion === true
+                          ? "bg-amber-100 hover:bg-amber-200"
+                          : estiloFilaEstado(t.estado, t.enServicio)
+                      }`}
                     >
                       <td className="p-1 sm:p-2 border border-gray-300 text-xs" style={{minWidth: '60px', maxWidth: '80px'}}>
                         <span className="font-medium text-gray-800">
@@ -603,6 +625,7 @@ export default function TablaStockTelefonos({
                             : estiloBadgeEstado(t.estado)
                         }`}>
                           {t.enServicio ? '🔧 En Servicio' : (etiquetaEstado(t.estado) || "-")}
+                          {t.consignacion === true ? " · Consignación" : ""}
                         </span>
                       </td>
                       <td className="p-2 border border-gray-300 text-center" style={{minWidth: '60px'}}>
@@ -718,6 +741,17 @@ export default function TablaStockTelefonos({
                                 🏷️
                               </button>
                               <button
+                                onClick={() => marcarConsignacion(t)}
+                                className={`text-xs px-2 py-1 rounded transition-colors duration-200 whitespace-nowrap ${
+                                  t.consignacion === true
+                                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                                    : "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                                }`}
+                                title="No entra en los totales propios"
+                              >
+                                Consignación
+                              </button>
+                              <button
                                 onClick={() => servicios.abrirModalServicio(t)}
                                 className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors duration-200 whitespace-nowrap"
                               >
@@ -735,6 +769,16 @@ export default function TablaStockTelefonos({
                             </>
                           ) : (
                             <>
+                              <button
+                                onClick={() => marcarConsignacion(t)}
+                                className={`text-xs px-2 py-1 rounded transition-colors duration-200 whitespace-nowrap ${
+                                  t.consignacion === true
+                                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                                    : "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                                }`}
+                              >
+                                Consignación
+                              </button>
                               <button
                                 onClick={() => servicios.abrirModalRetorno(t)}
                                 className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200 transition-colors duration-200 whitespace-nowrap"

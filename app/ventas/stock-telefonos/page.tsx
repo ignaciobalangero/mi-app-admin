@@ -25,6 +25,14 @@ export default function StockTelefonosPage() {
     mayoristaARS: 0,
     ventaUSD: 0,
     ventaARS: 0,
+    consignacionUSD: 0,
+    consignacionARS: 0,
+    consignacionMayoristaUSD: 0,
+    consignacionMayoristaARS: 0,
+    consignacionVentaUSD: 0,
+    consignacionVentaARS: 0,
+    equiposPropios: 0,
+    equiposConsignacion: 0,
   });
   const { rol } = useRol();
 
@@ -52,13 +60,35 @@ export default function StockTelefonosPage() {
       let mayoristaARS = 0;
       let ventaUSD = 0;
       let ventaARS = 0;
+      let consignacionUSD = 0;
+      let consignacionARS = 0;
+      let consignacionMayoristaUSD = 0;
+      let consignacionMayoristaARS = 0;
+      let consignacionVentaUSD = 0;
+      let consignacionVentaARS = 0;
+      let equiposPropios = 0;
+      let equiposConsignacion = 0;
       
       telefonos.forEach((d) => {
         const valorCompra = Number(d.precioCompra) || 0;
         const valorMayorista = Number(d.precioMayorista) || 0;
         const valorVenta = Number(d.precioVenta) || 0;
-        
-        if (d.moneda === "USD") {
+        const enDolares = d.moneda === "USD";
+        if (d.consignacion === true) {
+          equiposConsignacion += 1;
+          if (enDolares) {
+            consignacionUSD += valorCompra;
+            consignacionMayoristaUSD += valorMayorista;
+            consignacionVentaUSD += valorVenta;
+          } else {
+            consignacionARS += valorCompra;
+            consignacionMayoristaARS += valorMayorista;
+            consignacionVentaARS += valorVenta;
+          }
+          return;
+        }
+        equiposPropios += 1;
+        if (enDolares) {
           totalUSD += valorCompra;
           mayoristaUSD += valorMayorista;
           ventaUSD += valorVenta;
@@ -76,6 +106,14 @@ export default function StockTelefonosPage() {
         mayoristaARS,
         ventaUSD,
         ventaARS,
+        consignacionUSD,
+        consignacionARS,
+        consignacionMayoristaUSD,
+        consignacionMayoristaARS,
+        consignacionVentaUSD,
+        consignacionVentaARS,
+        equiposPropios,
+        equiposConsignacion,
       });
     };
     
@@ -334,7 +372,7 @@ export default function StockTelefonosPage() {
               {rol?.tipo === "admin" && (
               <div className="text-center space-y-4">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-800">📊 Resumen del Inventario</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4 text-sm">
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
                     <p className="text-green-700 font-medium">Valor total de compra</p>
                     <p className="text-xl font-bold text-green-800">
@@ -353,11 +391,24 @@ export default function StockTelefonosPage() {
                       USD {formatearPrecio(resumen.ventaUSD)} + ARS {formatearPrecio(resumen.ventaARS)}
                     </p>
                   </div>
+                  <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-4 border border-amber-200">
+                    <p className="text-amber-800 font-medium">Total consignación</p>
+                    <p className="text-sm text-amber-900 mt-1">
+                      Compra USD {formatearPrecio(resumen.consignacionUSD)} + ARS {formatearPrecio(resumen.consignacionARS)}
+                    </p>
+                    <p className="text-sm text-amber-900">
+                      Mayorista USD {formatearPrecio(resumen.consignacionMayoristaUSD)} + ARS {formatearPrecio(resumen.consignacionMayoristaARS)}
+                    </p>
+                    <p className="text-sm text-amber-900">
+                      Venta USD {formatearPrecio(resumen.consignacionVentaUSD)} + ARS {formatearPrecio(resumen.consignacionVentaARS)}
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">{resumen.equiposConsignacion} equipos, fuera de los totales propios</p>
+                  </div>
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
                     <p className="text-blue-700 font-medium">Promedio por equipo</p>
                     <p className="text-xl font-bold text-blue-800">
-                      {estadisticas.total > 0 
-                        ? formatearPrecio((resumen.usd + resumen.ars) / estadisticas.total)
+                      {resumen.equiposPropios > 0 
+                        ? formatearPrecio((resumen.usd + resumen.ars) / resumen.equiposPropios)
                         : "$0"}
                     </p>
                   </div>

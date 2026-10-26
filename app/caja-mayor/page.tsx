@@ -5,12 +5,68 @@ import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
 import Header from "@/app/Header";
 import { calcularSaldoCajaMayor, listarMovimientosCajaMayor, registrarMovimientoCajaMayor } from "@/lib/caja/cajaMayor";
-import { formatearPrecioCaja } from "@/lib/caja/calcularResumenDia";
+import { formatearPrecioCaja, formatearUsdCaja } from "@/lib/caja/calcularResumenDia";
+import { calcularCapital, totalesCapital, type CapitalNegocio, type MontosCapital } from "@/lib/caja/capital";
 import { puedeOperarCajaMayor } from "@/lib/caja/permisosCaja";
 import type { MovimientoCajaMayor } from "@/lib/caja/cajaTypes";
 import { auth } from "@/lib/auth";
 import { collection, getDocs, orderBy, query, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+
+function montosTexto(m: MontosCapital) {
+  return (
+    <span className="text-right">
+      <span className="block font-semibold text-[#2c3e50]">{formatearPrecioCaja(m.ars)}</span>
+      <span className="block text-sm font-semibold text-blue-700">{formatearUsdCaja(m.usd)}</span>
+    </span>
+  );
+}
+
+function PanelCapital({ capital }: { capital: CapitalNegocio }) {
+  const efectivo = {
+    ars: capital.cajaMayor.ars + capital.cajon.ars,
+    usd: capital.cajaMayor.usd + capital.cajon.usd,
+  };
+  const total = totalesCapital(capital);
+  const filas: { label: string; montos: MontosCapital; detalle?: string }[] = [
+    { label: "Stock repuestos", montos: capital.repuestos },
+    { label: "Stock accesorios", montos: capital.accesorios },
+    { label: "Stock teléfonos", montos: capital.telefonos },
+    { label: "Stock extra", montos: capital.extra },
+    {
+      label: "Efectivo",
+      montos: efectivo,
+      detalle: capital.cajaAbierta
+        ? "Caja mayor más el efectivo de la caja del día, que sigue abierta."
+        : "Caja mayor más el efectivo que quedó en el cajón.",
+    },
+    { label: "Cuentas corrientes", montos: capital.cuentas, detalle: "Lo que los clientes deben, en total." },
+  ];
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow border border-[#ecf0f1]">
+      <h2 className="font-bold text-lg text-[#2c3e50]">Capital</h2>
+      <p className="text-sm text-[#7f8c8d] mt-1 mb-4">
+        Costo de lo que hay en stock, el efectivo y el total de las cuentas. Pesos y dólares van separados.
+      </p>
+      <div className="divide-y divide-[#ecf0f1]">
+        {filas.map((fila) => (
+          <div key={fila.label} className="flex items-start justify-between gap-4 py-3">
+            <div>
+              <p className="font-medium text-[#2c3e50]">{fila.label}</p>
+              {fila.detalle ? <p className="text-xs text-[#7f8c8d] mt-0.5">{fila.detalle}</p> : null}
+            </div>
+            {montosTexto(fila.montos)}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-start justify-between gap-4 pt-4 mt-2 border-t-2 border-[#2c3e50]">
+        <p className="font-bold text-[#2c3e50]">Total</p>
+        {montosTexto(total)}
+      </div>
+    </div>
+  );
+}
 
 export default function CajaMayorPage() {
   const { rol } = useRol();
@@ -24,6 +80,7 @@ export default function CajaMayorPage() {
   const [montoManual, setMontoManual] = useState("");
   const [descManual, setDescManual] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [capital, setCapital] = useState<CapitalNegocio | null>(null);
 
   const cargar = useCallback(async () => {
     if (!rol?.negocioID) return;
@@ -31,6 +88,7 @@ export default function CajaMayorPage() {
     try {
       const s = await calcularSaldoCajaMayor(rol.negocioID);
       setSaldo(s);
+      setCapital(await calcularCapital(rol.negocioID, { ars: s.ARS, usd: s.USD }));
       const movs = await listarMovimientosCajaMayor(rol.negocioID, 50);
       setMovimientos(movs);
 
@@ -116,6 +174,8 @@ export default function CajaMayorPage() {
               <p className="text-xl text-green-100 mt-1">USD {saldo.USD.toLocaleString("es-AR")}</p>
             )}
           </div>
+
+          {capital && <PanelCapital capital={capital} />}
 
           <div className="flex gap-3">
             <button
