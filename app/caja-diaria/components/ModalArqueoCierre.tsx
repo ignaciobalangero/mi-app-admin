@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ArqueoMedioPago, ResumenCajaDia } from "@/lib/caja/cajaTypes";
 import { MEDIOS_PAGO_CAJA } from "@/lib/caja/mediosPago";
 import {
@@ -10,6 +10,7 @@ import {
   formatearUsdCaja,
 } from "@/lib/caja/calcularResumenDia";
 import { cerrarSesionCaja } from "@/lib/caja/sesionCaja";
+import { cajaDiaPasaAMayor } from "@/lib/caja/cajaMayor";
 import { auth } from "@/lib/auth";
 
 function mostrarToastCaja(mensaje: string, tipo: "ok" | "error" = "ok") {
@@ -76,6 +77,11 @@ export default function ModalArqueoCierre({
   const [paso, setPaso] = useState<"arqueo" | "cierre">("arqueo");
   const [cerrando, setCerrando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [pasaAMayor, setPasaAMayor] = useState(true);
+
+  useEffect(() => {
+    cajaDiaPasaAMayor(negocioID).then(setPasaAMayor).catch(() => setPasaAMayor(true));
+  }, [negocioID]);
 
   const esperadoEfectivoARS = esperadoPorMedio.efectivo_ars || 0;
   const esperadoUsdArsEquiv =
@@ -139,7 +145,7 @@ export default function ModalArqueoCierre({
 
   const efectivoContado = contadoEfectivoARS;
   const fondo = Number(fondoManana) || 0;
-  const enviadoMayor = Math.max(0, efectivoContado - fondo);
+  const enviadoMayor = pasaAMayor ? Math.max(0, efectivoContado - fondo) : 0;
 
   const continuarACierre = () => {
     setAviso(null);
@@ -382,7 +388,7 @@ export default function ModalArqueoCierre({
                 </p>
                 <p>
                   <strong>Enviado a Caja Mayor:</strong>{" "}
-                  {formatearPrecioCaja(enviadoMayor)}
+                  {pasaAMayor ? formatearPrecioCaja(enviadoMayor) : "No se pasa. La caja del día está desvinculada."}
                 </p>
               </div>
               <div>

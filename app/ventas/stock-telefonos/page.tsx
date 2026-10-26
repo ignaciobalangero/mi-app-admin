@@ -27,10 +27,6 @@ export default function StockTelefonosPage() {
     ventaARS: 0,
     consignacionUSD: 0,
     consignacionARS: 0,
-    consignacionMayoristaUSD: 0,
-    consignacionMayoristaARS: 0,
-    consignacionVentaUSD: 0,
-    consignacionVentaARS: 0,
     equiposPropios: 0,
     equiposConsignacion: 0,
   });
@@ -62,10 +58,6 @@ export default function StockTelefonosPage() {
       let ventaARS = 0;
       let consignacionUSD = 0;
       let consignacionARS = 0;
-      let consignacionMayoristaUSD = 0;
-      let consignacionMayoristaARS = 0;
-      let consignacionVentaUSD = 0;
-      let consignacionVentaARS = 0;
       let equiposPropios = 0;
       let equiposConsignacion = 0;
       
@@ -76,15 +68,8 @@ export default function StockTelefonosPage() {
         const enDolares = d.moneda === "USD";
         if (d.consignacion === true) {
           equiposConsignacion += 1;
-          if (enDolares) {
-            consignacionUSD += valorCompra;
-            consignacionMayoristaUSD += valorMayorista;
-            consignacionVentaUSD += valorVenta;
-          } else {
-            consignacionARS += valorCompra;
-            consignacionMayoristaARS += valorMayorista;
-            consignacionVentaARS += valorVenta;
-          }
+          if (enDolares) consignacionUSD += valorCompra;
+          else consignacionARS += valorCompra;
           return;
         }
         equiposPropios += 1;
@@ -108,10 +93,6 @@ export default function StockTelefonosPage() {
         ventaARS,
         consignacionUSD,
         consignacionARS,
-        consignacionMayoristaUSD,
-        consignacionMayoristaARS,
-        consignacionVentaUSD,
-        consignacionVentaARS,
         equiposPropios,
         equiposConsignacion,
       });
@@ -393,14 +374,13 @@ export default function StockTelefonosPage() {
                   </div>
                   <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-4 border border-amber-200">
                     <p className="text-amber-800 font-medium">Total consignación</p>
-                    <p className="text-sm text-amber-900 mt-1">
-                      Compra USD {formatearPrecio(resumen.consignacionUSD)} + ARS {formatearPrecio(resumen.consignacionARS)}
-                    </p>
-                    <p className="text-sm text-amber-900">
-                      Mayorista USD {formatearPrecio(resumen.consignacionMayoristaUSD)} + ARS {formatearPrecio(resumen.consignacionMayoristaARS)}
-                    </p>
-                    <p className="text-sm text-amber-900">
-                      Venta USD {formatearPrecio(resumen.consignacionVentaUSD)} + ARS {formatearPrecio(resumen.consignacionVentaARS)}
+                    <p className="text-xl font-bold text-amber-900">
+                      {[
+                        resumen.consignacionUSD > 0 ? `USD ${formatearPrecio(resumen.consignacionUSD)}` : null,
+                        resumen.consignacionARS > 0 ? `ARS ${formatearPrecio(resumen.consignacionARS)}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" + ") || "$0"}
                     </p>
                     <p className="text-xs text-amber-700 mt-1">{resumen.equiposConsignacion} equipos, fuera de los totales propios</p>
                   </div>

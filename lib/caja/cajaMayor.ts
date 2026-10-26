@@ -7,6 +7,7 @@ import {
   serverTimestamp,
   doc,
   getDoc,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { MovimientoCajaMayor } from "@/lib/caja/cajaTypes";
@@ -67,6 +68,21 @@ export async function calcularSaldoCajaMayor(negocioId: string): Promise<{ ARS: 
   }
 
   return { ARS: baseARS + deltaARS, USD: baseUSD + deltaUSD };
+}
+
+/** Si está apagado, el cierre del día no traslada plata a Caja mayor. */
+export async function cajaDiaPasaAMayor(negocioId: string): Promise<boolean> {
+  const cfg = await getDoc(doc(db, `negocios/${negocioId}/configuracion/cajaMayor`));
+  if (!cfg.exists() || cfg.data().vincularCajaDia == null) return true;
+  return cfg.data().vincularCajaDia === true;
+}
+
+export async function guardarVinculoCajaDia(negocioId: string, vinculado: boolean) {
+  await setDoc(
+    doc(db, `negocios/${negocioId}/configuracion/cajaMayor`),
+    { vincularCajaDia: vinculado },
+    { merge: true }
+  );
 }
 
 export async function transferirDesdeCajaMayor(params: {

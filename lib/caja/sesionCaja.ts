@@ -14,7 +14,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { ArqueoMedioPago, SesionCaja } from "@/lib/caja/cajaTypes";
 import { docIdDesdeFecha, fechaCajaHoy } from "@/lib/caja/fechaCaja";
-import { registrarMovimientoCajaMayor } from "@/lib/caja/cajaMayor";
+import { cajaDiaPasaAMayor, registrarMovimientoCajaMayor } from "@/lib/caja/cajaMayor";
 
 function sesionesRef(negocioId: string) {
   return collection(db, `negocios/${negocioId}/sesionesCaja`);
@@ -115,6 +115,8 @@ export async function cerrarSesionCaja(params: {
   if (sesion.estado === "cerrada") throw new Error("Esta caja ya está cerrada.");
 
   const cierreId = params.sesionId;
+  const pasaAMayor = await cajaDiaPasaAMayor(params.negocioId);
+  const enviadoCajaMayorARS = pasaAMayor ? params.totales.enviadoCajaMayorARS : 0;
   const arqueoEfectivo = params.totales.arqueo.find((a) => a.medio === "efectivo_ars");
   const arqueoUsd = params.totales.arqueo.find((a) => a.medio === "usd_billete");
 
@@ -131,7 +133,7 @@ export async function cerrarSesionCaja(params: {
     totalContadoArqueoARS: params.totales.saldoFinalContadoARS,
     diferenciaTotalArqueoARS: params.totales.diferenciaARS,
     fondoSiguienteDiaARS: params.totales.fondoSiguienteDiaARS,
-    enviadoCajaMayorARS: params.totales.enviadoCajaMayorARS,
+    enviadoCajaMayorARS,
     cotizacionUSDArqueo: params.totales.cotizacionUSD ?? 0,
     arqueo: params.totales.arqueo,
     arqueoJustificacion: params.totales.arqueoJustificacion,
@@ -160,7 +162,7 @@ export async function cerrarSesionCaja(params: {
       diferenciaARS: params.totales.diferenciaARS,
       diferenciaUSD: params.totales.diferenciaUSD,
       fondoSiguienteDiaARS: params.totales.fondoSiguienteDiaARS,
-      enviadoCajaMayorARS: params.totales.enviadoCajaMayorARS,
+      enviadoCajaMayorARS,
       arqueo: params.totales.arqueo,
       arqueoJustificacion: params.totales.arqueoJustificacion,
       cierreId,
@@ -168,12 +170,12 @@ export async function cerrarSesionCaja(params: {
     { merge: true }
   );
 
-  if (params.totales.enviadoCajaMayorARS > 0) {
+  if (enviadoCajaMayorARS > 0) {
     await registrarMovimientoCajaMayor({
       negocioId: params.negocioId,
       tipo: "ingreso",
       categoria: "cierre_diario",
-      montoARS: params.totales.enviadoCajaMayorARS,
+      montoARS: enviadoCajaMayorARS,
       descripcion: `Cierre caja ${sesion.fecha} — traslado a Caja Mayor`,
       origen: "cierre_diario",
       sesionId: params.sesionId,
