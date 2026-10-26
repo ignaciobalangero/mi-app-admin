@@ -6,7 +6,12 @@ interface Props {
     formaPago: string;
     destino: string;
     observaciones: string;
+    tipoDestino?: string;
+    proveedorSeleccionado?: string;
+    cotizacionProveedor?: string;
   } | null;
+  proveedores?: { id: string; nombre: string; categoria?: string; cuentaUSD?: boolean }[];
+  cotizacionCuenta?: number | null;
   onClose: () => void;
   handlePagoChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -19,6 +24,8 @@ interface Props {
 export default function ModalPago({
   mostrar,
   pago,
+  proveedores = [],
+  cotizacionCuenta = null,
   onClose,
   handlePagoChange,
   onGuardarPago,
@@ -125,18 +132,81 @@ export default function ModalPago({
                   className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <label className="block text-sm font-semibold text-[#2c3e50]">
                   Destino (opcional):
                 </label>
-                <input
-                  type="text"
-                  name="destino"
-                  value={pago.destino}
-                  onChange={handlePagoChange}
-                  placeholder="🏪 Cuenta bancaria, caja..."
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
-                />
+                <select
+                  name="tipoDestino"
+                  value={pago.tipoDestino || "libre"}
+                  onChange={(e) => {
+                    handlePagoChange(e);
+                    if (e.target.value !== "proveedor") {
+                      handlePagoChange({
+                        target: { name: "proveedorSeleccionado", value: "" },
+                      } as React.ChangeEvent<HTMLSelectElement>);
+                    }
+                  }}
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50]"
+                >
+                  <option value="libre">Escribir destino</option>
+                  <option value="proveedor">Pagar a proveedor</option>
+                </select>
+                {pago.tipoDestino === "proveedor" ? (
+                  <div className="mt-3 space-y-2">
+                    <select
+                      name="proveedorSeleccionado"
+                      value={pago.proveedorSeleccionado || ""}
+                      onChange={(e) => {
+                        handlePagoChange(e);
+                        const elegido = proveedores.find((p) => p.nombre === e.target.value);
+                        if (elegido?.cuentaUSD && !pago.cotizacionProveedor && cotizacionCuenta) {
+                          handlePagoChange({
+                            target: { name: "cotizacionProveedor", value: String(cotizacionCuenta) },
+                          } as React.ChangeEvent<HTMLInputElement>);
+                        }
+                      }}
+                      className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm sm:text-base text-[#2c3e50]"
+                    >
+                      <option value="">Seleccionar proveedor</option>
+                      {proveedores.map((proveedor) => (
+                        <option key={proveedor.id} value={proveedor.nombre}>
+                          {proveedor.nombre}
+                          {proveedor.categoria ? ` (${proveedor.categoria})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {proveedores.find((p) => p.nombre === pago.proveedorSeleccionado)?.cuentaUSD &&
+                    pago.moneda !== "USD" ? (
+                      <div>
+                        <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
+                          Cotización del proveedor
+                        </label>
+                        <input
+                          type="number"
+                          name="cotizacionProveedor"
+                          value={pago.cotizacionProveedor || ""}
+                          onChange={handlePagoChange}
+                          placeholder={cotizacionCuenta ? String(cotizacionCuenta) : "Ej: 1450"}
+                          className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm text-[#2c3e50]"
+                        />
+                        <p className="text-xs text-[#7f8c8d] mt-1">
+                          Solo convierte este pago a la cuenta en USD del proveedor. El saldo de la
+                          venta sigue con la cotización del cobro.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="destino"
+                    value={pago.destino}
+                    onChange={handlePagoChange}
+                    placeholder="Cuenta bancaria, caja..."
+                    className="mt-3 w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d]"
+                  />
+                )}
               </div>
             </div>
           </div>

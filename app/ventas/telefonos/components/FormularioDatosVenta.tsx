@@ -31,7 +31,9 @@ interface Props {
 }
 
 export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId, datosEdicion }: Props) {
-  const { cotizacion } = useCotizacion(negocioID || "");
+  const { cotizacion, dolarManual, usarDolarManual } = useCotizacion(negocioID || "");
+  const cotizacionCuenta =
+    usarDolarManual && dolarManual != null && dolarManual > 0 ? dolarManual : null;
   const [clientes, setClientes] = useState<{ id: string; nombre: string }[]>([]);
   const [stock, setStock] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
@@ -73,6 +75,9 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
     formaPago: "",
     observaciones: "",
     destino: "",
+    tipoDestino: "libre",
+    proveedorSeleccionado: "",
+    cotizacionProveedor: "",
   });
   const [telefonosRecibidos, setTelefonosRecibidos] = useState<any[]>([]);
   const [telefonosEnVenta, setTelefonosEnVenta] = useState<any[]>([]);
@@ -99,6 +104,7 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
           id: doc.id,
           nombre: doc.data().nombre,
           categoria: doc.data().categoria || "",
+          cuentaUSD: doc.data().cuentaUSD === true,
         }));
         setProveedores(proveedoresData);
       } catch (error) {
@@ -458,7 +464,17 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       moneda: monedaPago,
       formaPago: pago.formaPago || "",
       observaciones: pago.observaciones || "",
-      destino: "ventaTelefonos",
+      destino:
+        pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado
+          ? `Proveedor: ${pago.proveedorSeleccionado}`
+          : pago.destino || "ventaTelefonos",
+      tipoDestino: pago.tipoDestino || "libre",
+      proveedorDestino:
+        pago.tipoDestino === "proveedor" ? pago.proveedorSeleccionado || null : null,
+      proveedorSeleccionado:
+        pago.tipoDestino === "proveedor" ? pago.proveedorSeleccionado || "" : "",
+      cotizacionProveedor:
+        Number(pago.cotizacionProveedor) > 0 ? Number(pago.cotizacionProveedor) : null,
       lineas:
         montoNum > 0
           ? [{ moneda: monedaPago as "ARS" | "USD", monto: montoNum, formaPago: pago.formaPago || "Efectivo" }]
@@ -498,7 +514,16 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       ...camposDispositivoVacios,
     });
 
-    setPago({ monto: "", moneda: "ARS", formaPago: "", observaciones: "", destino: "" });
+    setPago({
+      monto: "",
+      moneda: "ARS",
+      formaPago: "",
+      observaciones: "",
+      destino: "",
+      tipoDestino: "libre",
+      proveedorSeleccionado: "",
+      cotizacionProveedor: "",
+    });
     setTelefonosRecibidos([]);
     setTelefonosEnVenta([]);
     setIndiceTelefonoEditando(null);
@@ -1229,6 +1254,8 @@ export default function FormularioDatosVenta({ negocioID, onGuardado, editandoId
       <ModalPago
         mostrar={mostrarPagoModal}
         pago={pago}
+        proveedores={proveedores}
+        cotizacionCuenta={cotizacionCuenta}
         onClose={() => setMostrarPagoModal(false)}
         handlePagoChange={handlePagoChange}
         onGuardar={handleGuardarPago}

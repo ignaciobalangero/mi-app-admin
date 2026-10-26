@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { cotizacionNegocioCaja } from "@/lib/caja/cotizacionCaja";
+import { cotizacionVentaGeneral, montosPagoEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
 import {
   impactoClienteDePago,
   listarVentasPendientesCliente,
@@ -100,10 +101,16 @@ export default function ModalPago({
     destino: "",
     observaciones: "",
     fecha: hoyInputDate(),
+    tipoDestino: "libre",
+    proveedorSeleccionado: "",
+    cotizacionProveedor: "",
   });
   
   const [guardandoPago, setGuardandoPago] = useState(false);
   const [pagoGuardado, setPagoGuardado] = useState(false);
+  const [proveedores, setProveedores] = useState<
+    { id: string; nombre: string; categoria: string; cuentaUSD: boolean }[]
+  >([]);
   const [ventasPendientes, setVentasPendientes] = useState<VentaPendienteCliente[]>([]);
   const [ventaIdAplicar, setVentaIdAplicar] = useState("");
   const [cargandoVentas, setCargandoVentas] = useState(false);
@@ -117,11 +124,46 @@ export default function ModalPago({
       destino: "",
       observaciones: "",
       fecha: hoyInputDate(),
+      tipoDestino: "libre",
+      proveedorSeleccionado: "",
+      cotizacionProveedor: "",
     });
     setPagoGuardado(false);
     setVentaIdAplicar("");
     setVentasPendientes([]);
   }, [mostrar, clienteSeleccionado?.cliente]);
+
+  useEffect(() => {
+    if (!mostrar || !negocioID) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        const [snap, cot] = await Promise.all([
+          getDocs(collection(db, `negocios/${negocioID}/proveedores`)),
+          cotizacionVentaGeneral(negocioID),
+        ]);
+        if (cancelado) return;
+        setProveedores(
+          snap.docs.map((d) => ({
+            id: d.id,
+            nombre: d.data().nombre,
+            categoria: d.data().categoria || "",
+            cuentaUSD: d.data().cuentaUSD === true,
+          }))
+        );
+        if (cot) {
+          setPago((prev) =>
+            prev.cotizacionProveedor ? prev : { ...prev, cotizacionProveedor: String(cot) }
+          );
+        }
+      } catch (error) {
+        console.error("Error al cargar proveedores:", error);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [mostrar, negocioID]);
 
   useEffect(() => {
     if (!mostrar || !negocioID || !clienteSeleccionado?.cliente) return;
@@ -222,6 +264,30 @@ export default function ModalPago({
         return;
       }
       const cotizacion = await cotizacionNegocioCaja(negocioID);
+      const proveedor =
+        pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado
+          ? proveedores.find((p) => p.nombre === pago.proveedorSeleccionado)
+          : undefined;
+      const cotizacionDeEsteProveedor =
+        Number(pago.cotizacionProveedor) > 0
+          ? Number(pago.cotizacionProveedor)
+          : await cotizacionVentaGeneral(negocioID);
+      const enCuenta = proveedor
+        ? montosPagoEnCuentaProveedor({
+            cuentaUSD: proveedor.cuentaUSD === true,
+            moneda: pago.moneda,
+            monto: montoNumerico,
+            cotizacion: cotizacionDeEsteProveedor,
+          })
+        : null;
+      if (enCuenta && "error" in enCuenta) {
+        alert(enCuenta.error);
+        return;
+      }
+      const destino =
+        proveedor != null
+          ? `Proveedor: ${proveedor.nombre}${proveedor.categoria ? ` (${proveedor.categoria})` : ""}`
+          : pago.destino;
       const { fecha, fechaCompleta } = fechaDesdeInput(pago.fecha || hoyInputDate());
       const ventaAplicar = ventasPendientes.find((v) => v.id === ventaIdAplicar);
       const monedaPago = pago.moneda === "USD" ? "USD" : "ARS";
@@ -240,7 +306,9 @@ export default function ModalPago({
         montoUSD: pago.moneda === "USD" ? montoNumerico : null,
         moneda: pago.moneda,
         forma: pago.formaPago,
-        destino: pago.destino,
+        destino,
+        tipoDestino: pago.tipoDestino,
+        proveedorDestino: proveedor ? proveedor.nombre : null,
         observaciones: pago.observaciones,
         cliente: clienteSeleccionado.cliente,
         fecha,
@@ -258,6 +326,22 @@ export default function ModalPago({
       };
 
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
+
+      if (proveedor && enCuenta && !("error" in enCuenta)) {
+        await addDoc(collection(db, `negocios/${negocioID}/pagosProveedores`), {
+          proveedorId: proveedor.id,
+          proveedorNombre: proveedor.nombre,
+          fecha,
+          monto: enCuenta.monto,
+          montoUSD: enCuenta.montoUSD,
+          montoARSOriginal: enCuenta.montoARSOriginal,
+          cotizacion: cotizacionDeEsteProveedor,
+          forma: pago.formaPago,
+          referencia: `Pago desde cuenta corriente: ${clienteSeleccionado.cliente}`,
+          notas: [pago.observaciones, enCuenta.notaConversion].filter(Boolean).join(" · "),
+          fechaCreacion: new Date().toISOString(),
+        });
+      }
 
       await actualizarSaldoCliente(
         clienteSeleccionado.cliente,
@@ -310,6 +394,9 @@ export default function ModalPago({
           destino: "",
           observaciones: "",
           fecha: hoyInputDate(),
+          tipoDestino: "libre",
+          proveedorSeleccionado: "",
+          cotizacionProveedor: "",
         });
         setPagoGuardado(false);
       }, 1500);
@@ -606,19 +693,81 @@ export default function ModalPago({
                   className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d] disabled:opacity-50"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:col-span-2">
                 <label className="block text-sm font-semibold text-[#2c3e50]">
                   Destino (opcional):
                 </label>
-                <input
-                  type="text"
-                  name="destino"
-                  value={pago.destino}
-                  onChange={handlePagoChange}
-                  placeholder="🏪 Cuenta bancaria, caja..."
+                <select
+                  name="tipoDestino"
+                  value={pago.tipoDestino}
+                  onChange={(e) =>
+                    setPago((prev) => ({
+                      ...prev,
+                      tipoDestino: e.target.value,
+                      proveedorSeleccionado: e.target.value === "proveedor" ? prev.proveedorSeleccionado : "",
+                      destino: e.target.value === "proveedor" ? "" : prev.destino,
+                    }))
+                  }
                   disabled={guardandoPago}
-                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d] disabled:opacity-50"
-                />
+                  className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] disabled:opacity-50"
+                >
+                  <option value="libre">Escribir destino</option>
+                  <option value="proveedor">Pagar a proveedor</option>
+                </select>
+                {pago.tipoDestino === "proveedor" ? (
+                  <div className="mt-3 space-y-2">
+                    <select
+                      name="proveedorSeleccionado"
+                      value={pago.proveedorSeleccionado}
+                      onChange={handlePagoChange}
+                      disabled={guardandoPago}
+                      className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm sm:text-base text-[#2c3e50] disabled:opacity-50"
+                    >
+                      <option value="">Seleccionar proveedor</option>
+                      {proveedores.map((proveedor) => (
+                        <option key={proveedor.id} value={proveedor.nombre}>
+                          {proveedor.nombre}
+                          {proveedor.categoria ? ` (${proveedor.categoria})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {proveedores.find((p) => p.nombre === pago.proveedorSeleccionado)?.cuentaUSD &&
+                    pago.moneda === "ARS" ? (
+                      <div>
+                        <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
+                          Cotización del proveedor
+                        </label>
+                        <input
+                          type="number"
+                          name="cotizacionProveedor"
+                          value={pago.cotizacionProveedor}
+                          onChange={handlePagoChange}
+                          disabled={guardandoPago}
+                          placeholder="Ej: 1450"
+                          className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm text-[#2c3e50] disabled:opacity-50"
+                        />
+                        <p className="text-xs text-[#7f8c8d] mt-1">
+                          Solo pasa este pago de pesos a la cuenta en USD del proveedor. La caja
+                          sigue en pesos
+                          {Number(pago.cotizacionProveedor) > 0 && parsearMontoAR(pago.monto, "ARS") > 0
+                            ? `. Impacta USD ${(Math.round((parsearMontoAR(pago.monto, "ARS") / Number(pago.cotizacionProveedor)) * 100) / 100).toLocaleString("es-AR")}`
+                            : ""}
+                          .
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="destino"
+                    value={pago.destino}
+                    onChange={handlePagoChange}
+                    placeholder="Cuenta bancaria, caja..."
+                    disabled={guardandoPago}
+                    className="mt-3 w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#9b59b6] focus:border-[#9b59b6] transition-all text-sm sm:text-base text-[#2c3e50] placeholder-[#7f8c8d] disabled:opacity-50"
+                  />
+                )}
               </div>
             </div>
 
