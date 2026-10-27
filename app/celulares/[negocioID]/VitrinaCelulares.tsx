@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import VideoMudo from "@/components/VideoMudo";
+import CotizadorCliente from "./CotizadorCliente";
+import type { ModeloCotizacion } from "@/lib/cotizador/telefonos";
 
 type Equipo = {
   id: string;
@@ -23,6 +25,7 @@ type Respuesta = {
   logoUrl: string | null;
   lista: "mayorista" | "minorista";
   equipos: Equipo[];
+  cotizador?: { whatsapp: string; modelos: ModeloCotizacion[] } | null;
 };
 
 function textoPrecio(e: Equipo): string {
@@ -54,6 +57,7 @@ export default function VitrinaCelulares({
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState("");
   const [abierto, setAbierto] = useState<Equipo | null>(null);
+  const [equipoCotizar, setEquipoCotizar] = useState("");
   const [fotoIdx, setFotoIdx] = useState(0);
   const toqueX = useRef<number | null>(null);
 
@@ -91,6 +95,7 @@ export default function VitrinaCelulares({
 
   const abrir = (e: Equipo) => {
     setFotoIdx(0);
+    setEquipoCotizar(e.id);
     setAbierto(e);
   };
 
@@ -100,6 +105,7 @@ export default function VitrinaCelulares({
   };
 
   const tituloLista = listaInicial === "mayorista" ? "Precios mayoristas" : "Precios";
+  const hayCotizador = Boolean(data?.cotizador?.modelos?.length);
 
   const linkDescarga = (equipoId: string, tipo: "foto" | "video" | "paquete", indice?: number) => {
     const q = new URLSearchParams({
@@ -114,7 +120,7 @@ export default function VitrinaCelulares({
   return (
     <main className="min-h-screen bg-neutral-100 text-neutral-900">
       <header className="bg-white border-b border-neutral-200 px-4 py-4">
-        <div className="max-w-lg mx-auto flex items-center gap-3">
+        <div className={`${hayCotizador ? "max-w-6xl" : "max-w-lg"} mx-auto flex items-center gap-3`}>
           {data?.logoUrl ? (
             <img src={data.logoUrl} alt="" className="h-10 w-auto max-w-[120px] object-contain" />
           ) : null}
@@ -123,12 +129,19 @@ export default function VitrinaCelulares({
             <p className="text-sm text-neutral-500">{tituloLista}</p>
           </div>
         </div>
-        <p className="max-w-lg mx-auto mt-2 text-sm text-neutral-500">
+        <p className={`${hayCotizador ? "max-w-6xl" : "max-w-lg"} mx-auto mt-2 text-sm text-neutral-500`}>
           Tocá un equipo para ver las fotos y el video, y descargarlos para reenviarlos.
         </p>
       </header>
 
-      <div className="max-w-lg mx-auto px-3 py-4 space-y-2">
+      <div
+        className={
+          hayCotizador
+            ? "max-w-6xl mx-auto px-3 py-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-4 lg:items-start"
+            : "max-w-lg mx-auto px-3 py-4"
+        }
+      >
+        <div className="order-2 lg:order-1 space-y-2">
         {error ? <p className="text-center text-red-700 py-10">{error}</p> : null}
         {!data && !error ? (
           <p className="text-center text-neutral-500 py-10">Cargando equipos…</p>
@@ -171,6 +184,18 @@ export default function VitrinaCelulares({
             </span>
           </button>
         ))}
+        </div>
+        {hayCotizador && data?.cotizador ? (
+          <div className="order-1 lg:order-2 mb-4 lg:mb-0 lg:sticky lg:top-4">
+            <CotizadorCliente
+              equipos={data.equipos}
+              modelos={data.cotizador.modelos}
+              whatsapp={data.cotizador.whatsapp}
+              equipoId={equipoCotizar}
+              onElegirEquipo={setEquipoCotizar}
+            />
+          </div>
+        ) : null}
       </div>
 
       {abierto ? (

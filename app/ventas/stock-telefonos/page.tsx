@@ -12,12 +12,14 @@ import { useRol } from "@/lib/useRol";
 
 const FormularioStock = dynamic(() => import("./components/FormularioStock"), { ssr: false });
 const TablaStockTelefonos = dynamic(() => import("./components/TablaStockTelefonos-Simplificada"), { ssr: false });
+const ModalCotizador = dynamic(() => import("./components/ModalCotizador"), { ssr: false });
 
 export default function StockTelefonosPage() {
   const [user] = useAuthState(auth);
   const [negocioID, setNegocioID] = useState("");
   const [telefonos, setTelefonos] = useState<any[]>([]);
   const [telefonoAEditar, setTelefonoAEditar] = useState<any | null>(null);
+  const [mostrarCotizador, setMostrarCotizador] = useState(false);
   const [resumen, setResumen] = useState({ 
     usd: 0, 
     ars: 0,
@@ -136,6 +138,17 @@ export default function StockTelefonosPage() {
                 <p className="text-gray-600 text-sm sm:text-base truncate">Gestión completa de inventario</p>
               </div>
             </div>
+            {rol?.tipo === "admin" && negocioID ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarCotizador(true)}
+                  className="bg-white border border-purple-200 text-purple-800 font-semibold px-4 py-2 rounded-xl shadow-sm"
+                >
+                  Cotizador
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {/* Tarjetas de resumen financiero */}
@@ -405,6 +418,9 @@ export default function StockTelefonosPage() {
           )}       
         </div>
       </main>
+      {mostrarCotizador && negocioID ? (
+        <ModalCotizador negocioID={negocioID} onClose={() => setMostrarCotizador(false)} />
+      ) : null}
     </>
   );
 }

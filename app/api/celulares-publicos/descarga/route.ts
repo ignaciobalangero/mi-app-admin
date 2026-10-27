@@ -160,7 +160,9 @@ export async function GET(req: Request) {
     const snap = await adminDb.doc(`negocios/${negocioId}/stockTelefonos/${id}`).get();
     if (!snap.exists) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
     const d = (snap.data() || {}) as Record<string, unknown>;
-    if (d.enServicio === true) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    if (d.enServicio === true || d.ocultoLista === true) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
 
     const listaFotos = fotos(d);
     const videoUrl = video(d);

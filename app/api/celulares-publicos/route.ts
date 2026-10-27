@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db as adminDb } from "@/lib/firebaseAdmin";
 import { extraerLogoUrl, rutasConfigLogo } from "@/lib/logoNegocio";
+import { digitosWhatsapp, normalizarModelos } from "@/lib/cotizador/telefonos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,10 +67,12 @@ export async function GET(req: Request) {
   try {
     const negocioRef = adminDb.doc(`negocios/${negocioId}`);
     const datosRef = adminDb.doc(`negocios/${negocioId}/configuracion/datos`);
-    const [negSnap, datosSnap, stockSnap] = await Promise.all([
+    const cotizadorRef = adminDb.doc(`negocios/${negocioId}/configuracion/cotizadorTelefonos`);
+    const [negSnap, datosSnap, stockSnap, cotizadorSnap] = await Promise.all([
       negocioRef.get(),
       datosRef.get(),
       adminDb.collection(`negocios/${negocioId}/stockTelefonos`).limit(MAX_EQUIPOS).get(),
+      cotizadorRef.get(),
     ]);
 
     if (!negSnap.exists) {
@@ -95,10 +98,27 @@ export async function GET(req: Request) {
       datos.nombreNegocio || datos.nombre || neg.nombre || neg.nombreNegocio || "Celulares"
     ).trim();
 
+    const cotizadorData = cotizadorSnap.exists
+      ? ((cotizadorSnap.data() || {}) as Record<string, unknown>)
+      : {};
+    const tienda =
+      datos.tiendaPublica && typeof datos.tiendaPublica === "object"
+        ? (datos.tiendaPublica as Record<string, unknown>)
+        : {};
+    const recibo =
+      datos.reciboCompra && typeof datos.reciboCompra === "object"
+        ? (datos.reciboCompra as Record<string, unknown>)
+        : {};
+    const whatsapp =
+      digitosWhatsapp(cotizadorData.whatsapp) ||
+      digitosWhatsapp(tienda.telefono) ||
+      digitosWhatsapp(recibo.telefonoEmpresarial);
+    const modelos = normalizarModelos(cotizadorData.modelos);
+
     const equipos = stockSnap.docs
       .map((docu) => {
         const d = docu.data() as Record<string, unknown>;
-        if (d.enServicio === true) return null;
+        if (d.enServicio === true || d.ocultoLista === true) return null;
         const modelo = String(d.modelo || "").trim();
         const marca = String(d.marca || "").trim();
         if (!modelo && !marca) return null;
@@ -136,6 +156,7 @@ export async function GET(req: Request) {
         logoUrl,
         lista,
         equipos,
+        cotizador: modelos.length ? { whatsapp, modelos } : null,
       },
       {
         headers: {

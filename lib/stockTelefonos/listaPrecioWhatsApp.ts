@@ -17,6 +17,7 @@ export type TelefonoListaPrecio = {
   precioMayorista?: number | string;
   moneda?: string;
   enServicio?: boolean;
+  ocultoLista?: boolean;
 };
 
 export function estadosDisponiblesEnStock(
@@ -25,7 +26,7 @@ export function estadosDisponiblesEnStock(
   const vistos = new Set<string>();
   const orden: string[] = [];
   for (const t of telefonos) {
-    if (t.enServicio) continue;
+    if (t.enServicio || t.ocultoLista === true) continue;
     const e = normalizarEstado(String(t.estado || ""));
     if (!e || vistos.has(e)) continue;
     vistos.add(e);
@@ -136,6 +137,7 @@ export function armarListaPrecioWhatsApp(
       .filter(
         (t) =>
           !t.enServicio &&
+          t.ocultoLista !== true &&
           normalizarEstado(String(t.estado || "")) === estado
       )
       .sort((a, b) =>

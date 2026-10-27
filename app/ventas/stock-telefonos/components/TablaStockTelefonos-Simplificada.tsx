@@ -54,6 +54,24 @@ export default function TablaStockTelefonos({
   });
 
   // 🆕 FUNCIÓN PARA IMPRIMIR ETIQUETA
+  const marcarOcultoLista = async (telefono: any) => {
+    if (!telefono?.id || !negocioID) return;
+    const siguiente = telefono.ocultoLista !== true;
+    try {
+      await updateDoc(doc(db, `negocios/${negocioID}/stockTelefonos/${telefono.id}`), {
+        ocultoLista: siguiente,
+      });
+      setTelefonos((prev) =>
+        prev.map((item) => (item.id === telefono.id ? { ...item, ocultoLista: siguiente } : item))
+      );
+      setMensaje(siguiente ? "No va a salir en la lista" : "Vuelve a salir en la lista");
+      setTimeout(() => setMensaje(""), 2000);
+    } catch (error) {
+      console.error(error);
+      setMensaje("No se pudo ocultar de la lista");
+    }
+  };
+
   const marcarConsignacion = async (telefono: any) => {
     if (!telefono?.id || !negocioID) return;
     const siguiente = telefono.consignacion !== true;
@@ -590,7 +608,9 @@ export default function TablaStockTelefonos({
                       className={`transition-colors duration-200 ${
                         t.consignacion === true
                           ? "bg-amber-100 hover:bg-amber-200"
-                          : estiloFilaEstado(t.estado, t.enServicio)
+                          : t.ocultoLista === true
+                            ? "bg-rose-50 hover:bg-rose-100"
+                            : estiloFilaEstado(t.estado, t.enServicio)
                       }`}
                     >
                       <td className="p-1 sm:p-2 border border-gray-300 text-xs" style={{minWidth: '60px', maxWidth: '80px'}}>
@@ -626,6 +646,7 @@ export default function TablaStockTelefonos({
                         }`}>
                           {t.enServicio ? '🔧 En Servicio' : (etiquetaEstado(t.estado) || "-")}
                           {t.consignacion === true ? " · Consignación" : ""}
+                          {t.ocultoLista === true ? " · Fuera de lista" : ""}
                         </span>
                       </td>
                       <td className="p-2 border border-gray-300 text-center" style={{minWidth: '60px'}}>
@@ -752,6 +773,17 @@ export default function TablaStockTelefonos({
                                 Consignación
                               </button>
                               <button
+                                onClick={() => marcarOcultoLista(t)}
+                                className={`text-xs px-2 py-1 rounded transition-colors duration-200 whitespace-nowrap ${
+                                  t.ocultoLista === true
+                                    ? "bg-rose-600 text-white hover:bg-rose-700"
+                                    : "bg-rose-50 text-rose-800 hover:bg-rose-100"
+                                }`}
+                                title="No sale en la lista de precios"
+                              >
+                                {t.ocultoLista === true ? "Oculto" : "Ocultar lista"}
+                              </button>
+                              <button
                                 onClick={() => servicios.abrirModalServicio(t)}
                                 className="text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors duration-200 whitespace-nowrap"
                               >
@@ -778,6 +810,17 @@ export default function TablaStockTelefonos({
                                 }`}
                               >
                                 Consignación
+                              </button>
+                              <button
+                                onClick={() => marcarOcultoLista(t)}
+                                className={`text-xs px-2 py-1 rounded transition-colors duration-200 whitespace-nowrap ${
+                                  t.ocultoLista === true
+                                    ? "bg-rose-600 text-white hover:bg-rose-700"
+                                    : "bg-rose-50 text-rose-800 hover:bg-rose-100"
+                                }`}
+                                title="No sale en la lista de precios"
+                              >
+                                {t.ocultoLista === true ? "Oculto" : "Ocultar lista"}
                               </button>
                               <button
                                 onClick={() => servicios.abrirModalRetorno(t)}
