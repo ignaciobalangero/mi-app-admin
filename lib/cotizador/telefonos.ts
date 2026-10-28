@@ -1,11 +1,22 @@
 export type MonedaCotizacion = "ARS" | "USD";
 
+export type BateriaCotizacion = "mas90" | "menos90";
+
 export type ModeloCotizacion = {
   id: string;
   modelo: string;
-  precio: number;
   moneda: MonedaCotizacion;
+  precioMas90: number;
+  precioMenos90: number;
 };
+
+export function etiquetaBateria(bateria: BateriaCotizacion): string {
+  return bateria === "mas90" ? "batería 90% o más" : "batería menos de 90%";
+}
+
+export function precioSegunBateria(modelo: ModeloCotizacion, bateria: BateriaCotizacion): number {
+  return bateria === "mas90" ? modelo.precioMas90 : modelo.precioMenos90;
+}
 
 export function monedaDe(valor: unknown): MonedaCotizacion {
   return String(valor || "USD").toUpperCase() === "ARS" ? "ARS" : "USD";
@@ -22,10 +33,12 @@ export function normalizarModelos(raw: unknown): ModeloCotizacion[] {
     if (!item || typeof item !== "object") continue;
     const fila = item as Record<string, unknown>;
     const modelo = String(fila.modelo || "").trim().slice(0, 80);
-    const precio = Math.round(Math.max(0, Number(fila.precio) || 0) * 100) / 100;
-    if (!modelo || !(precio > 0)) continue;
+    const legado = Math.round(Math.max(0, Number(fila.precio) || 0) * 100) / 100;
+    const precioMas90 = Math.round(Math.max(0, Number(fila.precioMas90 ?? legado) || 0) * 100) / 100;
+    const precioMenos90 = Math.round(Math.max(0, Number(fila.precioMenos90) || 0) * 100) / 100;
+    if (!modelo || !(precioMas90 > 0 || precioMenos90 > 0)) continue;
     const id = String(fila.id || "").trim().slice(0, 40) || String(lista.length + 1);
-    lista.push({ id, modelo, precio, moneda: monedaDe(fila.moneda) });
+    lista.push({ id, modelo, precioMas90, precioMenos90, moneda: monedaDe(fila.moneda) });
     if (lista.length >= 200) break;
   }
   return lista;

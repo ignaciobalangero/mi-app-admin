@@ -169,7 +169,7 @@ export function armarListaPrecioWhatsApp(
 
   const link = String(opts.linkFotos || "").trim();
   if (link) {
-    bloques.push("👇 Mirá las fotos de cada equipo");
+    bloques.push("👇 Mirá las fotos de cada equipo y cotiza tu equipo acá!");
     bloques.push(link);
   }
 

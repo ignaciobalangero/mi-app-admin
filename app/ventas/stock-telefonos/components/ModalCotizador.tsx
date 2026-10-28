@@ -10,10 +10,22 @@ import {
   type MonedaCotizacion,
 } from "@/lib/cotizador/telefonos";
 
-type Fila = { id: string; modelo: string; precio: string; moneda: MonedaCotizacion };
+type Fila = {
+  id: string;
+  modelo: string;
+  precioMas90: string;
+  precioMenos90: string;
+  moneda: MonedaCotizacion;
+};
 
 function filaVacia(): Fila {
-  return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, modelo: "", precio: "", moneda: "USD" };
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    modelo: "",
+    precioMas90: "",
+    precioMenos90: "",
+    moneda: "USD",
+  };
 }
 
 export default function ModalCotizador({
@@ -43,7 +55,8 @@ export default function ModalCotizador({
             ? modelos.map((m) => ({
                 id: m.id,
                 modelo: m.modelo,
-                precio: String(m.precio),
+                precioMas90: m.precioMas90 ? String(m.precioMas90) : "",
+                precioMenos90: m.precioMenos90 ? String(m.precioMenos90) : "",
                 moneda: m.moneda,
               }))
             : [filaVacia()]
@@ -68,7 +81,8 @@ export default function ModalCotizador({
         filas.map((f) => ({
           id: f.id,
           modelo: f.modelo,
-          precio: Number(String(f.precio).replace(",", ".")) || 0,
+          precioMas90: Number(String(f.precioMas90).replace(",", ".")) || 0,
+          precioMenos90: Number(String(f.precioMenos90).replace(",", ".")) || 0,
           moneda: f.moneda,
         }))
       );
@@ -88,12 +102,12 @@ export default function ModalCotizador({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[92dvh] overflow-y-auto p-5 space-y-4">
+      <div className="bg-white w-full sm:max-w-3xl sm:rounded-2xl rounded-t-2xl max-h-[92dvh] overflow-y-auto p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-[#2c3e50]">Cotizador</h2>
             <p className="text-sm text-[#7f8c8d] mt-1">
-              Modelos y precios de toma. En el link de la lista, el cliente elige un equipo, cotiza el suyo y te escribe por WhatsApp con el saldo.
+              Cada modelo puede tener un precio con batería de 90% o más y otro con menos de 90%. El cliente elige cuál tiene.
             </p>
           </div>
           <button type="button" onClick={onClose} className="h-10 w-10 rounded-full bg-gray-100 font-bold text-lg" aria-label="Cerrar">
@@ -115,8 +129,15 @@ export default function ModalCotizador({
         {cargando ? <p className="text-sm text-[#7f8c8d]">Cargando…</p> : null}
 
         <div className="space-y-2">
+          <div className="hidden sm:grid sm:grid-cols-[1fr_130px_130px_90px_auto] gap-2 text-xs font-medium text-[#7f8c8d] px-1">
+            <span>Modelo</span>
+            <span>Batería +90%</span>
+            <span>Batería -90%</span>
+            <span>Moneda</span>
+            <span />
+          </div>
           {filas.map((fila) => (
-            <div key={fila.id} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_90px_auto] gap-2">
+            <div key={fila.id} className="grid grid-cols-1 sm:grid-cols-[1fr_130px_130px_90px_auto] gap-2">
               <input
                 value={fila.modelo}
                 onChange={(e) =>
@@ -126,12 +147,21 @@ export default function ModalCotizador({
                 className="px-3 py-2 border rounded-xl"
               />
               <input
-                value={fila.precio}
+                value={fila.precioMas90}
                 onChange={(e) =>
-                  setFilas((prev) => prev.map((f) => (f.id === fila.id ? { ...f, precio: e.target.value } : f)))
+                  setFilas((prev) => prev.map((f) => (f.id === fila.id ? { ...f, precioMas90: e.target.value } : f)))
                 }
                 inputMode="decimal"
-                placeholder="Precio"
+                placeholder="Precio +90%"
+                className="px-3 py-2 border rounded-xl"
+              />
+              <input
+                value={fila.precioMenos90}
+                onChange={(e) =>
+                  setFilas((prev) => prev.map((f) => (f.id === fila.id ? { ...f, precioMenos90: e.target.value } : f)))
+                }
+                inputMode="decimal"
+                placeholder="Precio -90%"
                 className="px-3 py-2 border rounded-xl"
               />
               <select
