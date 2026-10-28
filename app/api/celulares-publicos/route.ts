@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db as adminDb } from "@/lib/firebaseAdmin";
 import { extraerLogoUrl, rutasConfigLogo } from "@/lib/logoNegocio";
 import { digitosWhatsapp, normalizarModelos } from "@/lib/cotizador/telefonos";
+import { tablaIphoneInicial } from "@/lib/cotizador/tablaIphone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,7 +114,8 @@ export async function GET(req: Request) {
       digitosWhatsapp(cotizadorData.whatsapp) ||
       digitosWhatsapp(tienda.telefono) ||
       digitosWhatsapp(recibo.telefonoEmpresarial);
-    const modelos = normalizarModelos(cotizadorData.modelos);
+    const guardados = normalizarModelos(cotizadorData.modelos);
+    const modelos = guardados.length ? guardados : tablaIphoneInicial();
 
     const equipos = stockSnap.docs
       .map((docu) => {

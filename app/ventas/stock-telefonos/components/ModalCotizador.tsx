@@ -7,8 +7,10 @@ import {
   digitosWhatsapp,
   monedaDe,
   normalizarModelos,
+  type ModeloCotizacion,
   type MonedaCotizacion,
 } from "@/lib/cotizador/telefonos";
+import { tablaIphoneInicial } from "@/lib/cotizador/tablaIphone";
 
 type Fila = {
   id: string;
@@ -17,6 +19,16 @@ type Fila = {
   precioMenos90: string;
   moneda: MonedaCotizacion;
 };
+
+function filasDe(modelos: ModeloCotizacion[]): Fila[] {
+  return modelos.map((m) => ({
+    id: m.id,
+    modelo: m.modelo,
+    precioMas90: m.precioMas90 ? String(m.precioMas90) : "",
+    precioMenos90: m.precioMenos90 ? String(m.precioMenos90) : "",
+    moneda: m.moneda,
+  }));
+}
 
 function filaVacia(): Fila {
   return {
@@ -35,7 +47,7 @@ export default function ModalCotizador({
   negocioID: string;
   onClose: () => void;
 }) {
-  const [filas, setFilas] = useState<Fila[]>([filaVacia()]);
+  const [filas, setFilas] = useState<Fila[]>(() => filasDe(tablaIphoneInicial()));
   const [whatsapp, setWhatsapp] = useState("");
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -46,21 +58,11 @@ export default function ModalCotizador({
     (async () => {
       try {
         const snap = await getDoc(doc(db, `negocios/${negocioID}/configuracion/cotizadorTelefonos`));
-        if (cancel || !snap.exists()) return;
-        const data = snap.data();
+        if (cancel) return;
+        const data = (snap.exists() ? snap.data() : {}) || {};
         const modelos = normalizarModelos(data.modelos);
         setWhatsapp(digitosWhatsapp(data.whatsapp));
-        setFilas(
-          modelos.length
-            ? modelos.map((m) => ({
-                id: m.id,
-                modelo: m.modelo,
-                precioMas90: m.precioMas90 ? String(m.precioMas90) : "",
-                precioMenos90: m.precioMenos90 ? String(m.precioMenos90) : "",
-                moneda: m.moneda,
-              }))
-            : [filaVacia()]
-        );
+        setFilas(filasDe(modelos.length ? modelos : tablaIphoneInicial()));
       } catch (error) {
         console.error(error);
         if (!cancel) setAviso("No se pudo cargar el cotizador.");
