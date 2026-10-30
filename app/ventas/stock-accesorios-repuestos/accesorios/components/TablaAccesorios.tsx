@@ -9,6 +9,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  updateDoc,
   query,
   orderBy,
   limit,
@@ -20,6 +21,7 @@ import {
 import ModalVerPrecios from "./ModalVerPrecios";
 import ModalEditarAccesorio from "./ModalEditarAccesorios";
 import ModalIngresoStock from "./ModalIngresoStock";
+import ModalControlConsignacion from "./ModalControlConsignacion";
 import ModalElegirTipoEtiqueta from "@/components/ModalElegirTipoEtiqueta";
 import { itemEtiquetaDesdeProducto } from "@/lib/imprimirEtiquetaRepuesto";
 import type { ItemEtiquetaStock } from "@/lib/imprimirEtiquetaRepuesto";
@@ -47,6 +49,7 @@ interface Producto {
   stockBajo?: number;
   proveedor: string;
   stockIdeal?: number;
+  consignacion?: boolean;
 }
 
 interface Props {
@@ -82,6 +85,7 @@ export default function TablaAccesorios({
   const [modalVerPrecios, setModalVerPrecios] = useState<Producto | null>(null);
   const [modalEditar, setModalEditar] = useState<Producto | null>(null);
   const [modalIngreso, setModalIngreso] = useState<Producto | null>(null);
+  const [controlConsignacion, setControlConsignacion] = useState(false);
   const [itemsEtiquetaPendiente, setItemsEtiquetaPendiente] = useState<ItemEtiquetaStock[] | null>(null);
   const [modalEliminar, setModalEliminar] = useState<string | null>(null);
   
@@ -268,6 +272,21 @@ export default function TablaAccesorios({
   };
 
   // 🗑️ FUNCIÓN PARA CONFIRMAR ELIMINACIÓN
+  const marcarConsignacion = async (producto: Producto) => {
+    if (!producto?.id || !rol?.negocioID) return;
+    const siguiente = producto.consignacion !== true;
+    try {
+      await updateDoc(doc(db, `negocios/${rol.negocioID}/stockAccesorios/${producto.id}`), {
+        consignacion: siguiente,
+      });
+      setProductos((prev) =>
+        prev.map((item) => (item.id === producto.id ? { ...item, consignacion: siguiente } : item))
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const confirmarEliminacion = async (id: string) => {
     try {
       await eliminarProducto(id);
@@ -283,12 +302,19 @@ export default function TablaAccesorios({
     const totalFiltrados = productosFiltrados.length;
     const stockTotal = productosFiltrados.reduce((sum, p) => sum + (typeof p.cantidad === 'number' ? p.cantidad : 0), 0);
     const valorTotal = productosFiltrados.reduce((acc, p) => {
+      if (p.consignacion === true) return acc;
+      const precio = calcularPrecioDinamico(p, 'precioCosto');
+      const cantidad = typeof p.cantidad === 'number' ? p.cantidad : 0;
+      return acc + (precio * cantidad);
+    }, 0);
+    const valorConsignacion = productosFiltrados.reduce((acc, p) => {
+      if (p.consignacion !== true) return acc;
       const precio = calcularPrecioDinamico(p, 'precioCosto');
       const cantidad = typeof p.cantidad === 'number' ? p.cantidad : 0;
       return acc + (precio * cantidad);
     }, 0);
     
-    return { totalFiltrados, stockTotal, valorTotal };
+    return { totalFiltrados, stockTotal, valorTotal, valorConsignacion };
   }, [productosFiltrados, cotizacionSegura]);
 
   // ⚡ EFECTOS OPTIMIZADOS
@@ -360,6 +386,15 @@ export default function TablaAccesorios({
     <div className="space-y-6">
       {/* 🆕 HEADER CON FILTROS Y COTIZACIÓN MEJORADO */}
       <div className="bg-white rounded-xl shadow-lg border border-[#ecf0f1] p-3 lg:p-4">
+        <div className="mb-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setControlConsignacion(true)}
+            className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-bold text-white"
+          >
+            Control consignación
+          </button>
+        </div>
         <div className="flex flex-col lg:flex-row gap-3 lg:gap-6 mb-3">
           
           {/* Filtros principales */}
@@ -560,6 +595,8 @@ export default function TablaAccesorios({
                       className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
                         productoDestacadoId === p.id
                           ? "bg-[#d6eaf8] ring-2 ring-inset ring-[#3498db]"
+                          : p.consignacion === true
+                          ? "bg-amber-50"
                           : (p.cantidad || 0) === 0
                           ? "bg-red-50"
                           : (p.cantidad || 0) <= (p.stockBajo ?? 3)
@@ -586,6 +623,7 @@ export default function TablaAccesorios({
                         <div className="text-xs font-medium text-[#2c3e50]">
                           <div className="font-semibold">
                             {(p.producto || "").length > 25 ? (p.producto || "").substring(0, 25) + "..." : (p.producto || "—")}
+                            {p.consignacion === true ? <span className="ml-1 text-amber-700">· Consignación</span> : null}
                           </div>
                           <div className="text-xs text-[#7f8c8d] lg:hidden">
                             <div>{p.marca || "—"} {p.modelo || ""}</div>
@@ -675,6 +713,18 @@ export default function TablaAccesorios({
                             🏷️
                           </button>
                           <button
+                            type="button"
+                            onClick={() => void marcarConsignacion(p)}
+                            className={`px-1 py-1 rounded text-xs transition-all duration-200 ${
+                              p.consignacion === true
+                                ? "bg-amber-500 text-white hover:bg-amber-600"
+                                : "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                            }`}
+                            title={p.consignacion === true ? "Sacar de consignación" : "Marcar consignación"}
+                          >
+                            {p.consignacion === true ? "Consig." : "Consignar"}
+                          </button>
+                          <button
                             onClick={() => setModalEditar(p)}
                             className="bg-[#3498db] hover:bg-[#2980b9] text-white px-1 py-1 rounded text-xs transition-all duration-200"
                             title="Editar"
@@ -718,6 +768,13 @@ export default function TablaAccesorios({
                     ${typeof estadisticas.valorTotal === 'number' ? estadisticas.valorTotal.toLocaleString("es-AR") : '0'}
                   </strong>
                 </span>
+                {estadisticas.valorConsignacion > 0 ? (
+                  <span>
+                    Consignación: <strong className="text-amber-700">
+                      ${estadisticas.valorConsignacion.toLocaleString("es-AR")}
+                    </strong>
+                  </span>
+                ) : null}
               </div>
             </div>
 
@@ -758,6 +815,10 @@ export default function TablaAccesorios({
       </div>
 
       {/* 👁️ MODAL VER PRECIOS */}
+      {controlConsignacion && rol?.negocioID ? (
+        <ModalControlConsignacion negocioID={rol.negocioID} onClose={() => setControlConsignacion(false)} />
+      ) : null}
+
       {modalVerPrecios && (
         <ModalVerPrecios
           producto={modalVerPrecios}
