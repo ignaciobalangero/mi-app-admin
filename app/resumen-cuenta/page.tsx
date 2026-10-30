@@ -38,6 +38,80 @@ function agregarRepuestosDesdeVentas(productos: unknown[]): {
   return { unidades, gananciaARS, gananciaUSD };
 }
 
+/** Precio cobrado de la línea, sin restar el costo. */
+function brutoLinea(p: Record<string, unknown>): number {
+  const venta = Number(p.precioVenta);
+  if (Number.isFinite(venta) && venta !== 0) return venta;
+  const unit = Number(p.precioUnitario ?? 0) || 0;
+  const cant = Number(p.cantidad ?? 1) || 1;
+  return unit * cant;
+}
+
+function rubroVenta(p: Record<string, unknown>): "telefono" | "extra" | "venta" {
+  const tipo = String(p.tipo ?? "");
+  const cat = String(p.categoria ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (tipo === "telefono" || cat === "telefono") return "telefono";
+  if (esLineaStockExtra(p)) return "extra";
+  return "venta";
+}
+
+function mesAnioFechaAR(fecha: string): string | null {
+  const partes = String(fecha || "").trim().split("/");
+  if (partes.length !== 3) return null;
+  const mesNum = parseInt(partes[1], 10);
+  if (!mesNum) return null;
+  const mes = String(mesNum).padStart(2, "0");
+  let anio = partes[2].trim();
+  if (anio.length === 2) anio = `20${anio}`;
+  if (!anio) return null;
+  return `${mes}-${anio}`;
+}
+
+interface BrutosMes {
+  reparacionARS: number;
+  telefonosARS: number;
+  telefonosUSD: number;
+  ventasARS: number;
+  ventasUSD: number;
+  extraARS: number;
+  extraUSD: number;
+}
+
+function brutosVacios(): BrutosMes {
+  return {
+    reparacionARS: 0,
+    telefonosARS: 0,
+    telefonosUSD: 0,
+    ventasARS: 0,
+    ventasUSD: 0,
+    extraARS: 0,
+    extraUSD: 0,
+  };
+}
+
+function sumarBrutoVenta(destino: BrutosMes, productos: unknown[]) {
+  for (const raw of productos || []) {
+    const p = raw as Record<string, unknown>;
+    const monto = brutoLinea(p);
+    const usd = String(p.moneda ?? "ARS").toUpperCase() === "USD";
+    const rubro = rubroVenta(p);
+    if (rubro === "telefono") {
+      if (usd) destino.telefonosUSD += monto;
+      else destino.telefonosARS += monto;
+    } else if (rubro === "extra") {
+      if (usd) destino.extraUSD += monto;
+      else destino.extraARS += monto;
+    } else if (usd) {
+      destino.ventasUSD += monto;
+    } else {
+      destino.ventasARS += monto;
+    }
+  }
+}
+
 interface DatosMes {
   mes: string;
   trabajos: number;
@@ -63,6 +137,7 @@ export default function ResumenSimplificado() {
     gananciaUSD: number;
   } | null>(null);
   const [cargandoFallbackRepuestos, setCargandoFallbackRepuestos] = useState(false);
+  const [brutos, setBrutos] = useState<BrutosMes | null>(null);
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -147,6 +222,7 @@ export default function ResumenSimplificado() {
 
       setCargandoFallbackRepuestos(true);
       setRepuestosDesdeVentas(null);
+      setBrutos(null);
 
       try {
         const start = Timestamp.fromDate(new Date(anioNum, mesNum - 1, 1, 0, 0, 0, 0));
@@ -157,23 +233,57 @@ export default function ResumenSimplificado() {
           where("timestamp", "<=", end),
           orderBy("timestamp")
         );
-        const snap = await getDocs(q);
+        const qTrabajos = query(
+          collection(db, `negocios/${rol.negocioID}/trabajos`),
+          where("estado", "in", ["REPARADO", "ENTREGADO", "PAGADO"])
+        );
+        const [ventasRes, trabajosRes] = await Promise.allSettled([getDocs(q), getDocs(qTrabajos)]);
         if (cancelled) return;
 
         let unidades = 0;
         let gananciaARS = 0;
         let gananciaUSD = 0;
-        snap.forEach((d) => {
-          const data = d.data();
-          const a = agregarRepuestosDesdeVentas(data.productos || []);
-          unidades += a.unidades;
-          gananciaARS += a.gananciaARS;
-          gananciaUSD += a.gananciaUSD;
-        });
-        setRepuestosDesdeVentas({ unidades, gananciaARS, gananciaUSD });
+        const bruto = brutosVacios();
+
+        if (ventasRes.status === "fulfilled") {
+          ventasRes.value.forEach((d) => {
+            const data = d.data();
+            const productos = data.productos || [];
+            const a = agregarRepuestosDesdeVentas(productos);
+            unidades += a.unidades;
+            gananciaARS += a.gananciaARS;
+            gananciaUSD += a.gananciaUSD;
+            sumarBrutoVenta(bruto, productos);
+          });
+          setRepuestosDesdeVentas({ unidades, gananciaARS, gananciaUSD });
+        } else {
+          console.error("Resumen cuenta: ventas del mes:", ventasRes.reason);
+          setRepuestosDesdeVentas(null);
+        }
+
+        if (trabajosRes.status === "fulfilled") {
+          const estadosOk = new Set(["REPARADO", "ENTREGADO", "PAGADO"]);
+          trabajosRes.value.forEach((d) => {
+            const data = d.data();
+            if (!estadosOk.has(String(data.estado || ""))) return;
+            if (mesAnioFechaAR(String(data.fechaModificacion || "")) !== mesSeleccionado) return;
+            bruto.reparacionARS += Number(data.precio || 0) || 0;
+          });
+        } else {
+          console.error("Resumen cuenta: trabajos del mes:", trabajosRes.reason);
+        }
+
+        if (ventasRes.status === "rejected" && trabajosRes.status === "rejected") {
+          setBrutos(null);
+        } else {
+          setBrutos(bruto);
+        }
       } catch (e) {
         console.error("Resumen cuenta: fallback repuestos/stock extra:", e);
-        if (!cancelled) setRepuestosDesdeVentas(null);
+        if (!cancelled) {
+          setRepuestosDesdeVentas(null);
+          setBrutos(null);
+        }
       } finally {
         if (!cancelled) setCargandoFallbackRepuestos(false);
       }
@@ -197,6 +307,13 @@ export default function ResumenSimplificado() {
       "Teléfonos Vendidos": item.telefonosVendidos,
       "Accesorios/Repuestos Vendidos": item.accesoriosVendidos,
       "Total Ventas": item.totalVentas,
+      "Bruto reparaciones": item.mes === mesSeleccionado ? brutos?.reparacionARS ?? "" : "",
+      "Bruto ventas ARS": item.mes === mesSeleccionado ? brutos?.ventasARS ?? "" : "",
+      "Bruto ventas USD": item.mes === mesSeleccionado ? brutos?.ventasUSD ?? "" : "",
+      "Bruto teléfonos ARS": item.mes === mesSeleccionado ? brutos?.telefonosARS ?? "" : "",
+      "Bruto teléfonos USD": item.mes === mesSeleccionado ? brutos?.telefonosUSD ?? "" : "",
+      "Bruto repuestos ARS": item.mes === mesSeleccionado ? brutos?.extraARS ?? "" : "",
+      "Bruto repuestos USD": item.mes === mesSeleccionado ? brutos?.extraUSD ?? "" : "",
     }));
     
     const ws = XLSX.utils.json_to_sheet(datosExcel);
@@ -516,6 +633,144 @@ export default function ResumenSimplificado() {
                       </div>
                     )}
 
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-300">
+                    <h2 className="text-xl font-bold text-gray-900 mb-1">
+                      Ingresos brutos de {mesSeleccionado}
+                    </h2>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Precio de venta, sin restar el costo. Pesos y dólares van separados.
+                    </p>
+                    {cargandoFallbackRepuestos && !brutos ? (
+                      <p className="text-sm text-gray-600">Calculando ingresos del mes…</p>
+                    ) : brutos ? (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                          <div className="rounded-2xl border-4 border-emerald-300 p-5">
+                            <p className="text-sm font-bold text-emerald-900 uppercase tracking-wide">Reparaciones</p>
+                            <p className="text-2xl font-black text-emerald-800 mt-1">
+                              ${brutos.reparacionARS.toLocaleString("es-AR")}
+                            </p>
+                            <p className="text-xs text-emerald-700 mt-1">Precio de los trabajos del mes</p>
+                          </div>
+                          <div className="rounded-2xl border-4 border-sky-300 p-5">
+                            <p className="text-sm font-bold text-sky-900 uppercase tracking-wide">Ventas</p>
+                            <p className="text-2xl font-black text-sky-800 mt-1">
+                              ${brutos.ventasARS.toLocaleString("es-AR")}
+                            </p>
+                            {brutos.ventasUSD > 0 && (
+                              <p className="text-base font-bold text-sky-700">
+                                USD {brutos.ventasUSD.toLocaleString("es-AR")}
+                              </p>
+                            )}
+                            <p className="text-xs text-sky-700 mt-1">Accesorios, repuestos y productos</p>
+                          </div>
+                          <div className="rounded-2xl border-4 border-orange-300 p-5">
+                            <p className="text-sm font-bold text-orange-900 uppercase tracking-wide">Venta de teléfonos</p>
+                            <p className="text-2xl font-black text-orange-800 mt-1">
+                              {brutos.telefonosUSD > 0
+                                ? `USD ${brutos.telefonosUSD.toLocaleString("es-AR")}`
+                                : `$${brutos.telefonosARS.toLocaleString("es-AR")}`}
+                            </p>
+                            {brutos.telefonosUSD > 0 && brutos.telefonosARS > 0 && (
+                              <p className="text-base font-bold text-orange-700">
+                                ${brutos.telefonosARS.toLocaleString("es-AR")}
+                              </p>
+                            )}
+                            <p className="text-xs text-orange-700 mt-1">Precio de los equipos vendidos</p>
+                          </div>
+                          <div className="rounded-2xl border-4 border-amber-300 p-5">
+                            <p className="text-sm font-bold text-amber-900 uppercase tracking-wide">Repuestos (stock extra)</p>
+                            <p className="text-2xl font-black text-amber-800 mt-1">
+                              ${brutos.extraARS.toLocaleString("es-AR")}
+                            </p>
+                            {brutos.extraUSD > 0 && (
+                              <p className="text-base font-bold text-amber-700">
+                                USD {brutos.extraUSD.toLocaleString("es-AR")}
+                              </p>
+                            )}
+                            <p className="text-xs text-amber-700 mt-1">Hoja / stock extra</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                          <div className="rounded-2xl border-4 border-slate-400 p-5">
+                            <p className="text-sm font-bold text-slate-900 uppercase tracking-wide">Total bruto en pesos</p>
+                            <p className="text-3xl font-black text-slate-800 mt-1">
+                              ${(
+                                brutos.reparacionARS +
+                                brutos.ventasARS +
+                                brutos.telefonosARS +
+                                brutos.extraARS
+                              ).toLocaleString("es-AR")}
+                            </p>
+                            <p className="text-xs text-slate-600 mt-1">
+                              Reparaciones + ventas + teléfonos + stock extra
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border-4 border-yellow-400 p-5">
+                            <p className="text-sm font-bold text-yellow-900 uppercase tracking-wide">Total bruto en USD</p>
+                            <p className="text-3xl font-black text-yellow-800 mt-1">
+                              USD {(
+                                brutos.ventasUSD +
+                                brutos.telefonosUSD +
+                                brutos.extraUSD
+                              ).toLocaleString("es-AR")}
+                            </p>
+                            <p className="text-xs text-yellow-700 mt-1">Ventas + teléfonos + stock extra</p>
+                          </div>
+                        </div>
+                        <div className="mt-6">
+                          <h3 className="text-base font-bold text-gray-800 mb-3">Ingresos brutos del mes</h3>
+                          <ResponsiveContainer width="100%" height={280}>
+                            <BarChart
+                              data={[
+                                {
+                                  mes: mesSeleccionado,
+                                  Reparaciones: Math.round(brutos.reparacionARS),
+                                  "Ventas ARS": Math.round(brutos.ventasARS),
+                                  "Ventas USD": Math.round(brutos.ventasUSD),
+                                  "Teléfonos ARS": Math.round(brutos.telefonosARS),
+                                  "Teléfonos USD": Math.round(brutos.telefonosUSD),
+                                  "Stock extra ARS": Math.round(brutos.extraARS),
+                                  "Stock extra USD": Math.round(brutos.extraUSD),
+                                },
+                              ]}
+                            >
+                              <XAxis dataKey="mes" tick={{ fill: "#374151" }} axisLine={{ stroke: "#9CA3AF" }} />
+                              <YAxis
+                                tick={{ fill: "#374151" }}
+                                tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                                axisLine={{ stroke: "#9CA3AF" }}
+                              />
+                              <Tooltip
+                                formatter={(value, name) => [
+                                  String(name).includes("USD")
+                                    ? `USD ${Number(value).toLocaleString("es-AR")}`
+                                    : `$${Number(value).toLocaleString("es-AR")}`,
+                                  name,
+                                ]}
+                                contentStyle={{
+                                  backgroundColor: "white",
+                                  border: "1px solid #D1D5DB",
+                                  borderRadius: "8px",
+                                }}
+                              />
+                              <Legend />
+                              <Bar dataKey="Reparaciones" fill="#10B981" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="Ventas ARS" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="Ventas USD" fill="#0284C7" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="Teléfonos ARS" fill="#F97316" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="Teléfonos USD" fill="#EA580C" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="Stock extra ARS" fill="#D97706" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="Stock extra USD" fill="#B45309" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-600">No se pudieron calcular los ingresos de este mes.</p>
+                    )}
                   </div>
 
                   {/* Totales */}
