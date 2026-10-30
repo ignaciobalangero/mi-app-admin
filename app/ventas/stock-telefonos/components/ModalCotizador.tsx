@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import {
   digitosWhatsapp,
   monedaDe,
+  modelosCotizadorGuardados,
   normalizarModelos,
   type ModeloCotizacion,
   type MonedaCotizacion,
@@ -60,9 +61,9 @@ export default function ModalCotizador({
         const snap = await getDoc(doc(db, `negocios/${negocioID}/configuracion/cotizadorTelefonos`));
         if (cancel) return;
         const data = (snap.exists() ? snap.data() : {}) || {};
-        const modelos = normalizarModelos(data.modelos);
+        const modelos = modelosCotizadorGuardados(data.modelos);
         setWhatsapp(digitosWhatsapp(data.whatsapp));
-        setFilas(filasDe(modelos.length ? modelos : tablaIphoneInicial()));
+        if (modelos.length) setFilas(filasDe(modelos));
       } catch (error) {
         console.error(error);
         if (!cancel) setAviso("No se pudo cargar el cotizador.");

@@ -12,6 +12,7 @@ import ModalEmitirFactura from "@/app/ventas-general/componentes/ModalEmitirFact
 import { notificarWhatsappTrabajoSiConfigurado } from "@/lib/whatsapp/notificarEstadoTrabajoCliente";
 import { useConfigFacturacion } from "@/lib/hooks/useConfigFacturacion";
 import { PatronViewer } from "@/app/components/PatronDesbloqueo";
+import ConsultaImeiIfree from "@/app/ventas/stock-telefonos/components/ConsultaImeiIfree";
 import {
   etiquetaEstadoTabla,
   payloadMarcasEstadoAlCambiar,
@@ -1103,7 +1104,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
       {/* Modal IMEI requerido */}
       {mostrarModalIMEI && trabajoParaIMEI && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-md w-full border-2 border-[#ecf0f1] transform transition-all duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-xl w-full border-2 border-[#ecf0f1] transform transition-all duration-300 max-h-[92dvh] overflow-y-auto">
             <div className="bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] text-white rounded-t-2xl p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1165,6 +1166,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
                   placeholder="Ej: 123456789012345"
                   className="w-full rounded-lg border border-[#bdc3c7] px-3 py-2 text-[#2c3e50] bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db]"
                 />
+                {negocioID ? <ConsultaImeiIfree negocioID={negocioID} imei={imeiInput} /> : null}
                 {errorIMEI && <p className="text-sm text-red-600">{errorIMEI}</p>}
               </div>
 

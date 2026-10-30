@@ -13,12 +13,24 @@ import {
   pedidoTiendaYaProcesado,
   usePedidosTiendaPendientesVenta,
 } from "@/lib/usePedidosTiendaPendientesVenta";
+import { STORAGE_PREVENTA_VENTA } from "@/lib/preventas/modelo";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function VistaVentas() {
   const [refrescar, setRefrescar] = useState(false);
   const [mostrarModalVenta, setMostrarModalVenta] = useState(false);
   const [desdePedidoTienda, setDesdePedidoTienda] = useState(false);
   const [desdeTelefono, setDesdeTelefono] = useState(false);
+  const [preventaInicial, setPreventaInicial] = useState<{
+    preventaId: string;
+    negocioID: string;
+    cliente: string;
+    clienteId: string;
+    productos: any[];
+    pago: any;
+    observaciones: string;
+  } | null>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -32,6 +44,23 @@ export default function VistaVentas() {
   const autoPedidoAbierto = useRef(false);
 
   useEffect(() => {
+    if (searchParams.get("desdePreventa") === "1") {
+      try {
+        const raw = localStorage.getItem(STORAGE_PREVENTA_VENTA);
+        const datos = raw ? JSON.parse(raw) : null;
+        if (datos?.preventaId && datos?.clienteId && Array.isArray(datos.productos)) {
+          setPreventaInicial(datos);
+          setMostrarModalVenta(true);
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+      }
+      localStorage.removeItem(STORAGE_PREVENTA_VENTA);
+      router.replace("/ventas-general");
+      return;
+    }
+
     const desdeTelefono = searchParams.get("desdeTelefono");
     const desdePedido = searchParams.get("desdePedido");
     const datosPedido = leerPedidoParaVenta();
@@ -69,6 +98,7 @@ export default function VistaVentas() {
     if (autoPedidoAbierto.current) return;
     if (!tieneAccesoPedidos || pedidos.length === 0) return;
     if (searchParams.get("desdePedido") === "1") return;
+    if (searchParams.get("desdePreventa") === "1") return;
     if (leerPedidoParaVenta()) return;
     if (searchParams.get("desdeTelefono") === "1" || localStorage.getItem("ventaTelefonoPendiente")) return;
 
@@ -150,7 +180,10 @@ export default function VistaVentas() {
                 
                 {/* Botón Nueva Venta - Más compacto */}
                 <button
-                  onClick={() => setMostrarModalVenta(true)}
+                  onClick={() => {
+                    setPreventaInicial(null);
+                    setMostrarModalVenta(true);
+                  }}
                   className="group bg-gradient-to-r from-[#3498db] to-[#2980b9] hover:from-[#2980b9] hover:to-[#1f4e79] text-white p-3 sm:p-6 rounded-lg sm:rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg border-2 border-transparent hover:border-[#3498db] relative overflow-hidden w-full"
                 >
                   {tieneAccesoPedidos && pedidosPendientes > 0 && (
@@ -242,19 +275,38 @@ export default function VistaVentas() {
       {/* Modal de venta */}
       {mostrarModalVenta && (
         <ModalVenta
+          key={preventaInicial?.preventaId || "venta"}
           refrescar={refrescar}
           setRefrescar={setRefrescar}
+          clienteInicial={preventaInicial?.cliente || ""}
+          clienteIdInicial={preventaInicial?.clienteId || ""}
+          productosIniciales={preventaInicial?.productos || []}
+          pagoInicial={preventaInicial?.pago || null}
+          observacionesInicial={preventaInicial?.observaciones || ""}
           onClose={() => {
             setMostrarModalVenta(false);
             setDesdePedidoTienda(false);
+            setPreventaInicial(null);
             if (searchParams.get("desdePedido") === "1") {
               limpiarPedidoParaVenta();
+              router.replace("/ventas-general");
+            }
+            if (searchParams.get("desdePreventa") === "1") {
+              localStorage.removeItem(STORAGE_PREVENTA_VENTA);
               router.replace("/ventas-general");
             }
           }}
           desdeTelefono={desdeTelefono}
           desdePedidoTienda={desdePedidoTienda}
-          onVentaGuardada={() => void recargarPedidos()}
+          onVentaGuardada={() => {
+            void recargarPedidos();
+            if (preventaInicial?.preventaId && preventaInicial.negocioID) {
+              void updateDoc(doc(db, `negocios/${preventaInicial.negocioID}/preventas/${preventaInicial.preventaId}`), {
+                estado: "migrada",
+                actualizadoEn: Date.now(),
+              }).catch((error) => console.error(error));
+            }
+          }}
         />
       )}
     </>

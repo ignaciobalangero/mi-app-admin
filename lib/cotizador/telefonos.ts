@@ -44,6 +44,19 @@ export function normalizarModelos(raw: unknown): ModeloCotizacion[] {
   return lista;
 }
 
+/** Lista guardada con precio de batería. Una lista vieja (solo `precio`) no pisa la tabla. */
+export function modelosCotizadorGuardados(raw: unknown): ModeloCotizacion[] {
+  if (!Array.isArray(raw)) return [];
+  const conBateria = raw.some(
+    (item) =>
+      !!item &&
+      typeof item === "object" &&
+      ("precioMas90" in item || "precioMenos90" in item)
+  );
+  if (!conBateria) return [];
+  return normalizarModelos(raw);
+}
+
 export function textoMoneda(moneda: MonedaCotizacion, precio: number): string {
   const monto = precio.toLocaleString("es-AR");
   return moneda === "USD" ? `USD $${monto}` : `$${monto}`;

@@ -64,15 +64,17 @@ export default function ConsultaImeiIfree({
   const [plan, setPlan] = useState<PlanControlImei>("off");
   const [imeiLibre, setImeiLibre] = useState("");
   const [chequeoLibre, setChequeoLibre] = useState<ChequeoImei | null>(null);
+  const [chequeoPropio, setChequeoPropio] = useState<ChequeoImei | null>(null);
   const [consultando, setConsultando] = useState<ConsultaImeiId | null>(null);
   const [aviso, setAviso] = useState("");
 
   const libre = variante === "libre";
   const imeiTexto = libre ? imeiLibre : imei;
-  const chequeoActual = libre ? chequeoLibre : chequeo;
+  const chequeoActual = libre ? chequeoLibre : onChequeo ? chequeo : chequeoPropio;
   const guardar = (siguiente: ChequeoImei) => {
     if (libre) setChequeoLibre(siguiente);
-    else onChequeo?.(siguiente);
+    else if (onChequeo) onChequeo(siguiente);
+    else setChequeoPropio(siguiente);
   };
 
   useEffect(() => {

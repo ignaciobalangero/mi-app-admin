@@ -5,6 +5,7 @@ import { doc, updateDoc, getDocs, collection, getDoc, runTransaction, query, whe
 import { db } from "@/lib/firebase";
 import { Combobox } from "@headlessui/react";
 import CampoFotosTrabajo from "@/components/CampoFotosTrabajo";
+import ConsultaImeiIfree from "@/app/ventas/stock-telefonos/components/ConsultaImeiIfree";
 import CampoFirmaDigital from "@/components/CampoFirmaDigital";
 import {
   generarTokenPublicoTrabajo,
@@ -534,7 +535,7 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
             </div>
 
             {/* IMEI */}
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <label className="block text-sm font-semibold text-[#2c3e50] flex items-center gap-2">
                 <span className="w-4 h-4 bg-[#34495e] rounded-full flex items-center justify-center text-white text-xs">📲</span>
                 IMEI
@@ -547,6 +548,7 @@ export default function ModalEditar({ trabajo, isOpen, onClose, onSave, negocioI
                 disabled={guardando}
                 className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#34495e]/20 focus:border-[#34495e] transition-all duration-300 text-[#2c3e50] placeholder-[#7f8c8d] bg-white shadow-sm text-sm disabled:opacity-50"
               />
+              {negocioID ? <ConsultaImeiIfree negocioID={negocioID} imei={formulario.imei} /> : null}
             </div>
 
             {/* Trabajo */}

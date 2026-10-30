@@ -30,8 +30,10 @@ import { limpiarNombreClienteExacto, nombresClienteEquivalentes } from "@/lib/ac
 
 export default function ModalVenta({
   clienteInicial = "",
+  clienteIdInicial = "",
   productosIniciales = [],
   pagoInicial = null,
+  observacionesInicial = "",
   onClose,
   onGuardar,
   refrescar,
@@ -41,8 +43,10 @@ export default function ModalVenta({
   onVentaGuardada,
 }: {
   clienteInicial?: string;
+  clienteIdInicial?: string;
   productosIniciales?: any[];
   pagoInicial?: any;
+  observacionesInicial?: string;
   onClose?: () => void;
   onGuardar?: () => void;
   refrescar: boolean;
@@ -57,7 +61,7 @@ export default function ModalVenta({
     rol?.negocioID || undefined
   );
   const [cliente, setCliente] = useState(clienteInicial);
-  const [observaciones, setObservaciones] = useState("");
+  const [observaciones, setObservaciones] = useState(observacionesInicial);
   const [numeroVenta, setNumeroVenta] = useState("");
   const [productos, setProductos] = useState<any[]>(productosIniciales);
   const [marca, setMarca] = useState("");
@@ -228,7 +232,7 @@ export default function ModalVenta({
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
   const [guardadoConExito, setGuardadoConExito] = useState(false);
   const [listaClientes, setListaClientes] = useState<{ id: string; nombre: string }[]>([]);
-  const [clienteId, setClienteId] = useState("");
+  const [clienteId, setClienteId] = useState(clienteIdInicial);
   const [queryCliente, setQueryCliente] = useState("");
   const [filtroTexto, setFiltroTexto] = useState("");
   const [modoDescuento, setModoDescuento] = useState<"ninguno" | "porcentaje" | "monto">("ninguno");

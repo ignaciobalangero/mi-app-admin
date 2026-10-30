@@ -29,6 +29,7 @@ import { PatronDrawer, PatronViewer, type Patron } from "@/app/components/Patron
 import CampoFotosTrabajo, { filesPendientesDeFotos } from "@/components/CampoFotosTrabajo";
 import CampoFirmaDigital from "@/components/CampoFirmaDigital";
 import CampoImei from "@/components/CampoImei";
+import ConsultaImeiIfree from "@/app/ventas/stock-telefonos/components/ConsultaImeiIfree";
 import { subirFotoTrabajo, subirFirmaClienteTrabajo } from "@/lib/trabajosFotosCliente";
 import type { FotoTrabajo } from "@/lib/trabajosFotos";
 import {
@@ -1293,6 +1294,7 @@ export default function IngresoForm() {
                   value={form.imei}
                   onChange={(imei) => setForm((prev) => ({ ...prev, imei }))}
                 />
+                {negocioID ? <ConsultaImeiIfree negocioID={negocioID} imei={form.imei} /> : null}
               </div>
 
               {/* Accesorios */}
@@ -1522,6 +1524,7 @@ export default function IngresoForm() {
                             onChange={(imei) => actualizarEquipoExtra(idx, { imei })}
                             inputClassName="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
                           />
+                          {negocioID ? <ConsultaImeiIfree negocioID={negocioID} imei={eq.imei} /> : null}
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📦 Accesorios</label>

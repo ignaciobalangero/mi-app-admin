@@ -95,6 +95,7 @@ export default function Sidebar() {
     { label: "Caja Mayor", icono: "💎", href: "/caja-mayor", soloAdmin: true },
     { label: "Resumen de Cuenta", icono: "📈", href: "/resumen-cuenta", soloAdmin: true },
     { label: "Proveedores", icono: "🏭", href: "/proveedores", soloAdmin: true },
+    { label: "Preventas", icono: "📋", href: "/preventas", soloAdmin: true },
   ];
 
   const botonesEmpleado: BotonMenu[] = [
