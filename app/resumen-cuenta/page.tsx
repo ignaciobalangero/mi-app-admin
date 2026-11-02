@@ -58,6 +58,42 @@ function rubroVenta(p: Record<string, unknown>): "telefono" | "extra" | "venta" 
   return "venta";
 }
 
+const NOMBRES_MES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+/** Solo documentos MM-YYYY. Descarta inventario y otros docs de la misma colección. */
+function normalizarMesEstadistica(raw: string): string | null {
+  const match = String(raw || "").trim().match(/^(\d{1,2})-(\d{4})$/);
+  if (!match) return null;
+  const mes = Number(match[1]);
+  const anio = Number(match[2]);
+  if (mes < 1 || mes > 12 || !anio) return null;
+  return `${String(mes).padStart(2, "0")}-${anio}`;
+}
+
+function ordenMes(mes: string): number {
+  const [mm, yyyy] = mes.split("-");
+  return Number(yyyy) * 100 + Number(mm);
+}
+
+function etiquetaMes(mes: string): string {
+  const [mm, yyyy] = mes.split("-");
+  const nombre = NOMBRES_MES[Number(mm) - 1] || mes;
+  return `${nombre} ${yyyy}`;
+}
+
 function mesAnioFechaAR(fecha: string): string | null {
   const partes = String(fecha || "").trim().split("/");
   if (partes.length !== 3) return null;
@@ -157,9 +193,11 @@ export default function ResumenSimplificado() {
 
         estadisticasSnap.forEach((doc) => {
           const data = doc.data();
-          
+          const mes = normalizarMesEstadistica(String(data.mes || doc.id || ""));
+          if (!mes) return;
+
           resultado.push({
-            mes: data.mes || doc.id,
+            mes,
             trabajos: data.gananciaTrabajos || 0,
             ventasARS: data.gananciaVentasARS || 0,
             ventasUSD: data.gananciaVentasUSD || 0,
@@ -174,8 +212,7 @@ export default function ResumenSimplificado() {
           });
         });
 
-        // Ordenar por mes (formato MM-YYYY)
-        resultado.sort((a, b) => a.mes.localeCompare(b.mes));
+        resultado.sort((a, b) => ordenMes(a.mes) - ordenMes(b.mes));
 
         console.log("✅ Meses procesados:", resultado);
 
@@ -445,10 +482,16 @@ export default function ResumenSimplificado() {
                       onChange={(e) => setMesSeleccionado(e.target.value)}
                       className="px-4 py-3 border-2 border-blue-400 rounded-xl focus:ring-4 focus:ring-blue-500 focus:border-blue-600 bg-white text-gray-900 font-semibold text-base shadow-md transition-all"
                     >
-                      {datos.map(item => (
-                        <option key={item.mes} value={item.mes} className="font-semibold text-gray-900">
-                          {item.mes}
-                        </option>
+                      {Array.from(new Set(datos.map((item) => item.mes.split("-")[1]))).map((anio) => (
+                        <optgroup key={anio} label={anio}>
+                          {datos
+                            .filter((item) => item.mes.endsWith(`-${anio}`))
+                            .map((item) => (
+                              <option key={item.mes} value={item.mes} className="font-semibold text-gray-900">
+                                {etiquetaMes(item.mes)}
+                              </option>
+                            ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>
