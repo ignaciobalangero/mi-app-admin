@@ -31,6 +31,7 @@ import { actualizarStockVentaViaApi } from "@/lib/actualizarStockVentaApi";
 import { actualizarSaldoClienteNegocioDetalle, limpiarNombreClienteExacto } from "@/lib/actualizarSaldoCliente";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 import {
+  aplicarDescuentoEnLineas,
   calcularSaldosVenta,
   calcularUsdDesdeARS,
   cotizacionEfectiva,
@@ -476,7 +477,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       ? totalUSD
       : Math.max(0, Math.round((totalUSD - descOperacion.descUSD) * 100) / 100);
 
-    const productosTel = telefonos.map((tel) => {
+    const productosTelBrutos = telefonos.map((tel) => {
       const precioCosto = Number(tel.precioCosto || 0);
       const precioUnitario = Number(tel.precioVenta || 0);
       const mesesGarantia =
@@ -508,7 +509,18 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       };
     });
 
-    const gananciaTotal = productosTel.reduce((acc, p) => acc + p.ganancia, 0);
+    const hayDescuentoSoloTelefono =
+      !hayExtrasEnOperacion &&
+      (descOperacion.descARS > 0 || descOperacion.descUSD > 0);
+    const productosTel = hayDescuentoSoloTelefono
+      ? aplicarDescuentoEnLineas(
+          productosTelBrutos,
+          descOperacion.descARS,
+          descOperacion.descUSD
+        )
+      : productosTelBrutos;
+
+    const gananciaTotal = productosTel.reduce((acc, p) => acc + Number(p.ganancia || 0), 0);
     // Doc inicial: solo teléfonos (los extras actualizan totales después).
     const totalAproximado = totalARSDoc + totalUSDDoc * cotizacion;
 
@@ -644,6 +656,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
             descuentoARS: descOperacion.descARS,
             descuentoUSD: descOperacion.descUSD,
             descuentoPorcentaje: descOperacion.porcentaje,
+            ...(hayDescuentoSoloTelefono ? { preciosConDescuento: true } : {}),
           }
         : {}),
       gananciaTotal,
@@ -905,9 +918,13 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     const desc = aplicarDescuentoGuardado(brutos.totalARS, brutos.totalUSD);
     const descARS = desc.descARS;
     const descUSD = desc.descUSD;
+    const hayDescuento = descARS > 0 || descUSD > 0;
+    const productosAGuardar = hayDescuento
+      ? aplicarDescuentoEnLineas(productosConCodigo, descARS, descUSD)
+      : productosConCodigo;
     const totalARS = desc.totalARS;
     const totalUSD = desc.totalUSD;
-    const gananciaTotal = productosConCodigo.reduce((acc, p) => acc + p.ganancia, 0);
+    const gananciaTotal = productosAGuardar.reduce((acc, p) => acc + Number(p.ganancia || 0), 0);
     
     // Total aproximado para compatibilidad (convertir USD a ARS)
     const totalAproximado = totalARS + (totalUSD * cotizacion);
@@ -999,7 +1016,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
     const pedidoMeta = leerMetaPedidoTienda();
     const ventaRef = await addDoc(collection(db, `negocios/${rol.negocioID}/ventasGeneral`), {
       negocioStockId: negocioStock,
-      productos: productosConCodigo.map(p => ({
+      productos: productosAGuardar.map(p => ({
         categoria: p.categoria,
         descripcion: p.producto || p.descripcion,
         marca: p.marca || "—",
@@ -1044,6 +1061,7 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       descuentoARS: descARS,
       descuentoUSD: descUSD,
       descuentoPorcentaje: desc.porcentaje,
+      ...(hayDescuento ? { preciosConDescuento: true } : {}),
       total: totalAproximado,      // ✅ Para compatibilidad
       gananciaTotal,
       moneda: totalUSD > 0 && totalARS > 0 ? "DUAL" : totalUSD > 0 ? "USD" : "ARS", // ✅ Detectar tipo
@@ -1308,9 +1326,17 @@ console.log('💳 Saldo actualizado por venta normal');
             
             const brutosMerge = calcularTotalesSeparados(productosCompletos);
             const descMerge = aplicarDescuentoGuardado(brutosMerge.totalARS, brutosMerge.totalUSD);
+            const hayDescuentoMerge = descMerge.descARS > 0 || descMerge.descUSD > 0;
+            const productosMerge = hayDescuentoMerge
+              ? aplicarDescuentoEnLineas(
+                  productosCompletos,
+                  descMerge.descARS,
+                  descMerge.descUSD
+                )
+              : productosCompletos;
             const nuevoTotalARS = descMerge.totalARS;
             const nuevoTotalUSD = descMerge.totalUSD;
-            const nuevaGananciaTotal = productosCompletos.reduce((acc, p) => acc + p.ganancia, 0);
+            const nuevaGananciaTotal = productosMerge.reduce((acc, p) => acc + Number(p.ganancia || 0), 0);
             const nuevoTotalAproximado = nuevoTotalARS + (nuevoTotalUSD * cotizacion);
 
             const cotMerge = cotizacionEfectiva(
@@ -1332,7 +1358,7 @@ console.log('💳 Saldo actualizado por venta normal');
             });
             
             await updateDoc(doc(db, `negocios/${rol.negocioID}/ventasGeneral/${telefonoID}`), {
-              productos: productosCompletos,
+              productos: productosMerge,
               totalARS: nuevoTotalARS,
               totalUSD: nuevoTotalUSD,
               subtotalARS: brutosMerge.totalARS,
@@ -1340,6 +1366,7 @@ console.log('💳 Saldo actualizado por venta normal');
               descuentoARS: descMerge.descARS,
               descuentoUSD: descMerge.descUSD,
               descuentoPorcentaje: descMerge.porcentaje,
+              ...(hayDescuentoMerge ? { preciosConDescuento: true } : {}),
               total: nuevoTotalAproximado,
               gananciaTotal: nuevaGananciaTotal,
               moneda: nuevoTotalUSD > 0 && nuevoTotalARS > 0 ? "DUAL" : nuevoTotalUSD > 0 ? "USD" : "ARS",

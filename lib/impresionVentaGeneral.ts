@@ -38,6 +38,8 @@ export type VentaImpresion = {
   descuentoARS?: number;
   descuentoUSD?: number;
   descuentoPorcentaje?: number;
+  /** El precio de cada línea ya incluye el descuento. No volver a restarlo. */
+  preciosConDescuento?: boolean;
   /** Firma digital del cliente para el recibo de compra. */
   firmaClienteUrl?: string;
 };
@@ -106,9 +108,12 @@ export function totalesVenta(venta: VentaImpresion) {
   const descuentos = venta.telefonoComoPago
     ? Number(venta.telefonoComoPago.valorPago || 0)
     : 0;
-  const descuentoARS = Math.max(0, Number(venta.descuentoARS) || 0);
-  const descuentoUSD = Math.max(0, Number(venta.descuentoUSD) || 0);
-  const descuentoPorcentaje = Math.max(0, Number(venta.descuentoPorcentaje) || 0);
+  const yaEnElPrecio = venta.preciosConDescuento === true;
+  const descuentoARS = yaEnElPrecio ? 0 : Math.max(0, Number(venta.descuentoARS) || 0);
+  const descuentoUSD = yaEnElPrecio ? 0 : Math.max(0, Number(venta.descuentoUSD) || 0);
+  const descuentoPorcentaje = yaEnElPrecio
+    ? 0
+    : Math.max(0, Number(venta.descuentoPorcentaje) || 0);
   const totalFinal = Math.max(0, subtotal - descuentos - descuentoARS - descuentoUSD);
   const cantItems =
     venta.productos?.reduce((a, p) => a + Number(p.cantidad || 0), 0) || 0;

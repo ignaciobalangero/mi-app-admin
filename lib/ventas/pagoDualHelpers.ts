@@ -244,6 +244,81 @@ export function aplicarDescuentoVenta(params: {
   };
 }
 
+function brutoLineaProducto(p: {
+  precioVenta?: unknown;
+  precioUnitario?: unknown;
+  cantidad?: unknown;
+}): number {
+  const pv = Number(p?.precioVenta);
+  if (Number.isFinite(pv) && pv > 0) return pv;
+  const unit = Number(p?.precioUnitario) || 0;
+  const cantRaw = Number(p?.cantidad) || 1;
+  const cant = cantRaw > 0 ? cantRaw : 1;
+  return unit * cant;
+}
+
+function monedaDeLinea(p: { moneda?: unknown }): "ARS" | "USD" {
+  return String(p?.moneda || "ARS").toUpperCase() === "USD" ? "USD" : "ARS";
+}
+
+/**
+ * Reparte el descuento de la venta en cada línea.
+ * El precio que queda guardado ya es el cobrado: la tabla y la cuenta corriente
+ * suman esos precios y no vuelven a restar el descuento.
+ */
+export function aplicarDescuentoEnLineas<T extends Record<string, unknown>>(
+  productos: T[],
+  descuentoARS: number,
+  descuentoUSD: number
+): T[] {
+  const redondear = (n: number) => Math.round(Math.max(0, n) * 100) / 100;
+  const descARS = redondear(Number(descuentoARS) || 0);
+  const descUSD = redondear(Number(descuentoUSD) || 0);
+  if (descARS <= 0 && descUSD <= 0) return productos.map((p) => ({ ...p }));
+
+  const copia = productos.map((p) => ({ ...p }));
+
+  const aplicar = (moneda: "ARS" | "USD", descuento: number) => {
+    if (descuento <= 0) return;
+    const indices = copia
+      .map((p, i) => ({ i, bruto: brutoLineaProducto(p) }))
+      .filter((x) => monedaDeLinea(copia[x.i]) === moneda && x.bruto > 0);
+    const subtotal = indices.reduce((acc, x) => acc + x.bruto, 0);
+    if (subtotal <= 0) return;
+    const desc = Math.min(subtotal, descuento);
+    const target = redondear(subtotal - desc);
+    let acumulado = 0;
+    indices.forEach((item, n) => {
+      const esUltima = n === indices.length - 1;
+      const neto = esUltima
+        ? redondear(target - acumulado)
+        : redondear((item.bruto / subtotal) * target);
+      if (!esUltima) acumulado = redondear(acumulado + neto);
+      const p = copia[item.i];
+      const cantRaw = Number(p.cantidad || 1);
+      const cant = cantRaw > 0 ? cantRaw : 1;
+      const unit = neto / cant;
+      const costo = Number(p.precioCosto || 0);
+      const ganancia = redondear((unit - costo) * cant);
+      const usd = moneda === "USD";
+      copia[item.i] = {
+        ...p,
+        precioUnitario: unit,
+        precioVenta: neto,
+        ganancia,
+        precioUnitarioUSD: usd ? unit : null,
+        precioUnitarioARS: usd ? null : unit,
+        precioVentaUSD: usd ? neto : null,
+        precioVentaARS: usd ? null : neto,
+      };
+    });
+  };
+
+  aplicar("ARS", descARS);
+  aplicar("USD", descUSD);
+  return copia;
+}
+
 export function formaPagoDocumento(
   forma: string | undefined,
   moneda: "ARS" | "USD"

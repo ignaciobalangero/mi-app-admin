@@ -937,9 +937,16 @@ export async function armarHtmlReciboCompraDesdeVenta(
     Number(venta?.cotizacionUsada) ||
     0;
 
-  const descuentoARS = Math.max(0, Number(ventaGeneral?.descuentoARS) || 0);
-  const descuentoUSD = Math.max(0, Number(ventaGeneral?.descuentoUSD) || 0);
-  const descuentoPorcentaje = Math.max(0, Number(ventaGeneral?.descuentoPorcentaje) || 0);
+  const preciosYaConDescuento = ventaGeneral?.preciosConDescuento === true;
+  const descuentoARS = preciosYaConDescuento
+    ? 0
+    : Math.max(0, Number(ventaGeneral?.descuentoARS) || 0);
+  const descuentoUSD = preciosYaConDescuento
+    ? 0
+    : Math.max(0, Number(ventaGeneral?.descuentoUSD) || 0);
+  const descuentoPorcentaje = preciosYaConDescuento
+    ? 0
+    : Math.max(0, Number(ventaGeneral?.descuentoPorcentaje) || 0);
 
   const { ars: saldoARS, usd: saldoUSD } = resolverSaldoPendienteRecibo({
     lineas,
