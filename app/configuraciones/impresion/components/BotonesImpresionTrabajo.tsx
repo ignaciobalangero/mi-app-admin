@@ -12,6 +12,7 @@ import {
   generarTokenPublicoTrabajo,
   mensajeSeguimientoTrabajoCliente,
   urlEstadoTrabajoPublico,
+  urlTallerTrabajo,
 } from "@/lib/trabajosFotos";
 import QRCode from "qrcode";
 import PanelFirmaIpadQr from "@/components/PanelFirmaIpadQr";
@@ -126,6 +127,7 @@ export default function BotonesImpresionTrabajo({
   const asegurarQrSeguimiento = async (): Promise<{
     qrDataUrl: string;
     urlEstado: string;
+    token: string;
   }> => {
     let token = String(trabajo.tokenPublico || "").trim();
     const firebaseId = trabajo.firebaseId || trabajo.idFirebase;
@@ -141,11 +143,11 @@ export default function BotonesImpresionTrabajo({
       }
     }
 
-    if (!token) return { qrDataUrl: "", urlEstado: "" };
+    if (!token) return { qrDataUrl: "", urlEstado: "", token: "" };
 
     const urlEstado = urlEstadoTrabajoPublico(window.location.origin, negocioId, token);
     const qrDataUrl = await QRCode.toDataURL(urlEstado, { width: 180, margin: 1 });
-    return { qrDataUrl, urlEstado };
+    return { qrDataUrl, urlEstado, token };
   };
 
   const imprimirTicketTermico = async () => {
@@ -198,11 +200,23 @@ export default function BotonesImpresionTrabajo({
         }
       };
 
+      const { token } = await asegurarQrSeguimiento();
+      let qrTaller = "";
+      if (token) {
+        const urlTaller = urlTallerTrabajo(window.location.origin, negocioId, token);
+        qrTaller = await QRCode.toDataURL(urlTaller, {
+          width: 220,
+          margin: 0,
+          errorCorrectionLevel: "M",
+        });
+      }
+
       const contenidoEtiqueta = generarHTMLEtiquetaBrother(
         trabajo, 
         nombreNegocio,
         configuracionEtiqueta.campos,
-        configuracionEtiqueta.configuracion
+        configuracionEtiqueta.configuracion,
+        qrTaller
       );
       
       const ventana = window.open('', '_blank', 'width=800,height=600');
@@ -414,7 +428,8 @@ function generarHTMLEtiquetaBrother(
   datos: any, 
   nombreNegocio: string,
   camposSeleccionados: string[],
-  configuracion: any
+  configuracion: any,
+  qrDataUrl = ""
 ) {
   const { columnaIzq, columnaDer } = columnasEtiquetaTrabajo(
     camposSeleccionados,
@@ -484,21 +499,36 @@ function generarHTMLEtiquetaBrother(
             background: #fff;
             color: #000;
             text-align: center;
-            padding: 2mm 0;
-            margin-top: 1mm;
-            font-size: 11px;
+            padding: 1mm 1mm 0.6mm;
+            margin-top: 0.4mm;
+            font-size: 9px;
             font-weight: 900;
-            letter-spacing: 1.5mm;
-            border-bottom: 3px solid #000;
+            letter-spacing: 0.4mm;
+            border-bottom: 2px solid #000;
             flex-shrink: 0;
           }
           
           .content {
             display: flex;
             flex: 1;
-            padding: 2.5mm 3mm;
-            gap: 3mm;
+            padding: 1.2mm 1.5mm;
+            gap: 1.5mm;
             overflow: hidden;
+            min-height: 0;
+          }
+
+          .qr {
+            width: 18mm;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .qr img {
+            width: 17mm;
+            height: 17mm;
+            display: block;
           }
           
           .column {
@@ -554,6 +584,12 @@ function generarHTMLEtiquetaBrother(
           <div class="column">
             ${generarCampos(columnaDer)}
           </div>
+
+          ${
+            qrDataUrl
+              ? `<div class="qr"><img src="${qrDataUrl}" alt="QR taller" /></div>`
+              : ""
+          }
           
         </div>
 

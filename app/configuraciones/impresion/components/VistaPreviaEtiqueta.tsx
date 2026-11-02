@@ -182,6 +182,28 @@ export default function VistaPreviaEtiqueta({ campos, configuracion, datosEjempl
         }}>
           {columnaDer}
         </div>
+
+        <div style={{
+          width: '16mm',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <div style={{
+            width: '15mm',
+            height: '15mm',
+            border: '1px solid #000',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '7px',
+            fontWeight: 900,
+            letterSpacing: '0.4px',
+          }}>
+            QR
+          </div>
+        </div>
       </div>
 
       {/* 📊 CÓDIGO DE BARRAS */}

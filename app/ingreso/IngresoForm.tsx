@@ -31,7 +31,12 @@ import CampoFirmaDigital from "@/components/CampoFirmaDigital";
 import CampoImei from "@/components/CampoImei";
 import ConsultaImeiIfree from "@/app/ventas/stock-telefonos/components/ConsultaImeiIfree";
 import { subirFotoTrabajo, subirFirmaClienteTrabajo } from "@/lib/trabajosFotosCliente";
-import type { FotoTrabajo } from "@/lib/trabajosFotos";
+import {
+  generarTokenPublicoTrabajo,
+  urlTallerTrabajo,
+  type FotoTrabajo,
+} from "@/lib/trabajosFotos";
+import QRCode from "qrcode";
 import {
   crearBorradorFirmaIngreso,
   eliminarBorradorFirmaIngreso,
@@ -1019,16 +1024,39 @@ export default function IngresoForm() {
   };
 
   const imprimirEtiquetasTodas = async (trabajos: any[]) => {
-    const etiquetas = trabajos.map((t) => ({
-      id: t.id,
-      cliente: t.cliente,
-      modelo: t.modelo,
-      trabajo: t.trabajo,
-      clave: t.clave,
-      observaciones: t.observaciones,
-      imei: t.imei,
-      nroOrden: t.nroOrden || nroOrden,
-    }));
+    const etiquetas = await Promise.all(
+      trabajos.map(async (t) => {
+        let token = String(t.tokenPublico || "").trim();
+        if (!token && t.firebaseId && negocioID) {
+          token = generarTokenPublicoTrabajo();
+          try {
+            await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${t.firebaseId}`), {
+              tokenPublico: token,
+            });
+            t.tokenPublico = token;
+          } catch (e) {
+            console.warn("No se pudo guardar tokenPublico:", e);
+            token = "";
+          }
+        }
+        let qr = "";
+        if (token && negocioID) {
+          const url = urlTallerTrabajo(window.location.origin, negocioID, token);
+          qr = await QRCode.toDataURL(url, { width: 220, margin: 0, errorCorrectionLevel: "M" });
+        }
+        return {
+          id: t.id,
+          cliente: t.cliente,
+          modelo: t.modelo,
+          trabajo: t.trabajo,
+          clave: t.clave,
+          observaciones: t.observaciones,
+          imei: t.imei,
+          nroOrden: t.nroOrden || nroOrden,
+          qr,
+        };
+      })
+    );
 
     const html = `<!DOCTYPE html>
 <html>
@@ -1039,7 +1067,10 @@ export default function IngresoForm() {
     @page { size: 62mm 29mm; margin: 0; }
     * { box-sizing: border-box; }
     body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-    .label { width: 62mm; height: 29mm; padding: 2mm 2.5mm; border: 1px solid #000; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid; }
+    .label { width: 62mm; height: 29mm; padding: 1.5mm 2mm; border: 1px solid #000; display: flex; flex-direction: row; gap: 1.5mm; align-items: center; page-break-inside: avoid; }
+    .datos { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
+    .qr { width: 18mm; height: 18mm; flex-shrink: 0; }
+    .qr img { width: 18mm; height: 18mm; display: block; }
     .row { font-size: 9px; font-weight: 700; line-height: 1.15; }
     .muted { font-weight: 500; }
     .mono { font-family: 'Courier New', monospace; font-size: 8px; }
@@ -1052,11 +1083,14 @@ export default function IngresoForm() {
       .map(
         (e) => `
       <div class="label">
-        <div class="row">CLI: <span class="muted">${(e.cliente || "").toString().slice(0, 26)}</span></div>
-        <div class="row">MOD: <span class="muted">${(e.modelo || "").toString().slice(0, 28)}</span></div>
-        <div class="row">FAL: <span class="muted">${(e.trabajo || "").toString().slice(0, 30)}</span></div>
-        ${e.clave ? `<div class="row">CLV: <span class="muted">${(e.clave || "").toString().slice(0, 26)}</span></div>` : ``}
-        ${e.imei ? `<div class="row mono">IMEI: ${(e.imei || "").toString().slice(0, 18)}</div>` : ``}
+        <div class="datos">
+          <div class="row">CLI: <span class="muted">${(e.cliente || "").toString().slice(0, 22)}</span></div>
+          <div class="row">MOD: <span class="muted">${(e.modelo || "").toString().slice(0, 24)}</span></div>
+          <div class="row">FAL: <span class="muted">${(e.trabajo || "").toString().slice(0, 26)}</span></div>
+          ${e.clave ? `<div class="row">CLV: <span class="muted">${(e.clave || "").toString().slice(0, 22)}</span></div>` : ``}
+          ${e.imei ? `<div class="row mono">IMEI: ${(e.imei || "").toString().slice(0, 16)}</div>` : ``}
+        </div>
+        ${e.qr ? `<div class="qr"><img src="${e.qr}" alt="QR" /></div>` : ``}
       </div>`
       )
       .join("")}

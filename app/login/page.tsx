@@ -8,6 +8,23 @@ import Link from "next/link";
 import { mapaDominiosTienda } from "@/lib/dominiosTienda";
 import PrecioOfertaGestione from "../components/PrecioOfertaGestione";
 
+/** Solo vuelve al QR del taller. No acepta otras rutas ni URLs externas. */
+function destinoTallerTrasLogin(): string | null {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get("next") || "";
+  let path = raw.split("#")[0].split("?")[0];
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+  if (!path.startsWith("/taller/") || path.length > 240) return null;
+  if (path.includes("\\") || path.includes("//")) return null;
+  const partes = path.slice("/taller/".length).split("/");
+  if (partes.length !== 2 || partes.some((p) => !p || p === "." || p === "..")) return null;
+  return `/taller/${encodeURIComponent(partes[0])}/${encodeURIComponent(partes[1])}`;
+}
+
 function mensajeErrorAuth(code: string | undefined): string {
   switch (code) {
     case "auth/user-not-found":
@@ -47,7 +64,7 @@ export default function Login() {
         if (tipo === "cliente") {
           router.push("/cliente");
         } else {
-          router.push("/");
+          router.push(destinoTallerTrasLogin() || "/");
         }
         return;
       }

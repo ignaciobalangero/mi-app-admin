@@ -15,6 +15,7 @@ const RUTAS_PERMITIDAS_TIENDA = [
   /^\/api\/celulares-publicos(?:\/|$)/,
   /^\/estado-trabajo\//,
   /^\/api\/estado-trabajo(?:\/|$)/,
+  /^\/taller\//,
   /^\/firmar-trabajo\//,
   /^\/api\/firmar-trabajo(?:\/|$)/,
 ];

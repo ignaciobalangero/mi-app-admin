@@ -29,6 +29,7 @@ const RUTAS_PUBLICAS_EXACTAS_O_PREFIJO = [
   "/privacidad",
   "/cliente",
   "/estado-trabajo",
+  "/taller",
   "/firmar-trabajo",
   "/escaner-imei",
   "/escaner-codigo",
@@ -43,6 +44,7 @@ export function esRutaPublica(pathname: string, host?: string | null): boolean {
   if (esInicioDominioTienda(pathname, host)) return true;
   if (pathname === "/cliente" || pathname.startsWith("/cliente/")) return true;
   if (pathname === "/estado-trabajo" || pathname.startsWith("/estado-trabajo/")) return true;
+  if (pathname === "/taller" || pathname.startsWith("/taller/")) return true;
   if (pathname === "/firmar-trabajo" || pathname.startsWith("/firmar-trabajo/")) return true;
   if (pathname === "/escaner-imei" || pathname.startsWith("/escaner-imei/")) return true;
   if (pathname === "/escaner-codigo" || pathname.startsWith("/escaner-codigo/")) return true;

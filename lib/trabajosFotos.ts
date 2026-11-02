@@ -53,6 +53,16 @@ export function urlEstadoTrabajoPublico(
   return `${base}/estado-trabajo/${encodeURIComponent(negocioID)}/${encodeURIComponent(token)}`;
 }
 
+/** QR de la etiqueta: abre la orden en el taller para verla y cambiar el estado. */
+export function urlTallerTrabajo(
+  origin: string,
+  negocioID: string,
+  token: string
+): string {
+  const base = origin.replace(/\/$/, "");
+  return `${base}/taller/${encodeURIComponent(negocioID)}/${encodeURIComponent(token)}`;
+}
+
 /** Página solo para firmar (ideal iPad), sin login. */
 export function urlFirmarTrabajoPublico(
   origin: string,
