@@ -146,7 +146,7 @@ export default function ModalControlConsignacion({
       lista.push(fila);
       map.set(fila.proveedor, lista);
     }
-    return [...map.entries()];
+    return Array.from(map.entries());
   }, [filas]);
 
   const totales = useMemo(() => {
