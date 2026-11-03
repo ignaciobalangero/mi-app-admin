@@ -78,3 +78,22 @@ textarea::placeholder {
 .fixed [class*="absolute"] {
   z-index: 50000 !important;
 }
+
+/* iPad y pantallas chicas: las tablas no se aplastan, se desplazan de costado */
+@media (max-width: 1279px) {
+  main div:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  main table {
+    min-width: 1100px;
+    width: max-content;
+  }
+
+  main th,
+  main td {
+    white-space: nowrap;
+  }
+}

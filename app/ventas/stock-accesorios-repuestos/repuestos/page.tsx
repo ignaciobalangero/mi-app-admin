@@ -418,27 +418,22 @@ export default function RepuestosPage() {
   // 🔄 CÁLCULOS DE RESUMEN CON PROTECCIÓN
   const cotizacionSegura = (typeof cotizacion === 'number' && cotizacion > 0) ? cotizacion : cotizacionLocal;
   
-  const totalUSD = productosResumen.reduce((acc, p) => {
-    const precioCosto = typeof p.precioCosto === 'number' ? p.precioCosto : 0;
-    const cantidad = typeof p.cantidad === 'number' ? p.cantidad : 0;
-    
-    // Solo sumar si es USD
-    if (p.moneda === "USD") {
-      return acc + (precioCosto * cantidad);
-    }
-    return acc;
-  }, 0);
-  
-  const totalPesos = productosResumen.reduce((acc, p) => {
-    const precioCosto = typeof p.precioCosto === 'number' ? p.precioCosto : 0;
-    const cantidad = typeof p.cantidad === 'number' ? p.cantidad : 0;
-    
-    // Solo sumar si es ARS
-    if (p.moneda === "ARS") {
-      return acc + (precioCosto * cantidad);
-    }
-    return acc;
-  }, 0);
+  const partirCapital = (lista: typeof productosResumen) => {
+    const propio = { usd: 0, ars: 0 };
+    const consignacion = { usd: 0, ars: 0 };
+    lista.forEach((p) => {
+      const precioCosto = typeof p.precioCosto === "number" ? p.precioCosto : 0;
+      const cantidad = typeof p.cantidad === "number" ? p.cantidad : 0;
+      const total = precioCosto * cantidad;
+      const destino = (p as { consignacion?: boolean }).consignacion === true ? consignacion : propio;
+      if (p.moneda === "USD") destino.usd += total;
+      else destino.ars += total;
+    });
+    return { propio, consignacion };
+  };
+  const capitalPartido = partirCapital(productosResumen);
+  const totalUSD = capitalPartido.propio.usd;
+  const totalPesos = capitalPartido.propio.ars;
 
   const productosAPedir = productosResumen.filter((p) => p.cantidad < p.stockIdeal);
   
@@ -485,7 +480,12 @@ export default function RepuestosPage() {
             </div>
           </div>
 
-          <ResumenCapital totalUSD={totalUSD} totalPesos={totalPesos} />
+          <ResumenCapital
+            totalUSD={totalUSD}
+            totalPesos={totalPesos}
+            consignacionUSD={capitalPartido.consignacion.usd}
+            consignacionPesos={capitalPartido.consignacion.ars}
+          />
 
           <AlertCodigosDuplicados onActualizado={() => triggerRefresh()} />
 

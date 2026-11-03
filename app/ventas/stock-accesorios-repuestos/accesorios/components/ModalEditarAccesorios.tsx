@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import CampoCodigoBarras from "@/components/CampoCodigoBarras";
 
 // ✏️ MODAL EDITAR ACCESORIO - Componente independiente para editar productos
 
@@ -149,13 +150,10 @@ export default function ModalEditarAccesorio({
               <label className="block text-sm font-semibold text-[#2c3e50]">
                 📷 Código de barras / QR
               </label>
-              <input
-                type="text"
-                name="codigoBarras"
+              <CampoCodigoBarras
                 value={formulario.codigoBarras || ""}
-                onChange={manejarCambio}
-                placeholder="Opcional"
-                className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm"
+                onChange={(codigoBarras) => setFormulario((prev) => ({ ...prev, codigoBarras }))}
+                inputClassName="w-full p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm"
               />
             </div>
 

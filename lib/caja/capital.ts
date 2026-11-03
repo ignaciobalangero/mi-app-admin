@@ -18,6 +18,8 @@ export type CapitalNegocio = {
   cuentas: MontosCapital;
   /** Positivo: lo que el negocio les debe. Se resta del capital. */
   proveedores: MontosCapital;
+  /** Mercadería de proveedor. No entra en el capital propio. */
+  consignacion: MontosCapital;
   cajaAbierta: boolean;
 };
 
@@ -136,16 +138,19 @@ function acumularCosto(
 }
 
 async function costoColeccion(negocioId: string, coleccion: string, porUnidad = false) {
-  const destino = cero();
+  const propio = cero();
+  const consignacion = cero();
   const snap = await getDocs(collection(db, `negocios/${negocioId}/${coleccion}`));
   snap.docs.forEach((d) => {
     const data = d.data();
-    if (data.consignacion === true) return;
+    const destino = data.consignacion === true ? consignacion : propio;
     acumularCosto(destino, data, porUnidad ? 1 : undefined);
   });
-  destino.ars = Math.round(destino.ars * 100) / 100;
-  destino.usd = Math.round(destino.usd * 100) / 100;
-  return destino;
+  propio.ars = Math.round(propio.ars * 100) / 100;
+  propio.usd = Math.round(propio.usd * 100) / 100;
+  consignacion.ars = Math.round(consignacion.ars * 100) / 100;
+  consignacion.usd = Math.round(consignacion.usd * 100) / 100;
+  return { propio, consignacion };
 }
 
 /** Efectivo que todavía está en el cajón del día, no en la caja mayor. */
@@ -228,11 +233,17 @@ export async function calcularCapital(
     deudaProveedores(negocioId),
   ]);
 
+  const consignacion = [accesorios.consignacion, repuestos.consignacion, telefonos.consignacion, extra.consignacion].reduce(
+    sumar,
+    cero()
+  );
+
   return {
-    repuestos,
-    accesorios,
-    telefonos,
-    extra,
+    repuestos: repuestos.propio,
+    accesorios: accesorios.propio,
+    telefonos: telefonos.propio,
+    extra: extra.propio,
+    consignacion,
     cajaMayor: {
       ars: Math.round(Number(cajaMayor.ars || 0) * 100) / 100,
       usd: Math.round(Number(cajaMayor.usd || 0) * 100) / 100,

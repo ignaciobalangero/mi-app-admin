@@ -50,17 +50,28 @@ export default function StockAccesoriosRepuestos() {
   const calcularCapital = (lista: any[]) => {
     let totalARS = 0;
     let totalUSD = 0;
+    let consignacionARS = 0;
+    let consignacionUSD = 0;
     lista.forEach((item) => {
-      if (item.moneda === "USD") totalUSD += item.precio * item.cantidad;
-      else totalARS += item.precio * item.cantidad;
+      const costo = Number(item.precioCosto ?? item.precio ?? 0);
+      const cantidad = Number(item.cantidad || 0);
+      const total = costo * cantidad;
+      const esConsignacion = item.consignacion === true;
+      if (item.moneda === "USD") {
+        if (esConsignacion) consignacionUSD += total;
+        else totalUSD += total;
+      } else if (esConsignacion) consignacionARS += total;
+      else totalARS += total;
     });
-    return { totalARS, totalUSD };
+    return { totalARS, totalUSD, consignacionARS, consignacionUSD };
   };
 
   const resumenAccesorios = calcularCapital(accesorios);
   const resumenRepuestos = calcularCapital(repuestos);
   const totalARS = resumenAccesorios.totalARS + resumenRepuestos.totalARS;
   const totalUSD = resumenAccesorios.totalUSD + resumenRepuestos.totalUSD;
+  const consignacionARS = resumenAccesorios.consignacionARS + resumenRepuestos.consignacionARS;
+  const consignacionUSD = resumenAccesorios.consignacionUSD + resumenRepuestos.consignacionUSD;
 
   return (
     <>
@@ -93,7 +104,19 @@ export default function StockAccesoriosRepuestos() {
           </div>
 
           {/* Tarjetas de resumen financiero */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"> {/* gap-6 → gap-4, mb-8 → mb-6 */}
+          {(consignacionARS > 0 || consignacionUSD > 0) && (
+            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-bold text-amber-950">Capital de consignación</p>
+              <p className="text-sm text-amber-900 mt-1">
+                {consignacionARS > 0 ? `$${consignacionARS.toLocaleString("es-AR")} ARS` : ""}
+                {consignacionARS > 0 && consignacionUSD > 0 ? " · " : ""}
+                {consignacionUSD > 0 ? `USD ${consignacionUSD.toLocaleString("en-US")}` : ""}
+              </p>
+              <p className="text-xs text-amber-800 mt-1">No entra en el capital propio.</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {/* Total Pesos */}
             <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1] transform transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between">
@@ -156,7 +179,7 @@ export default function StockAccesoriosRepuestos() {
           </div>
 
           {/* Tarjetas de navegación */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> {/* gap-6 → gap-4 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"> {/* gap-6 → gap-4 */}
             <Link
               href="/ventas/stock-accesorios-repuestos/accesorios"
               className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1] hover:bg-gradient-to-br hover:from-[#f8f9fa] hover:to-[#ecf0f1] transition-all duration-300 transform hover:scale-105 group"
@@ -223,6 +246,28 @@ export default function StockAccesoriosRepuestos() {
               
               <div className="mt-4 flex items-center justify-end text-[#3498db] group-hover:text-[#2980b9]">
                 <span className="text-xs font-medium">Ir a gestión</span>
+                <span className="ml-1 group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </Link>
+
+            <Link
+              href="/ventas/stock-accesorios-repuestos/precargas"
+              className="bg-white rounded-2xl p-6 shadow-lg border border-[#ecf0f1] hover:bg-gradient-to-br hover:from-[#f8f9fa] hover:to-[#ecf0f1] transition-all duration-300 transform hover:scale-105 group"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-gradient-to-r from-[#16a085] to-[#1abc9c] rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <span className="text-white text-2xl">📥</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-[#2c3e50]">Pre cargas</h2>
+                  <p className="text-xs text-[#7f8c8d]">Pedido que todavía no llegó</p>
+                </div>
+              </div>
+              <p className="text-sm text-[#7f8c8d]">
+                Cargá el pedido antes. Cuando llega, lo pasás al stock y recién ahí suma al inventario.
+              </p>
+              <div className="mt-4 flex items-center justify-end text-[#16a085]">
+                <span className="text-xs font-medium">Ir a pre cargas</span>
                 <span className="ml-1 group-hover:translate-x-1 transition-transform">→</span>
               </div>
             </Link>

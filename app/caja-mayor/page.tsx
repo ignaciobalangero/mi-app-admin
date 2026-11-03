@@ -202,6 +202,20 @@ function PanelCapital({
         </span>
       </label>
 
+      {(capital.consignacion.ars > 0 || capital.consignacion.usd > 0) && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">Capital de consignación</p>
+          <p className="text-xs text-amber-800 mt-1">
+            Mercadería del proveedor. No entra en el capital de arriba.
+          </p>
+          <p className="mt-2 font-bold text-amber-950">
+            {capital.consignacion.ars > 0 ? `$${capital.consignacion.ars.toLocaleString("es-AR")} ARS` : ""}
+            {capital.consignacion.ars > 0 && capital.consignacion.usd > 0 ? " · " : ""}
+            {capital.consignacion.usd > 0 ? `USD ${capital.consignacion.usd.toLocaleString("en-US")}` : ""}
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {partes.map((parte) => (
           <TarjetaElegible

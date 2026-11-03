@@ -3,9 +3,16 @@
 interface Props {
   totalUSD: number;
   totalPesos: number;
+  consignacionUSD?: number;
+  consignacionPesos?: number;
 }
 
-export default function ResumenCapital({ totalUSD, totalPesos }: Props) {
+export default function ResumenCapital({
+  totalUSD,
+  totalPesos,
+  consignacionUSD = 0,
+  consignacionPesos = 0,
+}: Props) {
   return (
     <div className="bg-white rounded-2xl p-4 shadow-lg border border-[#ecf0f1]">
       <div className="flex items-center gap-3 mb-4">
@@ -14,7 +21,7 @@ export default function ResumenCapital({ totalUSD, totalPesos }: Props) {
         </div>
         <div>
           <h3 className="text-lg font-bold text-[#2c3e50]">Resumen de Capital</h3>
-          <p className="text-[#7f8c8d] text-xs">Valor total del inventario de accesorios</p>
+          <p className="text-[#7f8c8d] text-xs">Capital propio. La consignación va aparte.</p>
         </div>
       </div>
       
@@ -47,6 +54,18 @@ export default function ResumenCapital({ totalUSD, totalPesos }: Props) {
           </div>
         </div>
       </div>
+
+      {(consignacionPesos > 0 || consignacionUSD > 0) && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-semibold text-amber-900">Capital de consignación</p>
+          <p className="text-sm font-bold text-amber-950 mt-1">
+            {consignacionPesos > 0 ? `$${consignacionPesos.toLocaleString("es-AR")} ARS` : ""}
+            {consignacionPesos > 0 && consignacionUSD > 0 ? " · " : ""}
+            {consignacionUSD > 0 ? `USD ${consignacionUSD.toLocaleString("en-US")}` : ""}
+          </p>
+          <p className="text-xs text-amber-800 mt-1">No suma al capital propio.</p>
+        </div>
+      )}
     </div>
   );
 }
