@@ -40,6 +40,7 @@ interface Props {
   editandoId: string | null;
   stockBajo?: number;
   setStockBajo?: (val: number) => void;
+  textoBoton?: string;
 }
 
 export default function FormularioProducto({
@@ -79,6 +80,7 @@ export default function FormularioProducto({
   editandoId,
   stockBajo = 3,
   setStockBajo = () => {},
+  textoBoton,
 }: Props) {
 
   // ❌ ELIMINADO: useEffect que buscaba cotización de la API
@@ -375,7 +377,7 @@ export default function FormularioProducto({
               : "bg-gradient-to-r from-[#9b59b6] to-[#8e44ad] hover:from-[#8e44ad] hover:to-[#7d3c98] text-white"
           }`}
         >
-          {editandoId ? "✏️ Actualizar accesorio" : "💾 Guardar accesorio"}
+          {editandoId ? "✏️ Actualizar accesorio" : textoBoton || "💾 Guardar accesorio"}
         </button>
       </div>
     </div>

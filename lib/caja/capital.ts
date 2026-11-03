@@ -143,7 +143,8 @@ async function costoColeccion(negocioId: string, coleccion: string, porUnidad = 
   const snap = await getDocs(collection(db, `negocios/${negocioId}/${coleccion}`));
   snap.docs.forEach((d) => {
     const data = d.data();
-    const destino = data.consignacion === true ? consignacion : propio;
+    const destino =
+      data.consignacion === true || data.consignacion === "true" ? consignacion : propio;
     acumularCosto(destino, data, porUnidad ? 1 : undefined);
   });
   propio.ars = Math.round(propio.ars * 100) / 100;

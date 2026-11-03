@@ -265,7 +265,7 @@ export default function StockProductosPage() {
       const precioCosto = typeof p.precioCosto === "number" ? p.precioCosto : 0;
       const cantidad = typeof p.cantidad === "number" ? p.cantidad : 0;
       const total = precioCosto * cantidad;
-      const destino = p.consignacion === true ? consignacion : propio;
+      const destino = p.consignacion === true || p.consignacion === "true" ? consignacion : propio;
       if (p.moneda === "USD") destino.usd += total;
       else destino.ars += total;
     });
@@ -383,8 +383,14 @@ export default function StockProductosPage() {
           <TablaAccesorios
             eliminarProducto={eliminarProducto}
             actualizarProducto={actualizarProductoEnFirebase}
-            onProductoActualizado={() => {
-              // La tabla actualiza la fila en memoria; no recargar Firebase.
+            onProductoActualizado={(producto) => {
+              if (producto?.id) {
+                setProductosResumen((prev) =>
+                  prev.map((p) =>
+                    p.id === producto.id ? { ...p, consignacion: producto.consignacion === true } : p
+                  )
+                );
+              }
               if (negocioID || rol?.negocioID) {
                 void cargarProductosParaResumen();
               }

@@ -282,6 +282,7 @@ export default function TablaAccesorios({
       setProductos((prev) =>
         prev.map((item) => (item.id === producto.id ? { ...item, consignacion: siguiente } : item))
       );
+      onProductoActualizado?.({ ...producto, consignacion: siguiente });
     } catch (error) {
       console.error(error);
     }

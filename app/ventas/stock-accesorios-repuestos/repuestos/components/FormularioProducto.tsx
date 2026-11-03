@@ -63,6 +63,7 @@ interface Props {
   publicarEnCatalogoWeb?: boolean;
   setPublicarEnCatalogoWeb?: (val: boolean) => void;
   negocioID?: string;
+  textoBoton?: string;
 }
 
 export default function FormularioProducto({
@@ -115,6 +116,7 @@ export default function FormularioProducto({
   publicarEnCatalogoWeb = false,
   setPublicarEnCatalogoWeb = () => {},
   negocioID = "",
+  textoBoton,
 }: Props) {
   const [porcentaje, setPorcentaje] = useState<number | "">("");
   const autoDesdePorcentaje = useRef(false);
@@ -669,7 +671,7 @@ export default function FormularioProducto({
               : undefined
           }
         >
-          {editandoId ? "✏️ Actualizar producto" : "💾 Guardar producto"}
+          {editandoId ? "✏️ Actualizar producto" : textoBoton || "💾 Guardar producto"}
         </button>
       </div>
 

@@ -56,7 +56,7 @@ export default function StockAccesoriosRepuestos() {
       const costo = Number(item.precioCosto ?? item.precio ?? 0);
       const cantidad = Number(item.cantidad || 0);
       const total = costo * cantidad;
-      const esConsignacion = item.consignacion === true;
+      const esConsignacion = item.consignacion === true || item.consignacion === "true";
       if (item.moneda === "USD") {
         if (esConsignacion) consignacionUSD += total;
         else totalUSD += total;
