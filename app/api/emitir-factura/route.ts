@@ -127,6 +127,8 @@ export async function POST(req: Request) {
       Concepto: descripcion ? 2 : 1,
       DocTipo: docTipo,
       DocNro: docNro,
+      // parche: 5 = Consumidor Final solo si DocTipo es 99; con otro DocTipo falta la condición frente al IVA del cliente
+      ...(Number(docTipo) === 99 ? { CondicionIVAReceptorId: 5 } : {}),
       CbteFch: cbtFch,
       ImpTotal: impTotal,
       ImpTotConc: impTotConc,
