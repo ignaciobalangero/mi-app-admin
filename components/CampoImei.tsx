@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import EscanerCodigoBarras from "@/components/EscanerCodigoBarras";
-import ModalConsultaImei from "@/components/ModalConsultaImei";
+import ConsultaImeiIfree from "@/app/ventas/stock-telefonos/components/ConsultaImeiIfree";
 import { extraerImei } from "@/lib/extraerImei";
 
 type Props = {
@@ -12,9 +12,10 @@ type Props = {
   className?: string;
   inputClassName?: string;
   placeholder?: string;
+  negocioID?: string;
 };
 
-/** IMEI con escáner de cámara y consulta de estado (ENACOM). */
+/** IMEI con escáner. Consultar muestra lista negra, Buscar mi iPhone y perdido. */
 export default function CampoImei({
   value,
   onChange,
@@ -22,25 +23,16 @@ export default function CampoImei({
   className = "",
   inputClassName = "",
   placeholder = "Número IMEI",
+  negocioID = "",
 }: Props) {
   const [escaneando, setEscaneando] = useState(false);
-  const [consultando, setConsultando] = useState(false);
+  const [opcionesAbiertas, setOpcionesAbiertas] = useState(false);
 
   const normalizarImei = (raw: string) => raw.replace(/\D/g, "").slice(0, 20);
-  const imeiLimpio = normalizarImei(value);
-  const puedeConsultar = imeiLimpio.length >= 14;
-
-  const abrirConsulta = () => {
-    if (!puedeConsultar) {
-      alert("Cargá un IMEI válido (14–15 dígitos) antes de consultar.");
-      return;
-    }
-    setConsultando(true);
-  };
 
   return (
-    <>
-      <div className={`flex flex-wrap gap-2 ${className}`}>
+    <div className={className}>
+      <div className="flex flex-wrap gap-2">
         <input
           type="text"
           inputMode="numeric"
@@ -64,14 +56,19 @@ export default function CampoImei({
         </button>
         <button
           type="button"
-          disabled={disabled || !puedeConsultar}
-          onClick={abrirConsulta}
+          disabled={disabled || !negocioID}
+          onClick={() => setOpcionesAbiertas((abiertas) => !abiertas)}
+          aria-expanded={opcionesAbiertas}
           className="px-3 sm:px-4 py-3 rounded-lg border-2 border-[#27ae60] bg-[#eafaf1] hover:bg-[#d5f5e3] text-[#1e8449] font-semibold whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Consultar estado del IMEI"
+          title={opcionesAbiertas ? "Ocultar consultas" : "Ver consultas del IMEI"}
         >
-          🔍 Consultar
+          {opcionesAbiertas ? "Ocultar" : "🔍 Consultar"}
         </button>
       </div>
+
+      {opcionesAbiertas && negocioID ? (
+        <ConsultaImeiIfree negocioID={negocioID} imei={value} />
+      ) : null}
 
       <EscanerCodigoBarras
         abierto={escaneando}
@@ -79,13 +76,6 @@ export default function CampoImei({
         onDetectado={(codigo) => onChange(extraerImei(codigo) || normalizarImei(codigo))}
         onCerrar={() => setEscaneando(false)}
       />
-
-      <ModalConsultaImei
-        abierto={consultando}
-        imei={imeiLimpio}
-        onImeiChange={(imei) => onChange(imei)}
-        onCerrar={() => setConsultando(false)}
-      />
-    </>
+    </div>
   );
 }

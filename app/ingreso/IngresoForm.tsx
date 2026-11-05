@@ -29,7 +29,6 @@ import { PatronDrawer, PatronViewer, type Patron } from "@/app/components/Patron
 import CampoFotosTrabajo, { filesPendientesDeFotos } from "@/components/CampoFotosTrabajo";
 import CampoFirmaDigital from "@/components/CampoFirmaDigital";
 import CampoImei from "@/components/CampoImei";
-import ConsultaImeiIfree from "@/app/ventas/stock-telefonos/components/ConsultaImeiIfree";
 import { subirFotoTrabajo, subirFirmaClienteTrabajo } from "@/lib/trabajosFotosCliente";
 import {
   generarTokenPublicoTrabajo,
@@ -1326,9 +1325,9 @@ export default function IngresoForm() {
                 </label>
                 <CampoImei
                   value={form.imei}
+                  negocioID={negocioID}
                   onChange={(imei) => setForm((prev) => ({ ...prev, imei }))}
                 />
-                {negocioID ? <ConsultaImeiIfree negocioID={negocioID} imei={form.imei} /> : null}
               </div>
 
               {/* Accesorios */}
@@ -1555,10 +1554,10 @@ export default function IngresoForm() {
                           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📲 IMEI</label>
                           <CampoImei
                             value={eq.imei}
+                            negocioID={negocioID}
                             onChange={(imei) => actualizarEquipoExtra(idx, { imei })}
                             inputClassName="w-full px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50]"
                           />
-                          {negocioID ? <ConsultaImeiIfree negocioID={negocioID} imei={eq.imei} /> : null}
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">📦 Accesorios</label>

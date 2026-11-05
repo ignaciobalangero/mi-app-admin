@@ -26,6 +26,7 @@ import { Store, Package, Tag } from "lucide-react";
 import CampoFotoRepuesto from "./CampoFotoRepuesto";
 import { fotosParaFirestore, normalizarFotosURLs } from "@/lib/fotosRepuestoHelpers";
 import ModalIngresoStock from "../../components/ModalIngresoStock";
+import ModalVerPrecios from "../../accesorios/components/ModalVerPrecios";
 
 // 📦 Tabla de productos – Sección REPUESTOS OPTIMIZADA CON PAGINACIÓN
 
@@ -124,6 +125,7 @@ export default function TablaProductos({
   const [modalAbierto, setModalAbierto] = useState(false);
   const [modalEliminar, setModalEliminar] = useState<string | null>(null);
   const [modalIngreso, setModalIngreso] = useState<Producto | null>(null);
+  const [modalVerPrecios, setModalVerPrecios] = useState<Producto | null>(null);
   const [itemsEtiquetaPendiente, setItemsEtiquetaPendiente] = useState<ItemEtiquetaStock[] | null>(null);
   const [modalEliminarMasivo, setModalEliminarMasivo] = useState(false);
   const [modoSeleccion, setModoSeleccion] = useState(false);
@@ -2002,6 +2004,14 @@ export default function TablaProductos({
                             <Tag className="h-4 w-4" aria-hidden />
                           </button>
                           <button
+                            type="button"
+                            onClick={() => setModalVerPrecios(p)}
+                            className="bg-[#9b59b6] hover:bg-[#8e44ad] text-white px-1 py-1 rounded text-xs transition-all duration-200"
+                            title="Ver precios"
+                          >
+                            👁️
+                          </button>
+                          <button
                             onClick={() => setModalIngreso(p)}
                             className="bg-[#16a085] hover:bg-[#138d75] text-white px-1 py-1 rounded text-xs transition-all duration-200"
                             title="Ingresar stock (promedio ponderado)"
@@ -3189,6 +3199,19 @@ export default function TablaProductos({
           </div>,
           document.body
         )}
+
+      {modalVerPrecios && (
+        <ModalVerPrecios
+          producto={modalVerPrecios}
+          cotizacion={cotizacionSegura}
+          calcularPrecioDinamico={(producto, tipo) => {
+            const valor = Number(producto[tipo]) || 0;
+            if (producto.moneda === "USD") return valor * cotizacionSegura;
+            return valor;
+          }}
+          onClose={() => setModalVerPrecios(null)}
+        />
+      )}
 
       {mounted &&
         modalIngreso &&
