@@ -7,6 +7,7 @@ import {
   doc,
   deleteDoc,
 } from "firebase/firestore";
+import CampoAdjuntos, { ListaAdjuntos, type AdjuntoProveedor } from "./CampoAdjuntos";
 
 // Interfaces
 interface ProductoCompra {
@@ -28,6 +29,7 @@ interface Compra {
   estado: string;
   notas: string;
   fechaCreacion: string;
+  adjuntos?: AdjuntoProveedor[];
 }
 
 interface Pago {
@@ -40,6 +42,7 @@ interface Pago {
   referencia: string;
   notas: string;
   fechaCreacion: string;
+  adjuntos?: AdjuntoProveedor[];
 }
 
 interface Props {
@@ -86,6 +89,8 @@ export default function TablaProveedores({
   const [compraEditando, setCompraEditando] = useState<Compra | null>(null);
   const [mostrarEditarPago, setMostrarEditarPago] = useState(false);
   const [mostrarEditarCompra, setMostrarEditarCompra] = useState(false);
+  const [subiendoAdjuntos, setSubiendoAdjuntos] = useState(false);
+  const [pagoParaAdjuntos, setPagoParaAdjuntos] = useState<Pago | null>(null);
 
   // Estados para formularios de edición
   const [formEditPago, setFormEditPago] = useState({
@@ -94,7 +99,8 @@ export default function TablaProveedores({
     moneda: "ARS",
     forma: "",
     referencia: "",
-    notas: ""
+    notas: "",
+    adjuntos: [] as AdjuntoProveedor[],
   });
 
   const [formEditCompra, setFormEditCompra] = useState({
@@ -103,7 +109,8 @@ export default function TablaProveedores({
     moneda: "ARS",
     estado: "pendiente",
     notas: "",
-    productos: [] as ProductoCompra[]
+    productos: [] as ProductoCompra[],
+    adjuntos: [] as AdjuntoProveedor[],
   });
 
   // Funciones de eliminación
@@ -142,7 +149,8 @@ export default function TablaProveedores({
       moneda: (pago.montoUSD && pago.montoUSD > 0) ? "USD" : "ARS",
       forma: pago.forma,
       referencia: pago.referencia,
-      notas: pago.notas
+      notas: pago.notas,
+      adjuntos: pago.adjuntos || [],
     });
     setMostrarEditarPago(true);
   };
@@ -169,7 +177,8 @@ export default function TablaProveedores({
       moneda: compra.moneda,
       estado: compra.estado,
       notas: compra.notas,
-      productos: productosParaEditar
+      productos: productosParaEditar,
+      adjuntos: compra.adjuntos || [],
     });
     setMostrarEditarCompra(true);
   };
@@ -195,6 +204,7 @@ export default function TablaProveedores({
       referencia: formEditPago.referencia.trim(),
       notas: formEditPago.notas.trim(),
       fechaCreacion: pagoEditando.fechaCreacion,
+      adjuntos: formEditPago.adjuntos,
     };
 
     try {
@@ -277,6 +287,7 @@ export default function TablaProveedores({
       estado: formEditCompra.estado,
       notas: formEditCompra.notas.trim(),
       fechaCreacion: compraEditando.fechaCreacion,
+      adjuntos: formEditCompra.adjuntos,
     };
 
     try {
@@ -333,6 +344,9 @@ export default function TablaProveedores({
                           {compra.numeroRemito && <p className="font-semibold text-gray-900">📄 {compra.numeroRemito}</p>}
                           {compra.numeroPedido && <p className="text-sm text-gray-700 font-medium">🛒 {compra.numeroPedido}</p>}
                           {!compra.numeroRemito && !compra.numeroPedido && <span className="text-gray-500">Sin remito</span>}
+                          <div className="mt-2">
+                            <ListaAdjuntos adjuntos={compra.adjuntos} />
+                          </div>
                         </div>
                       </td>
                       <td className="p-3">
@@ -446,9 +460,21 @@ export default function TablaProveedores({
                         </p>
                       ) : null}
                       </td>
-                      <td className="p-4 font-semibold text-gray-800 bg-white border-r border-gray-300">{pago.notas || "-"}</td>
+                      <td className="p-4 font-semibold text-gray-800 bg-white border-r border-gray-300">
+                        <div>{pago.notas || "-"}</div>
+                        <div className="mt-2">
+                          <ListaAdjuntos adjuntos={pago.adjuntos} />
+                        </div>
+                      </td>
                       <td className="p-4 bg-white">
                         <div className="flex gap-2 justify-center">
+                          <button
+                            onClick={() => setPagoParaAdjuntos(pago)}
+                            className="bg-[#8e44ad] hover:bg-[#7d3c98] text-white px-2 py-1 rounded text-xs font-medium"
+                            title="Adjuntar comprobante"
+                          >
+                            📎 Adjuntar
+                          </button>
                           <button
                             onClick={() => editarPago(pago)}
                             className="bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded text-xs font-medium"
@@ -477,7 +503,7 @@ export default function TablaProveedores({
       {/* MODAL EDITAR PAGO */}
       {mostrarEditarPago && pagoEditando && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             
             {/* Header del modal */}
             <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl p-4 mb-6">
@@ -555,9 +581,22 @@ export default function TablaProveedores({
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notas</label>
-                <textarea
+                <div className="md:col-span-2">
+                  <CampoAdjuntos
+                    negocioID={negocioID}
+                    proveedorId={proveedor.id}
+                    carpeta="pagos"
+                    adjuntos={formEditPago.adjuntos}
+                    onChange={(adjuntos) => setFormEditPago((prev) => ({ ...prev, adjuntos }))}
+                    onSubiendo={setSubiendoAdjuntos}
+                    titulo="📎 Comprobantes"
+                    ayuda="Pegá la captura de la transferencia o subí el PDF."
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notas</label>
+                  <textarea
                   value={formEditPago.notas}
                   onChange={(e) => setFormEditPago(prev => ({ ...prev, notas: e.target.value }))}
                   placeholder="Notas adicionales sobre el pago"
@@ -579,9 +618,10 @@ export default function TablaProveedores({
               </button>
               <button
                 onClick={actualizarPago}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                disabled={subiendoAdjuntos}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
               >
-                Actualizar Pago
+                {subiendoAdjuntos ? "Subiendo archivos…" : "Actualizar Pago"}
               </button>
             </div>
           </div>
@@ -751,6 +791,19 @@ export default function TablaProveedores({
               </div>
             </div>
 
+            <div className="mb-6">
+              <CampoAdjuntos
+                negocioID={negocioID}
+                proveedorId={proveedor.id}
+                carpeta="pedidos"
+                adjuntos={formEditCompra.adjuntos}
+                onChange={(adjuntos) => setFormEditCompra((prev) => ({ ...prev, adjuntos }))}
+                onSubiendo={setSubiendoAdjuntos}
+                titulo="📎 Pedido del proveedor"
+                ayuda="Pegá la captura del pedido o subí el PDF."
+              />
+            </div>
+
             {/* Notas */}
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notas</label>
@@ -776,14 +829,14 @@ export default function TablaProveedores({
               </button>
               <button
                 onClick={actualizarCompra}
-                disabled={formEditCompra.productos.length === 0 || formEditCompra.productos.every(p => !p.producto.trim())}
+                disabled={subiendoAdjuntos || formEditCompra.productos.length === 0 || formEditCompra.productos.every(p => !p.producto.trim())}
                 className={`px-6 py-2 rounded-lg font-medium ${
-                  formEditCompra.productos.length === 0 || formEditCompra.productos.every(p => !p.producto.trim())
+                  subiendoAdjuntos || formEditCompra.productos.length === 0 || formEditCompra.productos.every(p => !p.producto.trim())
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-orange-500 hover:bg-orange-600 text-white"
                 }`}
               >
-                Actualizar Compra
+                {subiendoAdjuntos ? "Subiendo archivos…" : "Actualizar Compra"}
               </button>
             </div>
           </div>
@@ -843,6 +896,44 @@ export default function TablaProveedores({
                   Sí, eliminar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pagoParaAdjuntos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="mb-1 text-lg font-bold text-gray-900">Adjuntar al pago</h3>
+            <p className="mb-4 text-sm text-gray-600">
+              {pagoParaAdjuntos.fecha} · {pagoParaAdjuntos.forma}. Se guarda al pegar o subir.
+            </p>
+            <CampoAdjuntos
+              negocioID={negocioID}
+              proveedorId={proveedor.id}
+              carpeta="pagos"
+              adjuntos={pagoParaAdjuntos.adjuntos || []}
+              onChange={(adjuntos) => {
+                const pagoId = pagoParaAdjuntos.id;
+                setPagoParaAdjuntos({ ...pagoParaAdjuntos, adjuntos });
+                void updateDoc(doc(db, `negocios/${negocioID}/pagosProveedores/${pagoId}`), { adjuntos })
+                  .then(() => onRecargar())
+                  .catch((error) => {
+                    console.error(error);
+                    onMensaje("❌ No se pudieron guardar los archivos");
+                  });
+              }}
+              titulo="📎 Comprobantes"
+              ayuda="Pegá la captura de la transferencia o subí el PDF."
+            />
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPagoParaAdjuntos(null)}
+                className="rounded-lg bg-gray-700 px-4 py-2 font-semibold text-white"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </div>

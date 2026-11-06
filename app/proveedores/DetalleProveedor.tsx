@@ -6,11 +6,14 @@ import {
   collection,
   getDocs,
   addDoc,
+  doc,
+  updateDoc,
   query,
   where,
   orderBy,
 } from "firebase/firestore";
 import TablaProveedores from "./TablaProveedores";
+import CampoAdjuntos, { normalizarAdjuntos, type AdjuntoProveedor } from "./CampoAdjuntos";
 import { formatearFechaCaja } from "@/lib/caja/fechaCaja";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import { montosPagoEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
@@ -46,6 +49,7 @@ interface Compra {
   estado: string;
   notas: string;
   fechaCreacion: string;
+  adjuntos?: AdjuntoProveedor[];
 }
 
 interface Pago {
@@ -58,6 +62,7 @@ interface Pago {
   referencia: string;
   notas: string;
   fechaCreacion: string;
+  adjuntos?: AdjuntoProveedor[];
 }
 
 interface Props {
@@ -84,6 +89,8 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
   const [monedaCompra, setMonedaCompra] = useState("ARS");
   const [estadoCompra, setEstadoCompra] = useState("pendiente");
   const [notasCompra, setNotasCompra] = useState("");
+  const [adjuntosCompra, setAdjuntosCompra] = useState<AdjuntoProveedor[]>([]);
+  const [subiendoAdjuntosCompra, setSubiendoAdjuntosCompra] = useState(false);
 
   // Estados para modal de detalle de compra
   const [mostrarDetalleCompra, setMostrarDetalleCompra] = useState(false);
@@ -97,6 +104,8 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
   const [referenciaPago, setReferenciaPago] = useState("");
   const [notasPago, setNotasPago] = useState("");
   const [cotizacionPagoProveedor, setCotizacionPagoProveedor] = useState("");
+  const [adjuntosPago, setAdjuntosPago] = useState<AdjuntoProveedor[]>([]);
+  const [subiendoAdjuntosPago, setSubiendoAdjuntosPago] = useState(false);
 
   useEffect(() => {
     if (!cotizacionCuenta) return;
@@ -115,6 +124,17 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
   const abrirDetalleCompra = (compra: Compra) => {
     setCompraSeleccionada(compra);
     setMostrarDetalleCompra(true);
+  };
+
+  const guardarAdjuntosCompra = async (compraId: string, adjuntos: AdjuntoProveedor[]) => {
+    setCompraSeleccionada((actual) => (actual && actual.id === compraId ? { ...actual, adjuntos } : actual));
+    setCompras((lista) => lista.map((compra) => (compra.id === compraId ? { ...compra, adjuntos } : compra)));
+    try {
+      await updateDoc(doc(db, `negocios/${negocioID}/compras/${compraId}`), { adjuntos });
+    } catch (error) {
+      console.error(error);
+      mostrarMensaje("❌ No se pudieron guardar los archivos");
+    }
   };
 
   // Funciones para manejar productos
@@ -175,7 +195,8 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
           id: doc.id,
           ...data,
           productos: Array.isArray(data.productos) ? data.productos : 
-            [{ id: "1", producto: data.productos || "", cantidad: 1, precio: data.montoTotal || 0, total: data.montoTotal || 0 }]
+            [{ id: "1", producto: data.productos || "", cantidad: 1, precio: data.montoTotal || 0, total: data.montoTotal || 0 }],
+          adjuntos: normalizarAdjuntos(data.adjuntos),
         };
       }) as Compra[];
       setCompras(comprasData);
@@ -193,10 +214,14 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
         orderBy("fechaCreacion", "desc")
       );
       const snap = await getDocs(q);
-      const pagosData = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Pago[];
+      const pagosData = snap.docs.map(docSnap => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data,
+          adjuntos: normalizarAdjuntos(data.adjuntos),
+        };
+      }) as Pago[];
       setPagos(pagosData);
     } catch (error) {
       console.error("Error cargando pagos:", error);
@@ -242,6 +267,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
       estado: estadoCompra,
       notas: notasCompra.trim(),
       fechaCreacion: new Date().toISOString(),
+      adjuntos: adjuntosCompra,
     };
 
     try {
@@ -290,6 +316,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
       referencia: referenciaPago.trim(),
       notas: [notasPago.trim(), enCuenta.notaConversion].filter(Boolean).join(" · "),
       fechaCreacion: new Date().toISOString(),
+      adjuntos: adjuntosPago,
     };
 
     try {
@@ -330,6 +357,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
     setMonedaCompra("ARS");
     setEstadoCompra("pendiente");
     setNotasCompra("");
+    setAdjuntosCompra([]);
   };
 
   const limpiarFormPago = () => {
@@ -340,6 +368,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
     setReferenciaPago("");
     setNotasPago("");
     setCotizacionPagoProveedor(cotizacionCuenta ? String(cotizacionCuenta) : "");
+    setAdjuntosPago([]);
   };
 
   const calcularTotales = () => {
@@ -731,6 +760,18 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                 </div>
               )}
 
+              <div className="mb-6">
+                <CampoAdjuntos
+                  negocioID={negocioID}
+                  proveedorId={proveedor.id}
+                  carpeta="pedidos"
+                  adjuntos={compraSeleccionada.adjuntos || []}
+                  onChange={(adjuntos) => void guardarAdjuntosCompra(compraSeleccionada.id, adjuntos)}
+                  titulo="📎 Pedido del proveedor"
+                  ayuda="Podés sumarlo ahora o más tarde. Pegá la captura del pedido o subí el PDF."
+                />
+              </div>
+
               {/* Botón cerrar */}
               <div className="flex justify-end">
                 <button
@@ -889,6 +930,19 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                 </div>
               </div>
 
+              <div className="mb-6">
+                <CampoAdjuntos
+                  negocioID={negocioID}
+                  proveedorId={proveedor.id}
+                  carpeta="pedidos"
+                  adjuntos={adjuntosCompra}
+                  onChange={setAdjuntosCompra}
+                  onSubiendo={setSubiendoAdjuntosCompra}
+                  titulo="📎 Pedido del proveedor"
+                  ayuda="Al cargar el pedido, o después desde Ver. Pegá la captura o subí el PDF."
+                />
+              </div>
+
               {/* Notas */}
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notas</label>
@@ -914,14 +968,14 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                 </button>
                 <button
                   onClick={guardarCompra}
-                  disabled={productosCompra.length === 0 || productosCompra.every(p => !p.producto.trim())}
+                  disabled={subiendoAdjuntosCompra || productosCompra.length === 0 || productosCompra.every(p => !p.producto.trim())}
                   className={`px-6 py-2 rounded-lg font-medium ${
-                    productosCompra.length === 0 || productosCompra.every(p => !p.producto.trim())
+                    subiendoAdjuntosCompra || productosCompra.length === 0 || productosCompra.every(p => !p.producto.trim())
                       ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                       : "bg-blue-500 hover:bg-blue-600 text-white"
                   }`}
                 >
-                  Guardar Compra
+                  {subiendoAdjuntosCompra ? "Subiendo archivos…" : "Guardar Compra"}
                 </button>
               </div>
             </div>
@@ -931,7 +985,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
         {/* Modal formulario pago */}
         {mostrarFormPago && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl">
+            <div className="bg-white rounded-2xl p-6 max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
               <h3 className="text-lg font-bold mb-4 text-gray-900">💰 Registrar Pago</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1019,6 +1073,19 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                 </div>
 
                 <div className="md:col-span-2">
+                  <CampoAdjuntos
+                    negocioID={negocioID}
+                    proveedorId={proveedor.id}
+                    carpeta="pagos"
+                    adjuntos={adjuntosPago}
+                    onChange={setAdjuntosPago}
+                    onSubiendo={setSubiendoAdjuntosPago}
+                    titulo="📎 Comprobantes"
+                    ayuda="Al registrar el pago, o después con Adjuntar. Pegá la captura de la transferencia."
+                  />
+                </div>
+
+                <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notas</label>
                   <textarea
                     value={notasPago}
@@ -1042,9 +1109,10 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                 </button>
                 <button
                   onClick={guardarPago}
-                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                  disabled={subiendoAdjuntosPago}
+                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
                 >
-                  Registrar Pago
+                  {subiendoAdjuntosPago ? "Subiendo archivos…" : "Registrar Pago"}
                 </button>
               </div>
             </div>

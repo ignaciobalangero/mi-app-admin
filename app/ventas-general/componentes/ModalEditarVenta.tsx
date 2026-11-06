@@ -26,6 +26,19 @@ import {
   recalcularProductoEnEdicion,
   totalesVentaGeneralEditada,
 } from "@/app/clientes/[nombreCliente]/ventasMonedaHelpers";
+import {
+  actualizarStockVentaViaApi,
+  negocioIdStockDeVenta,
+} from "@/lib/actualizarStockVentaApi";
+import {
+  clasificarProductoStock,
+  codigoProductoStock,
+  productoAfectaStock,
+} from "@/lib/ventasStockProducto";
+import BuscadorStockEdicion, {
+  useCatalogoAccesoriosRepuestos,
+  type ItemStockEdicion,
+} from "./BuscadorStockEdicion";
 
 interface Props {
   mostrar: boolean;
@@ -42,6 +55,52 @@ function simboloMoneda(m: "ARS" | "USD") {
   return m === "USD" ? "USD $" : "$";
 }
 
+function claveStockLinea(linea: Record<string, unknown>) {
+  if (!productoAfectaStock(linea)) return "";
+  const tipo = clasificarProductoStock(linea) || "";
+  const docId = String(linea.stockDocId || linea.id || "").trim();
+  return `${tipo}|${docId}|${codigoProductoStock(linea)}`;
+}
+
+function agruparStock(lineas: any[]) {
+  const map = new Map<string, { linea: any; cantidad: number }>();
+  for (const linea of lineas) {
+    const clave = claveStockLinea(linea);
+    if (!clave) continue;
+    const cantidad = Math.max(0, Number(linea.cantidad) || 0);
+    const previo = map.get(clave);
+    if (previo) previo.cantidad += cantidad;
+    else map.set(clave, { linea, cantidad });
+  }
+  return map;
+}
+
+function lineaDesdeStock(item: ItemStockEdicion, cantidad: number, cotizacion: number) {
+  const moneda = item.moneda === "USD" ? "USD" : "ARS";
+  return prepararProductoParaEdicion(
+    {
+      id: item.id,
+      stockDocId: item.id,
+      codigo: item.codigo || item.id,
+      producto: item.producto,
+      descripcion: item.producto,
+      marca: item.marca || "—",
+      modelo: item.modelo || item.producto,
+      color: item.color || "—",
+      categoria: item.tipo === "repuesto" ? "Repuesto" : "Accesorio",
+      tipo: item.tipo,
+      origenStock: item.tipo === "repuesto" ? "stockRepuestos" : "stockAccesorios",
+      hoja: "",
+      sinStock: false,
+      cantidad: Math.max(1, cantidad),
+      precioUnitario: item.precio1,
+      costo: item.precioCosto,
+      moneda,
+    },
+    cotizacion
+  );
+}
+
 export default function ModalEditarVenta({
   mostrar,
   venta,
@@ -56,7 +115,9 @@ export default function ModalEditarVenta({
   const [queryCliente, setQueryCliente] = useState("");
   const [fecha, setFecha] = useState("");
   const [productos, setProductos] = useState<any[]>([]);
+  const [productosOriginales, setProductosOriginales] = useState<any[]>([]);
   const [cotizacionEdicion, setCotizacionEdicion] = useState(0);
+  const catalogo = useCatalogoAccesoriosRepuestos(negocioID, mostrar);
   const [guardando, setGuardando] = useState(false);
 
   const clienteDeBase = Boolean(String(clienteId || "").trim());
@@ -90,9 +151,9 @@ export default function ModalEditarVenta({
       setClienteId(String(venta.clienteId || "").trim());
       setQueryCliente("");
       setFecha(venta.fecha || "");
-      setProductos(
-        (venta.productos || []).map((p: any) => prepararProductoParaEdicion(p, cot))
-      );
+      const lineas = (venta.productos || []).map((p: any) => prepararProductoParaEdicion(p, cot));
+      setProductos(lineas);
+      setProductosOriginales(JSON.parse(JSON.stringify(lineas)));
     }
   }, [venta, mostrar, cotizacion]);
 
@@ -137,8 +198,30 @@ export default function ModalEditarVenta({
     });
   };
 
+  const cambiarProducto = (index: number, item: ItemStockEdicion) => {
+    const cot = cotizacionEdicion > 0 ? cotizacionEdicion : cotizacion;
+    setProductos((prev) =>
+      prev.map((linea, i) =>
+        i === index ? lineaDesdeStock(item, Number(linea.cantidad) || 1, cot) : linea
+      )
+    );
+  };
+
+  const quitarProducto = (index: number) => {
+    setProductos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const agregarProducto = (item: ItemStockEdicion) => {
+    const cot = cotizacionEdicion > 0 ? cotizacionEdicion : cotizacion;
+    setProductos((prev) => [...prev, lineaDesdeStock(item, 1, cot)]);
+  };
+
   const guardarCambios = async () => {
     if (!venta || !negocioID) return;
+    if (productos.length === 0) {
+      alert("La venta tiene que tener al menos un producto.");
+      return;
+    }
     const idSel = String(clienteId || "").trim();
     if (!idSel) {
       alert(
@@ -170,6 +253,24 @@ export default function ModalEditarVenta({
       const { totalARS, totalUSD, total, gananciaTotal, moneda } =
         totalesVentaGeneralEditada(productosParaGuardar, cot);
 
+      const negocioStock = negocioIdStockDeVenta(venta, negocioID);
+      const antes = agruparStock(productosOriginales);
+      const despues = agruparStock(productosParaGuardar);
+      const aDescontar: any[] = [];
+      const aReponer: any[] = [];
+      const claves = new Set([...Array.from(antes.keys()), ...Array.from(despues.keys())]);
+      claves.forEach((clave) => {
+        const viejo = antes.get(clave);
+        const nuevo = despues.get(clave);
+        const delta = (nuevo?.cantidad || 0) - (viejo?.cantidad || 0);
+        if (delta > 0 && nuevo) aDescontar.push({ ...nuevo.linea, cantidad: delta });
+        if (delta < 0 && viejo) aReponer.push({ ...viejo.linea, cantidad: Math.abs(delta) });
+      });
+
+      if (aDescontar.length > 0) {
+        await actualizarStockVentaViaApi(negocioStock, aDescontar, "descontar");
+      }
+
       const ventaRef = doc(db, `negocios/${negocioID}/ventasGeneral/${venta.id}`);
       await updateDoc(ventaRef, {
         cliente: nombreCanonico,
@@ -182,6 +283,19 @@ export default function ModalEditarVenta({
         gananciaTotal,
         moneda,
       });
+
+      if (aReponer.length > 0) {
+        try {
+          await actualizarStockVentaViaApi(negocioStock, aReponer, "reponer");
+        } catch (stockErr) {
+          console.error(stockErr);
+          alert(
+            stockErr instanceof Error
+              ? `La venta se guardó, pero no volvió todo al stock: ${stockErr.message}`
+              : "La venta se guardó, pero no volvió todo al stock."
+          );
+        }
+      }
 
       // Verificar que quedó grabado igual que en Clientes
       const verif = await getDoc(ventaRef);
@@ -400,6 +514,27 @@ export default function ModalEditarVenta({
                   key={index}
                   className="bg-[#f8f9fa] rounded-lg p-4 border border-[#ecf0f1]"
                 >
+                  <div className="mb-3">
+                    <p className="text-base font-bold text-[#2c3e50]">
+                      {producto.producto || "Sin producto"}
+                    </p>
+                    <p className="text-xs text-[#7f8c8d]">
+                      {producto.codigo ? `Código ${producto.codigo}` : "Sin código de stock"}
+                      {productoAfectaStock(producto)
+                        ? " · si lo cambiás o lo quitás, al guardar vuelve al stock"
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="mb-4">
+                    <label className="mb-1 block text-sm font-medium text-[#2c3e50]">
+                      Cambiar por accesorio o repuesto
+                    </label>
+                    <BuscadorStockEdicion
+                      catalogo={catalogo}
+                      onElegir={(item) => cambiarProducto(index, item)}
+                      placeholder="Buscar nombre, código, marca o color"
+                    />
+                  </div>
                   <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                     <div className="flex items-center gap-3 flex-wrap">
                       <span
@@ -442,7 +577,13 @@ export default function ModalEditarVenta({
                         </button>
                       </div>
                     </div>
-                    <span className="text-sm text-[#7f8c8d]">Producto {index + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => quitarProducto(index)}
+                      className="rounded-lg bg-[#fdecea] px-3 py-1 text-xs font-bold text-[#c0392b]"
+                    >
+                      {productoAfectaStock(producto) ? "Quitar y devolver al stock" : "Quitar"}
+                    </button>
                   </div>
                   <p className="text-[11px] text-[#7f8c8d] mb-3">
                     Al cambiar moneda se convierten costo y precio con la cotización de la venta
@@ -591,6 +732,17 @@ export default function ModalEditarVenta({
                 </div>
               );
             })}
+
+            <div className="rounded-lg border border-dashed border-[#3498db] bg-white p-4">
+              <label className="mb-1 block text-sm font-semibold text-[#2c3e50]">
+                Agregar accesorio o repuesto
+              </label>
+              <BuscadorStockEdicion
+                catalogo={catalogo}
+                onElegir={agregarProducto}
+                placeholder="Buscar en accesorios y repuestos"
+              />
+            </div>
           </div>
 
           <div className="mt-6 space-y-3">
