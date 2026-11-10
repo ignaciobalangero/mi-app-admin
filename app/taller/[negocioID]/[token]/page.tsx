@@ -36,6 +36,7 @@ type TrabajoStaff = {
   estado: string;
   esGarantia?: boolean;
   sinReparacion?: boolean;
+  reparacionRealizada?: string;
 };
 
 const ESTADOS_TALLER = [
@@ -61,6 +62,9 @@ export default function TallerTrabajoPage() {
   const [aviso, setAviso] = useState("");
   const [staffListo, setStaffListo] = useState(false);
   const [rolListo, setRolListo] = useState(false);
+  const [pedirReparacion, setPedirReparacion] = useState(false);
+  const [reparacionInput, setReparacionInput] = useState("");
+  const [guardandoReparacion, setGuardandoReparacion] = useState(false);
 
   const esStaff =
     !!user &&
@@ -140,6 +144,7 @@ export default function TallerTrabajoPage() {
           estado: String(d.estado || ""),
           esGarantia: d.esGarantia === true,
           sinReparacion: d.sinReparacion === true,
+          reparacionRealizada: String(d.reparacionRealizada || ""),
         });
         setStaffListo(true);
       } catch (e) {
@@ -208,12 +213,47 @@ export default function TallerTrabajoPage() {
             }
           : prev
       );
-      setAviso("Estado actualizado");
+      const pideDetalle = nuevoEstado === "REPARADO" || nuevoEstado === "ENTREGADO";
+      if (pideDetalle && !String(staff.reparacionRealizada ?? "").trim()) {
+        setReparacionInput("");
+        setPedirReparacion(true);
+        setAviso("Estado actualizado. Anotá qué reparación se le hizo.");
+      } else {
+        setAviso("Estado actualizado");
+      }
     } catch (e) {
       console.error(e);
       setAviso(e instanceof Error ? e.message : "No se pudo cambiar el estado");
     } finally {
       setGuardando("");
+    }
+  };
+
+  const guardarReparacion = async () => {
+    if (!staff || guardandoReparacion) return;
+    const reparacion = reparacionInput.trim();
+    if (!reparacion) {
+      setPedirReparacion(false);
+      setReparacionInput("");
+      return;
+    }
+    setGuardandoReparacion(true);
+    setAviso("");
+    try {
+      const fechaModificacion = new Date().toLocaleDateString("es-AR");
+      await updateDoc(doc(db, `negocios/${negocioID}/trabajos/${staff.firebaseId}`), {
+        reparacionRealizada: reparacion,
+        fechaModificacion,
+      });
+      setStaff({ ...staff, reparacionRealizada: reparacion });
+      setPedirReparacion(false);
+      setReparacionInput("");
+      setAviso("Reparación guardada");
+    } catch (e) {
+      console.error(e);
+      setAviso(e instanceof Error ? e.message : "No se pudo guardar la reparación");
+    } finally {
+      setGuardandoReparacion(false);
     }
   };
 
@@ -252,6 +292,12 @@ export default function TallerTrabajoPage() {
           <p className="text-[#2c3e50] font-semibold mt-2">{publico.cliente}</p>
           <p className="text-sm text-[#34495e]">{publico.modelo}</p>
           <p className="text-sm text-[#7f8c8d] mt-1">{publico.trabajo}</p>
+          {staff?.reparacionRealizada ? (
+            <p className="text-sm text-[#2c3e50] mt-3">
+              <span className="font-bold">Reparación realizada: </span>
+              {staff.reparacionRealizada}
+            </p>
+          ) : null}
           <div className="mt-4 inline-flex items-center rounded-full bg-[#2c3e50] text-white text-sm font-bold px-3 py-1">
             {etiquetaEstadoTrabajo(estadoActual)}
           </div>
@@ -289,6 +335,50 @@ export default function TallerTrabajoPage() {
 
         {esStaff && staff ? (
           <PanelRepuestosTaller negocioID={negocioID} trabajoId={staff.firebaseId} />
+        ) : null}
+
+        {pedirReparacion && staff ? (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+              <div className="rounded-t-2xl bg-[#2c3e50] px-4 py-3 text-white">
+                <h2 className="text-lg font-bold">Reparación realizada</h2>
+              </div>
+              <div className="space-y-3 p-4">
+                <p className="text-sm font-semibold text-[#2c3e50]">¿Qué reparación se le realizó?</p>
+                <p className="text-xs text-[#7f8c8d]">
+                  El estado ya quedó guardado. Describí el trabajo para verlo en el detalle, o cerrá sin escribir.
+                </p>
+                <textarea
+                  value={reparacionInput}
+                  onChange={(e) => setReparacionInput(e.target.value)}
+                  placeholder="Ej: Cambio de pantalla, cambio de batería, limpieza de conector..."
+                  className="min-h-[110px] w-full rounded-xl border border-[#bdc3c7] px-3 py-2 text-base text-[#2c3e50]"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={guardandoReparacion}
+                    onClick={() => {
+                      setPedirReparacion(false);
+                      setReparacionInput("");
+                    }}
+                    className="flex-1 rounded-xl bg-[#ecf0f1] py-3 font-bold text-[#2c3e50]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={guardandoReparacion}
+                    onClick={() => void guardarReparacion()}
+                    className="flex-1 rounded-xl bg-[#8e44ad] py-3 font-bold text-white disabled:opacity-60"
+                  >
+                    {guardandoReparacion ? "Guardando…" : "Guardar"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : null}
 
         {esStaff && staff ? null : (
