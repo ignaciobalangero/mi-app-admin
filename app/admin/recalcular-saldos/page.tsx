@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
 import Header from "@/app/Header";
+import { deudaVentaPorMoneda, nombresClienteEquivalentes } from "@/lib/actualizarSaldoCliente";
 
 interface ClienteSaldo {
   id: string;
@@ -65,6 +66,19 @@ export default function RecalcularSaldosPage() {
 
       console.log(`✅ Datos cargados: ${clientesSnap.size} clientes, ${trabajosSnap.size} trabajos, ${ventasSnap.size} ventas, ${pagosSnap.size} pagos`);
 
+      const fichas = clientesSnap.docs.map((clienteDoc) => ({
+        id: clienteDoc.id,
+        nombre: String(clienteDoc.data().nombre ?? ""),
+      }));
+      const ids = new Set(fichas.map((ficha) => ficha.id));
+
+      const clienteDe = (data: { cliente?: unknown; clienteId?: unknown }) => {
+        const id = String(data.clienteId ?? "").trim();
+        if (id && ids.has(id)) return id;
+        const nombre = String(data.cliente ?? "");
+        return fichas.find((ficha) => nombresClienteEquivalentes(ficha.nombre, nombre))?.id ?? "";
+      };
+
       const resultados: ClienteSaldo[] = [];
 
       // ⚡ Iterar sobre clientes y filtrar en memoria
@@ -81,7 +95,8 @@ export default function RecalcularSaldosPage() {
 
         trabajosSnap.docs.forEach(doc => {
           const trabajo = doc.data();
-          if (trabajo.cliente === nombreCliente && 
+          if (clienteDe(trabajo) !== clienteDoc.id) return;
+          if (
               (trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") &&
               trabajo.precio) {
             const precio = Number(trabajo.precio);
@@ -95,52 +110,18 @@ export default function RecalcularSaldosPage() {
           }
         });
 
-       // ⚡ Filtrar ventas en memoria - ⭐ CON LOGS
-// ⚡ Filtrar ventas en memoria - ⭐ SIEMPRE CALCULAR DESDE PRODUCTOS
-let deudaVentasARS = 0;
-let deudaVentasUSD = 0;
+        let deudaVentasARS = 0;
+        let deudaVentasUSD = 0;
 
-ventasSnap.docs.forEach(doc => {
-  const venta = doc.data();
-  if (venta.cliente === nombreCliente) {
-    console.log(`🛍️ Venta: tipo=${venta.tipo}, fecha=${venta.fecha}`);
-    
-    // ⭐ SIEMPRE calcular desde productos si existen
-    if (venta.productos && Array.isArray(venta.productos) && venta.productos.length > 0) {
-      console.log(`  → Calculando desde productos (${venta.productos.length})`);
-      
-      venta.productos.forEach((producto: any) => {
-        const precio = Number(producto.precioUnitario || producto.precioVenta || 0);
-        const cantidad = producto.cantidad || 1;
-        const monedaProd = producto.moneda || "ARS";
-        
-        console.log(`    - ${producto.modelo}: ${precio} ${monedaProd} x${cantidad}`);
-        
-        if (monedaProd === "USD") {
-          deudaVentasUSD += precio * cantidad;
-        } else {
-          deudaVentasARS += precio * cantidad;
-        }
-      });
-    }
-    // Si no tiene productos, usar total (ventas muy viejas)
-    else {
-      const totalVenta = venta.total || 0;
-      const monedaVenta = venta.moneda || "ARS";
-      console.log(`  → Sin productos, usando total: ${totalVenta} ${monedaVenta}`);
-      
-      if (totalVenta > 0) {
-        if (monedaVenta === "USD") {
-          deudaVentasUSD += totalVenta;
-        } else {
-          deudaVentasARS += totalVenta;
-        }
-      }
-    }
-  }
-});
+        ventasSnap.docs.forEach((ventaDoc) => {
+          const venta = ventaDoc.data();
+          if (clienteDe(venta) !== clienteDoc.id) return;
+          const deuda = deudaVentaPorMoneda(venta);
+          deudaVentasARS += deuda.totalARS;
+          deudaVentasUSD += deuda.totalUSD;
+        });
 
-console.log(`✅ ${nombreCliente}: Total ventas ARS=${deudaVentasARS}, USD=${deudaVentasUSD}`);
+        console.log(`✅ ${nombreCliente}: Total ventas ARS=${deudaVentasARS}, USD=${deudaVentasUSD}`);
 
         // ⚡ Filtrar pagos en memoria
         // Misma regla que cuenta corriente / anular pagos:
@@ -150,7 +131,7 @@ console.log(`✅ ${nombreCliente}: Total ventas ARS=${deudaVentasARS}, USD=${deu
 
         pagosSnap.docs.forEach((docSnap) => {
           const pago = docSnap.data();
-          if (pago.cliente !== nombreCliente) return;
+          if (clienteDe(pago) !== clienteDoc.id) return;
 
           const det = pago.detallesPago as
             | { tipo?: string; montoUSDEquivalente?: number }

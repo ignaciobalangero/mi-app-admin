@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import { useRouter } from "next/navigation";
 import Header from "@/app/Header";
+import { deudaVentaPorMoneda, nombresClienteEquivalentes } from "@/lib/actualizarSaldoCliente";
 
 interface ClienteSaldo {
   id: string;
@@ -54,7 +55,18 @@ export default function RecalcularSaldosPage() {
     try {
       // 1. Obtener todos los clientes
       const clientesSnap = await getDocs(collection(db, `negocios/${rol.negocioID}/clientes`));
-      
+      const fichas = clientesSnap.docs.map((clienteDoc) => ({
+        id: clienteDoc.id,
+        nombre: String(clienteDoc.data().nombre ?? ""),
+      }));
+      const ids = new Set(fichas.map((ficha) => ficha.id));
+      const clienteDe = (data: { cliente?: unknown; clienteId?: unknown }) => {
+        const id = String(data.clienteId ?? "").trim();
+        if (id && ids.has(id)) return id;
+        const nombre = String(data.cliente ?? "");
+        return fichas.find((ficha) => nombresClienteEquivalentes(ficha.nombre, nombre))?.id ?? "";
+      };
+
       const resultados: ClienteSaldo[] = [];
 
       for (const clienteDoc of clientesSnap.docs) {
@@ -72,7 +84,7 @@ export default function RecalcularSaldosPage() {
 
         trabajosSnap.docs.forEach(doc => {
           const trabajo = doc.data();
-          if (trabajo.cliente === nombreCliente && 
+          if (clienteDe(trabajo) === clienteDoc.id &&
               (trabajo.estado === "ENTREGADO" || trabajo.estado === "PAGADO") &&
               trabajo.precio) {
             const precio = Number(trabajo.precio);
@@ -93,10 +105,10 @@ export default function RecalcularSaldosPage() {
 
         ventasSnap.docs.forEach(doc => {
           const venta = doc.data();
-          if (venta.cliente === nombreCliente) {
-            deudaVentasARS += venta.totalARS || 0;
-            deudaVentasUSD += venta.totalUSD || 0;
-          }
+          if (clienteDe(venta) !== clienteDoc.id) return;
+          const deuda = deudaVentaPorMoneda(venta);
+          deudaVentasARS += deuda.totalARS;
+          deudaVentasUSD += deuda.totalUSD;
         });
 
         // 4. Calcular pagos
@@ -106,7 +118,7 @@ export default function RecalcularSaldosPage() {
 
         pagosSnap.docs.forEach(doc => {
           const pago = doc.data();
-          if (pago.cliente === nombreCliente) {
+          if (clienteDe(pago) === clienteDoc.id) {
             pagosARS += pago.monto || 0;
             pagosUSD += pago.montoUSD || 0;
           }
