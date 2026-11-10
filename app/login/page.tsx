@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db } from "../../lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -41,10 +42,16 @@ function mensajeErrorAuth(code: string | undefined): string {
 
 export default function Login() {
   const router = useRouter();
+  const [user, authLoading] = useAuthState(auth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    router.replace(destinoTallerTrasLogin() || "/");
+  }, [authLoading, user, router]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -94,6 +101,14 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  if (authLoading || user) {
+    return (
+      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+        <p className="text-[#2c3e50] font-semibold">Entrando...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] via-[#ecf0f1] to-[#bdc3c7] flex flex-col items-center justify-center px-4 relative overflow-hidden">
