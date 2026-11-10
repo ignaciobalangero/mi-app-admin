@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import TablaProveedores from "./TablaProveedores";
 import CampoAdjuntos, { normalizarAdjuntos, type AdjuntoProveedor } from "./CampoAdjuntos";
+import ModalAdjuntarPago from "./ModalAdjuntarPago";
 import { formatearFechaCaja } from "@/lib/caja/fechaCaja";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import { montosPagoEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
@@ -77,6 +78,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
     usarDolarManual && dolarManual != null && dolarManual > 0 ? dolarManual : null;
   const [compras, setCompras] = useState<Compra[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
+  const [pagoParaAdjuntos, setPagoParaAdjuntos] = useState<Pago | null>(null);
   const [vistaActual, setVistaActual] = useState<"resumen" | "compras" | "pagos">("resumen");
   const [mostrarFormCompra, setMostrarFormCompra] = useState(false);
   const [mostrarFormPago, setMostrarFormPago] = useState(false);
@@ -610,10 +612,23 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
               <div>
                 <h4 className="font-bold text-gray-900 mb-4 text-lg">Últimos Pagos</h4>
                 {pagos.slice(0, 3).map((pago) => (
-                  <div key={pago.id} className="flex justify-between items-center p-4 bg-gray-100 rounded-lg mb-3 border-2 border-gray-300 shadow-md">
+                  <div key={pago.id} className="flex justify-between items-center gap-3 p-4 bg-gray-100 rounded-lg mb-3 border-2 border-gray-300 shadow-md">
                     <div>
                       <p className="font-bold text-gray-900">{pago.forma}</p>
                       <p className="text-sm text-gray-700 font-medium">{pago.fecha} • {pago.referencia}</p>
+                      {pago.adjuntos && pago.adjuntos.length > 0 ? (
+                        <p className="mt-1 text-xs font-semibold text-[#6c3483]">
+                          {pago.adjuntos.length} comprobante{pago.adjuntos.length === 1 ? "" : "s"}
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setPagoParaAdjuntos(pago)}
+                          className="mt-2 rounded-lg bg-[#8e44ad] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#7d3c98]"
+                        >
+                          Anexar comprobante
+                        </button>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="font-black text-green-700 text-lg">
@@ -621,6 +636,15 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                       </p>
                       {pago.montoARSOriginal ? (
                         <p className="text-xs text-gray-600">desde ${pago.montoARSOriginal.toLocaleString("es-AR")} ARS</p>
+                      ) : null}
+                      {pago.adjuntos && pago.adjuntos.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setPagoParaAdjuntos(pago)}
+                          className="mt-2 text-xs font-bold text-[#6c3483]"
+                        >
+                          Sumar otro
+                        </button>
                       ) : null}
                     </div>
                   </div>
@@ -1117,6 +1141,22 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
               </div>
             </div>
           </div>
+        )}
+
+        {pagoParaAdjuntos && (
+          <ModalAdjuntarPago
+            negocioID={negocioID}
+            proveedorId={proveedor.id}
+            pago={pagoParaAdjuntos}
+            onClose={() => setPagoParaAdjuntos(null)}
+            onGuardado={(adjuntos) => {
+              setPagoParaAdjuntos((actual) => (actual ? { ...actual, adjuntos } : actual));
+              setPagos((lista) =>
+                lista.map((pago) => (pago.id === pagoParaAdjuntos.id ? { ...pago, adjuntos } : pago))
+              );
+            }}
+            onError={(texto) => mostrarMensaje(`❌ ${texto}`)}
+          />
         )}
       </div>
     </div>

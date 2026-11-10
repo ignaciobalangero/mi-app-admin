@@ -8,6 +8,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import CampoAdjuntos, { ListaAdjuntos, type AdjuntoProveedor } from "./CampoAdjuntos";
+import ModalAdjuntarPago from "./ModalAdjuntarPago";
 
 // Interfaces
 interface ProductoCompra {
@@ -462,8 +463,17 @@ export default function TablaProveedores({
                       </td>
                       <td className="p-4 font-semibold text-gray-800 bg-white border-r border-gray-300">
                         <div>{pago.notas || "-"}</div>
-                        <div className="mt-2">
+                        <div className="mt-2 space-y-2">
                           <ListaAdjuntos adjuntos={pago.adjuntos} />
+                          {!(pago.adjuntos && pago.adjuntos.length > 0) ? (
+                            <button
+                              type="button"
+                              onClick={() => setPagoParaAdjuntos(pago)}
+                              className="rounded-lg bg-[#8e44ad] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#7d3c98]"
+                            >
+                              Anexar comprobante
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                       <td className="p-4 bg-white">
@@ -471,9 +481,9 @@ export default function TablaProveedores({
                           <button
                             onClick={() => setPagoParaAdjuntos(pago)}
                             className="bg-[#8e44ad] hover:bg-[#7d3c98] text-white px-2 py-1 rounded text-xs font-medium"
-                            title="Adjuntar comprobante"
+                            title="Anexar comprobante a este pago"
                           >
-                            📎 Adjuntar
+                            📎 {pago.adjuntos && pago.adjuntos.length > 0 ? "Sumar" : "Anexar"}
                           </button>
                           <button
                             onClick={() => editarPago(pago)}
@@ -902,41 +912,17 @@ export default function TablaProveedores({
       )}
 
       {pagoParaAdjuntos && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="mb-1 text-lg font-bold text-gray-900">Adjuntar al pago</h3>
-            <p className="mb-4 text-sm text-gray-600">
-              {pagoParaAdjuntos.fecha} · {pagoParaAdjuntos.forma}. Se guarda al pegar o subir.
-            </p>
-            <CampoAdjuntos
-              negocioID={negocioID}
-              proveedorId={proveedor.id}
-              carpeta="pagos"
-              adjuntos={pagoParaAdjuntos.adjuntos || []}
-              onChange={(adjuntos) => {
-                const pagoId = pagoParaAdjuntos.id;
-                setPagoParaAdjuntos({ ...pagoParaAdjuntos, adjuntos });
-                void updateDoc(doc(db, `negocios/${negocioID}/pagosProveedores/${pagoId}`), { adjuntos })
-                  .then(() => onRecargar())
-                  .catch((error) => {
-                    console.error(error);
-                    onMensaje("❌ No se pudieron guardar los archivos");
-                  });
-              }}
-              titulo="📎 Comprobantes"
-              ayuda="Pegá la captura de la transferencia o subí el PDF."
-            />
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setPagoParaAdjuntos(null)}
-                className="rounded-lg bg-gray-700 px-4 py-2 font-semibold text-white"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
+        <ModalAdjuntarPago
+          negocioID={negocioID}
+          proveedorId={proveedor.id}
+          pago={pagoParaAdjuntos}
+          onClose={() => setPagoParaAdjuntos(null)}
+          onGuardado={(adjuntos) => {
+            setPagoParaAdjuntos((actual) => (actual ? { ...actual, adjuntos } : actual));
+            onRecargar();
+          }}
+          onError={(mensaje) => onMensaje(`❌ ${mensaje}`)}
+        />
       )}
     </>
   );
