@@ -28,6 +28,9 @@ const COLORES_CONOCIDOS = new Set([
   "natural",
   "titane",
   "cosmic",
+  "ultramarine",
+  "glacier",
+  "burgundy",
   "negro",
   "blanco",
   "azul",
@@ -41,7 +44,8 @@ const COLORES_CONOCIDOS = new Set([
   "naranja",
 ]);
 
-const INDICADOR_PRECIO = /(?:\$|u\$|USD|U\$S)/i;
+const INDICADOR_PRECIO = /(?:US\$|U\$S|USD|u\$|\$)/i;
+const LINEA_SOLO_PRECIO = /^(?:US\$|U\$S|USD|u\$|\$)\s*[\d.,]+\s*$/i;
 
 // Obtiene la base del producto (sin precio ni color final) para mostrar.
 // (Misma lógica base que BuscadorComparativo, para mantener consistencia.)
@@ -78,10 +82,11 @@ const obtenerBaseProducto = (linea: string): { base: string; color: string | nul
 // Extrae el precio de una línea (misma lógica que BuscadorComparativo).
 const extraerPrecio = (linea: string): number | null => {
   const patrones = [
+    /US\$\s*(\d+[.,]?\d*)/i, // US$ 695 o US$ 1.310
     /u\$\s*(\d+)/i, // u$1380
-    /\$\s*(\d+[.,]?\d*)/, // $350000 o $350.000
-    /USD\s*(\d+[.,]?\d*)/i, // USD 500 (antes que números sueltos tipo 128 GB)
     /U\$S\s*(\d+[.,]?\d*)/i, // U$S 500
+    /USD\s*(\d+[.,]?\d*)/i, // USD 500 (antes que números sueltos tipo 128 GB)
+    /\$\s*(\d+[.,]?\d*)/, // $350000 o $350.000
     /(\d+[.,]\d{3}[.,]?\d*)/, // 350.000 o 350,000
     /(\d{3,})/, // Cualquier número de 3+ dígitos
   ];
@@ -193,6 +198,10 @@ const expandirVariantes = (lineas: string[]): string[] => {
       } else {
         lineasExpandidas.push(lineaTrim);
       }
+    } else if (LINEA_SOLO_PRECIO.test(lineaTrim) && tituloActual) {
+      // Lista en tres renglones: modelo, stock ("9 disponibles" / "Última unidad") y "US$ 695".
+      lineasExpandidas.push(`${tituloActual} ${lineaTrim}`);
+      tituloActual = "";
     } else if (INDICADOR_PRECIO.test(lineaTrim)) {
       lineasExpandidas.push(lineaTrim);
       tituloActual = "";
@@ -220,10 +229,11 @@ const reemplazarPrecioEnLinea = (linea: string, nuevoPrecio: number): string => 
 
   // Reemplaza el primer match de precio en prioridad (misma intención que extraerPrecio).
   const patrones: Array<{ regex: RegExp; tipo: "prefix" | "valor" }> = [
+    { regex: /(US\$\s*)(\d+[.,]?\d*)/i, tipo: "prefix" },
     { regex: /(u\$\s*)(\d+[.,]?\d*)/i, tipo: "prefix" },
-    { regex: /(\$\s*)(\d+[.,]?\d*)/, tipo: "prefix" },
-    { regex: /(USD\s*)(\d+[.,]?\d*)/i, tipo: "prefix" },
     { regex: /(U\$S\s*)(\d+[.,]?\d*)/i, tipo: "prefix" },
+    { regex: /(USD\s*)(\d+[.,]?\d*)/i, tipo: "prefix" },
+    { regex: /(\$\s*)(\d+[.,]?\d*)/, tipo: "prefix" },
     { regex: /(\d{3,})/, tipo: "valor" },
   ];
 
@@ -246,10 +256,11 @@ const CLAVE_TITULO = "formador-precios-titulo";
 /** Deja el precio en negrita de WhatsApp (*$350.000*). */
 const resaltarPrecioWhatsApp = (linea: string): string => {
   const patrones = [
+    /(US\$\s*\d[\d.]*)/i,
     /(u\$\s*\d[\d.]*)/i,
-    /(\$\s*\d[\d.]*)/,
-    /(USD\s*\d[\d.]*)/i,
     /(U\$S\s*\d[\d.]*)/i,
+    /(USD\s*\d[\d.]*)/i,
+    /(\$\s*\d[\d.]*)/,
   ];
   for (const regex of patrones) {
     if (!regex.test(linea)) continue;
@@ -431,7 +442,7 @@ export default function FormadorPrecios() {
         <textarea
           value={listaTexto}
           onChange={(e) => setListaTexto(e.target.value)}
-          placeholder="Pegá la lista completa (Excel/WhatsApp/texto plano...)\nEjemplo:\n iPhone 11 64GB Negro - $350.000\n iPhone 12 128GB Blanco - $480.000\n Samsung S21 256GB Azul - $420.000"
+          placeholder={"Pegá la lista completa (Excel, WhatsApp o el listado del proveedor).\nEjemplo en tres renglones:\niPhone 16 128 GB Black\nÚltima unidad\nUS$ 795"}
           className="w-full h-80 px-4 py-3 border-2 border-[#bdc3c7] rounded-lg bg-white focus:ring-2 focus:ring-[#f39c12] focus:border-[#f39c12] transition-all text-[#2c3e50] font-mono text-sm resize-none"
         />
 
