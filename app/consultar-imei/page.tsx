@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Header from "../Header";
 import { useRol } from "@/lib/useRol";
 import ConsultaImeiIfree from "@/app/ventas/stock-telefonos/components/ConsultaImeiIfree";
+import BuscarImeiNegocio from "./BuscarImeiNegocio";
 
 export default function ConsultarImeiPage() {
   const { rol } = useRol();
   const negocioID = rol?.negocioID || "";
+  const [imei, setImei] = useState("");
 
   return (
     <>
@@ -23,7 +26,8 @@ export default function ConsultarImeiPage() {
             </p>
             {negocioID ? (
               <div className="mt-6">
-                <ConsultaImeiIfree negocioID={negocioID} variante="libre" />
+                <ConsultaImeiIfree negocioID={negocioID} variante="libre" onImeiChange={setImei} />
+                <BuscarImeiNegocio negocioID={negocioID} imei={imei} />
               </div>
             ) : (
               <p className="mt-6 text-sm text-[#7f8c8d]">Cargando el negocio…</p>

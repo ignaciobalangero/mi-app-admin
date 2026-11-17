@@ -22,6 +22,8 @@ type Props = {
   imei?: string;
   chequeo?: ChequeoImei | null;
   onChequeo?: (chequeo: ChequeoImei) => void;
+  /** Avisa el IMEI tipeado en la consulta suelta, para buscarlo también en el negocio. */
+  onImeiChange?: (imei: string) => void;
 };
 
 const ORDEN: ConsultaImeiId[] = ["blacklist", "fmi", "icloud"];
@@ -59,6 +61,7 @@ export default function ConsultaImeiIfree({
   imei = "",
   chequeo = null,
   onChequeo,
+  onImeiChange,
 }: Props) {
   const [user] = useAuthState(auth);
   const [plan, setPlan] = useState<PlanControlImei>("off");
@@ -150,7 +153,9 @@ export default function ConsultaImeiIfree({
             autoComplete="off"
             value={imeiVisible(imeiLibre)}
             onChange={(e) => {
-              setImeiLibre(digitos(e.target.value));
+              const siguiente = digitos(e.target.value);
+              setImeiLibre(siguiente);
+              onImeiChange?.(siguiente);
               setAviso("");
             }}
             placeholder="000000 000000 000"
