@@ -1,3 +1,6 @@
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+
 export type ItemResumenCosto = {
   marca: string;
   modelo: string;
@@ -86,168 +89,100 @@ export function armarResumenCosto(items: ItemResumenCosto[]): ResumenCostoArmado
   };
 }
 
-const ANCHO = 780;
-const PAD = 28;
-const FILA = 34;
-const MARCA = 36;
-const CABECERA = 108;
-const PIE = 118;
-const MAX_ALTO = 7500;
+type Celda = string | { content: string; colSpan?: number; styles?: Record<string, unknown> };
 
-function recortar(ctx: CanvasRenderingContext2D, texto: string, ancho: number): string {
-  if (ctx.measureText(texto).width <= ancho) return texto;
-  let corte = texto;
-  while (corte.length > 1 && ctx.measureText(`${corte}…`).width > ancho) {
-    corte = corte.slice(0, -1);
-  }
-  return `${corte}…`;
+function textoTotales(ars: number, usd: number): string {
+  const partes: string[] = [];
+  if (ars > 0 || usd === 0) partes.push(dineroCosto("ARS", ars));
+  if (usd > 0) partes.push(dineroCosto("USD", usd));
+  return partes.join(" · ");
 }
 
-function altoDe(resumen: ResumenCostoArmado): number {
-  const filas = resumen.grupos.reduce((n, g) => n + g.filas.length, 0);
-  return CABECERA + resumen.grupos.length * MARCA + filas * FILA + PIE;
-}
-
-function dibujar(
-  resumen: ResumenCostoArmado,
-  opts: { fecha: string; parte?: string; cierre?: ResumenCostoArmado }
-): HTMLCanvasElement {
-  const alto = Math.max(altoDe(resumen), CABECERA + PIE);
-  const canvas = document.createElement("canvas");
-  const escala = 2;
-  canvas.width = ANCHO * escala;
-  canvas.height = alto * escala;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("No se pudo armar la imagen");
-  ctx.scale(escala, escala);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, ANCHO, alto);
-
-  ctx.fillStyle = "#0e6655";
-  ctx.fillRect(0, 0, ANCHO, 78);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "700 22px Arial, Helvetica, sans-serif";
-  ctx.fillText("Stock de repuestos", PAD, 34);
-  ctx.font = "14px Arial, Helvetica, sans-serif";
-  ctx.fillStyle = "#d5f5e3";
-  const sub = opts.parte ? `${opts.fecha} · ${opts.parte}` : opts.fecha;
-  ctx.fillText(sub, PAD, 58);
-
-  let y = CABECERA;
-  ctx.font = "700 12px Arial, Helvetica, sans-serif";
-  ctx.fillStyle = "#7f8c8d";
-  ctx.fillText("MODELO", PAD, y - 10);
-  ctx.textAlign = "right";
-  ctx.fillText("CANT", 470, y - 10);
-  ctx.fillText("COSTO", 610, y - 10);
-  ctx.fillText("TOTAL", ANCHO - PAD, y - 10);
-  ctx.textAlign = "left";
-
-  for (const grupo of resumen.grupos) {
-    ctx.fillStyle = "#e8f8f5";
-    ctx.fillRect(PAD, y, ANCHO - PAD * 2, MARCA - 6);
-    ctx.fillStyle = "#0e6655";
-    ctx.font = "700 15px Arial, Helvetica, sans-serif";
-    ctx.fillText(grupo.marca, PAD + 10, y + 20);
-    y += MARCA;
-
-    grupo.filas.forEach((fila, i) => {
-      if (i % 2 === 0) {
-        ctx.fillStyle = "#f8f9fa";
-        ctx.fillRect(PAD, y - 4, ANCHO - PAD * 2, FILA);
-      }
-      ctx.fillStyle = "#2c3e50";
-      ctx.font = "14px Arial, Helvetica, sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText(recortar(ctx, fila.modelo, 360), PAD + 10, y + 16);
-      ctx.textAlign = "right";
-      ctx.fillText(String(fila.cantidad), 470, y + 16);
-      ctx.fillText(dineroCosto(fila.moneda, fila.costo), 610, y + 16);
-      ctx.font = "700 14px Arial, Helvetica, sans-serif";
-      ctx.fillText(dineroCosto(fila.moneda, fila.total), ANCHO - PAD, y + 16);
-      ctx.textAlign = "left";
-      y += FILA;
-    });
-  }
-
-  const pieY = alto - PIE + 16;
-  ctx.fillStyle = "#0e6655";
-  ctx.fillRect(0, pieY, ANCHO, PIE - 16);
-  const cierre = opts.cierre || resumen;
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "700 16px Arial, Helvetica, sans-serif";
-  ctx.fillText(opts.parte && opts.cierre ? "Total general" : "Resumen", PAD, pieY + 32);
-  ctx.font = "14px Arial, Helvetica, sans-serif";
-  ctx.fillText(
-    `${cierre.modelos} modelos · ${cierre.unidades} unidades`,
-    PAD,
-    pieY + 56
+/** PDF en páginas A4. El texto sigue nítido aunque haya muchos modelos. */
+export function archivoResumenCostoPdf(resumen: ResumenCostoArmado, fecha: string): File {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  doc.setFontSize(16);
+  doc.text("Stock de repuestos", 14, 16);
+  doc.setFontSize(9);
+  doc.setTextColor(90);
+  doc.text(
+    `${fecha} · ${resumen.modelos} modelos · ${resumen.unidades} unidades`,
+    14,
+    22
   );
-  ctx.textAlign = "right";
-  ctx.font = "700 18px Arial, Helvetica, sans-serif";
-  const totales: string[] = [];
-  if (cierre.totalARS > 0 || cierre.totalUSD === 0) totales.push(dineroCosto("ARS", cierre.totalARS));
-  if (cierre.totalUSD > 0) totales.push(dineroCosto("USD", cierre.totalUSD));
-  ctx.fillText(totales.join("   ·   "), ANCHO - PAD, pieY + 46);
-  ctx.textAlign = "left";
+  doc.setTextColor(0);
 
-  return canvas;
-}
-
-function partir(resumen: ResumenCostoArmado): ResumenCostoArmado[] {
-  if (altoDe(resumen) <= MAX_ALTO) return [resumen];
-  const partes: ResumenCostoArmado[] = [];
-  let actual: GrupoResumenCosto[] = [];
-  let alto = CABECERA + PIE;
-
-  const cerrar = () => {
-    if (actual.length === 0) return;
-    const parcial = armarResumenCosto(
-      actual.flatMap((g) =>
-        g.filas.map((f) => ({
-          marca: g.marca,
-          modelo: f.modelo,
-          cantidad: f.cantidad,
-          moneda: f.moneda,
-          costo: f.costo,
-        }))
-      )
-    );
-    partes.push(parcial);
-    actual = [];
-    alto = CABECERA + PIE;
-  };
-
+  const body: Celda[][] = [];
   for (const grupo of resumen.grupos) {
-    const altoGrupo = MARCA + grupo.filas.length * FILA;
-    if (actual.length > 0 && alto + altoGrupo > MAX_ALTO) cerrar();
-    actual.push(grupo);
-    alto += altoGrupo;
+    body.push([
+      {
+        content: grupo.marca,
+        colSpan: 4,
+        styles: {
+          fillColor: [14, 102, 85],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+      },
+    ]);
+    for (const fila of grupo.filas) {
+      body.push([
+        fila.modelo,
+        String(fila.cantidad),
+        dineroCosto(fila.moneda, fila.costo),
+        dineroCosto(fila.moneda, fila.total),
+      ]);
+    }
+    body.push([
+      {
+        content: `Subtotal ${grupo.marca}`,
+        colSpan: 3,
+        styles: { fontStyle: "bold", fillColor: [232, 248, 245] },
+      },
+      {
+        content: textoTotales(grupo.totalARS, grupo.totalUSD),
+        styles: { fontStyle: "bold", halign: "right", fillColor: [232, 248, 245] },
+      },
+    ]);
   }
-  cerrar();
-  return partes.length ? partes : [resumen];
-}
+  body.push([
+    {
+      content: "Total costo",
+      colSpan: 3,
+      styles: {
+        fontStyle: "bold",
+        fillColor: [14, 102, 85],
+        textColor: [255, 255, 255],
+      },
+    },
+    {
+      content: textoTotales(resumen.totalARS, resumen.totalUSD),
+      styles: {
+        fontStyle: "bold",
+        halign: "right",
+        fillColor: [14, 102, 85],
+        textColor: [255, 255, 255],
+      },
+    },
+  ]);
 
-export async function imagenesResumenCosto(
-  resumen: ResumenCostoArmado,
-  fecha: string
-): Promise<File[]> {
-  const partes = partir(resumen);
-  const files: File[] = [];
-  for (let i = 0; i < partes.length; i++) {
-    const parte = partes.length > 1 ? `parte ${i + 1} de ${partes.length}` : undefined;
-    const canvas = dibujar(partes[i], {
-      fecha,
-      parte,
-      cierre: i === partes.length - 1 ? resumen : undefined,
-    });
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen"))), "image/png");
-    });
-    const nombre =
-      partes.length > 1 ? `stock-repuestos-costos-${i + 1}.png` : "stock-repuestos-costos.png";
-    files.push(new File([blob], nombre, { type: "image/png" }));
-  }
-  return files;
+  autoTable(doc, {
+    startY: 28,
+    head: [["Modelo", "Cant.", "Costo", "Total"]],
+    body,
+    theme: "grid",
+    margin: { left: 12, right: 12 },
+    styles: { fontSize: 8, cellPadding: 1.6, textColor: [30, 30, 30], overflow: "linebreak" },
+    headStyles: { fillColor: [44, 62, 80], textColor: 255, fontStyle: "bold" },
+    columnStyles: {
+      0: { cellWidth: 100 },
+      1: { halign: "right", cellWidth: 18 },
+      2: { halign: "right", cellWidth: 32 },
+      3: { halign: "right", cellWidth: 36 },
+    },
+    showHead: "everyPage",
+  });
+
+  const blob = doc.output("blob");
+  return new File([blob], "stock-repuestos-costos.pdf", { type: "application/pdf" });
 }

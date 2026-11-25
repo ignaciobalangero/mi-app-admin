@@ -8,7 +8,7 @@ import { fusionarValoresUnicos } from "@/lib/categoriaRepuesto";
 import { normalizarMoneda } from "@/lib/monedaRepuesto";
 import {
   armarResumenCosto,
-  imagenesResumenCosto,
+  archivoResumenCostoPdf,
   type ItemResumenCosto,
 } from "@/lib/repuestos/resumenCostosImagen";
 
@@ -77,6 +77,25 @@ export default function ModalResumenCostosWhatsapp({ abierto, negocioID, onCerra
     );
   };
 
+  const armarPdf = () => {
+    const fecha = new Date().toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+    return archivoResumenCostoPdf(resumen, fecha);
+  };
+
+  const descargar = () => {
+    if (resumen.modelos === 0) {
+      alert("No hay modelos con stock en las marcas elegidas.");
+      return;
+    }
+    const file = armarPdf();
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  };
+
   const enviar = async () => {
     if (resumen.modelos === 0) {
       alert("No hay modelos con stock en las marcas elegidas.");
@@ -84,38 +103,31 @@ export default function ModalResumenCostosWhatsapp({ abierto, negocioID, onCerra
     }
     setEnviando(true);
     try {
-      const fecha = new Date().toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
-      const files = await imagenesResumenCosto(resumen, fecha);
-      const mensaje =
-        files.length > 1
-          ? "Te mando el stock de repuestos con costos. Son varias imágenes: adjuntalas en este chat."
-          : "Te mando el stock de repuestos con costos. Adjuntá la imagen en este chat.";
-
-      const shareData: ShareData = { files, title: "Stock de repuestos" };
+      const file = armarPdf();
+      const mensaje = "Te mando el stock de repuestos con costos. Adjuntá el PDF en este chat.";
+      const shareData: ShareData = { files: [file], title: "Stock de repuestos" };
       const puede =
         typeof navigator.canShare === "function" &&
         typeof navigator.share === "function" &&
-        navigator.canShare({ files });
+        navigator.canShare({ files: [file] });
       if (puede) {
         await navigator.share(shareData);
         onCerrar();
         return;
       }
 
-      for (const file of files) {
-        const url = URL.createObjectURL(file);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = file.name;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1500);
-      }
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
       window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener,noreferrer");
       onCerrar();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return;
       console.error(e);
-      alert("No se pudo armar la imagen para WhatsApp.");
+      alert("No se pudo armar el PDF.");
     } finally {
       setEnviando(false);
     }
@@ -128,8 +140,8 @@ export default function ModalResumenCostosWhatsapp({ abierto, negocioID, onCerra
       <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-[#ecf0f1] px-4 py-3">
           <div>
-            <h3 className="font-bold text-[#2c3e50]">WhatsApp · costos</h3>
-            <p className="text-xs text-[#7f8c8d]">Imagen con modelos, cantidad y costo</p>
+            <h3 className="font-bold text-[#2c3e50]">PDF · costos</h3>
+            <p className="text-xs text-[#7f8c8d]">Modelos, cantidad y costo, en varias páginas si hace falta</p>
           </div>
           <button type="button" onClick={onCerrar} className="text-sm font-semibold text-[#7f8c8d]">
             Cerrar
@@ -179,14 +191,22 @@ export default function ModalResumenCostosWhatsapp({ abierto, negocioID, onCerra
         <div className="border-t border-[#ecf0f1] p-4">
           <button
             type="button"
+            onClick={descargar}
+            disabled={cargando || enviando || resumen.modelos === 0}
+            className="mb-2 w-full rounded-xl border-2 border-[#0e6655] bg-[#e8f8f5] py-3 text-sm font-bold text-[#0e6655] hover:bg-[#d5f5e3] disabled:opacity-50"
+          >
+            Descargar PDF
+          </button>
+          <button
+            type="button"
             onClick={() => void enviar()}
             disabled={cargando || enviando || resumen.modelos === 0}
             className="w-full rounded-xl bg-[#25D366] py-3 text-sm font-bold text-white shadow hover:bg-[#1ebe5d] disabled:opacity-50"
           >
-            {enviando ? "Armando imagen…" : "Enviar por WhatsApp"}
+            {enviando ? "Armando PDF…" : "Enviar PDF por WhatsApp"}
           </button>
           <p className="mt-2 text-center text-[11px] text-[#7f8c8d]">
-            En el celular se comparte la imagen. En la compu se descarga y se abre WhatsApp para adjuntarla.
+            El PDF no pierde calidad por más modelos que haya. En el celular se comparte el archivo; en la compu se descarga para adjuntarlo.
           </p>
         </div>
       </div>

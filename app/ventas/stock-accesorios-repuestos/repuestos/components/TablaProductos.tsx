@@ -1646,7 +1646,7 @@ export default function TablaProductos({
                 onClick={() => setModalCostosWhatsapp(true)}
                 className="rounded-lg bg-[#25D366] px-3 py-2 text-xs font-bold text-white shadow hover:bg-[#1ebe5d] sm:text-sm"
               >
-                WhatsApp costos
+                PDF costos
               </button>
               <button
                 type="button"
