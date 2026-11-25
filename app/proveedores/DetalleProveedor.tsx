@@ -18,6 +18,16 @@ import ModalAdjuntarPago from "./ModalAdjuntarPago";
 import { formatearFechaCaja } from "@/lib/caja/fechaCaja";
 import useCotizacion from "@/lib/hooks/useCotizacion";
 import { montosPagoEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
+import {
+  capitalAccesoriosPorProveedor,
+  claveProveedor,
+  type CapitalAccesorios,
+} from "@/lib/proveedores/capitalAccesorios";
+import { ORIGEN_DEUDA_CONSIGNACION } from "@/lib/proveedores/deudaConsignacion";
+import {
+  resumenConsignacionPdf,
+  type LineaResumenConsignacion,
+} from "@/lib/proveedores/resumenConsignacionPdf";
 
 interface Proveedor {
   id: string;
@@ -50,6 +60,8 @@ interface Compra {
   estado: string;
   notas: string;
   fechaCreacion: string;
+  origen?: string;
+  cantidadUnidades?: number;
   adjuntos?: AdjuntoProveedor[];
 }
 
@@ -78,6 +90,12 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
     usarDolarManual && dolarManual != null && dolarManual > 0 ? dolarManual : null;
   const [compras, setCompras] = useState<Compra[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
+  const [capitalAccesorios, setCapitalAccesorios] = useState<CapitalAccesorios>({
+    ars: 0,
+    usd: 0,
+    unidades: 0,
+    lineas: [],
+  });
   const [pagoParaAdjuntos, setPagoParaAdjuntos] = useState<Pago | null>(null);
   const [vistaActual, setVistaActual] = useState<"resumen" | "compras" | "pagos">("resumen");
   const [mostrarFormCompra, setMostrarFormCompra] = useState(false);
@@ -175,6 +193,7 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
   useEffect(() => {
     cargarCompras();
     cargarPagos();
+    cargarCapitalAccesorios();
   }, []);
 
   useEffect(() => {
@@ -183,6 +202,23 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
     }
   }, [mostrarFormCompra]);
 
+  const cargarCapitalAccesorios = async () => {
+    try {
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`));
+      const grupos = capitalAccesoriosPorProveedor(
+        snap.docs.map((item) => ({ id: item.id, ...item.data() }))
+      );
+      setCapitalAccesorios(grupos.get(claveProveedor(proveedor.nombre)) || {
+        ars: 0,
+        usd: 0,
+        unidades: 0,
+        lineas: [],
+      });
+    } catch (error) {
+      console.error("Error cargando capital de accesorios:", error);
+    }
+  };
+
   const cargarCompras = async () => {
     try {
       const q = query(
@@ -190,17 +226,32 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
         where("proveedorId", "==", proveedor.id),
         orderBy("fechaCreacion", "desc")
       );
+      const clave = claveProveedor(proveedor.nombre);
+      const snapClave = clave
+        ? await getDocs(
+            query(collection(db, `negocios/${negocioID}/compras`), where("proveedorClave", "==", clave))
+          ).catch(() => null)
+        : null;
       const snap = await getDocs(q);
-      const comprasData = snap.docs.map(doc => {
-        const data = doc.data();
+      const vistos = new Set<string>();
+      const mapear = (item: { id: string; data: () => Record<string, unknown> }) => {
+        const data = item.data();
         return {
-          id: doc.id,
+          id: item.id,
           ...data,
-          productos: Array.isArray(data.productos) ? data.productos : 
+          productos: Array.isArray(data.productos) ? data.productos :
             [{ id: "1", producto: data.productos || "", cantidad: 1, precio: data.montoTotal || 0, total: data.montoTotal || 0 }],
           adjuntos: normalizarAdjuntos(data.adjuntos),
         };
-      }) as Compra[];
+      };
+      const comprasData = [...snap.docs, ...(snapClave?.docs || [])]
+        .filter((item) => {
+          if (vistos.has(item.id)) return false;
+          vistos.add(item.id);
+          return true;
+        })
+        .map(mapear) as Compra[];
+      comprasData.sort((a, b) => (a.fechaCreacion < b.fechaCreacion ? 1 : -1));
       setCompras(comprasData);
     } catch (error) {
       console.error("Error cargando compras:", error);
@@ -385,6 +436,42 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
   };
 
   const totales = calcularTotales();
+  const lineasConsignacion: LineaResumenConsignacion[] = compras
+    .filter((compra) => compra.origen === ORIGEN_DEUDA_CONSIGNACION)
+    .slice()
+    .sort((a, b) => (a.fechaCreacion > b.fechaCreacion ? 1 : -1))
+    .flatMap((compra) => {
+      const moneda = compra.moneda === "USD" ? "USD" : "ARS";
+      const productos = Array.isArray(compra.productos) ? compra.productos : [];
+      if (productos.length === 0) {
+        return [{
+          fecha: compra.fecha,
+          producto: "Consignación",
+          cantidad: Number(compra.cantidadUnidades) || 1,
+          precio: Number(compra.montoTotal) || 0,
+          total: Number(compra.montoTotal) || 0,
+          moneda,
+        }];
+      }
+      return productos.map((producto) => ({
+        fecha: compra.fecha,
+        producto: producto.producto,
+        cantidad: Number(producto.cantidad) || 0,
+        precio: Number(producto.precio) || 0,
+        total: Number(producto.total) || 0,
+        moneda,
+      }));
+    });
+  const consignacionVendida = compras.reduce(
+    (acc, compra) => {
+      if (compra.origen !== ORIGEN_DEUDA_CONSIGNACION) return acc;
+      if (compra.moneda === "USD") acc.usd += Number(compra.montoTotal) || 0;
+      else acc.ars += Number(compra.montoTotal) || 0;
+      acc.unidades += Number(compra.cantidadUnidades) || 0;
+      return acc;
+    },
+    { ars: 0, usd: 0, unidades: 0 }
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
@@ -436,6 +523,158 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
             {mensaje}
           </div>
         )}
+
+        <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-amber-300">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-amber-900 text-sm font-bold">Capital en accesorios</p>
+              <p className="text-sm text-gray-600 mt-1">
+                Costo de lo que sigue en stock. Si se vende en consignación, este número baja y pasa a la deuda.
+              </p>
+            </div>
+            <div className="text-right">
+              {capitalAccesorios.ars > 0 ? (
+                <p className="text-2xl font-black text-amber-900">
+                  ${capitalAccesorios.ars.toLocaleString("es-AR")}
+                </p>
+              ) : null}
+              {capitalAccesorios.usd > 0 ? (
+                <p className="text-2xl font-black text-amber-900">
+                  USD {capitalAccesorios.usd.toLocaleString("en-US")}
+                </p>
+              ) : null}
+              {capitalAccesorios.ars <= 0 && capitalAccesorios.usd <= 0 ? (
+                <p className="text-2xl font-black text-gray-400">Sin stock</p>
+              ) : null}
+              {capitalAccesorios.unidades > 0 ? (
+                <p className="text-xs text-gray-500 mt-1">
+                  {capitalAccesorios.unidades.toLocaleString("es-AR")} unidades
+                </p>
+              ) : null}
+            </div>
+          </div>
+          {capitalAccesorios.lineas.length > 0 ? (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500">
+                    <th className="py-2 pr-3 font-semibold">Producto</th>
+                    <th className="py-2 pr-3 font-semibold">Cantidad</th>
+                    <th className="py-2 pr-3 font-semibold">Costo</th>
+                    <th className="py-2 font-semibold">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {capitalAccesorios.lineas.map((linea) => (
+                    <tr key={linea.id} className="border-t border-gray-100">
+                      <td className="py-2 pr-3 text-gray-900">
+                        {linea.producto}
+                        {linea.consignacion ? (
+                          <span className="ml-2 bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                            Consignación
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-2 pr-3">{linea.cantidad.toLocaleString("es-AR")}</td>
+                      <td className="py-2 pr-3">
+                        {linea.moneda === "USD"
+                          ? `USD ${linea.precioCosto.toLocaleString("en-US")}`
+                          : `$${linea.precioCosto.toLocaleString("es-AR")}`}
+                      </td>
+                      <td className="py-2 font-semibold">
+                        {linea.moneda === "USD"
+                          ? `USD ${linea.total.toLocaleString("en-US")}`
+                          : `$${linea.total.toLocaleString("es-AR")}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-gray-500">
+              No hay accesorios cargados con el nombre de este proveedor.
+            </p>
+          )}
+        </div>
+
+        {consignacionVendida.ars > 0 || consignacionVendida.usd > 0 ? (
+          <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-red-300">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-red-900 text-sm font-bold">Consignación vendida</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Lo vendido y el precio de costo. Está sumado en la deuda de abajo.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => resumenConsignacionPdf({ proveedor: proveedor.nombre, lineas: lineasConsignacion, modo: "imprimir" })}
+                  className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-red-800 border border-red-300"
+                >
+                  Imprimir
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resumenConsignacionPdf({ proveedor: proveedor.nombre, lineas: lineasConsignacion, modo: "descargar" })}
+                  className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white"
+                >
+                  Descargar
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 text-right">
+              {consignacionVendida.ars > 0 ? (
+                <p className="text-2xl font-black text-red-800">
+                  ${consignacionVendida.ars.toLocaleString("es-AR")}
+                </p>
+              ) : null}
+              {consignacionVendida.usd > 0 ? (
+                <p className="text-2xl font-black text-red-800">
+                  USD {consignacionVendida.usd.toLocaleString("en-US")}
+                </p>
+              ) : null}
+              {consignacionVendida.unidades > 0 ? (
+                <p className="text-xs text-gray-500 mt-1">
+                  {consignacionVendida.unidades.toLocaleString("es-AR")} unidades vendidas
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500">
+                    <th className="py-2 pr-3 font-semibold">Fecha</th>
+                    <th className="py-2 pr-3 font-semibold">Producto</th>
+                    <th className="py-2 pr-3 font-semibold">Cantidad</th>
+                    <th className="py-2 pr-3 font-semibold">Precio</th>
+                    <th className="py-2 font-semibold">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineasConsignacion.map((linea, indice) => (
+                    <tr key={`${linea.fecha}-${linea.producto}-${indice}`} className="border-t border-gray-100">
+                      <td className="py-2 pr-3">{linea.fecha}</td>
+                      <td className="py-2 pr-3 text-gray-900">{linea.producto}</td>
+                      <td className="py-2 pr-3">{linea.cantidad.toLocaleString("es-AR")}</td>
+                      <td className="py-2 pr-3">
+                        {linea.moneda === "USD"
+                          ? `USD ${linea.precio.toLocaleString("en-US")}`
+                          : `$${linea.precio.toLocaleString("es-AR")}`}
+                      </td>
+                      <td className="py-2 font-semibold">
+                        {linea.moneda === "USD"
+                          ? `USD ${linea.total.toLocaleString("en-US")}`
+                          : `$${linea.total.toLocaleString("es-AR")}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
 
         {/* Resumen de cuenta */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -594,7 +833,9 @@ export default function DetalleProveedor({ proveedor, negocioID, onVolver }: Pro
                           : compra.productos
                         }
                       </p>
-                      <p className="text-sm text-gray-700 font-medium">{compra.fecha} • Remito: {compra.numeroRemito}</p>
+                      <p className="text-sm text-gray-700 font-medium">
+                        {compra.fecha} • {compra.origen === ORIGEN_DEUDA_CONSIGNACION ? "Consignación vendida" : `Remito: ${compra.numeroRemito}`}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="font-black text-lg">{compra.moneda === "USD" ? `U$D ${compra.montoTotal}` : `${compra.montoTotal.toLocaleString()}`}</p>

@@ -6,6 +6,14 @@ import {
   type ColeccionRepuestoExtra,
   type ProductoStockLike,
 } from "@/lib/ventasStockProducto";
+import {
+  buscarProveedor,
+  deudaSiConsignacion,
+  documentoCompraConsignacion,
+  planRevertir,
+  type DeudaGuardada,
+  type ProveedorAgenda,
+} from "@/lib/proveedores/deudaConsignacion";
 
 type LineaStock = {
   codigo?: string;
@@ -93,6 +101,33 @@ async function buscarAccesorio(
   return null;
 }
 
+async function proveedoresDelNegocio(negocioId: string): Promise<ProveedorAgenda[]> {
+  const snap = await db.collection(`negocios/${negocioId}/proveedores`).get();
+  return snap.docs.map((item) => ({
+    id: item.id,
+    nombre: String(item.data().nombre || ""),
+  }));
+}
+
+function deudaGuardada(
+  id: string,
+  data: FirebaseFirestore.DocumentData,
+  stockDocId: string
+): DeudaGuardada {
+  const productos = Array.isArray(data.productos) ? data.productos : [];
+  const primero = (productos[0] || {}) as { precio?: unknown; producto?: unknown; cantidad?: unknown };
+  return {
+    id,
+    origen: data.origen,
+    stockColeccion: data.stockColeccion,
+    stockDocId: String(data.stockDocId || stockDocId),
+    cantidadUnidades: Number(data.cantidadUnidades ?? primero.cantidad) || 0,
+    precio: Number(primero.precio) || 0,
+    producto: String(primero.producto || "Consignación"),
+    fechaCreacion: String(data.fechaCreacion || ""),
+  };
+}
+
 export async function descontarStockVentaServer(
   negocioId: string,
   productos: LineaStock[]
@@ -141,6 +176,13 @@ export async function descontarStockVentaServer(
     return { ok: false, error: "Ningún producto de la venta coincide con stock repuestos/accesorios." };
   }
 
+  let proveedores: ProveedorAgenda[] = [];
+  try {
+    proveedores = await proveedoresDelNegocio(negocioId);
+  } catch (error) {
+    console.error("[descontarStockVentaServer] No se pudo leer proveedores:", error);
+  }
+
   try {
     await db.runTransaction(async (tx) => {
       const merged = new Map<string, { ref: StockHit["ref"]; cantidad: number }>();
@@ -158,11 +200,24 @@ export async function descontarStockVentaServer(
         const { ref, cantidad } = entries[i];
         const snap = snaps[i];
         if (!snap.exists) throw new Error("Producto no encontrado al descontar.");
-        const actual = Number(snap.data()?.cantidad ?? 0);
+        const data = snap.data() || {};
+        const actual = Number(data.cantidad ?? 0);
         if (actual < cantidad) {
           throw new Error(`Stock insuficiente (actualizado): hay ${actual}, vendiste ${cantidad}`);
         }
         tx.update(ref, { cantidad: Math.max(0, actual - cantidad) });
+        const deuda = deudaSiConsignacion(data, cantidad);
+        if (!deuda) continue;
+        const proveedor = buscarProveedor(proveedores, deuda.proveedorNombre);
+        tx.set(
+          db.collection(`negocios/${negocioId}/compras`).doc(),
+          documentoCompraConsignacion({
+            deuda,
+            proveedorId: proveedor?.id || "",
+            coleccion: ref.parent.id,
+            stockDocId: ref.id,
+          })
+        );
       }
     });
   } catch (e: unknown) {
@@ -221,6 +276,11 @@ export async function reponerStockVentaServer(
 
       const entries = Array.from(merged.values());
       const snaps = await Promise.all(entries.map(({ ref }) => tx.get(ref)));
+      const deudas = await Promise.all(
+        entries.map(({ ref }) =>
+          tx.get(db.collection(`negocios/${negocioId}/compras`).where("stockDocId", "==", ref.id))
+        )
+      );
 
       for (let i = 0; i < entries.length; i++) {
         const { ref, cantidad } = entries[i];
@@ -228,6 +288,21 @@ export async function reponerStockVentaServer(
         if (!snap.exists) throw new Error("Producto no encontrado al reponer.");
         const actual = Number(snap.data()?.cantidad ?? 0);
         tx.update(ref, { cantidad: actual + cantidad });
+        const plan = planRevertir(
+          deudas[i].docs.map((item) => deudaGuardada(item.id, item.data(), ref.id)),
+          ref.parent.id,
+          cantidad
+        );
+        for (const id of plan.borrar) {
+          tx.delete(db.collection(`negocios/${negocioId}/compras`).doc(id));
+        }
+        for (const cambio of plan.actualizar) {
+          tx.update(db.collection(`negocios/${negocioId}/compras`).doc(cambio.id), {
+            cantidadUnidades: cambio.cantidadUnidades,
+            montoTotal: cambio.montoTotal,
+            productos: cambio.productos,
+          });
+        }
       }
     });
   } catch (e: unknown) {

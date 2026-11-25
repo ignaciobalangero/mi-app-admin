@@ -10,6 +10,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  writeBatch,
   query,
   orderBy,
   limit,
@@ -23,6 +24,7 @@ import ModalEditarAccesorio from "./ModalEditarAccesorios";
 import ModalIngresoStock from "./ModalIngresoStock";
 import ModalControlConsignacion from "./ModalControlConsignacion";
 import ModalElegirTipoEtiqueta from "@/components/ModalElegirTipoEtiqueta";
+import CampoProveedor from "@/components/CampoProveedor";
 import { itemEtiquetaDesdeProducto } from "@/lib/imprimirEtiquetaRepuesto";
 import type { ItemEtiquetaStock } from "@/lib/imprimirEtiquetaRepuesto";
 
@@ -88,6 +90,14 @@ export default function TablaAccesorios({
   const [controlConsignacion, setControlConsignacion] = useState(false);
   const [itemsEtiquetaPendiente, setItemsEtiquetaPendiente] = useState<ItemEtiquetaStock[] | null>(null);
   const [modalEliminar, setModalEliminar] = useState<string | null>(null);
+  const [modoSeleccion, setModoSeleccion] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(() => new Set());
+  const [cargandoIdsTotales, setCargandoIdsTotales] = useState(false);
+  const [modalEliminarMasivo, setModalEliminarMasivo] = useState(false);
+  const [eliminandoMasivo, setEliminandoMasivo] = useState(false);
+  const [modalCampo, setModalCampo] = useState<null | "proveedor" | "categoria">(null);
+  const [textoMasivo, setTextoMasivo] = useState("");
+  const [aplicandoMasivo, setAplicandoMasivo] = useState(false);
   
   // 🔍 ESTADOS PARA FILTROS
   const [filtroProveedor, setFiltroProveedor] = useState("");
@@ -295,6 +305,120 @@ export default function TablaAccesorios({
       refrescarProductos();
     } catch (error) {
       console.error("Error al eliminar:", error);
+    }
+  };
+
+  const toggleSeleccion = (id: string) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const salirModoSeleccion = () => {
+    setModoSeleccion(false);
+    setSeleccionados(new Set());
+    setModalEliminarMasivo(false);
+    setModalCampo(null);
+  };
+
+  const seleccionarTodosVisibles = () => {
+    setSeleccionados(new Set(productosFiltrados.map((p) => p.id)));
+  };
+
+  const seleccionarTodoElStock = async () => {
+    if (!rol?.negocioID) return;
+    setCargandoIdsTotales(true);
+    try {
+      const snap = await getDocs(collection(db, `negocios/${rol.negocioID}/stockAccesorios`));
+      setSeleccionados(new Set(snap.docs.map((item) => item.id)));
+      setModoSeleccion(true);
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo cargar la lista completa del stock.");
+    } finally {
+      setCargandoIdsTotales(false);
+    }
+  };
+
+  const aplicarCampoMasivo = async () => {
+    const valor = textoMasivo.trim();
+    if (!valor || !rol?.negocioID || !modalCampo || seleccionados.size === 0) return;
+    setAplicandoMasivo(true);
+    try {
+      const ids = Array.from(seleccionados);
+      const patch = modalCampo === "proveedor" ? { proveedor: valor } : { categoria: valor };
+      for (let i = 0; i < ids.length; i += 400) {
+        const batch = writeBatch(db);
+        ids.slice(i, i + 400).forEach((id) => {
+          batch.update(doc(db, `negocios/${rol.negocioID}/stockAccesorios/${id}`), patch);
+        });
+        await batch.commit();
+      }
+      setProductos((prev) => prev.map((p) => (seleccionados.has(p.id) ? { ...p, ...patch } : p)));
+      setModalCampo(null);
+      setTextoMasivo("");
+      const ejemplo = productos.find((p) => seleccionados.has(p.id)) || productos[0];
+      if (ejemplo) onProductoActualizado?.({ ...ejemplo, ...patch });
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo aplicar el cambio.");
+    } finally {
+      setAplicandoMasivo(false);
+    }
+  };
+
+  const aplicarConsignacionMasiva = async (marcar: boolean) => {
+    if (!rol?.negocioID || seleccionados.size === 0) return;
+    const accion = marcar ? "marcar como consignación" : "sacar de consignación";
+    if (!window.confirm(`¿${accion} ${seleccionados.size} accesorio${seleccionados.size === 1 ? "" : "s"}?`)) return;
+    setAplicandoMasivo(true);
+    try {
+      const ids = Array.from(seleccionados);
+      for (let i = 0; i < ids.length; i += 400) {
+        const batch = writeBatch(db);
+        ids.slice(i, i + 400).forEach((id) => {
+          batch.update(doc(db, `negocios/${rol.negocioID}/stockAccesorios/${id}`), { consignacion: marcar });
+        });
+        await batch.commit();
+      }
+      setProductos((prev) =>
+        prev.map((p) => (seleccionados.has(p.id) ? { ...p, consignacion: marcar } : p))
+      );
+      const ejemplo = productos.find((p) => seleccionados.has(p.id));
+      if (ejemplo) onProductoActualizado?.({ ...ejemplo, consignacion: marcar });
+    } catch (error) {
+      console.error(error);
+      alert("No se pudo cambiar la consignación.");
+    } finally {
+      setAplicandoMasivo(false);
+    }
+  };
+
+  const confirmarEliminacionMasiva = async () => {
+    if (!rol?.negocioID || seleccionados.size === 0) return;
+    setEliminandoMasivo(true);
+    try {
+      const ids = Array.from(seleccionados);
+      for (let i = 0; i < ids.length; i += 400) {
+        const batch = writeBatch(db);
+        ids.slice(i, i + 400).forEach((id) => {
+          batch.delete(doc(db, `negocios/${rol.negocioID}/stockAccesorios/${id}`));
+        });
+        await batch.commit();
+      }
+      setModalEliminarMasivo(false);
+      salirModoSeleccion();
+      await refrescarProductos();
+      const ejemplo = productos[0];
+      if (ejemplo) onProductoActualizado?.(ejemplo);
+    } catch (error) {
+      console.error(error);
+      alert("No se pudieron borrar todos los productos.");
+    } finally {
+      setEliminandoMasivo(false);
     }
   };
 
@@ -508,29 +632,123 @@ export default function TablaAccesorios({
         
         {/* Header de la tabla */}
         <div className="bg-gradient-to-r from-[#2c3e50] to-[#3498db] text-white p-2 sm:p-4">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-6 h-6 sm:w-10 sm:h-10 bg-white/20 rounded-lg flex items-center justify-center">
-              <span className="text-sm sm:text-2xl">🎧</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-10 sm:h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                <span className="text-sm sm:text-2xl">🎧</span>
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-lg font-bold">Stock de Accesorios</h3>
+                <p className="text-blue-100 text-xs sm:text-sm">
+                  Mostrando {estadisticas.totalFiltrados} productos
+                  {totalProductos > 0 && (
+                    <span className="ml-2">
+                      • Página {paginaActual} • Total: {totalProductos}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm sm:text-lg font-bold">Stock de Accesorios</h3>
-              <p className="text-blue-100 text-xs sm:text-sm">
-                Mostrando {estadisticas.totalFiltrados} productos
-                {totalProductos > 0 && (
-                  <span className="ml-2">
-                    • Página {paginaActual} • Total: {totalProductos}
-                  </span>
-                )}
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={() => (modoSeleccion ? salirModoSeleccion() : setModoSeleccion(true))}
+              className={`rounded-lg px-3 py-2 text-xs font-bold sm:text-sm ${
+                modoSeleccion ? "bg-white/20 text-white ring-2 ring-white/40" : "bg-white text-[#2c3e50]"
+              }`}
+            >
+              {modoSeleccion ? "Salir de selección" : "Seleccionar varios"}
+            </button>
           </div>
         </div>
+
+        {modoSeleccion ? (
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#3498db]/30 bg-[#ebf5fb] px-3 py-2.5">
+            <span className="text-sm font-semibold text-[#2c3e50]">
+              {seleccionados.size} seleccionado{seleccionados.size === 1 ? "" : "s"}
+            </span>
+            <button
+              type="button"
+              onClick={seleccionarTodosVisibles}
+              disabled={productosFiltrados.length === 0}
+              className="rounded-lg border border-[#3498db] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#2980b9] disabled:opacity-40"
+            >
+              Visibles ({productosFiltrados.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => void seleccionarTodoElStock()}
+              disabled={cargandoIdsTotales || totalProductos === 0}
+              className="rounded-lg border border-[#9b59b6] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#8e44ad] disabled:opacity-40"
+            >
+              {cargandoIdsTotales ? "Cargando…" : `Todo el stock (${totalProductos})`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSeleccionados(new Set())}
+              disabled={seleccionados.size === 0}
+              className="rounded-lg border border-[#bdc3c7] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#7f8c8d] disabled:opacity-40"
+            >
+              Ninguno
+            </button>
+            <button
+              type="button"
+              disabled={seleccionados.size === 0 || aplicandoMasivo}
+              onClick={() => {
+                setTextoMasivo("");
+                setModalCampo("proveedor");
+              }}
+              className="rounded-lg border border-[#9b59b6] bg-[#f4ecf7] px-2.5 py-1.5 text-xs font-semibold text-[#7d3c98] disabled:opacity-40"
+            >
+              Proveedor
+            </button>
+            <button
+              type="button"
+              disabled={seleccionados.size === 0 || aplicandoMasivo}
+              onClick={() => {
+                setTextoMasivo("");
+                setModalCampo("categoria");
+              }}
+              className="rounded-lg border border-[#27ae60] bg-[#d5f4e6] px-2.5 py-1.5 text-xs font-semibold text-[#229954] disabled:opacity-40"
+            >
+              Categoría
+            </button>
+            <button
+              type="button"
+              disabled={seleccionados.size === 0 || aplicandoMasivo}
+              onClick={() => void aplicarConsignacionMasiva(true)}
+              className="rounded-lg border border-amber-500 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-40"
+            >
+              Consignar
+            </button>
+            <button
+              type="button"
+              disabled={seleccionados.size === 0 || aplicandoMasivo}
+              onClick={() => void aplicarConsignacionMasiva(false)}
+              className="rounded-lg border border-amber-500 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-40"
+            >
+              Sacar consignación
+            </button>
+            <button
+              type="button"
+              disabled={seleccionados.size === 0 || eliminandoMasivo}
+              onClick={() => setModalEliminarMasivo(true)}
+              className="ml-auto rounded-lg bg-[#e74c3c] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+            >
+              Borrar seleccionados
+            </button>
+          </div>
+        ) : null}
 
         {/* Tabla responsive */}
         <div className="w-full">
           <table className="w-full border-collapse table-fixed text-xs">
             <thead className="bg-[#ecf0f1]">
               <tr>
+                {modoSeleccion ? (
+                  <th className="w-9 p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
+                    Sel.
+                  </th>
+                ) : null}
                 <th className="w-[8%] lg:w-[6%] p-1 text-center text-xs font-semibold text-[#2c3e50] border border-[#bdc3c7]">
                   🏷️ Código
                 </th>
@@ -566,7 +784,7 @@ export default function TablaAccesorios({
             <tbody>
               {productosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-[#7f8c8d] border border-[#bdc3c7]">
+                  <td colSpan={modoSeleccion ? 11 : 10} className="p-8 text-center text-[#7f8c8d] border border-[#bdc3c7]">
                     <div className="flex flex-col items-center gap-4">
                       <div className="w-12 h-12 bg-[#ecf0f1] rounded-full flex items-center justify-center">
                         <span className="text-2xl">🎧</span>
@@ -588,6 +806,7 @@ export default function TablaAccesorios({
               ) : (
                 productosFiltrados.map((p) => {
                   const isEven = productosFiltrados.indexOf(p) % 2 === 0;
+                  const marcado = seleccionados.has(p.id);
                   
                   return (
                     <tr
@@ -596,6 +815,8 @@ export default function TablaAccesorios({
                       className={`transition-colors duration-200 hover:bg-[#ecf0f1] border border-[#bdc3c7] ${
                         productoDestacadoId === p.id
                           ? "bg-[#d6eaf8] ring-2 ring-inset ring-[#3498db]"
+                          : marcado
+                          ? "bg-[#fdebd0]"
                           : p.consignacion === true
                           ? "bg-amber-50"
                           : (p.cantidad || 0) === 0
@@ -605,6 +826,17 @@ export default function TablaAccesorios({
                           : isEven ? "bg-white" : "bg-[#f8f9fa]"
                       }`}
                     >
+                      {modoSeleccion ? (
+                        <td className="p-1 text-center border border-[#bdc3c7]">
+                          <input
+                            type="checkbox"
+                            checked={marcado}
+                            onChange={() => toggleSeleccion(p.id)}
+                            aria-label={`Seleccionar ${p.producto || p.codigo}`}
+                            className="h-4 w-4"
+                          />
+                        </td>
+                      ) : null}
                       {/* Código */}
                       <td className="p-1 text-center border border-[#bdc3c7]">
                         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-bold bg-[#3498db] text-white">
@@ -885,6 +1117,97 @@ export default function TablaAccesorios({
           items={itemsEtiquetaPendiente}
           onClose={() => setItemsEtiquetaPendiente(null)}
         />
+      ) : null}
+
+      {modalCampo ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-bold text-[#2c3e50]">
+              {modalCampo === "proveedor" ? "Cambiar proveedor" : "Cambiar categoría"}
+            </h2>
+            <p className="mt-1 text-sm text-[#7f8c8d]">
+              Se aplica a {seleccionados.size} accesorio{seleccionados.size === 1 ? "" : "s"}.
+            </p>
+            <div className="mt-4">
+              {modalCampo === "proveedor" ? (
+                <CampoProveedor
+                  value={textoMasivo}
+                  onChange={setTextoMasivo}
+                  className="w-full rounded-lg border-2 border-[#bdc3c7] p-2"
+                  placeholder="Elegí el proveedor"
+                />
+              ) : (
+                <>
+                  <input
+                    value={textoMasivo}
+                    onChange={(e) => setTextoMasivo(e.target.value)}
+                    list="categorias-masiva-accesorios"
+                    className="w-full rounded-lg border-2 border-[#bdc3c7] p-2"
+                    placeholder="Categoría"
+                  />
+                  <datalist id="categorias-masiva-accesorios">
+                    {categoriasUnicas.map((categoria) => (
+                      <option key={categoria} value={categoria} />
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setModalCampo(null)}
+                className="rounded-lg bg-[#7f8c8d] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!textoMasivo.trim() || aplicandoMasivo}
+                onClick={() => void aplicarCampoMasivo()}
+                className="rounded-lg bg-[#8e44ad] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {aplicandoMasivo ? "Aplicando…" : "Aplicar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {modalEliminarMasivo ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-bold text-[#c0392b]">
+              Borrar {seleccionados.size} accesorio{seleccionados.size === 1 ? "" : "s"}
+            </h2>
+            <p className="mt-2 text-sm text-[#7f8c8d]">Esta acción no se puede deshacer.</p>
+            <ul className="mt-3 max-h-40 overflow-y-auto text-sm text-[#2c3e50]">
+              {productos
+                .filter((p) => seleccionados.has(p.id))
+                .slice(0, 12)
+                .map((p) => (
+                  <li key={p.id}>{p.producto || p.codigo}</li>
+                ))}
+            </ul>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setModalEliminarMasivo(false)}
+                className="rounded-lg bg-[#7f8c8d] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={eliminandoMasivo}
+                onClick={() => void confirmarEliminacionMasiva()}
+                className="rounded-lg bg-[#e74c3c] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {eliminandoMasivo ? "Borrando…" : "Sí, borrar"}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {/* 🗑️ MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}

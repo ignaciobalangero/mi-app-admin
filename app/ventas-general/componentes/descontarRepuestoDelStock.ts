@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
+import { anotarDeudaConsignacionVenta } from "@/lib/proveedores/deudaConsignacionCliente";
 import {
   coleccionesRepuestoExtra,
   type ColeccionRepuestoExtra,
@@ -12,16 +13,28 @@ export {
 } from "@/lib/ventasStockProducto";
 
 async function restarCantidad(
+  negocioID: string,
   ref: ReturnType<typeof doc>,
   cantidadVendida: number
 ): Promise<boolean> {
   const snap = await getDoc(ref);
   if (!snap.exists()) return false;
 
-  const cantidadActual = Number(snap.data().cantidad) || 0;
+  const data = snap.data();
+  const cantidadActual = Number(data.cantidad) || 0;
+  const descontado = Math.min(Math.max(0, cantidadVendida), cantidadActual);
   await updateDoc(ref, {
-    cantidad: Math.max(0, cantidadActual - cantidadVendida),
+    cantidad: Math.max(0, cantidadActual - descontado),
   });
+  if (descontado > 0) {
+    await anotarDeudaConsignacionVenta({
+      negocioID,
+      coleccion: ref.parent.id,
+      stockDocId: ref.id,
+      data,
+      cantidad: descontado,
+    });
+  }
   return true;
 }
 
@@ -46,7 +59,7 @@ export async function descontarRepuestoDelStock(
   for (const id of ids) {
     for (const colName of colecciones) {
       const ref = doc(db, `negocios/${negocioID}/${colName}/${id}`);
-      if (await restarCantidad(ref, cantidadVendida)) return;
+      if (await restarCantidad(negocioID, ref, cantidadVendida)) return;
     }
   }
 
@@ -58,7 +71,7 @@ export async function descontarRepuestoDelStock(
       );
       const snap = await getDocs(q);
       if (!snap.empty) {
-        await restarCantidad(snap.docs[0].ref, cantidadVendida);
+        await restarCantidad(negocioID, snap.docs[0].ref, cantidadVendida);
         return;
       }
     }

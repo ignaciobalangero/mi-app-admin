@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { revertirDeudaConsignacionVenta } from "@/lib/proveedores/deudaConsignacionCliente";
 
 /** Reponer stock de accesorio (por id=codigo o por campo codigo). */
 export async function reponerAccesorioEnStock(
@@ -14,6 +15,12 @@ export async function reponerAccesorioEnStock(
   if (snapId.exists()) {
     const actual = Number(snapId.data()?.cantidad || 0);
     await updateDoc(porId, { cantidad: actual + cantidad });
+    await revertirDeudaConsignacionVenta({
+      negocioID,
+      coleccion: "stockAccesorios",
+      stockDocId: porId.id,
+      cantidad,
+    });
     return;
   }
 
@@ -29,4 +36,10 @@ export async function reponerAccesorioEnStock(
   const ref = snap.docs[0].ref;
   const actual = Number(snap.docs[0].data()?.cantidad || 0);
   await updateDoc(ref, { cantidad: actual + cantidad });
+  await revertirDeudaConsignacionVenta({
+    negocioID,
+    coleccion: "stockAccesorios",
+    stockDocId: ref.id,
+    cantidad,
+  });
 }

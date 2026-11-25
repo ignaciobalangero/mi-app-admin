@@ -12,6 +12,7 @@ import {
   type DocumentData,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { revertirDeudaConsignacionVenta } from "@/lib/proveedores/deudaConsignacionCliente";
 
 export type PagoParaAnularSaldo = {
   monto: number;
@@ -92,6 +93,7 @@ async function reponerTelefonoDesdeVentaDoc(
     imei: data.imei || "",
     serial: data.serie || data.serial || "",
     precioCompra: data.precioCosto ?? data.precioCompra ?? 0,
+    consignacion: data.consignacion === true,
     precioVenta: data.precioVenta ?? 0,
     moneda: data.moneda || "ARS",
     observaciones: data.observaciones || "",
@@ -161,6 +163,15 @@ export async function reponerYBorrarGrupoVentaTelefonos(
   for (const item of docs) {
     const yaEstaba = stockTelefonoYaExiste(stockActual, item.data, ventaIdIgnorar);
     if (!yaEstaba) {
+      const stockID = String(item.data.stockID || "").trim();
+      if (stockID) {
+        await revertirDeudaConsignacionVenta({
+          negocioID,
+          coleccion: "stockTelefonos",
+          stockDocId: stockID,
+          cantidad: 1,
+        });
+      }
       await reponerTelefonoDesdeVentaDoc(
         negocioID,
         item.data,

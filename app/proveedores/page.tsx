@@ -11,11 +11,18 @@ import {
   deleteDoc,
   query,
   orderBy,
+  where,
   writeBatch,
   type DocumentReference,
 } from "firebase/firestore";
 import { useRol } from "@/lib/useRol"; // 🆕 IMPORTAR EL HOOK
 import DetalleProveedor from "./DetalleProveedor"; // Ajusta la ruta según tu estructura
+import {
+  capitalAccesoriosPorProveedor,
+  claveProveedor,
+  type CapitalAccesorios,
+} from "@/lib/proveedores/capitalAccesorios";
+import { ORIGEN_DEUDA_CONSIGNACION } from "@/lib/proveedores/deudaConsignacion";
 
 interface Proveedor {
   id: string;
@@ -38,13 +45,9 @@ type NombreEnStock = {
 
 const COLECCIONES_STOCK = ["stockAccesorios", "stockRepuestos", "stockTelefonos"] as const;
 
-function claveProveedor(valor: string): string {
-  return valor
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
+function textoMonto(moneda: "ARS" | "USD", valor: number): string {
+  if (moneda === "USD") return `USD ${valor.toLocaleString("en-US")}`;
+  return `$${valor.toLocaleString("es-AR")}`;
 }
 
 function etiquetaOrigen(item: NombreEnStock): string {
@@ -77,6 +80,8 @@ export default function ProveedoresPage() {
   const [cuentaUSD, setCuentaUSD] = useState(false);
   const [nombresStock, setNombresStock] = useState<NombreEnStock[]>([]);
   const [cargandoNombresStock, setCargandoNombresStock] = useState(false);
+  const [capitalAccesorios, setCapitalAccesorios] = useState<Map<string, CapitalAccesorios>>(new Map());
+  const [deudaConsignacion, setDeudaConsignacion] = useState<Map<string, { ars: number; usd: number }>>(new Map());
 
   const categorias = [
     "Distribuidores",
@@ -181,7 +186,16 @@ export default function ProveedoresPage() {
         collection(db, `negocios/${negocioID}/proveedores`), // ✅ RUTA CORRECTA
         orderBy("nombre", "asc")
       );
-      const snap = await getDocs(q);
+      const [snap, stock, comprasConsignacion] = await Promise.all([
+        getDocs(q),
+        getDocs(collection(db, `negocios/${negocioID}/stockAccesorios`)),
+        getDocs(
+          query(
+            collection(db, `negocios/${negocioID}/compras`),
+            where("origen", "==", ORIGEN_DEUDA_CONSIGNACION)
+          )
+        ),
+      ]);
       const proveedoresData = snap.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -189,6 +203,21 @@ export default function ProveedoresPage() {
       
       console.log(`✅ ${proveedoresData.length} proveedores cargados`);
       setProveedores(proveedoresData);
+      setCapitalAccesorios(
+        capitalAccesoriosPorProveedor(stock.docs.map((item) => ({ id: item.id, ...item.data() })))
+      );
+      const deudas = new Map<string, { ars: number; usd: number }>();
+      comprasConsignacion.docs.forEach((item) => {
+        const data = item.data();
+        const clave = String(data.proveedorClave || claveProveedor(String(data.proveedorNombre || "")));
+        if (!clave) return;
+        const actual = deudas.get(clave) || { ars: 0, usd: 0 };
+        const monto = Number(data.montoTotal) || 0;
+        if (String(data.moneda || "ARS").toUpperCase() === "USD") actual.usd += monto;
+        else actual.ars += monto;
+        deudas.set(clave, actual);
+      });
+      setDeudaConsignacion(deudas);
     } catch (error) {
       console.error("❌ Error cargando proveedores:", error);
       setMensaje("❌ Error al cargar proveedores");
@@ -578,12 +607,18 @@ export default function ProveedoresPage() {
                     <th className="text-left p-4 font-semibold text-gray-700">Proveedor</th>
                     <th className="text-left p-4 font-semibold text-gray-700">Categoría</th>
                     <th className="text-left p-4 font-semibold text-gray-700">Contacto</th>
+                    <th className="text-left p-4 font-semibold text-gray-700">Capital accesorios</th>
+                    <th className="text-left p-4 font-semibold text-gray-700">Consignación vendida</th>
                     <th className="text-left p-4 font-semibold text-gray-700">Datos Bancarios</th>
                     <th className="text-center p-4 font-semibold text-gray-700">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white">
-                  {proveedores.map((proveedor) => (
+                  {proveedores.map((proveedor) => {
+                    const capital = capitalAccesorios.get(claveProveedor(proveedor.nombre));
+                    const sinCapital = !capital || (capital.ars <= 0 && capital.usd <= 0 && capital.unidades <= 0);
+                    const deuda = deudaConsignacion.get(claveProveedor(proveedor.nombre));
+                    return (
                     <tr key={proveedor.id} className="border-b hover:bg-gray-50">
                       <td className="p-4">
                         <div>
@@ -607,6 +642,27 @@ export default function ProveedoresPage() {
                       </td>
                       <td className="p-4 text-gray-900">
                         {proveedor.contacto || "Sin contacto"}
+                      </td>
+                      <td className="p-4">
+                        {sinCapital || !capital ? (
+                          <span className="text-sm text-gray-400">Sin stock</span>
+                        ) : (
+                          <div className="text-sm text-gray-900">
+                            {capital.ars > 0 ? <p className="font-semibold">{textoMonto("ARS", capital.ars)}</p> : null}
+                            {capital.usd > 0 ? <p className="font-semibold">{textoMonto("USD", capital.usd)}</p> : null}
+                            <p className="text-xs text-gray-500">{capital.unidades.toLocaleString("es-AR")} u. en stock</p>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {!deuda || (deuda.ars <= 0 && deuda.usd <= 0) ? (
+                          <span className="text-sm text-gray-400">—</span>
+                        ) : (
+                          <div className="text-sm text-red-800">
+                            {deuda.ars > 0 ? <p className="font-semibold">{textoMonto("ARS", deuda.ars)}</p> : null}
+                            {deuda.usd > 0 ? <p className="font-semibold">{textoMonto("USD", deuda.usd)}</p> : null}
+                          </div>
+                        )}
                       </td>
                       <td className="p-4">
                         <div className="text-sm text-gray-600">
@@ -638,7 +694,8 @@ export default function ProveedoresPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

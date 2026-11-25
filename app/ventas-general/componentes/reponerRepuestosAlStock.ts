@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, updateDoc, doc, getDoc } from "firebase/firestore";
+import { revertirDeudaConsignacionVenta } from "@/lib/proveedores/deudaConsignacionCliente";
 import {
   coleccionesRepuestoExtra,
   type ColeccionRepuestoExtra,
@@ -34,6 +35,12 @@ export const reponerRepuestosAlStock = async ({
         if (snapRep.exists()) {
           const stockActual = Number(snapRep.data().cantidad) || 0;
           await updateDoc(refRep, { cantidad: stockActual + cantidadAReponer });
+          await revertirDeudaConsignacionVenta({
+            negocioID,
+            coleccion: colName,
+            stockDocId: refRep.id,
+            cantidad: cantidadAReponer,
+          });
           console.log(`✅ Stock devuelto: ${id} (+${cantidadAReponer}) en ${colName}`);
           repuesto = true;
           break;
@@ -59,6 +66,12 @@ export const reponerRepuestosAlStock = async ({
         const stockActual = Number(docRef.data().cantidad) || 0;
         await updateDoc(docRef.ref, {
           cantidad: stockActual + cantidadAReponer,
+        });
+        await revertirDeudaConsignacionVenta({
+          negocioID,
+          coleccion: colName,
+          stockDocId: docRef.id,
+          cantidad: cantidadAReponer,
         });
         console.log(`✅ Stock devuelto: ${codigo} (+${cantidadAReponer}) en ${colName}`);
         repuesto = true;

@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, updateDoc } from "firebase/firestore";
+import { revertirDeudaConsignacionVenta } from "@/lib/proveedores/deudaConsignacionCliente";
 
 export const reponerAccesoriosAlStock = async ({
   productos,
@@ -39,6 +40,12 @@ export const reponerAccesoriosAlStock = async ({
     // Actualizar usando la referencia del documento encontrado
     await updateDoc(documentoEncontrado.ref, {
       cantidad: nuevaCantidad,
+    });
+    await revertirDeudaConsignacionVenta({
+      negocioID,
+      coleccion: "stockAccesorios",
+      stockDocId: documentoEncontrado.id,
+      cantidad: producto.cantidad,
     });
   }
 };

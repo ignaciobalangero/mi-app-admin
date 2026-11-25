@@ -28,6 +28,7 @@ import {
   esProductoRepuestoOGeneral,
 } from "@/lib/ventasStockProducto";
 import { actualizarStockVentaViaApi } from "@/lib/actualizarStockVentaApi";
+import { anotarDeudaConsignacionVenta } from "@/lib/proveedores/deudaConsignacionCliente";
 import { actualizarSaldoClienteNegocioDetalle, limpiarNombreClienteExacto } from "@/lib/actualizarSaldoCliente";
 import { obtenerYSumarNumeroVenta } from "@/lib/ventas/contadorVentas";
 import {
@@ -609,7 +610,21 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
       if (!ventaTelefonosRef) ventaTelefonosRef = ref;
 
       if (tel.stockID) {
-        await deleteDoc(doc(db, `negocios/${rol.negocioID}/stockTelefonos/${tel.stockID}`));
+        const stockRef = doc(db, `negocios/${rol.negocioID}/stockTelefonos/${tel.stockID}`);
+        const stockSnap = await getDoc(stockRef);
+        if (stockSnap.exists()) {
+          await anotarDeudaConsignacionVenta({
+            negocioID: rol.negocioID,
+            coleccion: "stockTelefonos",
+            stockDocId: stockSnap.id,
+            data: stockSnap.data(),
+            cantidad: 1,
+          });
+          await updateDoc(ref, {
+            consignacion: stockSnap.data().consignacion === true || stockSnap.data().consignacion === "true",
+          });
+        }
+        await deleteDoc(stockRef);
       }
     }
 
