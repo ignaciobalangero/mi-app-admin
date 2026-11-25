@@ -62,6 +62,7 @@ import {
   type ItemEtiquetaStock,
 } from "@/lib/imprimirEtiquetaRepuesto";
 import ModalElegirTipoEtiqueta from "@/components/ModalElegirTipoEtiqueta";
+import ModalResumenCostosWhatsapp from "./ModalResumenCostosWhatsapp";
 
 interface Producto {
   id: string;
@@ -134,6 +135,7 @@ export default function TablaProductos({
   const [eliminandoMasivo, setEliminandoMasivo] = useState(false);
   const [cargandoIdsTotales, setCargandoIdsTotales] = useState(false);
   const [modalAjustePrecios, setModalAjustePrecios] = useState(false);
+  const [modalCostosWhatsapp, setModalCostosWhatsapp] = useState(false);
   const [ajustePorcentaje, setAjustePorcentaje] = useState("10");
   const [ajusteAlcance, setAjusteAlcance] = useState<AlcanceAjustePrecio>("seleccionados");
   const [ajusteCampos, setAjusteCampos] = useState({
@@ -1639,6 +1641,13 @@ export default function TablaProductos({
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setModalCostosWhatsapp(true)}
+                className="rounded-lg bg-[#25D366] px-3 py-2 text-xs font-bold text-white shadow hover:bg-[#1ebe5d] sm:text-sm"
+              >
+                WhatsApp costos
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -3240,6 +3249,14 @@ export default function TablaProductos({
             }}
           />
         )}
+
+      {modalCostosWhatsapp && rol?.negocioID ? (
+        <ModalResumenCostosWhatsapp
+          abierto
+          negocioID={rol.negocioID}
+          onCerrar={() => setModalCostosWhatsapp(false)}
+        />
+      ) : null}
 
       {itemsEtiquetaPendiente && rol?.negocioID ? (
         <ModalElegirTipoEtiqueta
