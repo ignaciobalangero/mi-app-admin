@@ -14,6 +14,7 @@ import {
   type DocumentReference,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { creditoCuentaDePago } from "@/lib/ventas/pagoDualHelpers";
 import {
   normalizeMonedaCuenta,
   totalesVentasPorMoneda,
@@ -300,8 +301,13 @@ export async function pagosColeccionDeVenta(
   for (const d of snap.docs) {
     const data = d.data();
     if (cliente && String(data.cliente ?? "").trim() !== cliente) continue;
-    totalARS += Number(data.monto ?? 0);
-    totalUSD += Number(data.montoUSD ?? 0);
+    const credito = creditoCuentaDePago({
+      monto: data.monto,
+      montoUSD: data.montoUSD,
+      detallesPago: data.detallesPago,
+    });
+    totalARS += credito.ars;
+    totalUSD += credito.usd;
   }
 
   return { totalARS, totalUSD };

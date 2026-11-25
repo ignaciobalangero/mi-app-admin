@@ -1,4 +1,4 @@
-/** Lógica compartida: venta en USD/ARS, pago dual y conversión ARS→USD. */
+/** Lógica compartida: venta en USD/ARS, pago dual y conversión entre monedas. */
 
 export type TotalesVentaMoneda = { totalARS: number; totalUSD: number };
 
@@ -17,6 +17,11 @@ export function esVentaSoloUSD(totalARS: number, totalUSD: number): boolean {
   return totalARS === 0 && totalUSD > 0;
 }
 
+/** True solo si la venta completa es en pesos. Ahí los dólares físicos cancelan esa deuda. */
+export function esVentaSoloARS(totalARS: number, totalUSD: number): boolean {
+  return totalUSD === 0 && totalARS > 0;
+}
+
 export function cotizacionEfectiva(
   cotizacionPago: number,
   cotizacionVenta: number
@@ -30,6 +35,13 @@ export function calcularUsdDesdeARS(pagoARS: number, cotizacion: number): number
   if (pagoARS <= 0 || cotizacion <= 0) return 0;
   const usd = pagoARS / cotizacion;
   return Number.isFinite(usd) ? usd : 0;
+}
+
+/** Pesos que cancelan una venta solo ARS cuando el cliente entrega dólares. */
+export function calcularARSDesdeUSD(pagoUSD: number, cotizacion: number): number {
+  if (pagoUSD <= 0 || cotizacion <= 0) return 0;
+  const ars = pagoUSD * cotizacion;
+  return Number.isFinite(ars) ? Math.round(ars * 100) / 100 : 0;
 }
 
 /** Crédito total en USD cuando la venta es solo USD (USD físico + ARS convertidos). */
@@ -80,12 +92,16 @@ export function calcularSaldosVenta(params: {
   const { totalARS, totalUSD, pagoARS, pagoUSD, cotizacion, telefonoPago, telefonosPago } =
     params;
   const ventaSoloUSD = esVentaSoloUSD(totalARS, totalUSD);
+  const ventaSoloARS = esVentaSoloARS(totalARS, totalUSD);
   const pagoARSSaldo = pagoARSCuentaSaldoARS(ventaSoloUSD, pagoARS);
+  const arsDesdeUSD = ventaSoloARS ? calcularARSDesdeUSD(pagoUSD, cotizacion) : 0;
   const creditoUSD = ventaSoloUSD
     ? creditoUSDVentaSoloUSD(pagoARS, pagoUSD, cotizacion)
-    : Math.max(0, pagoUSD);
+    : ventaSoloARS
+      ? 0
+      : Math.max(0, pagoUSD);
 
-  let saldoARS = totalARS - pagoARSSaldo;
+  let saldoARS = totalARS - pagoARSSaldo - arsDesdeUSD;
   let saldoUSD = totalUSD - creditoUSD;
 
   const listaTelefonosPago = normalizarTelefonosPago(telefonoPago, telefonosPago);
@@ -140,6 +156,14 @@ export function notaConversionARSaUSD(
   return `Pago recibido en ARS $${Number(pagoARS).toLocaleString("es-AR")} aplicado a USD ${usdEquivalente.toFixed(2)} (cotización $1 USD = $${Number(cotizacion).toLocaleString("es-AR")} ARS)`;
 }
 
+export function notaConversionUSDaARS(
+  pagoUSD: number,
+  arsEquivalente: number,
+  cotizacion: number
+): string {
+  return `Pago recibido en USD ${Number(pagoUSD).toLocaleString("es-AR")} aplicado a ARS $${Number(arsEquivalente).toLocaleString("es-AR")} (cotización $1 USD = $${Number(cotizacion).toLocaleString("es-AR")} ARS)`;
+}
+
 export type DetallesPagoFirestore =
   | { tipo: "USD" }
   | {
@@ -148,7 +172,75 @@ export type DetallesPagoFirestore =
       cotizacionPago: number;
       /** Compatibilidad con registros anteriores */
       montoARSOriginal?: number;
+    }
+  | {
+      tipo: "USD_a_ARS";
+      montoARSEquivalente: number;
+      montoUSDOriginal: number;
+      cotizacionPago: number;
     };
+
+/**
+ * Cómo un cobro en dólares impacta la cuenta de una venta.
+ * En una venta solo en pesos, los billetes se convierten y no dejan crédito en USD.
+ * La caja sigue viendo `montoUSD`: esto solo dice qué saldo del cliente se mueve.
+ */
+export function impactoPagoUsdEnVenta(opts: {
+  montoUSD: number;
+  cotizacion: number;
+  totalARS: number;
+  totalUSD: number;
+}): {
+  detallesPago: DetallesPagoFirestore;
+  deltaARS: number;
+  deltaUSD: number;
+  nota: string;
+} {
+  const monto = Math.max(0, Number(opts.montoUSD) || 0);
+  const cotizacion = Number(opts.cotizacion) || 0;
+  if (esVentaSoloARS(Number(opts.totalARS) || 0, Number(opts.totalUSD) || 0)) {
+    const ars = calcularARSDesdeUSD(monto, cotizacion);
+    if (ars > 0) {
+      return {
+        detallesPago: {
+          tipo: "USD_a_ARS",
+          montoARSEquivalente: ars,
+          montoUSDOriginal: monto,
+          cotizacionPago: cotizacion,
+        },
+        deltaARS: -ars,
+        deltaUSD: 0,
+        nota: notaConversionUSDaARS(monto, ars, cotizacion),
+      };
+    }
+  }
+  return {
+    detallesPago: { tipo: "USD" },
+    deltaARS: 0,
+    deltaUSD: -monto,
+    nota: "",
+  };
+}
+
+/** Crédito que un pago ya guardado aporta a la cuenta. No cuenta dos veces una conversión. */
+export function creditoCuentaDePago(pago: {
+  monto?: unknown;
+  montoUSD?: unknown;
+  detallesPago?: {
+    tipo?: string;
+    montoUSDEquivalente?: number;
+    montoARSEquivalente?: number;
+  } | null;
+}): { ars: number; usd: number } {
+  const det = pago.detallesPago;
+  if (det?.tipo === "USD_a_ARS") {
+    return { ars: Math.max(0, Number(det.montoARSEquivalente) || 0), usd: 0 };
+  }
+  return {
+    ars: Math.max(0, Number(pago.monto) || 0),
+    usd: Math.max(0, Number(pago.montoUSD) || 0),
+  };
+}
 
 export type LineaPagoVenta = {
   moneda: "ARS" | "USD";

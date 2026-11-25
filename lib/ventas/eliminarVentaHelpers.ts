@@ -23,6 +23,7 @@ export type PagoParaAnularSaldo = {
   detallesPago?: {
     tipo?: string;
     montoUSDEquivalente?: number;
+    montoARSEquivalente?: number;
   } | null;
 };
 
@@ -43,6 +44,11 @@ export function deltasSaldoAlAnularPagos(pagos: PagoParaAnularSaldo[]): {
     if (det?.tipo === "ARS_a_USD") {
       const eq = Number(det.montoUSDEquivalente) || 0;
       if (eq > 0) usd += eq;
+      continue;
+    }
+    if (det?.tipo === "USD_a_ARS") {
+      const eq = Number(det.montoARSEquivalente) || 0;
+      if (eq > 0) ars += eq;
       continue;
     }
 

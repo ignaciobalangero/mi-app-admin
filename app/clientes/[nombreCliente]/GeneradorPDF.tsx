@@ -25,6 +25,17 @@ function nombreProductoLinea(p: any): string {
   return nombre || "Producto";
 }
 
+function movimientoPagoCuenta(pago: any): { monto: number; moneda: "ARS" | "USD" } | null {
+  const det = pago?.detallesPago;
+  if (det?.tipo === "USD_a_ARS") {
+    const ars = Number(det.montoARSEquivalente) || 0;
+    return ars > 0 ? { monto: ars, moneda: "ARS" } : null;
+  }
+  const moneda = normalizeMonedaCuenta(pago?.moneda);
+  const monto = moneda === "USD" ? Number(pago?.montoUSD || 0) : Number(pago?.monto || 0);
+  return monto > 0 ? { monto, moneda } : null;
+}
+
 function textoOpcional(v: unknown): string {
   const s = String(v ?? "").trim();
   if (!s || s === "—") return "";
@@ -251,21 +262,17 @@ export default function GeneradorPDF({
 
     // Agregar pagos
     pagos.forEach((pago) => {
-      const mon = normalizeMonedaCuenta(pago.moneda);
-      const monto =
-        mon === "USD" ? Number(pago.montoUSD || 0) : Number(pago.monto || 0);
-
-      if (monto > 0) {
-        historial.push({
-          fecha: pago.fecha,
-          fechaOrden: new Date(pago.fecha.split("/").reverse().join("-")),
-          tipo: "pago",
-          descripcion: `Pago - ${pago.forma || "Efectivo"}`,
-          monto: monto,
-          moneda: mon,
-          esDeuda: false,
-        });
-      }
+      const aplicado = movimientoPagoCuenta(pago);
+      if (!aplicado) return;
+      historial.push({
+        fecha: pago.fecha,
+        fechaOrden: new Date(pago.fecha.split("/").reverse().join("-")),
+        tipo: "pago",
+        descripcion: `Pago - ${pago.forma || "Efectivo"}`,
+        monto: aplicado.monto,
+        moneda: aplicado.moneda,
+        esDeuda: false,
+      });
     });
 
     // Ordenar por fecha (más antiguo primero para calcular correctamente)
@@ -651,21 +658,17 @@ export default function GeneradorPDF({
       });
 
       pagos.forEach((pago) => {
-        const mon = normalizeMonedaCuenta(pago.moneda);
-        const monto =
-          mon === "USD" ? Number(pago.montoUSD || 0) : Number(pago.monto || 0);
-
-        if (monto > 0) {
-          historial.push({
-            fecha: pago.fecha,
-            fechaOrden: new Date(pago.fecha.split("/").reverse().join("-")),
-            tipo: "pago",
-            descripcion: `Pago - ${pago.forma || "Efectivo"}`,
-            monto: monto,
-            moneda: mon,
-            esDeuda: false,
-          });
-        }
+        const aplicado = movimientoPagoCuenta(pago);
+        if (!aplicado) return;
+        historial.push({
+          fecha: pago.fecha,
+          fechaOrden: new Date(pago.fecha.split("/").reverse().join("-")),
+          tipo: "pago",
+          descripcion: `Pago - ${pago.forma || "Efectivo"}`,
+          monto: aplicado.monto,
+          moneda: aplicado.moneda,
+          esDeuda: false,
+        });
       });
 
       // Filtrar por fechas

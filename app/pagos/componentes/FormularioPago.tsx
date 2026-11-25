@@ -342,7 +342,7 @@ const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, s
      cotizacion,
      tipo: 'ingreso',
      negocioID,
-     observaciones: "",
+     observaciones: impacto?.nota || "",
      ...(ventaAplicar
        ? {
            nroVenta: ventaAplicar.nroVenta,

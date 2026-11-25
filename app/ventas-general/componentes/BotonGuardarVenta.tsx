@@ -39,6 +39,7 @@ import {
   creditoUSDVentaSoloUSD,
   esVentaSoloUSD,
   formaPagoDocumento,
+  impactoPagoUsdEnVenta,
   notaConversionARSaUSD,
   resolverLineasPago,
   ventaEstaPagada,
@@ -842,14 +843,24 @@ const calcularGananciaRespetandoMoneda = (producto: any, stockData: any, cotizac
           await actualizarSaldoCliente(clienteNombre, -linea.monto, 0);
         }
         if (linea.moneda === "USD" && linea.monto > 0) {
+          const impacto = impactoPagoUsdEnVenta({
+            montoUSD: linea.monto,
+            cotizacion: cotTel,
+            totalARS: descOperacion.totalARS,
+            totalUSD: descOperacion.totalUSD,
+          });
           await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
             ...basePagoTel,
             monto: null,
             montoUSD: linea.monto,
             moneda: "USD",
             forma: formaPagoDocumento(linea.formaPago, "USD"),
+            observaciones: [pagoTelefono.observaciones || "", impacto.nota]
+              .filter(Boolean)
+              .join(" • "),
+            detallesPago: impacto.detallesPago,
           });
-          await actualizarSaldoCliente(clienteNombre, 0, -linea.monto);
+          await actualizarSaldoCliente(clienteNombre, impacto.deltaARS, impacto.deltaUSD);
         }
       }
     }
@@ -1174,17 +1185,26 @@ console.log('💳 Saldo actualizado por venta normal');
           await actualizarSaldoCliente(clienteNombre, -linea.monto, 0);
         }
         if (linea.moneda === "USD" && linea.monto > 0) {
+          const impacto = impactoPagoUsdEnVenta({
+            montoUSD: linea.monto,
+            cotizacion: cotParaConversion,
+            totalARS,
+            totalUSD,
+          });
           await addDoc(collection(db, `negocios/${rol.negocioID}/pagos`), {
             ...basePagoDoc,
             monto: null,
             montoUSD: linea.monto,
             moneda: "USD",
             forma: formaPagoDocumento(linea.formaPago, "USD"),
-            observaciones: pago?.observaciones || "",
-            cotizacion: cotizacion,
+            observaciones: [pago?.observaciones || "", impacto.nota]
+              .filter(Boolean)
+              .join(" • "),
+            cotizacion: cotParaConversion,
+            detallesPago: impacto.detallesPago,
           });
-          console.log("✅ Pago USD guardado:", linea.monto, linea.formaPago);
-          await actualizarSaldoCliente(clienteNombre, 0, -linea.monto);
+          console.log("✅ Pago USD guardado:", linea.monto, linea.formaPago, impacto.detallesPago.tipo);
+          await actualizarSaldoCliente(clienteNombre, impacto.deltaARS, impacto.deltaUSD);
         }
       }
     }

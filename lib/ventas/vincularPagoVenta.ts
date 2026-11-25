@@ -13,6 +13,8 @@ import { resolverSaldoPendienteRecibo, type PagoReciboCompra } from "@/lib/recib
 import {
   calcularUsdDesdeARS,
   esVentaSoloUSD,
+  impactoPagoUsdEnVenta,
+  notaConversionARSaUSD,
   ventaEstaPagada,
 } from "@/lib/ventas/pagoDualHelpers";
 
@@ -213,6 +215,7 @@ export type ImpactoPagoCliente = {
   ars: number;
   usd: number;
   detallesPago: Record<string, unknown>;
+  nota: string;
 };
 
 /**
@@ -235,6 +238,7 @@ export function impactoClienteDePago(opts: {
     return {
       ars: 0,
       usd: -usd,
+      nota: usd > 0 ? notaConversionARSaUSD(monto, usd, cotizacion) : "",
       detallesPago: {
         tipo: "ARS_a_USD",
         montoUSDEquivalente: usd,
@@ -245,10 +249,21 @@ export function impactoClienteDePago(opts: {
   }
 
   if (opts.moneda === "USD") {
-    return { ars: 0, usd: -monto, detallesPago: { tipo: "USD" } };
+    const impacto = impactoPagoUsdEnVenta({
+      montoUSD: monto,
+      cotizacion,
+      totalARS: Number(opts.totalARS) || 0,
+      totalUSD: Number(opts.totalUSD) || 0,
+    });
+    return {
+      ars: impacto.deltaARS,
+      usd: impacto.deltaUSD,
+      nota: impacto.nota,
+      detallesPago: impacto.detallesPago,
+    };
   }
 
-  return { ars: -monto, usd: 0, detallesPago: { tipo: "ARS" } };
+  return { ars: -monto, usd: 0, nota: "", detallesPago: { tipo: "ARS" } };
 }
 
 /** Pagos de la venta (los del día y los posteriores) y el saldo que queda. */

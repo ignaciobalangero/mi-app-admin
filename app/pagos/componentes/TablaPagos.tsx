@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { deltasSaldoAlAnularPagos } from "@/lib/ventas/eliminarVentaHelpers";
+import { calcularARSDesdeUSD } from "@/lib/ventas/pagoDualHelpers";
 import type { PagoConOrigen } from "../page";
 
 interface TablaPagosProps {
@@ -249,9 +250,27 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
         cotizacion: Number(form.cotizacion || 0),
       };
 
+      const cotizacionNueva = Number(form.cotizacion || 0);
+      const eraUsdAPesos =
+        datosOriginales.detallesPago?.tipo === "USD_a_ARS" && form.moneda === "USD";
+      const arsEquivalente = eraUsdAPesos
+        ? calcularARSDesdeUSD(
+            Number(form.montoUSD),
+            cotizacionNueva || Number(datosOriginales.detallesPago?.cotizacionPago) || 0
+          )
+        : 0;
+
       if (form.moneda === "USD") {
         datosActualizados.montoUSD = Number(form.montoUSD);
-        datosActualizados.monto = 0;
+        datosActualizados.monto = null;
+        if (eraUsdAPesos && arsEquivalente > 0) {
+          datosActualizados.detallesPago = {
+            tipo: "USD_a_ARS",
+            montoARSEquivalente: arsEquivalente,
+            montoUSDOriginal: Number(form.montoUSD),
+            cotizacionPago: cotizacionNueva || Number(datosOriginales.detallesPago?.cotizacionPago) || 0,
+          };
+        }
       } else {
         datosActualizados.monto = Number(form.monto);
         datosActualizados.montoUSD = 0;
@@ -290,8 +309,8 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
       if (clienteNuevo) {
         await actualizarSaldoCliente(
           clienteNuevo,
-          -montoNuevoARS,
-          -montoNuevoUSD
+          eraUsdAPesos && arsEquivalente > 0 ? -arsEquivalente : -montoNuevoARS,
+          eraUsdAPesos && arsEquivalente > 0 ? 0 : -montoNuevoUSD
         );
         console.log(`✅ Restado nuevo pago a ${clienteNuevo}: ARS ${montoNuevoARS} | USD ${montoNuevoUSD}`);
       }
@@ -620,6 +639,13 @@ export default function TablaPagos({ negocioID, pagos, setPagos }: TablaPagosPro
                             <span className="text-[11px] text-[#7f8c8d]">
                               Pagado en ARS ${Number(pago.detallesPago.montoARSOriginal).toLocaleString("es-AR")} a cotización{" "}
                               ${Number(pago.detallesPago.cotizacionPago).toLocaleString("es-AR")}
+                            </span>
+                          )}
+                        {pago?.detallesPago?.tipo === "USD_a_ARS" &&
+                          Number(pago?.detallesPago?.montoARSEquivalente || 0) > 0 && (
+                            <span className="text-[11px] text-[#7f8c8d]">
+                              Aplicado a la deuda en pesos: $
+                              {Number(pago.detallesPago.montoARSEquivalente).toLocaleString("es-AR")}
                             </span>
                           )}
                       </div>

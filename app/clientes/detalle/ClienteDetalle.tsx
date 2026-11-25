@@ -382,6 +382,13 @@ export default function ClienteDetalle() {
                                     ${Number(p.detallesPago.cotizacionPago).toLocaleString("es-AR")}
                                   </span>
                                 )}
+                              {p?.detallesPago?.tipo === "USD_a_ARS" &&
+                                Number(p?.detallesPago?.montoARSEquivalente || 0) > 0 && (
+                                  <span className="text-[11px] text-[#7f8c8d]">
+                                    Aplicado a la deuda en pesos: $
+                                    {Number(p.detallesPago.montoARSEquivalente).toLocaleString("es-AR")}
+                                  </span>
+                                )}
                             </div>
                           </td>
                           <td className="p-3 border border-black">

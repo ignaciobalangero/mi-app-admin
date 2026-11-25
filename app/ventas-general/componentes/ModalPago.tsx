@@ -5,9 +5,11 @@ import { createPortal } from "react-dom";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import {
+  calcularARSDesdeUSD,
   calcularSaldosVenta,
   calcularUsdDesdeARS,
   creditoUSDVentaSoloUSD,
+  esVentaSoloARS,
   esVentaSoloUSD,
   notaConversionARSaUSD,
 } from "@/lib/ventas/pagoDualHelpers";
@@ -208,6 +210,9 @@ export default function ModalPago({
   const ventaSoloUSD = totalesVenta
     ? esVentaSoloUSD(totalesVenta.totalARS, totalesVenta.totalUSD)
     : false;
+  const ventaSoloARS = totalesVenta
+    ? esVentaSoloARS(totalesVenta.totalARS, totalesVenta.totalUSD)
+    : false;
 
   const listaTelefonosPago = (
     telefonosComoPago.length > 0
@@ -230,6 +235,7 @@ export default function ModalPago({
     .reduce((acc, t) => acc + t.valorPago, 0);
 
   const usdDesdeARS = ventaSoloUSD ? calcularUsdDesdeARS(pagoARS, cotizacionUsada) : 0;
+  const arsDesdeUSD = ventaSoloARS ? calcularARSDesdeUSD(pagoUSD, cotizacionUsada) : 0;
   const creditoUSD = ventaSoloUSD
     ? creditoUSDVentaSoloUSD(pagoARS, pagoUSD, cotizacionUsada)
     : Math.max(0, pagoUSD);
@@ -457,6 +463,14 @@ export default function ModalPago({
                       <span className="text-gray-600">Pagando:</span>
                       <span className="font-medium text-blue-600">${pagoARS.toLocaleString()}</span>
                     </div>
+                    {arsDesdeUSD > 0 && (
+                      <div className="flex justify-between text-xs text-blue-800">
+                        <span>
+                          USD ${pagoUSD.toLocaleString()} a cotización ${cotizacionUsada.toLocaleString()}:
+                        </span>
+                        <span className="font-semibold">${arsDesdeUSD.toLocaleString()}</span>
+                      </div>
+                    )}
                     {descuentoTelefonoPagoARS > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">
@@ -508,6 +522,11 @@ export default function ModalPago({
                         {ventaSoloUSD && usdDesdeARS > 0 && (
                           <span className="block text-xs text-blue-700 font-normal">
                             + ${pagoARS.toLocaleString()} ARS ≈ USD ${usdDesdeARS.toFixed(2)}
+                          </span>
+                        )}
+                        {ventaSoloARS && pagoUSD > 0 && (
+                          <span className="block text-xs text-blue-700 font-normal">
+                            Se aplican a la deuda en pesos
                           </span>
                         )}
                       </span>

@@ -168,6 +168,11 @@ const calcularTotales = () => {
 
   // Pagos
   pagos.forEach(p => {
+    const det = p?.detallesPago;
+    if (det?.tipo === "USD_a_ARS") {
+      totalPagosARS += Number(det.montoARSEquivalente || 0);
+      return;
+    }
     const monedaPago = (p.moneda ?? "").toString().toUpperCase();
     if (monedaPago === "USD") {
       totalPagosUSD += Number(p.montoUSD || 0);
@@ -657,6 +662,13 @@ const calcularTotales = () => {
                                     <span className="text-[11px] text-[#7f8c8d]">
                                       Pagado en ARS ${Number(p.detallesPago.montoARSOriginal).toLocaleString("es-AR")} a cotización{" "}
                                       ${Number(p.detallesPago.cotizacionPago).toLocaleString("es-AR")}
+                                    </span>
+                                  )}
+                                {p?.detallesPago?.tipo === "USD_a_ARS" &&
+                                  Number(p?.detallesPago?.montoARSEquivalente || 0) > 0 && (
+                                    <span className="text-[11px] text-[#7f8c8d]">
+                                      Aplicado a la deuda en pesos: $
+                                      {Number(p.detallesPago.montoARSEquivalente).toLocaleString("es-AR")}
                                     </span>
                                   )}
                               </div>

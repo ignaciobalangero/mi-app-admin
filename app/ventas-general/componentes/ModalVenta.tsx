@@ -20,7 +20,7 @@ import {
   STORAGE_PEDIDO_TIENDA_ACTIVO,
 } from "@/lib/usePedidosTiendaPendientesVenta";
 import type { PedidoTienda } from "@/lib/tiendaClienteTypes";
-import { aplicarDescuentoVenta, calcularSaldosVenta, cotizacionEfectiva } from "@/lib/ventas/pagoDualHelpers";
+import { aplicarDescuentoVenta, calcularARSDesdeUSD, calcularSaldosVenta, cotizacionEfectiva, esVentaSoloARS } from "@/lib/ventas/pagoDualHelpers";
 import {
   normalizarVentaTelefonoPendiente,
   parsearTelefonosComoPagoLS,
@@ -515,6 +515,9 @@ export default function ModalVenta({
     ventaSoloUSD && pagoARS > 0 && cotizacionParaSaldos > 0
       ? pagoARS / cotizacionParaSaldos
       : 0;
+  const arsDesdePagoUSD = esVentaSoloARS(totalARS, totalUSD)
+    ? calcularARSDesdeUSD(pagoUSD, cotizacionParaSaldos)
+    : 0;
 
   console.log('💰 DEBUG CÁLCULOS DUALES:', {
     totalARS,
@@ -1293,12 +1296,24 @@ export default function ModalVenta({
                       </div>
                     </div>
                     
-                    {(pagoARS > 0 || descuentoTelefonoPagoARS > 0) && (
+                    {(pagoARS > 0 || descuentoTelefonoPagoARS > 0 || arsDesdePagoUSD > 0) && (
                       <div className="border-t border-green-300 pt-3 space-y-2">
                         {pagoARS > 0 && (
                           <div className="flex justify-between text-sm text-green-700">
                             <span>💰 Pagado:</span>
                             <span className="font-semibold">-${pagoARS.toLocaleString("es-AR")}</span>
+                          </div>
+                        )}
+                        {arsDesdePagoUSD > 0 && (
+                          <div className="flex justify-between text-sm text-green-700 gap-2">
+                            <span className="shrink-0">💵 Pagado en dólares:</span>
+                            <span className="font-semibold text-right">
+                              -${arsDesdePagoUSD.toLocaleString("es-AR")}
+                              <span className="block text-xs font-medium text-blue-700">
+                                USD {pagoUSD.toLocaleString("es-AR")} a cotización $
+                                {cotizacionParaSaldos.toLocaleString("es-AR")}
+                              </span>
+                            </span>
                           </div>
                         )}
                         

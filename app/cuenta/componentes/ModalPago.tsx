@@ -6,6 +6,12 @@ import { db } from "@/lib/firebase";
 import { cotizacionNegocioCaja } from "@/lib/caja/cotizacionCaja";
 import { cotizacionVentaGeneral, montosPagoEnCuentaProveedor } from "@/lib/proveedores/cuentaProveedor";
 import {
+  calcularARSDesdeUSD,
+  calcularUsdDesdeARS,
+  esVentaSoloARS,
+  esVentaSoloUSD,
+} from "@/lib/ventas/pagoDualHelpers";
+import {
   impactoClienteDePago,
   listarVentasPendientesCliente,
   sincronizarVentaTrasPago,
@@ -114,6 +120,7 @@ export default function ModalPago({
   const [ventasPendientes, setVentasPendientes] = useState<VentaPendienteCliente[]>([]);
   const [ventaIdAplicar, setVentaIdAplicar] = useState("");
   const [cargandoVentas, setCargandoVentas] = useState(false);
+  const [cotizacionCobro, setCotizacionCobro] = useState("");
 
   useEffect(() => {
     if (!mostrar) return;
@@ -131,6 +138,7 @@ export default function ModalPago({
     setPagoGuardado(false);
     setVentaIdAplicar("");
     setVentasPendientes([]);
+    setCotizacionCobro("");
   }, [mostrar, clienteSeleccionado?.cliente]);
 
   useEffect(() => {
@@ -138,11 +146,16 @@ export default function ModalPago({
     let cancelado = false;
     void (async () => {
       try {
-        const [snap, cot] = await Promise.all([
+        const [snap, cot, cotCaja] = await Promise.all([
           getDocs(collection(db, `negocios/${negocioID}/proveedores`)),
           cotizacionVentaGeneral(negocioID),
+          cotizacionNegocioCaja(negocioID),
         ]);
         if (cancelado) return;
+        const cotInicial = cot || cotCaja || 0;
+        if (cotInicial > 0) {
+          setCotizacionCobro((prev) => (prev ? prev : String(cotInicial)));
+        }
         setProveedores(
           snap.docs.map((d) => ({
             id: d.id,
@@ -151,9 +164,9 @@ export default function ModalPago({
             cuentaUSD: d.data().cuentaUSD === true,
           }))
         );
-        if (cot) {
+        if (cotInicial > 0) {
           setPago((prev) =>
-            prev.cotizacionProveedor ? prev : { ...prev, cotizacionProveedor: String(cot) }
+            prev.cotizacionProveedor ? prev : { ...prev, cotizacionProveedor: String(cotInicial) }
           );
         }
       } catch (error) {
@@ -188,6 +201,38 @@ export default function ModalPago({
   }, [mostrar, negocioID, clienteSeleccionado?.cliente]);
 
   if (!mostrar || !clienteSeleccionado) return null;
+
+  const ventaElegida = ventasPendientes.find((v) => v.id === ventaIdAplicar);
+  const ventaSoloUSD = ventaElegida
+    ? esVentaSoloUSD(ventaElegida.totalARS, ventaElegida.totalUSD)
+    : false;
+  const ventaSoloARS = ventaElegida
+    ? esVentaSoloARS(ventaElegida.totalARS, ventaElegida.totalUSD)
+    : false;
+  const soloDeudaUSD =
+    !ventaElegida &&
+    clienteSeleccionado.saldoUSD > 0.01 &&
+    clienteSeleccionado.saldoPesos <= 0.01;
+  const soloDeudaARS =
+    !ventaElegida &&
+    clienteSeleccionado.saldoPesos > 0.01 &&
+    clienteSeleccionado.saldoUSD <= 0.01;
+  const cancelaUsdConPesos =
+    pago.moneda === "ARS" && (ventaSoloUSD || soloDeudaUSD);
+  const cancelaArsConUsd =
+    pago.moneda === "USD" && (ventaSoloARS || soloDeudaARS);
+  const muestraCotizacionCobro = cancelaUsdConPesos || cancelaArsConUsd;
+  const cotizacionNumero = Number(cotizacionCobro) || 0;
+  const montoPreview = parsearMontoAR(pago.monto, pago.moneda);
+  const usdDesdePesos =
+    cancelaUsdConPesos && cotizacionNumero > 0
+      ? calcularUsdDesdeARS(montoPreview, cotizacionNumero)
+      : 0;
+  const pesosDesdeUsd =
+    cancelaArsConUsd && cotizacionNumero > 0
+      ? calcularARSDesdeUSD(montoPreview, cotizacionNumero)
+      : 0;
+  const proveedorElegido = proveedores.find((p) => p.nombre === pago.proveedorSeleccionado);
 
   // ⭐ NUEVO: Función para actualizar saldo del cliente
   const actualizarSaldoCliente = async (nombreCliente: string, sumarARS: number, sumarUSD: number) => {
@@ -263,7 +308,9 @@ export default function ModalPago({
         setGuardandoPago(false);
         return;
       }
-      const cotizacion = await cotizacionNegocioCaja(negocioID);
+      const cotizacionCargada = Number(cotizacionCobro) || 0;
+      const cotizacion =
+        cotizacionCargada > 0 ? cotizacionCargada : await cotizacionNegocioCaja(negocioID);
       const proveedor =
         pago.tipoDestino === "proveedor" && pago.proveedorSeleccionado
           ? proveedores.find((p) => p.nombre === pago.proveedorSeleccionado)
@@ -291,6 +338,10 @@ export default function ModalPago({
       const { fecha, fechaCompleta } = fechaDesdeInput(pago.fecha || hoyInputDate());
       const ventaAplicar = ventasPendientes.find((v) => v.id === ventaIdAplicar);
       const monedaPago = pago.moneda === "USD" ? "USD" : "ARS";
+      const soloDeudaUSD =
+        clienteSeleccionado.saldoUSD > 0.01 && clienteSeleccionado.saldoPesos <= 0.01;
+      const soloDeudaARS =
+        clienteSeleccionado.saldoPesos > 0.01 && clienteSeleccionado.saldoUSD <= 0.01;
       const impacto = ventaAplicar
         ? impactoClienteDePago({
             moneda: monedaPago,
@@ -299,7 +350,29 @@ export default function ModalPago({
             totalARS: ventaAplicar.totalARS,
             totalUSD: ventaAplicar.totalUSD,
           })
-        : null;
+        : monedaPago === "ARS" && soloDeudaUSD
+          ? impactoClienteDePago({
+              moneda: "ARS",
+              monto: montoNumerico,
+              cotizacion,
+              totalARS: 0,
+              totalUSD: clienteSeleccionado.saldoUSD,
+            })
+          : monedaPago === "USD" && soloDeudaARS
+            ? impactoClienteDePago({
+                moneda: "USD",
+                monto: montoNumerico,
+                cotizacion,
+                totalARS: clienteSeleccionado.saldoPesos,
+                totalUSD: 0,
+              })
+            : null;
+      const tipoImpacto = String(impacto?.detallesPago?.tipo || "");
+      if ((tipoImpacto === "ARS_a_USD" || tipoImpacto === "USD_a_ARS") && cotizacion <= 0) {
+        alert("Cargá la cotización para aplicar este pago a la otra moneda.");
+        setGuardandoPago(false);
+        return;
+      }
       
       const pagoData = {
         monto: pago.moneda === "USD" ? null : montoNumerico,
@@ -309,7 +382,7 @@ export default function ModalPago({
         destino,
         tipoDestino: pago.tipoDestino,
         proveedorDestino: proveedor ? proveedor.nombre : null,
-        observaciones: pago.observaciones,
+        observaciones: [pago.observaciones, impacto?.nota].filter(Boolean).join(" · "),
         cliente: clienteSeleccionado.cliente,
         fecha,
         fechaCompleta,
@@ -320,9 +393,9 @@ export default function ModalPago({
           ? {
               nroVenta: ventaAplicar.nroVenta,
               ventaId: ventaAplicar.id,
-              detallesPago: impacto?.detallesPago ?? null,
             }
           : {}),
+        ...(impacto ? { detallesPago: impacto.detallesPago } : {}),
       };
 
       await addDoc(collection(db, `negocios/${negocioID}/pagos`), pagoData);
@@ -354,8 +427,17 @@ export default function ModalPago({
       console.log('💳 Saldo actualizado por pago desde cuenta corriente');
 
       // Marcar trabajos como pagados
+      const monedaAplicada =
+        tipoImpacto === "ARS_a_USD" ? "USD" : tipoImpacto === "USD_a_ARS" ? "ARS" : pago.moneda;
+      const montoAplicado =
+        tipoImpacto === "ARS_a_USD"
+          ? Number(impacto?.detallesPago?.montoUSDEquivalente) || 0
+          : tipoImpacto === "USD_a_ARS"
+            ? Number(impacto?.detallesPago?.montoARSEquivalente) || 0
+            : montoNumerico;
+
       if (clienteSeleccionado.trabajosPendientes && clienteSeleccionado.trabajosPendientes.length > 0) {
-        let montoRestante = montoNumerico;
+        let montoRestante = montoAplicado;
         const trabajosOrdenados = [...clienteSeleccionado.trabajosPendientes].sort((a, b) => {
           const fechaA = new Date(a.fecha || '');
           const fechaB = new Date(b.fecha || '');
@@ -368,7 +450,7 @@ export default function ModalPago({
           const precioTrabajo = Number(trabajo.precio || 0);
           const monedaTrabajo = trabajo.moneda || "ARS";
           
-          if (monedaTrabajo === pago.moneda && trabajo.firebaseId) {
+          if (monedaTrabajo === monedaAplicada && trabajo.firebaseId) {
             if (montoRestante >= precioTrabajo) {
               const trabajoRef = doc(db, `negocios/${negocioID}/trabajos/${trabajo.firebaseId}`);
               await updateDoc(trabajoRef, {
@@ -600,6 +682,42 @@ export default function ModalPago({
               </div>
             </div>
 
+            {muestraCotizacionCobro && (
+              <div className="mt-4 bg-[#f1f5ff] border border-blue-200 rounded-lg p-3 space-y-2">
+                <p className="text-xs text-blue-900 font-medium">
+                  {cancelaUsdConPesos
+                    ? "La deuda es en dólares: estos pesos se imputan a esa deuda. En caja figuran como pesos, no como billetes."
+                    : "La deuda es en pesos: estos dólares se imputan a esa deuda. En caja figuran como billetes de dólar."}
+                </p>
+                <div>
+                  <label className="block text-xs text-blue-800 font-medium mb-1">
+                    Cotización del cobro
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={cotizacionCobro}
+                    onChange={(e) => setCotizacionCobro(e.target.value)}
+                    disabled={guardandoPago}
+                    placeholder="Ej: 1550"
+                    className="w-full p-2 border-2 border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium text-[#2c3e50] disabled:opacity-50"
+                  />
+                </div>
+                {cancelaUsdConPesos && montoPreview > 0 && usdDesdePesos > 0 && (
+                  <p className="text-xs text-blue-800">
+                    En la cuenta: USD {usdDesdePesos.toLocaleString("es-AR", { maximumFractionDigits: 2 })} al
+                    cambio ${cotizacionNumero.toLocaleString("es-AR")}. Esta cotización no cambia la cuenta del proveedor.
+                  </p>
+                )}
+                {cancelaArsConUsd && montoPreview > 0 && pesosDesdeUsd > 0 && (
+                  <p className="text-xs text-blue-800">
+                    En la cuenta: ${pesosDesdeUsd.toLocaleString("es-AR")} al cambio $
+                    {cotizacionNumero.toLocaleString("es-AR")}. Esta cotización no cambia la cuenta del proveedor.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Botones rápidos */}
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="text-sm text-[#7f8c8d] w-full mb-1">Montos sugeridos:</span>
@@ -636,6 +754,24 @@ export default function ModalPago({
                         Saldo de la venta USD: {formatUSD(venta.saldoUSD)}
                       </button>
                     )}
+                    {esVentaSoloUSD(venta.totalARS, venta.totalUSD) &&
+                      venta.saldoUSD > 0.01 &&
+                      cotizacionNumero > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPago((prev) => ({
+                              ...prev,
+                              moneda: "ARS",
+                              monto: montoDesdeNumero(venta.saldoUSD * cotizacionNumero, "ARS"),
+                            }))
+                          }
+                          disabled={guardandoPago}
+                          className="bg-[#2980b9] hover:bg-[#2471a3] text-white px-3 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
+                        >
+                          Cancelar esos USD en pesos
+                        </button>
+                      )}
                     {venta.saldoARS > 0.01 && (
                       <button
                         type="button"
@@ -719,7 +855,18 @@ export default function ModalPago({
                     <select
                       name="proveedorSeleccionado"
                       value={pago.proveedorSeleccionado}
-                      onChange={handlePagoChange}
+                      onChange={(e) => {
+                        const nombre = e.target.value;
+                        const elegido = proveedores.find((p) => p.nombre === nombre);
+                        setPago((prev) => ({
+                          ...prev,
+                          proveedorSeleccionado: nombre,
+                          cotizacionProveedor:
+                            elegido?.cuentaUSD && !prev.cotizacionProveedor && cotizacionCobro
+                              ? cotizacionCobro
+                              : prev.cotizacionProveedor,
+                        }));
+                      }}
                       disabled={guardandoPago}
                       className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm sm:text-base text-[#2c3e50] disabled:opacity-50"
                     >
@@ -731,11 +878,10 @@ export default function ModalPago({
                         </option>
                       ))}
                     </select>
-                    {proveedores.find((p) => p.nombre === pago.proveedorSeleccionado)?.cuentaUSD &&
-                    pago.moneda === "ARS" ? (
+                    {proveedorElegido?.cuentaUSD && pago.moneda === "ARS" ? (
                       <div>
                         <label className="block text-sm font-semibold text-[#2c3e50] mb-1">
-                          Cotización del proveedor
+                          Cotización del proveedor (distinta a la del cobro)
                         </label>
                         <input
                           type="number"
@@ -743,14 +889,15 @@ export default function ModalPago({
                           value={pago.cotizacionProveedor}
                           onChange={handlePagoChange}
                           disabled={guardandoPago}
-                          placeholder="Ej: 1450"
+                          placeholder={cotizacionCobro || "Ej: 1450"}
                           className="w-full p-3 border-2 border-[#bdc3c7] rounded-lg bg-white text-sm text-[#2c3e50] disabled:opacity-50"
                         />
                         <p className="text-xs text-[#7f8c8d] mt-1">
-                          Solo pasa este pago de pesos a la cuenta en USD del proveedor. La caja
-                          sigue en pesos
+                          La cuenta del cliente usa la cotización del cobro. Acá ponés la del
+                          proveedor: los mismos pesos pasan a su cuenta en USD con este otro cambio.
+                          La caja sigue en pesos
                           {Number(pago.cotizacionProveedor) > 0 && parsearMontoAR(pago.monto, "ARS") > 0
-                            ? `. Impacta USD ${(Math.round((parsearMontoAR(pago.monto, "ARS") / Number(pago.cotizacionProveedor)) * 100) / 100).toLocaleString("es-AR")}`
+                            ? `. En el proveedor: USD ${(Math.round((parsearMontoAR(pago.monto, "ARS") / Number(pago.cotizacionProveedor)) * 100) / 100).toLocaleString("es-AR")}`
                             : ""}
                           .
                         </p>
