@@ -15,6 +15,7 @@ import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/esta
 import CampoFotoRepuesto from "@/app/ventas/stock-accesorios-repuestos/repuestos/components/CampoFotoRepuesto";
 import { fotosParaFirestore, normalizarFotosURLs, normalizarVideoURL } from "@/lib/fotosRepuestoHelpers";
 import type { ChequeoImei } from "@/lib/ifree/consultasImei";
+import CampoProveedor from "@/components/CampoProveedor";
 
 interface Props {
   negocioID: string;
@@ -297,13 +298,11 @@ export default function FormularioStock({
             onChange={handleChange}
             className="p-2 border rounded"
           />
-          <input
-            type="text"
-            name="proveedor"
+          <CampoProveedor
             value={form.proveedor}
-            onChange={handleChange}
-            placeholder={placeholderProveedor || "Proveedor"}
-            className="p-2 border rounded"
+            onChange={(nombre) => setForm((prev) => ({ ...prev, proveedor: nombre }))}
+            placeholder={placeholderProveedor || "Elegí de Proveedores o escribí el nombre"}
+            className="w-full p-2 border rounded"
           />
           <input
             type="text"

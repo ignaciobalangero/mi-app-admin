@@ -7,6 +7,7 @@ import CamposEstadoTelefono from "./CamposEstadoTelefono";
 import { estadoPideCondicion, normalizarEstado } from "@/lib/stockTelefonos/estados";
 import CampoFotoRepuesto from "@/app/ventas/stock-accesorios-repuestos/repuestos/components/CampoFotoRepuesto";
 import { fotosParaFirestore, normalizarFotosURLs, normalizarVideoURL } from "@/lib/fotosRepuestoHelpers";
+import CampoProveedor from "@/components/CampoProveedor";
 
 interface Telefono {
   id: string;
@@ -205,11 +206,9 @@ export default function ModalEditarTelefono({
               <label className="block text-sm font-semibold text-[#2c3e50]">
                 🏪 Proveedor
               </label>
-              <input
-                type="text"
-                name="proveedor"
+              <CampoProveedor
                 value={formulario.proveedor || ""}
-                onChange={manejarCambio}
+                onChange={(nombre) => setFormulario((prev) => ({ ...prev, proveedor: nombre }))}
                 className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm"
               />
             </div>

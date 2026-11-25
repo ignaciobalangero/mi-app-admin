@@ -2,6 +2,7 @@
 
 import React from "react";
 import CampoCodigoBarras from "@/components/CampoCodigoBarras";
+import CampoProveedor from "@/components/CampoProveedor";
 
 interface Props {
   codigo: string;
@@ -127,10 +128,10 @@ export default function FormularioProducto({
           <label className="block text-xs font-semibold text-[#2c3e50] mb-1">
             🏪 Proveedor
           </label>
-          <input 
-            value={proveedor} 
-            onChange={(e) => setProveedor(e.target.value)} 
-            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]" 
+          <CampoProveedor
+            value={proveedor}
+            onChange={setProveedor}
+            className="p-2 border-2 border-[#bdc3c7] rounded-lg w-full bg-white focus:ring-2 focus:ring-[#3498db] focus:border-[#3498db] transition-all text-[#2c3e50] text-xs placeholder-[#7f8c8d]"
           />
         </div>
         <div>

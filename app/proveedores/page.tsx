@@ -11,6 +11,8 @@ import {
   deleteDoc,
   query,
   orderBy,
+  writeBatch,
+  type DocumentReference,
 } from "firebase/firestore";
 import { useRol } from "@/lib/useRol"; // 🆕 IMPORTAR EL HOOK
 import DetalleProveedor from "./DetalleProveedor"; // Ajusta la ruta según tu estructura
@@ -25,6 +27,32 @@ interface Proveedor {
   alias: string;
   notas: string;
   cuentaUSD?: boolean;
+}
+
+type NombreEnStock = {
+  nombre: string;
+  accesorios: number;
+  repuestos: number;
+  telefonos: number;
+};
+
+const COLECCIONES_STOCK = ["stockAccesorios", "stockRepuestos", "stockTelefonos"] as const;
+
+function claveProveedor(valor: string): string {
+  return valor
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function etiquetaOrigen(item: NombreEnStock): string {
+  const partes: string[] = [];
+  if (item.accesorios) partes.push(`${item.accesorios} accesorios`);
+  if (item.repuestos) partes.push(`${item.repuestos} repuestos`);
+  if (item.telefonos) partes.push(`${item.telefonos} teléfonos`);
+  return partes.join(" · ");
 }
 
 export default function ProveedoresPage() {
@@ -47,6 +75,8 @@ export default function ProveedoresPage() {
   const [alias, setAlias] = useState("");
   const [notas, setNotas] = useState("");
   const [cuentaUSD, setCuentaUSD] = useState(false);
+  const [nombresStock, setNombresStock] = useState<NombreEnStock[]>([]);
+  const [cargandoNombresStock, setCargandoNombresStock] = useState(false);
 
   const categorias = [
     "Distribuidores",
@@ -63,6 +93,80 @@ export default function ProveedoresPage() {
       cargarProveedores();
     }
   }, [negocioID]);
+
+  const cargarNombresDelStock = async (yaAgendados: Proveedor[]) => {
+    if (!negocioID) return;
+    setCargandoNombresStock(true);
+    try {
+      const clavesAgendadas = new Set(yaAgendados.map((item) => claveProveedor(item.nombre)));
+      const grupos = new Map<string, NombreEnStock & { variantes: Map<string, number> }>();
+      const origenes = [
+        ["stockAccesorios", "accesorios"],
+        ["stockRepuestos", "repuestos"],
+        ["stockTelefonos", "telefonos"],
+      ] as const;
+      for (const [coleccion, campo] of origenes) {
+        const snap = await getDocs(collection(db, `negocios/${negocioID}/${coleccion}`));
+        snap.docs.forEach((item) => {
+          const texto = String(item.data().proveedor || "").trim();
+          const clave = claveProveedor(texto);
+          if (!clave || clavesAgendadas.has(clave)) return;
+          const grupo = grupos.get(clave) || {
+            nombre: texto,
+            accesorios: 0,
+            repuestos: 0,
+            telefonos: 0,
+            variantes: new Map<string, number>(),
+          };
+          grupo[campo] += 1;
+          grupo.variantes.set(texto, (grupo.variantes.get(texto) || 0) + 1);
+          let mejor = texto;
+          let usos = 0;
+          grupo.variantes.forEach((cantidad, variante) => {
+            if (cantidad > usos) {
+              usos = cantidad;
+              mejor = variante;
+            }
+          });
+          grupo.nombre = mejor;
+          grupos.set(clave, grupo);
+        });
+      }
+      setNombresStock(
+        Array.from(grupos.values())
+          .map(({ variantes: _variantes, ...item }) => item)
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+      );
+    } catch (error) {
+      console.error("Error cargando nombres de stock:", error);
+      setNombresStock([]);
+    } finally {
+      setCargandoNombresStock(false);
+    }
+  };
+
+  const unificarNombreEnStock = async (nombreGuardado: string) => {
+    if (!negocioID) return 0;
+    const clave = claveProveedor(nombreGuardado);
+    if (!clave) return 0;
+    const refs: DocumentReference[] = [];
+    let yaIguales = 0;
+    for (const coleccion of COLECCIONES_STOCK) {
+      const snap = await getDocs(collection(db, `negocios/${negocioID}/${coleccion}`));
+      snap.docs.forEach((item) => {
+        const actual = String(item.data().proveedor || "");
+        if (!actual || claveProveedor(actual) !== clave) return;
+        if (actual !== nombreGuardado) refs.push(item.ref);
+        else yaIguales += 1;
+      });
+    }
+    for (let i = 0; i < refs.length; i += 400) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + 400).forEach((refDoc) => batch.update(refDoc, { proveedor: nombreGuardado }));
+      await batch.commit();
+    }
+    return refs.length + yaIguales;
+  };
 
   const cargarProveedores = async () => {
     // 🆕 VERIFICAR QUE TENGAMOS EL NEGOCIO ID ANTES DE HACER LA CONSULTA
@@ -138,7 +242,12 @@ export default function ProveedoresPage() {
       } else {
         console.log(`➕ Creando nuevo proveedor en negocio ${negocioID}`);
         await addDoc(collection(db, `negocios/${negocioID}/proveedores`), datosProveedor);
-        setMensaje("✅ Proveedor creado");
+        const unificados = await unificarNombreEnStock(datosProveedor.nombre);
+        setMensaje(
+          unificados > 0
+            ? `✅ Proveedor creado y vinculado a ${unificados} producto${unificados === 1 ? "" : "s"} del stock`
+            : "✅ Proveedor creado"
+        );
       }
 
       limpiarFormulario();
@@ -240,7 +349,9 @@ export default function ProveedoresPage() {
             <button
               onClick={() => {
                 limpiarFormulario();
-                setMostrarFormulario(!mostrarFormulario);
+                const abrir = !mostrarFormulario;
+                setMostrarFormulario(abrir);
+                if (abrir) void cargarNombresDelStock(proveedores);
               }}
               className="bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] hover:from-[#7d3c98] hover:to-[#8e44ad] text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2"
             >
@@ -282,6 +393,39 @@ export default function ProveedoresPage() {
                   className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:border-purple-500 text-gray-900 bg-white"
                 />
               </div>
+
+              {!editandoId && (
+                <div className="md:col-span-2 lg:col-span-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    Nombres que ya están en el stock
+                  </p>
+                  {cargandoNombresStock ? (
+                    <p className="text-xs text-gray-500">Buscando proveedores de accesorios, repuestos y teléfonos…</p>
+                  ) : nombresStock.length === 0 ? (
+                    <p className="text-xs text-gray-500">
+                      No hay nombres sueltos en el stock. Si lo escribís igual que en el producto, queda vinculado.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {nombresStock.map((item) => (
+                        <button
+                          key={claveProveedor(item.nombre)}
+                          type="button"
+                          onClick={() => setNombre(item.nombre)}
+                          className={`px-3 py-1.5 rounded-lg border text-left text-sm ${
+                            nombre.trim() === item.nombre
+                              ? "border-purple-600 bg-purple-50 text-purple-900"
+                              : "border-gray-300 bg-white text-gray-800 hover:border-purple-400"
+                          }`}
+                        >
+                          <span className="font-semibold">{item.nombre}</span>
+                          <span className="block text-[11px] text-gray-500">{etiquetaOrigen(item)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Categoría */}
               <div>

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { useRol } from "@/lib/useRol";
 import CampoCodigoBarras from "@/components/CampoCodigoBarras";
+import CampoProveedor from "@/components/CampoProveedor";
 import {
   collection,
   doc,
@@ -2551,11 +2552,9 @@ export default function TablaProductos({
                   <label className="block text-xs sm:text-sm font-semibold text-[#2c3e50]">
                     🏪 Proveedor
                   </label>
-                  <input
-                    type="text"
-                    name="proveedor"
+                  <CampoProveedor
                     value={formulario.proveedor}
-                    onChange={manejarCambio}
+                    onChange={(nombre) => setFormulario((prev) => ({ ...prev, proveedor: nombre }))}
                     className="w-full p-2 sm:p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm text-sm"
                   />
                 </div>

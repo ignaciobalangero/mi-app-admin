@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import CampoCodigoBarras from "@/components/CampoCodigoBarras";
+import CampoProveedor from "@/components/CampoProveedor";
 
 // ✏️ MODAL EDITAR ACCESORIO - Componente independiente para editar productos
 
@@ -176,11 +177,9 @@ export default function ModalEditarAccesorio({
               <label className="block text-sm font-semibold text-[#2c3e50]">
                 🏪 Proveedor
               </label>
-              <input
-                type="text"
-                name="proveedor"
+              <CampoProveedor
                 value={formulario.proveedor}
-                onChange={manejarCambio}
+                onChange={(nombre) => setFormulario((prev) => ({ ...prev, proveedor: nombre }))}
                 className="w-full p-3 border-2 border-[#bdc3c7] rounded-xl focus:ring-4 focus:ring-[#3498db]/20 focus:border-[#3498db] transition-all duration-300 text-[#2c3e50] bg-white shadow-sm"
               />
             </div>
